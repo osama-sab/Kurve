@@ -512,6 +512,14 @@ graph first, with the taskbar kept at the bottom of the screen.
   `fitStale` notices a lost X-error column; the prediction band uses s². A global fit does not
   use X errors. `fitUnits(f)` gives the units of the fit's own spectrum (Results, the copied
   table and the report used the analysed spectrum's).
+  **Straight lines and polynomials** (FIT2_SPEC 4.1): `polyDirect(model, X, Y, W, B, scale)` (null for another model;
+  `{res}` the solve, `{start}` a solution that breaks a limit, held within them) in `runFit` and `fitOne` before
+  Levenberg–Marquardt, unless a constraint or the X errors; the fit stores `ctl.method "qr"` and `poly`, its Iterations
+  strip `L.direct` (*solved directly*). `fitModel` evaluates such a fit from `poly` at its own parameters (by value) and gives
+  `FM.poly` and `FM.var(x)` (the band); `fitView(f)` (`{FM, f, raw, p, cov, fixed, centred}`: the centred coefficients when
+  none is fixed) is what `findCtx` and `fitDiag` work from; `ctlText` names *least squares (QR), solved directly*;
+  `polyAbout(P)` (t = (x − c)/s) in `statsList`'s *Solved in* (not `statsBrief`'s), the report's Method and the CSV;
+  `polyGuess(k)` the models' guess (`polyfit` where the ANA block is not loaded). `poly10`, `#polyOrder` to 10.
   **Fit control** (`ux/spec/FIT_SPEC.md` slice 1; curve fits): the draft's `ctl`
   (`{maxIter, tol}`, `FIT_CTL` 400 and 1e-12, read through `fitCtl`), the Fit window's *Fit
   control* group (`fitCtlHtml`, `wireFitCtl`: the method named, *Iterations, at most*,
@@ -1229,6 +1237,14 @@ graph first, with the taskbar kept at the bottom of the screen.
   form `#aLy`, `#aLfac` (`aLf_<id>`), `#aLi`, `#aLp`, `#aLc`, `#aLs`, `#aLn`, `#aLr`, `#aLct`; Analyze › Statistics › ANOVA ›
   Linear model…. `anaDlg` takes X columns for a kind with `xs`. `quantileType` works its position in double-double
   (`qtProd`).
+  **Polynomials by QR** (FIT2_SPEC 4.1; after `lsqAlias`): `polyLsq(X, Y, W, k, {fixed, p0, scale, stream})` (order 1 to
+  `POLY_MAX`, 10; lmFit's fields with `iter: 0` and `poly {c, s, b, V}`): in t = (x − c)/s, c the middle of X and s the power
+  of two at or above half its range (t exact in double-double), the columns t^j in double-double and weighted, `lsqFit` and
+  `lsqCovU`, the coefficients and covariance carried to powers of x in double-double (`ddSandwich`, `nChoose`); a fixed
+  coefficient's share taken from the response, its column out, solved in powers of x; past `POLY_DD` (2·10⁶) values of the
+  design, or with `stream`, `lsqStream(n, m, row, yw)` (Givens rotations a row at a time, in doubles, `{b, Vu, rss, rank}`);
+  each refused in words (too few distinct X, powers that cannot be told apart, every coefficient fixed). `polyEval(P, x, b)`,
+  `polyVar(P, x)`, `polySane(P, k)`.
   **Rows of a model and two- and three-way ANOVA** (STATS_SPEC 2.6): `linModel` returns `vars`, `termList` and `spec`;
   `lmCell(M, codes)` (a cell's design row, memoised per model in `LMCELL`), `lmEstOk(M, L)` (estimable: each aliased
   column's entry what the kept ones make it), `lmEst(M, L)` (`{est, v, se}`, b in double-double; `lmContrast` is on it),
@@ -3315,8 +3331,8 @@ derived values, the Fit window starting with them, the derived value and its err
 the model list's category, the organizer (renamed and filed in place, undone, deleted).
 **The bench** (PARITY_SPEC wave 0; `tools/ref/README.md`): `node tools/ref-test.mjs [path]` checks
 Kurve's numerics against `tools/ref/fixtures/*.json` (40-digit mpmath for special functions and
-tails, SciPy, NumPy and statsmodels for procedures) and NIST's certified data (`tools/ref/nist/`),
-each function's worst error against its target in `tools/ref/targets.json`; one short of its target
+tails, SciPy, NumPy and statsmodels for procedures) and NIST's certified data (`tools/ref/nist/`: the
+ANOVA, linear, univariate and 27 nonlinear sets, read from NIST's own files), each function's worst error against its target in `tools/ref/targets.json`; one short of its target
 names the slice that brings it there (`until`) and must not pass where it stood (`now`).
 `tools/ref/make-fixtures.py [--check] [--only name,…]` makes the fixtures again (`--only fx` writes or checks those
 files alone, so a newer NumPy does not rewrite the rest) and `tools/ref/diff-fuzz.py [seed]
@@ -5015,7 +5031,11 @@ Next, in order:
    of grids of Z with their X and Y, made by size and formula, from a block of columns or a picture, typed into, in a
    window of their own; transposed, flipped, turned, cropped, resampled, added, put back in columns; plotted as maps;
    NumPy, SciPy and PIL agreeing on 106 cases, every transform exact and resampling within 2e-16), done 14.11: wave 3's
-   seven slices are done
+   seven slices are done. Wave 4's plan is `ux/spec/FIT2_SPEC.md` (regression and fitting, wider: eight slices in the order
+   4.1, 4.2, 4.3, 4.8, 4.6, 4.7, 4.4, 4.5; NIST's reference data reached and committed, 14.11); slice 4.1, polynomials by QR
+   (a straight line or a polynomial of order 1 to 10 solved directly in X centred and scaled, shown in powers of x and
+   computed about the centre; NIST's certified polynomials, Filip's among them, to 13–15 digits, rationals far from zero to
+   the last digit, NIST's 27 nonlinear sets through Levenberg–Marquardt from both starts), done 14.11
 
 ## Known gaps
 
@@ -5235,11 +5255,14 @@ Next, in order:
   back towards the undone cell and Enter enters the value without moving; found 07.11, not yet fixed
 - Accuracy short of the plan's targets, each measured by `tools/ref-test.mjs` and the fuzzer and
   owned by a slice of `ux/spec/PARITY_SPEC.md`: the Kolmogorov–Smirnov p of a distribution over a
-  histogram is Kolmogorov's series, 3e-2 off at 20 values (slice 2.2); a straight line or polynomial fitted as
-  a curve fit (Levenberg–Marquardt with a numerical Jacobian) meets NIST's certified Norris values to
-  3e-8 where a linear least-squares solve gives 1e-12 (slice 4.1)
-- Models: 25 built in (Origin has about 200); a polynomial is fitted in powers of x as written,
-  so a high order far from x = 0 is badly conditioned (its guess is exact, about the mean); the
+  histogram is Kolmogorov's series, 3e-2 off at 20 values (slice 2.2)
+- The iterative fit (Levenberg–Marquardt with a numerical Jacobian) meets NIST's 27 nonlinear sets to
+  6–11 digits with Fit control's tolerance at 1e-15 (5–10 at the default 1e-12); from NIST's first
+  start MGH17, BoxBOD, MGH10 and Eckerle4 end in another minimum or none (right from the second);
+  Lanczos1's standard deviations, whose residuals are the data's own rounding, cannot be had in doubles
+- Models: 25 built in (Origin has about 200), and polynomials of order 1 to 10; a polynomial is
+  solved about the middle of its X (FIT2_SPEC 4.1), but with a coefficient fixed it is solved in
+  powers of x, and far from x = 0 that is refused when the powers cannot be told apart; the
   guesses are measured heuristics (two or three decays from a grid of 16 decay times, a wave's
   period from at most 600 points), and a sketch shows typical values, not the data's; your
   functions have no kind of their own in the list yet

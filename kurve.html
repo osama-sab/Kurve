@@ -5389,9 +5389,19 @@ function fitModel(fit){
   }
   // An apparent fit's model is drawn and read in the data's own terms (f), and analysed in the axes' (raw).
   if(fit.fn){ try{ const m=userModel(fit.fn); return {f:fit.app?appModel(m.f,fit.app):m.f, raw:m.f, app:fit.app||null, model:m, composite:false, name:m.name}; }catch(e){ return null; } }
-  const m=getModel(fit.model);
-  return m?{f:fit.app?appModel(m.f,fit.app):m.f, raw:m.f, app:fit.app||null, model:m, composite:false, name:m.name}:null;
+  const m=getModel(fit.model); if(!m) return null;
+  /* A polynomial solved directly (FIT2_SPEC 4.1) is worked out from its coefficients about the centre of its X (fit.poly):
+     evaluated at its own parameters, it is that; at any other (a gradient's step), the powers of x as written. */
+  const k=polyOrderOf(fit.model), A=fit.params, P=k&&Array.isArray(A)&&A.length===k+1&&polySane(fit.poly,k)?fit.poly:null;
+  const raw=P?(x,p)=>p===A||(p&&p.length===A.length&&p.every((v,i)=>v===A[i]))?polyEval(P,x):m.f(x,p):m.f;
+  return Object.assign({f:fit.app?appModel(raw,fit.app):raw, raw, app:fit.app||null, model:m, composite:false, name:m.name},P?{poly:P, var:x=>polyVar(P,x)}:{});
 }
+/* A fit as the numbers machinery sees it: its function in the data's terms (f) and as fitted (raw, the axes' terms of an
+   apparent fit), the parameters and covariance it is worked from. A polynomial solved directly, with no coefficient fixed, is
+   worked from its centred coefficients (FIT2_SPEC 4.1), so its band, Find X/Y and residual analysis keep their digits. */
+function fitView(f){ const FM=fitModel(f); if(!FM) return null;
+  if(FM.poly&&!(f.fixed||[]).some(Boolean)){ const P=FM.poly, raw=(x,b)=>polyEval(P,x,b); return {FM, f:f.app?appModel(raw,f.app):raw, raw, p:P.b, cov:P.V, fixed:null, centred:true}; }
+  return {FM, f:FM.f, raw:FM.raw, p:f.params, cov:Array.isArray(f.cov)?f.cov:null, fixed:f.fixed||null, centred:false}; }
 // The analysed spectrum's fit: its own, or its row of the batch fit; failing
 // both, the project's fit, whichever spectrum it was made on.
 function activeFit(){ const p=P(); if(!p) return null; const own=p.fit&&fitModel(p.fit)?p.fit:null, a=activeYCol(), bf=a?batchFitOf(a):null;
@@ -5522,7 +5532,7 @@ function unitFor(dim,xu,yu){
   if(!xu||!yu) return "";
   if(dim==="yx") return yu+"\u00b7"+xu;
   if(dim==="y/x") return yu+"/"+xu;
-  { const m=/^y\/x([2-9])$/.exec(dim||""); if(m) return yu+"/"+xu+SUPN[+m[1]]; }
+  { const m=/^y\/x([2-9]|10)$/.exec(dim||""); if(m) return yu+"/"+xu+SUPN[+m[1]]; }
   return "";
 }
 function dataUnits(){ const d=finalOf(activeYCol()); return [(d.xu||"").trim(),(d.yu||"").trim()]; }
@@ -5627,8 +5637,9 @@ function waveGuess(X,Y){
 }
 // Chebyshev's polynomial of order k in powers of x: it turns k − 1 times between −1 and 1, which is what a sketch of order k should show.
 function chebCoef(k){ let a=[1], b=[0,1]; if(!k) return a; for(let j=1;j<k;j++){ const c=new Array(j+2).fill(0); b.forEach((v,i)=>{ c[i+1]+=2*v; }); a.forEach((v,i)=>{ c[i]-=v; }); a=b; b=c; } return b; }
-const SUPN=["","","²","³","⁴","⁵","⁶","⁷","⁸","⁹"];
-// The polynomial of order k (2 to 9), fitted as written, guessed by an exact least-squares fit about the mean of X.
+const SUPN=["","","²","³","⁴","⁵","⁶","⁷","⁸","⁹","¹⁰"];
+// The polynomial of order k (2 to 10), reported in powers of x as written; solved directly by polyLsq (FIT2_SPEC 4.1), which is its guess too.
+const polyGuess=k=>(X,Y)=>{ if(typeof polyLsq==="function"){ const r=polyLsq(X,Y,null,k); if(!r.error&&r.params.every(Number.isFinite)) return r.params; } return polyfit(X,Y,k); };
 function polyModel(k){
   const pw=j=>j===0?"":j===1?"<i>x</i>":`<i>x</i><sup>${j}</sup>`, term=j=>`<i>a</i><sub>${j}</sub>${pw(j)}`;
   const js=k<=3?Array.from({length:k+1},(_,j)=>j):[0,1,2,-1,k];
@@ -5637,7 +5648,7 @@ function polyModel(k){
     mean:Array.from({length:k+1},(_,j)=>j===0?"value at x = 0":j===1?"coefficient of x":`coefficient of x${SUPN[j]}`),
     dim:Array.from({length:k+1},(_,j)=>j===0?"y":j===1?"y/x":"y/x"+j),
     formula:`<i>y</i> = ${js.map(j=>j<0?"…":term(j)).join(" + ")}`,
-    f:(x,p)=>{ let v=p[k]; for(let j=k-1;j>=0;j--) v=v*x+p[j]; return v; }, guess:(X,Y)=>polyfit(X,Y,k),
+    f:(x,p)=>{ let v=p[k]; for(let j=k-1;j>=0;j--) v=v*x+p[j]; return v; }, guess:polyGuess(k),
     sketch:{x:[-1,1],p:chebCoef(k)}, kw:"polynomial quadratic cubic quartic parabola order Poly", hide:k>2};
 }
 const vgp=p=>[p[2],p[1],p[3],p[4]]; // [y0, A, xc, w…, shape] to PEAKS' [xc, A, w…, shape]
@@ -5646,8 +5657,8 @@ const EXT_FW=(()=>{ const g=z=>Math.exp(-z)+z-1-Math.LN2, root=(a,b)=>{ for(let 
 const MODELS={
   linear:{name:"Straight line", params:["a","b"], mean:["value at x = 0 (the intercept)","slope"], ph:["<i>a</i>","<i>b</i>"], dim:["y","y/x"],
     formula:"<i>y</i> = <i>a</i> + <i>b</i><i>x</i>",
-    f:(x,p)=>p[0]+p[1]*x, guess:(X,Y)=>polyfit(X,Y,1), sketch:{x:[0,1],p:[0.2,1]}, kw:"linear straight line slope intercept regression proportional"},
-  poly2:polyModel(2), poly3:polyModel(3), poly4:polyModel(4), poly5:polyModel(5), poly6:polyModel(6), poly7:polyModel(7), poly8:polyModel(8), poly9:polyModel(9),
+    f:(x,p)=>p[0]+p[1]*x, guess:polyGuess(1), sketch:{x:[0,1],p:[0.2,1]}, kw:"linear straight line slope intercept regression proportional"},
+  poly2:polyModel(2), poly3:polyModel(3), poly4:polyModel(4), poly5:polyModel(5), poly6:polyModel(6), poly7:polyModel(7), poly8:polyModel(8), poly9:polyModel(9), poly10:polyModel(10),
   expdec:{name:"Exponential decay", params:["y0","A","t"], mean:["level it decays to","amplitude at x = 0","decay time"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>&tau;</i>"], dim:["y","y","x"],
     formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> exp(&minus;<i>x</i>/<i>&tau;</i>)",
     f:(x,p)=>p[0]+p[1]*Math.exp(-x/p[2]), guess:decayGuess,
@@ -5809,7 +5820,7 @@ const MODELS={
 const MODEL_GROUPS=[["Lines and polynomials",["linear","poly2"]],["Growth and decay",["expdec","expdec2","expdec3","expgrow","riseplat"]],
   ["Steps and saturation",["boltz","logistic","doseresp","hill","gompertz","mm"]],["Peaks",["gauss","lorentz","voigt","pvoigt","pearson7","lognormal","extreme"]],
   ["Powers and logarithms",["power","logarithm","arrhenius"]],["Waves",["sine","dsine"]]];
-const polyOrderOf=id=>id==="linear"?1:/^poly[2-9]$/.test(id)?+id.slice(4):0;
+const polyOrderOf=id=>id==="linear"?1:/^poly([2-9]|10)$/.test(id)?+id.slice(4):0;
 const polyIdOf=k=>k===1?"linear":"poly"+k;
 // The first X a model cannot take (it takes the log of x, or a power of it), and whether 0 will do; null when every X will.
 function modelXBad(m,X){ if(!m||!m.xpos) return null; const strict=m.xpos!=="0", bad=X.find(v=>strict?!(v>0):!(v>=0)); return bad===undefined?null:{x:bad,strict}; }
@@ -7558,6 +7569,97 @@ function lsqCovU(Q,X,XL){ const r=Q.kept.length, n=Q.n, K=Q.kept, Ri=[]; for(let
   return V; }
 /* each aliased column as the kept ones make it: [{j, M (by kept position)}] */
 function lsqAlias(Q){ return Q.alias.map(j=>{ const z=Q.sc[j]>0?lsqBack(Q,Q.C[j]):new Float64Array(Q.kept.length); return {j,M:Array.from(z,(v,t)=>v*Q.sc[j]/Q.sc[Q.kept[t]])}; }); }
+/* ---- Polynomials by QR (FIT2_SPEC 4.1) ------------------------------------
+   A polynomial is linear in its coefficients, so it is solved, not iterated: in t = (x − c)/s, c the middle of X and s the
+   power of two at or above half its range (so t is exact in double-double and lies within [−1, 1]), each row weighted, by
+   lsqFit (refined on the augmented system in double-double), its covariance by lsqCovU, and carried to powers of x in
+   double-double. The fit keeps poly {c, s, b, V} (the coefficients in t and their covariance, scaled as cov is), from which the
+   curve, its band and what is read from it are worked out, so a narrow window far from zero keeps its digits. A coefficient
+   fixed is honoured in powers of x: its share taken from the response, its column out. Past POLY_DD values of the design (n
+   times the coefficients) it is streamed in doubles (lsqStream: a row at a time, so a million points need no copy of the
+   design), the covariance from R alone: the data's spread dwarfs the rounding. */
+const POLY_MAX=10, POLY_DD=2e6;
+const nChoose=(k,j)=>{ let r=1; for(let i=1;i<=j;i++) r=r*(k-j+i)/i; return Math.round(r); };
+function polySane(P,k){ const ok=a=>Array.isArray(a)&&a.length===k+1; return !!P&&typeof P==="object"&&Number.isFinite(P.c)&&P.s>0&&Number.isFinite(P.s)&&ok(P.b)&&P.b.every(Number.isFinite)&&ok(P.V)&&P.V.every(r=>ok(r)&&r.every(Number.isFinite)); }
+function polyEval(P,x,b){ b=b||P.b; const t=(x-P.c)/P.s; let v=b[b.length-1]; for(let j=b.length-2;j>=0;j--) v=v*t+b[j]; return v; }
+function polyVar(P,x){ const t=(x-P.c)/P.s, m=P.b.length, u=new Array(m); let w=1; for(let j=0;j<m;j++){ u[j]=w; w*=t; }
+  let s=0; for(let i=0;i<m;i++){ let r=0; for(let j=0;j<m;j++) r+=P.V[i][j]*u[j]; s+=u[i]*r; } return Math.max(0,s); }
+/* M A Mᵀ with M given in double-double ([h, l] entries) and A in doubles, worked in double-double */
+function ddSandwich(M,A){ const r=M.length, q=A.length, MA=[]; for(let j=0;j<r;j++){ const row=[]; for(let l=0;l<q;l++){ let s=[0,0]; for(let k=0;k<q;k++) if(A[k][l]!==0&&(M[j][k][0]!==0)) s=ddAdd(s,ddMul(M[j][k],[A[k][l],0])); row.push(s); } MA.push(row); }
+  const out=[]; for(let j=0;j<r;j++){ const row=[]; for(let l=0;l<r;l++){ let s=[0,0]; for(let k=0;k<q;k++) if(M[l][k][0]!==0) s=ddAdd(s,ddMul(MA[j][k],M[l][k])); row.push(s[0]+s[1]); } out.push(row); }
+  for(let j=0;j<r;j++) for(let l=j+1;l<r;l++){ const v=(out[j][l]+out[l][j])/2; out[j][l]=out[l][j]=v; } return out; }
+/* Least squares a row at a time, for a design too large to hold (Givens rotations into R, which is backward stable): row(i, r)
+   fills the i-th row (weighted), yw(i) its response; {b, Vu (R⁻¹R⁻ᵀ), rss, rank} */
+function lsqStream(n,m,row,yw){ const R=new Float64Array(m*m), z=new Float64Array(m), r=new Float64Array(m), nrm=new Float64Array(m); let rss=0;
+  for(let i=0;i<n;i++){ row(i,r); let y=yw(i); for(let j=0;j<m;j++) nrm[j]+=r[j]*r[j];
+    for(let j=0;j<m;j++){ const a=r[j]; if(a===0) continue; const d=R[j*m+j];
+      if(d===0){ for(let q=j;q<m;q++){ R[j*m+q]=r[q]; r[q]=0; } z[j]=y; y=0; break; }
+      const h=Math.sqrt(d*d+a*a), c=d/h, sn=a/h; R[j*m+j]=h; r[j]=0;
+      for(let q=j+1;q<m;q++){ const u=R[j*m+q], v=r[q]; R[j*m+q]=c*u+sn*v; r[q]=c*v-sn*u; }
+      const u=z[j]; z[j]=c*u+sn*y; y=c*y-sn*u; }
+    rss+=y*y; }
+  let rank=0; for(let j=0;j<m;j++) if(Math.abs(R[j*m+j])>LM_TOL*Math.sqrt(nrm[j])) rank++;
+  if(rank<m) return {rank};
+  const b=new Float64Array(m); for(let j=m-1;j>=0;j--){ let t=z[j]; for(let q=j+1;q<m;q++) t-=R[j*m+q]*b[q]; b[j]=t/R[j*m+j]; }
+  const Ri=Array.from({length:m},()=>new Float64Array(m)); for(let c=0;c<m;c++){ Ri[c][c]=1/R[c*m+c]; for(let j=c-1;j>=0;j--){ let t=0; for(let q=j+1;q<=c;q++) t+=R[j*m+q]*Ri[q][c]; Ri[j][c]=-t/R[j*m+j]; } }
+  const Vu=Array.from({length:m},(_,j)=>{ const row=new Float64Array(m); for(let l=0;l<m;l++){ let t=0; for(let q=Math.max(j,l);q<m;q++) t+=Ri[j][q]*Ri[l][q]; row[l]=t; } return row; });
+  return {b,Vu,rss,rank}; }
+function polyLsq(X,Y,W,k,o){ o=o||{}; const n=X.length, m=k+1, fixed=o.fixed||[], p0=o.p0||[];
+  if(!(Number.isInteger(k)&&k>=1&&k<=POLY_MAX)) return {error:`A polynomial's order is 1 to ${POLY_MAX}.`};
+  const free=[]; for(let j=0;j<m;j++) if(!fixed[j]) free.push(j); const mf=free.length;
+  if(!mf) return {error:"Every parameter is fixed. Unfix at least one to fit."};
+  if(fixed.some((f,j)=>f&&!Number.isFinite(p0[j]))) return {error:"A fixed coefficient needs a value."};
+  if(n<=mf) return {error:`Need more than ${mf} points to fit ${mf} free parameters (have ${n}).`};
+  let lo=Infinity, hi=-Infinity; for(let i=0;i<n;i++){ const v=X[i]; if(!Number.isFinite(v)||!Number.isFinite(Y[i])) return {error:"A point's X or Y is not a number."}; if(v<lo) lo=v; if(v>hi) hi=v; }
+  const weighted=!!W&&Array.prototype.some.call(W,w=>w!==1); if(weighted&&Array.prototype.some.call(W,w=>!(w>0)||!Number.isFinite(w))) return {error:"A point's weight is not above zero."};
+  const c=lo/2+hi/2, half=hi/2-lo/2, s=half>0?2**Math.ceil(Math.log2(half)):1, dd=!o.stream&&n*mf<=POLY_DD;   // o.stream: the streamed path at any size (the bench)
+  const Wv=weighted?Float64Array.from(W):null, cent=mf===m, w=i=>Wv?Wv[i]:1;
+  let bd, chi, Vu, r;   // the free coefficients in double-double, χ², (XᵀWX)⁻¹ and the residuals, unweighted
+  if(dd){ // the basis t^j (centred) or x^j (a coefficient fixed), in double-double
+    let bh, bl=null; if(cent){ bh=new Float64Array(n); bl=new Float64Array(n); for(let i=0;i<n;i++){ const [a,e]=twoSum(X[i],-c); bh[i]=a/s; bl[i]=e/s; } }
+    else bh=Float64Array.from(X);
+    const P=[[new Float64Array(n).fill(1),null]]; for(let j=1;j<=k;j++) P.push(ddMulArr(P[j-1][0],P[j-1][1],bh,bl,n));
+    // the response, less the fixed coefficients' share (in powers of x)
+    let yh=Float64Array.from(Y), yl=new Float64Array(n);
+    if(!cent) for(let j=0;j<m;j++) if(fixed[j]){ const v=p0[j]; if(v===0) continue; const [ph,pl]=P[j]; for(let i=0;i<n;i++){ const [p,e]=twoProd(ph[i],v), [t,f]=twoSum(yh[i],-p), g=f-e-(pl?pl[i]*v:0)+yl[i], h2=t+g; yl[i]=g-(h2-t); yh[i]=h2; } }
+    let cols=free.map(j=>P[j][0]), XL=free.map(j=>P[j][1]);
+    if(Wv){ cols=cols.map((h,u)=>{ const [a,b]=ddMulArr(h,XL[u],Wv,null,n); XL[u]=b; return a; }); const [a,b]=ddMulArr(yh,yl,Wv,null,n); yh=a; yl=b||new Float64Array(n); }
+    const F=lsqFit(cols,yh,n,{XL,yl}); if(F.rank<mf) bd=null;
+    else { bd=free.map((_,u)=>[F.b[u],F.bl[u]]); chi=F.rss; Vu=lsqCovU(F.Q,cols,XL); r=new Float64Array(n); for(let i=0;i<n;i++) r[i]=(F.rh[i]+F.rl[i])/w(i); } }
+  else { // a design too large to hold twice: streamed, in doubles; the data's spread dwarfs the rounding
+    const yr=i=>{ let v=Y[i]; if(!cent){ let x=1; for(let j=0;j<m;j++){ if(fixed[j]) v-=p0[j]*x; x*=X[i]; } } return v; };
+    const basis=(i,out)=>{ const t=cent?(X[i]-c)/s:X[i], ww=w(i); let pw=1, u=0; for(let j=0;j<m;j++){ if(!fixed[j]) out[u++]=pw*ww; pw*=t; } };
+    const G=lsqStream(n,mf,basis,i=>yr(i)*w(i));
+    if(G.rank<mf) bd=null;
+    else { bd=Array.from(G.b,v=>[v,0]); Vu=G.Vu; r=new Float64Array(n); const tmp=new Float64Array(mf); let ss=0;
+      for(let i=0;i<n;i++){ basis(i,tmp); let f=0; for(let u=0;u<mf;u++) f+=tmp[u]*G.b[u]; const e=yr(i)*w(i)-f; ss+=e*e; r[i]=e/w(i); } chi=ss; } }
+  if(!bd){ const nd=new Set(X).size; return {error:nd<m?`A polynomial of order ${k} needs at least ${m} different values of X; these points have ${nd}.`:`The powers of x are too nearly alike to tell apart this far from x = 0 with a coefficient fixed: unfix it, or fit a lower order.`}; }
+  const dof=n-mf, red=chi/dof, scale=(o.scale!=null?!!o.scale:!weighted)?red:1, V=Vu.map(row=>Array.from(row,v=>v*scale));
+  const cp=[[1,0]]; for(let j=1;j<=k;j++) cp.push(ddMul(cp[j-1],[-c,0]));   // (−c)^j
+  const cq=[[1,0]]; for(let j=1;j<=k;j++) cq.push(ddMul(cq[j-1],[c,0]));    // c^j
+  const zero=[0,0]; let a, b, C, Vb;
+  if(cent){ // b in t; a_j = Σ_{k≥j} C(k,j) (−c)^{k−j} b_k / s^k; T (a = T b) in double-double
+    const T=[]; for(let j=0;j<m;j++){ const row=[]; for(let q=0;q<m;q++) row.push(q<j?zero:ddMul([nChoose(q,j)/s**q,0],cp[q-j])); T.push(row); }
+    a=T.map(row=>{ let t=[0,0]; row.forEach((e,q)=>{ if(e[0]!==0) t=ddAdd(t,ddMul(e,bd[q])); }); return t[0]+t[1]; });
+    b=bd.map(v=>v[0]+v[1]); Vb=V; C=ddSandwich(T,V); }
+  else { // a free from the solve, fixed as given; b_q = Σ_{j≥q} C(j,q) c^{j−q} s^q a_j; Ti (b = Ti a)
+    const ad=[]; for(let j=0,u=0;j<m;j++) ad.push(fixed[j]?[p0[j],0]:bd[u++]);
+    a=ad.map(v=>v[0]+v[1]);
+    C=Array.from({length:m},()=>new Array(m).fill(0)); free.forEach((j,u)=>free.forEach((l,v)=>{ C[j][l]=V[u][v]; }));
+    const Ti=[]; for(let q=0;q<m;q++){ const row=[]; for(let j=0;j<m;j++) row.push(j<q?zero:ddMul([nChoose(j,q)*s**q,0],cq[j-q])); Ti.push(row); }
+    b=Ti.map(row=>{ let t=[0,0]; row.forEach((e,j)=>{ if(e[0]!==0) t=ddAdd(t,ddMul(e,ad[j])); }); return t[0]+t[1]; });
+    Vb=ddSandwich(Ti,C); }
+  const ssRes=neuSum(Array.from(r,v=>v*v)), my=neuSum(Y)/n, ssTot=neuSum(Array.from(Y,v=>(v-my)*(v-my)));
+  const errs=a.map((_,j)=>fixed[j]?0:Math.sqrt(Math.max(C[j][j],0)));
+  // a coefficient's dependency, as lmFit gives it: 1 − 1/(C_jj · Σ (w x^j)²), C unscaled
+  const A2=new Float64Array(m); for(let i=0;i<n;i++){ let v=w(i); for(let j=0;j<m;j++){ A2[j]+=v*v; v*=X[i]; } }
+  const dep=a.map((_,j)=>{ if(fixed[j]) return 0; const d=(C[j][j]/scale)*A2[j]; return d>0?Math.max(0,Math.min(1,1-1/d)):1; });
+  const tval=a.map((v,j)=>fixed[j]||!errs[j]?NaN:v/errs[j]), pval=tval.map(t=>tPvalue(t,dof)), tc=tQuantile975(dof);
+  const ci=a.map((v,j)=>fixed[j]||!errs[j]?[NaN,NaN]:[v-tc*errs[j],v+tc*errs[j]]);
+  const R2=1-ssRes/ssTot, adjR2=1-(1-R2)*(n-1)/dof, aic=n*Math.log(ssRes/n)+2*(mf+1), bic=n*Math.log(ssRes/n)+(mf+1)*Math.log(n);
+  return {params:a, errors:errs, cov:C, dep, tval, pval, ci, atBound:a.map(()=>false),
+    stats:{n, dof, chi2:chi, redChi2:red, R2, adjR2, rss:ssRes, rmse:Math.sqrt(red), aic, bic, iter:0, converged:true, singular:false},
+    poly:{c, s, b, V:Vb}}; }
 /* Σ (a − b)² of two fits' residuals: the sum of squares between nested models */
 function lsqSSBetween(A,B){ const n=A.rh.length, s=[]; for(let i=0;i<n;i++){ const d=(A.rh[i]-B.rh[i])+(A.rl[i]-B.rl[i]); s.push(d*d); } return neuSum(s); }
 /* Terms: each variable (and its powers to spec.pow), then their interactions two at a time, then three…; a term is [[variable, power]…] */
@@ -10773,7 +10875,8 @@ function limText(f,ascii){ const FM=fitModel(f); if(!FM||FM.composite||!Array.is
     return a!=null&&b!=null?`${fmt(a,6)} ${B.sl[i]?"<":le} ${nm(i)} ${B.sh[i]?"<":le} ${fmt(b,6)}`:a!=null?`${nm(i)} ${B.sl[i]?">":ge} ${fmt(a,6)}`:`${nm(i)} ${B.sh[i]?"<":le} ${fmt(b,6)}`; }).filter(Boolean).join("; "); }
 function fitCtl(c){ c=c||{}; const n=Math.floor(+c.maxIter), t=+c.tol;
   return {maxIter:n>=1&&n<=100000?n:FIT_CTL.maxIter, tol:Number.isFinite(t)&&t>=0&&t<1?t:FIT_CTL.tol}; }
-function ctlText(f,ascii){ const odr=!!(f&&(f.xerr||(f.ctl&&f.ctl.method==="odr"))), c=f&&f.ctl?fitCtl(f.ctl):{maxIter:odr?300:FIT_CTL.maxIter,tol:FIT_CTL.tol};
+function ctlText(f,ascii){ if(f&&f.ctl&&f.ctl.method==="qr") return "least squares (QR), solved directly";
+  const odr=!!(f&&(f.xerr||(f.ctl&&f.ctl.method==="odr"))), c=f&&f.ctl?fitCtl(f.ctl):{maxIter:odr?300:FIT_CTL.maxIter,tol:FIT_CTL.tol};
   return (odr?"orthogonal distance regression":ascii?"Levenberg-Marquardt":"Levenberg–Marquardt")+`, at most ${c.maxIter} iterations, tolerance ${c.tol}`; }
 // The same, short, for Results' statistics: its pieces kept whole where the column wraps.
 function ctlShort(f){ const t=ctlText(f).split(", "); return [capFirst(t[0])].concat(t.slice(1).map(s=>s.replace(/^at most /,"≤ "))).join(" · "); }
@@ -13274,7 +13377,7 @@ function buildPlot(W,H,pal,colEx,opt){
       // An apparent fit's band is the one in the axes' terms, where its covariance is, carried back.
       const atx=FM.app&&APP_TF[FM.app.x], aty=FM.app&&APP_TF[FM.app.y], fr0=atx||aty?FM.raw:FM.f, TI=aty?aty.ti:(v=>v);
       for(let k=0;k<=N;k++){ const x=a+(b-a)*k/N, xx=atx?(x>0?atx.tf(x):NaN):x; if(!Number.isFinite(xx)) continue; const u=fr0(xx,fit.params), yv=TI(u); if(!Number.isFinite(u)||!Number.isFinite(yv)) continue;
-        let cv=0; if(fit.cov){ cv=deltaVar(gradient(fr0,xx,fit.params,fit.fixed),fit.cov); if(!Number.isFinite(cv)||cv<0) cv=0; } const bw=tq*Math.sqrt(cv);
+        let cv=0; if(fit.cov){ cv=FM.var?FM.var(xx):deltaVar(gradient(fr0,xx,fit.params,fit.fixed),fit.cov); if(!Number.isFinite(cv)||cv<0) cv=0; } const bw=tq*Math.sqrt(cv);
         mid.push([X(x),Y(yv)]); up.push([X(x),Y(TI(u+bw))]); lo.push([X(x),Y(ylo(TI(u-bw)))]);
         if(showP){ const sc=aty&&wk!=="none"&&yv>0?aty.dv(yv)**2:1, pw=tq*Math.sqrt(cv+s2(x)*sc); pu.push([X(x),Y(TI(u+pw))]); pl.push([X(x),Y(ylo(TI(u-pw)))]); } }
       if(showC&&fit.cov&&up.length) s+=`<path d="M${up.map(q=>q.join(",")).join("L")}L${lo.slice().reverse().map(q=>q.join(",")).join("L")}Z" fill="${pal.band}" stroke="none"/>`;
@@ -21644,15 +21747,16 @@ function fitDiag(f,opt){
   const rg=f.range||[-Infinity,Infinity];
   const pts0=fitPts(f).filter(q=>q.x>=rg[0]&&q.x<=rg[1]&&Number.isFinite(q.x)&&Number.isFinite(q.y)).sort((a,b)=>a.x-b.x), wk=weightOf(f), wc=wk==="col"?colById(f.wcol):null;
   const tx=FM.app&&APP_TF[FM.app.x], ty=FM.app&&APP_TF[FM.app.y], pts=(wk==="none"?pts0:pts0.filter(q=>wk==="yerr"?q.e>0:wk==="counts"?q.y>0:!!wc&&wc.data[q.i]>0)).filter(q=>(!tx||q.x>0)&&(!ty||q.y>0));
-  const free=f.params.map((_,i)=>!(f.fixed&&f.fixed[i])&&!(f.atBound&&f.atBound[i]));
-  let fT=tx||ty?FM.raw:FM.f;
+  const FV=fitView(f), pv=FV.centred?FV.p.slice():f.params.slice();
+  const free=FV.centred?pv.map(()=>true):f.params.map((_,i)=>!(f.fixed&&f.fixed[i])&&!(f.atBound&&f.atBound[i]));
+  let fT=FV.centred?(tx||ty?FV.raw:FV.f):tx||ty?FM.raw:FM.f;
   { const C=!FM.composite&&consOf(f,FM.model); if(C&&!C.err&&C.eqs.length){ const f0=fT; C.eqs.forEach(e=>{ free[e.i]=false; }); fT=(x,p)=>f0(x,consApply(C,p)); } }
   if(FM.composite){ const L=peakLinks(f.spec.peaks,FM.model); L.forEach(l=>{ free[l.gi]=false; }); if(L.length) fT=(x,p)=>FM.f(x,applyPeakLinks(p.slice(),L)); }
   const Yd=pts.map(q=>q.y), WT=wk==="none"?null:fitWeights(wk,Yd,pts.map(q=>q.e),wc?pts.map(q=>wc.data[q.i]):null); if(WT&&WT.fail) return null;
   const X=pts.map(q=>tx?tx.tf(q.x):q.x), Y=ty?Yd.map(v=>ty.tf(v)):Yd, W=WT?(ty?WT.W.map((w,i)=>w/ty.dv(Yd[i])):WT.W):null;
   // Unasked, the analysis may cost what a glance should: the Jacobian is 2m sweeps of the model, timed on one.
-  if(opt.auto){ const m=free.filter(Boolean).length, t0=performance.now(), pp=f.params.slice(); for(let i=0;i<X.length;i++) fT(X[i],pp); if((performance.now()-t0)*2*m>120){ if(DSKIP.size>32) DSKIP.clear(); DSKIP.add(key); return null; } }
-  const rs=residualStats(fT,X,Y,W,f.params.slice(),free);
+  if(opt.auto){ const m=free.filter(Boolean).length, t0=performance.now(), pp=pv.slice(); for(let i=0;i<X.length;i++) fT(X[i],pp); if((performance.now()-t0)*2*m>120){ if(DSKIP.size>32) DSKIP.clear(); DSKIP.add(key); return null; } }
+  const rs=residualStats(fT,X,Y,W,pv,free);
   const D=rs?Object.assign(rs,{pts,X,Y,W,out:outliersOf(rs,confOf(f)),anova:fitAnova(Y,W,rs.rss,rs.m)}):null;
   if(DIAG.size>16) DIAG.clear(); DIAG.set(key,D); return D;
 }
@@ -21753,8 +21857,8 @@ function diagHtml(f){
    the curve takes it), answered as it is typed; and a column of the sheet read the same way
    into new columns (findFill). What is typed is kept while Results is redrawn (S.findXY). */
 function findSpan(f){ const r=f&&Array.isArray(f.range)&&f.range.length===2&&f.range.every(Number.isFinite)?f.range:usedRange(fitPts(f)); return r?[Math.min(r[0],r[1]),Math.max(r[0],r[1])]:null; }
-function findCtx(f){ const FM=fitModel(f); if(!FM||!Array.isArray(f.params)) return null;
-  return {f:FM.f, p:f.params, cov:Array.isArray(f.cov)?f.cov:null, fixed:f.fixed||null, t:tCrit(confOf(f),f.stats?ciDof(f):30), span:findSpan(f), name:FM.name}; }
+function findCtx(f){ const V=fitView(f); if(!V||!Array.isArray(f.params)) return null;
+  return {f:V.f, p:V.p, cov:V.cov, fixed:V.fixed, t:tCrit(confOf(f),f.stats?ciDof(f):30), span:findSpan(f), name:V.FM.name}; }
 const findState=()=>S.findXY||(S.findXY={x:"",y:""});
 // An interval's ends to the decimals fmtPM gives the value beside them.
 const fmtAt=(v,e)=>{ const a=Math.max(Math.abs(v),e||0); if(!(e>0)||!Number.isFinite(e)||a>=1e6||a<1e-4) return fmt(v,5); const d=Math.max(0,1-Math.floor(Math.log10(e))); return d>12?fmt(v,6):v.toFixed(d); };
@@ -22091,7 +22195,7 @@ function renderFit(){
   h+=`<div class="gh ghact">Model<button class="btn sm ghost" id="fitSets" aria-haspopup="menu" aria-expanded="false" title="Fit settings saved by name: use, save, rename or delete">Saved settings${ICON("chev","sm")}</button></div>`;
   const ord=polyOrderOf(d.model), fromFit=m.user&&!inProj&&!lib.some(q=>"u:"+q.id===d.model);
   h+=`<div class="mrow"><button type="button" class="mbtn" id="model" aria-haspopup="listbox" aria-expanded="false" aria-label="Model: ${esc(m.name)}" title="Choose the model from the list, by kind or by searching"${ro}>${modelSketch(m)}<span class="mb-n">${esc(m.listAs||m.name)}${fromFit?" (from the fit)":""}</span>${ICON("chev","sm")}</button>`+
-    (ord?`<label class="mord" title="The polynomial's order: its highest power of x"><span>Order</span><select id="polyOrder"${ro}>${[1,2,3,4,5,6,7,8,9].map(k=>`<option value="${k}"${k===ord?" selected":""}>${k}</option>`).join("")}</select></label>`:"")+
+    (ord?`<label class="mord" title="The polynomial's order: its highest power of x"><span>Order</span><select id="polyOrder"${ro}>${[1,2,3,4,5,6,7,8,9,10].map(k=>`<option value="${k}"${k===ord?" selected":""}>${k}</option>`).join("")}</select></label>`:"")+
     `<button class="btn sm" id="ufNew"${ro} title="Write your own fit function">${ICON("plus","sm")}Function</button></div>`;
   // The suggestion in one word, its reason the button's tooltip; nothing while it is the model chosen.
   { const sg=suggestModel(); if(MODELS[sg.id]&&!S.readOnly&&d.model!==sg.id) h+=`<div class="lab msugg">Suggested:<button type="button" class="btn sm" id="useSugg" title="${esc(capFirst("the data "+sg.why))}">${esc(MODELS[sg.id].name)}</button></div>`; }
@@ -22267,7 +22371,7 @@ function fitLogFor(d,m,c,X,Y,W,useW){
   return S.fitLog;
 }
 function fitLogRow(L,k,q){ L.rows.push({k,red:q.chi/L.dof,lam:q.lambda,p:q.p}); if(L.rows.length>FITLOG_MAX){ L.rows.splice(1,1); L.hid++; } }
-const fitLogSum=L=>{ const n=L.rows[L.rows.length-1].k; return (L.state==="run"?"running · ":"")+`${n} iteration${n===1?"":"s"}`; };
+const fitLogSum=L=>{ if(L.direct) return "solved directly"; const n=L.rows[L.rows.length-1].k; return (L.state==="run"?"running · ":"")+`${n} iteration${n===1?"":"s"}`; };
 function fitLogBody(L){
   const num=(v,s)=>v==null||!Number.isFinite(v)?"—":esc(fmt(v,s));
   return `${L.note||L.state==="run"?`<p class="flnote" role="status">${esc(L.state==="run"?"Fitting…":L.note)}</p>`:""}<div class="flscroll"><table class="flog-t"><thead><tr><th>#</th><th>Reduced χ²</th><th class="tipd" title="The damping: large while the fit feels its way, small near the minimum">λ</th>${L.ph.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${
@@ -23061,11 +23165,19 @@ function runFit(){
   if(SX&&WT.kind==="col"){ S.fitError=WCOL_ODR; renderFit(); return; }
   if(SX&&A){ S.fitError=APP_ODR; renderFit(); return; }
   if(C){ if(SX){ S.fitError=CONS_ODR; renderFit(); return; } const hf=C.ineqs.find(r=>B.fixed[r.hi]); if(hf){ S.fitError=consFixed(m,hf); renderFit(); return; } }
+  /* A straight line or a polynomial is solved, not iterated (FIT2_SPEC 4.1), unless a constraint or the X errors ask for the
+     iterative fit; a limit the solution breaks sends it there too, started from the solution held within its limits. */
+  if(!C&&!SX){ const pd=polyDirect(d.model,Xf,Yf,W,B,WT.scale);
+    if(pd&&pd.res){ if(pd.res.error){ S.fitError=pd.res.error; renderFit(); return; }
+      const L=fitLogFor(d,m,c,Xf,Yf,W,WT.key+(A?"|"+appText(A,true):"")); L.direct=true; L.state=""; L.byStep=false;
+      L.note="Solved directly: a polynomial is linear in its coefficients, so least squares gives them in one step, with no iterations."; L.last=pd.res.params.slice();
+      saveCurveFit(pd.res,{d,m,X,SX:null,WT,ctl,fixed:B.fixed,A,C:null,method:"qr"}); return; }
+    if(pd&&pd.start) B.p0=pd.start; }
   const pr=C?consProblem(C,m.f,B.p0,B.fixed,B.lo,B.hi):null, back=pr?(q=>consBack(C,q)):(q=>q);
   if(pr){ opt.lo=pr.lo; opt.hi=pr.hi; }
   if(SX){ if(S.fitLog&&S.fitLog.pid===S.pid&&S.fitLog.col===(c||{}).id) S.fitLog=null; // the list is of Levenberg–Marquardt steps
     saveCurveFit(odrFit(m.f,X,Y,useW?W.map(w=>1/w):null,SX,B.p0.slice(),B.fixed.slice(),opt),{d,m,X,SX,WT,ctl,fixed:B.fixed}); return; }
-  const L=fitLogFor(d,m,c,Xf,Yf,W,WT.key+(A?"|"+appText(A,true):"")), k0=L.rows[L.rows.length-1].k;
+  const L=fitLogFor(d,m,c,Xf,Yf,W,WT.key+(A?"|"+appText(A,true):"")), k0=L.rows[L.rows.length-1].k; L.direct=false;
   const run={stop:false,d,pid:S.pid,col:c.id,model:d.model,done:0,p:pr?pr.q0.slice():B.p0.slice(),lam:L.lam,shown:false}, PS=pr?pr.q0.map(v=>Math.abs(v)||1):L.pscale;
   L.state="run"; L.note=""; L.byStep=false; S.fitRun=run;
   const tick=()=>{
@@ -23114,6 +23226,14 @@ function stepFit(){
     :`One iteration: reduced χ² ${fmt(red0,6)} → ${fmt(red1,6)}.`;
   renderFit(); renderPlot();
 }
+/* A straight line's or a polynomial's fit by the direct solve (FIT2_SPEC 4.1): null when the model is neither; {res} the solve
+   (or its refusal in res.error); {start} when the solution breaks a limit typed, held within the limits, for the iterative fit. */
+// t = (x − c)/s as Results, the report and the CSV write it (every digit c has; s a power of two)
+const polyAbout=(P,ascii)=>{ const n=v=>String(+(+v).toPrecision(15)); return `t = (x ${ascii?"-":"−"} ${n(P.c)})/${n(P.s)}`; };
+function polyDirect(model,X,Y,W,B,scale){ const k=polyOrderOf(model); if(!k||typeof polyLsq!=="function") return null;
+  const r=polyLsq(X,Y,W,k,{fixed:B.fixed,p0:B.p0,scale}); if(r.error) return {res:r};
+  const out=r.params.some((v,i)=>!B.fixed[i]&&(v<B.lo[i]||v>B.hi[i]));
+  return out?{start:r.params.map((v,i)=>B.fixed[i]?B.p0[i]:Math.min(Math.max(v,B.lo[i]),B.hi[i]))}:{res:r}; }
 const CONS_ODR="Constraints between parameters are not taken by the orthogonal distance fit yet: untick Include the X errors, or take the constraints away.";
 const consFixed=(m,r)=>`${m.params[r.hi]} is fixed, and kept above ${m.params[r.lo]} by a constraint: unfix it, or take the constraint away.`;
 const WCOL_ODR="Weights from a column only say how the points compare, and the X errors need Y errors in the data's own units: choose Y error or counting weights, or untick the X errors.";
@@ -23130,7 +23250,7 @@ function saveCurveFit(res,o){
     onCol:(activeYCol()||{}).id, onColName:(activeYCol()||{}).name||"",
     maskSig:maskSig(activeYCol()), pipeSig:pipeSig(activeYCol()), rawFp:rawFp(), hadErrCol:hasErr(),
     range:[Math.max(a,amin(X)),Math.min(b,amax(X))], ...weightRec(WT), ...(SX?{xerr:true,odr:odrNote(res)}:{}), ...(o.A?{app:{x:o.A.x,y:o.A.y}}:{}), ...(o.C?{cons:String(d.cons).trim()}:{}), ...(Array.isArray(d.initFx)&&d.initFx.some(Boolean)?{initFx:d.initFx.slice()}:{}), ...(d.follow?{follow:true}:{}),
-    ctl:{maxIter:ctl.maxIter,tol:ctl.tol,method:SX?"odr":"lm"}, by:who(), at:Date.now()};
+    ctl:{maxIter:ctl.maxIter,tol:ctl.tol,method:o.method||(SX?"odr":"lm")}, ...(res.poly?{poly:res.poly}:{}), by:who(), at:Date.now()};
   d.init=res.params.slice(); if(S.fitLog&&S.fitLog.pid===S.pid&&!SX) S.fitLog.last=d.init.slice();
   const P0=P(), carry=m.user&&!(P0.userFns||[]).some(q=>q.id===m.fnId)?{userFns:(P0.userFns||[]).concat([JSON.parse(JSON.stringify(m.def))])}:{};
   save(Object.assign({fit,fits:fitHistory(fit)},carry,batchWith(fit)),`fitted ${m.user?`the function "${m.name}"`:lcFirst(m.name)} to ${specName(activeYCol())} (R² = ${fmt(res.stats.R2,5)}, ${res.stats.n} points)`);
@@ -23175,12 +23295,13 @@ function derivedRows(f){
 }
 // brief: Results' list beside the table (information hygiene): the numbers a fit is judged by, and a
 // setting only when it is not the default. The report and the copied table keep the whole list.
-function statsBrief(f){ const L=statsList(f), drop=new Set(["Free parameters","Residual sum of squares","AIC","BIC","Points in all","Parameters in all"]);
+function statsBrief(f){ const L=statsList(f), drop=new Set(["Free parameters","Residual sum of squares","AIC","BIC","Points in all","Parameters in all","Solved in"]);
   // A range that holds every point of the column is all the data: nothing to say.
   const allIn=()=>{ if(!f.range) return true; const P=fitPts(f); return !!P.length&&P.every(q=>q.x>=f.range[0]&&q.x<=f.range[1]); };
   return L.filter(([k,v])=>{ if(drop.has(k)) return false;
     if(k==="Fitted over") return !allIn();
     if(k==="Iterations") return /not converged/.test(v);
+    if(k==="Fit control"&&f.ctl&&f.ctl.method==="qr") return false;
     if(k==="Fit control") return f.ctl&&((f.ctl.maxIter!=null&&f.ctl.maxIter!==FIT_CTL.maxIter)||(f.ctl.tol!=null&&f.ctl.tol!==FIT_CTL.tol));
     if(k==="Confidence level") return v!=="95%";
     if(k==="Weighting") return weightOf(f)!=="none";
@@ -23199,9 +23320,10 @@ function statsList(f){
   const out=[["Points",st.n],["Free parameters",st.n!=null&&st.dof!=null?st.n-st.dof:null],["Degrees of freedom",st.dof],
     ["Reduced χ²",fmtOr(st.redChi2,5)],["R² (COD)",fmtOr(st.R2,6)],["Adjusted R²",fmtOr(st.adjR2,6)],
     ["Residual sum of squares",fmtOr(st.rss,6)],["AIC",fmtOr(st.aic,6)],["BIC",fmtOr(st.bic,6)],
-    ["Iterations",st.iter==null?"—":`${st.iter}${st.converged?"":" (not converged)"}`],["Fit control",capFirst(ctlText(f))],
+    ["Iterations",st.iter==null?"—":f.ctl&&f.ctl.method==="qr"?"none: a polynomial is linear in its coefficients":`${st.iter}${st.converged?"":" (not converged)"}`],["Fit control",capFirst(ctlText(f))],
     ["Weighting",weightText(f)]].concat((C=>C&&!C.err?[["Constraints",consSummary(C,FM0.model.params)]]:[])(FM0&&consOf(f,FM0.model)),f.app?[["Fitted as",capFirst(appText(f.app))+", an apparent fit"]]:[],[["Confidence level",confPct(confOf(f))+"%"]],f.odr&&f.odr.s!=null?[["Scatter in Y, s",fmt(f.odr.s,4)]]:[],limText(f)?[["Limits",limText(f)]]:[]);
   if(f.range) out.push(["Fitted over",`x ${fmt(f.range[0],6)} to ${fmt(f.range[1],6)}`]);
+  { const P=fitModel(f); if(P&&P.poly) out.push(["Solved in",polyAbout(P.poly)]); }
   if(f.follow) out.push(["Fitted again","when its data change"]);
   return out.map(([k,v])=>[k,v==null||v===""?"—":String(v)]);
 }
@@ -24112,7 +24234,9 @@ function methodLines(){
     { const C=!FM.composite&&consOf(f,FM.model); if(C&&!C.err) out.push("Constraints: "+consSummary(C,FM.model.params)+" (a follower fitted through what it follows; an inequality as a difference that cannot go below 0)"); }
     { const t=!FM.composite&&fxStartsText(f,FM.model); if(t) out.push("Starting values as formulas of the data in range: "+t); }
     if(f.app) out.push("Apparent fit: fitted as "+appText(f.app)+", as the points look on the graph's logarithmic axes; the parameters and statistics are in those terms");
-    out.push("Algorithm: "+capFirst(ctlText(f))+(f.stats&&f.stats.converged?"; converged in "+f.stats.iter+" iterations":"; DID NOT CONVERGE"+(f.stats&&f.stats.iter!=null?" (stopped after "+f.stats.iter+" iterations)":"")));
+    { const PM=fitModel(f); if(PM&&PM.poly) out.push(`Solved by least squares (Householder QR, refined in double-double) in ${polyAbout(PM.poly)}; the coefficients in powers of x carried from those in t, and the curve, its bands and the values read from it worked out in t`); }
+    if(f.ctl&&f.ctl.method==="qr") out.push("Algorithm: least squares (QR), solved directly: no iterations");
+    else out.push("Algorithm: "+capFirst(ctlText(f))+(f.stats&&f.stats.converged?"; converged in "+f.stats.iter+" iterations":"; DID NOT CONVERGE"+(f.stats&&f.stats.iter!=null?" (stopped after "+f.stats.iter+" iterations)":"")));
   }
   return out;
 }
@@ -24817,7 +24941,7 @@ async function exportCsv(){
     if(f.app) lines.push(`# apparent fit,${appText(f.app,true)}`);
     if(f.cons){ const FMc=fitModel(f), C=FMc&&!FMc.composite&&consOf(f,FMc.model); if(C&&!C.err) lines.push(`# constraints,${consSummary(C,FMc.model.params).replace(/≤/g,"<=")}`); }
     if(f.initFx){ const FMc=fitModel(f), t=FMc&&!FMc.composite?fxStartsText(f,FMc.model):""; if(t) lines.push(`# formula starts,${t}`); }
-    lines.push(`# fit control,${q(ctlText(f,true))}`); if(limText(f)) lines.push(`# limits,${q(limText(f,true))}`); if(f.stats) lines.push(`# iterations,${f.stats.iter},${f.stats.converged?"converged":"not converged"}`);
+    lines.push(`# fit control,${q(ctlText(f,true))}`); if(limText(f)) lines.push(`# limits,${q(limText(f,true))}`); if(f.stats) lines.push(f.ctl&&f.ctl.method==="qr"?"# iterations,0,solved directly":`# iterations,${f.stats.iter},${f.stats.converged?"converged":"not converged"}`); { const PM=fitModel(f); if(PM&&PM.poly) lines.push(`# solved in,${q(polyAbout(PM.poly,true))}`); }
     if(comp){
       lines.push("# peak,shape,centre,centre error,height,FWHM,area,area error,area %,name");
       peakMetrics(f).forEach(r=>lines.push(`# ${r.k+1},${r.type},${r.xc},${r.xcErr},${r.height},${r.fwhm},${r.area},${r.areaErr},${r.areaPct},${String(r.name||"").replace(/[,\n]/g," ")}`));
@@ -27911,10 +28035,10 @@ ${DL([["Noise σ","From second differences, so a band's slope does not count as 
 <h2>After fitting</h2>
 <p>The curve is drawn over the data, and the residuals under the graph after a peak fit. The Fit window's <em>On the graph</em> switches choose what else is drawn: the residuals under the graph, the confidence band (shaded), the prediction band (dashed) and, for a peak fit, each fitted peak shaded; the Graph menu has them too. The <em>In the results</em> switches below them choose, before the fit, what the Results window reports: the confidence intervals, the analysis of variance, the correlation and the covariance matrices, the residual analysis and, for a peak fit, every parameter. The report and the copied table carry all of it whatever is chosen. The ${DA("results","Results")} window gives every parameter with its uncertainty and anything that makes it less certain. Each fit is kept in the fit history; a fit whose data or processing changed since is marked out of date.</p>
 ${TIP("A fit belongs to its column. It is drawn only over the column it was fitted to.")}`},
-{id:"curvefit", g:"Fitting", t:"Curve fit", kw:"curve fit confidence level 90 95 99 percent model models list picker search sketch suggested suggestion linear straight line polynomial order quadratic cubic exponential decay biexponential growth plateau association sigmoid boltzmann logistic dose response ec50 hill gompertz michaelis menten enzyme gaussian lorentzian voigt pseudo-voigt pearson log-normal lognormal extreme gumbel power law allometric logarithm arrhenius activation energy sine damped wave period frequency derived guess initial fixed weights control iteration iterations tolerance step stop lambda damping estimate starting values limits bounds lowest highest strict digits significant meaning confidence interval dependency",
+{id:"curvefit", g:"Fitting", t:"Curve fit", kw:"curve fit confidence level 90 95 99 percent model models list picker search sketch suggested suggestion linear straight line polynomial order quadratic cubic least squares qr solved directly no iterations centred centered far from zero exponential decay biexponential growth plateau association sigmoid boltzmann logistic dose response ec50 hill gompertz michaelis menten enzyme gaussian lorentzian voigt pseudo-voigt pearson log-normal lognormal extreme gumbel power law allometric logarithm arrhenius activation energy sine damped wave period frequency derived guess initial fixed weights control iteration iterations tolerance step stop lambda damping estimate starting values limits bounds lowest highest strict digits significant meaning confidence interval dependency",
  lead:"One model, fitted to the points in the fit's range.",
  body:`<h2>Fitting</h2>
-<ol class="dsteps"><li>Choose a model. The model's button opens the list of every model by kind, each with a sketch of its shape and its formula; type to find one by its name, by a word of what it is for or of what its parameters mean, or by its name in Origin (${K("↑")} ${K("↓")} and ${K("Enter")} choose). A polynomial's order, 1 to 9, is chosen beside the button. The Fit window starts from the model that suits the shape of the points (a straight line for a steady rise or fall, an exponential for a quick change that levels off, a sigmoid for a rise from one level to another, a Gaussian for one clear peak) and, while another is chosen, names it under the button (<em>Suggested:</em>), its button choosing it; the reason is the button's tooltip. Its formula is shown under the button.</li>
+<ol class="dsteps"><li>Choose a model. The model's button opens the list of every model by kind, each with a sketch of its shape and its formula; type to find one by its name, by a word of what it is for or of what its parameters mean, or by its name in Origin (${K("↑")} ${K("↓")} and ${K("Enter")} choose). A polynomial's order, 1 to 10, is chosen beside the button. The Fit window starts from the model that suits the shape of the points (a straight line for a steady rise or fall, an exponential for a quick change that levels off, a sigmoid for a rise from one level to another, a Gaussian for one clear peak) and, while another is chosen, names it under the button (<em>Suggested:</em>), its button choosing it; the reason is the button's tooltip. Its formula is shown under the button.</li>
 <li>Starting values are measured from the data. <em>Guess</em> measures them again from the points in the fit's range.</li>
 <li>Tick a parameter's <em>Fix</em> to hold it at its starting value.</li>
 <li id="weights"><em>Weights</em> says how much each point counts. ${DL([["None","Every point the same; the errors are scaled by √(reduced χ²), the scatter the residuals show."],["Y error, 1/σ²","σ from the Y error column (its tooltip names it): the errors are taken as they are, and the reduced χ² should be near 1."],["Counting, 1/y","For counts, whose variance is the count itself (σ² = y). Every point in range must be above 0. The errors are taken as they are."],["A column","The values of a column of the sheet, in each point's row, as the weights w. Only their ratios matter, so the errors are scaled by √(reduced χ²), as with none. Not with the X errors, which need errors in the data's units."]])} A point with no error, no count above 0 or no weight above 0 is refused, in words. Fits of every column use the Y error or counting when every point allows it; a column's weights belong to the column they were made for.</li>
@@ -27939,6 +28063,8 @@ ${DL([["<code>b = 2*a + 1</code>","b follows the others: it is not fitted on its
 <p>A name that is no parameter, a parameter set by two rules, rules that read each other in a circle, or a fixed parameter kept above another are refused in words. The constraints are kept with the fit, stated in Results, the report and the CSV, and used when ${DA("batch","fitting every column")} one by one; they are not taken with the X errors or by a fit of every column together. A new model clears them.</p>
 <h2 id="ctl">Fit control and iterations</h2>
 <p>The fit is Levenberg–Marquardt: from the starting values it takes steps that lower χ², and it has settled when a step lowers χ² by less than the <em>Tolerance</em> (a fraction of it; 1e-12 unless set) or moves no parameter by more than one part in 10¹⁰. <em>Iterations, at most</em> (400 unless set) is where a fit that has not settled stops, with a note in Results; <em>Fit</em> again carries on from there. Both are under <em>Fit control</em> in the Fit window, and Results, the report and the CSV say what each fit ran with. With the X errors included the method is orthogonal distance regression.</p>
+<h2 id="poly">Straight lines and polynomials</h2>
+<p>A straight line or a polynomial is linear in its coefficients, so it is not iterated: least squares gives the coefficients in one step (<em>Least squares (QR)</em>, with no iterations), the same for a fit of every column and a fit that follows its data. It is solved in X centred on its middle and scaled to between −1 and 1, and the coefficients are carried back to powers of x, which is how Results gives them; the curve, its bands, Find X/Y and the residual analysis are worked out from the centred coefficients, so a narrow range far from zero (times in seconds since 1970, a window of wavenumbers) keeps its digits where the powers of x as written would not. The report says about which X it was solved. A coefficient fixed is honoured by the same solve. A limit the solution breaks, a constraint between coefficients, or the X errors send the fit to Levenberg–Marquardt (or orthogonal distance), started from the solution. Checked against NIST's certified polynomials, Filip's of order 10 among them, to 13 digits or more.</p>
 <p>While the Fit window is open, the curve at the starting values is drawn dashed over the data (<em>estimate</em> in the legend). <em>1 iteration</em> takes one step from them and makes the result the new starting values, so the dashed curve moves towards the data a step at a time; <em>Iterations</em> lists every step (reduced χ², the damping λ and the parameters), the starting values as row 0. Steps taken one at a time follow the same path as <em>Fit</em>, which carries on the list. A long fit lists its steps as they come, and <em>Stop</em> stops it: its last values become the starting values.</p>
 <h2 id="models">Models</h2>
 <p>Each model's parameters have a meaning and a unit, and its starting values are measured from the data: a straight line through the logarithms for a power law, a logarithm and Arrhenius; the two levels and the width from 10 to 90% of the way for a step; the best of a grid of decay times for two or three decays; the strongest period for a wave. Many give values derived from the parameters, with their errors (a half-life, a FWHM and an area, the dose halfway, an activation energy in kJ/mol and in eV, a frequency), which Results lists under the parameters.</p>
@@ -28915,10 +29041,15 @@ function fitOne(c,t,seed,spec){
   const Bt=boundsOf(t.lim,m,seed,t.fixed); if(Bt.fail) return {fail:Bt.fail};
   const Ct=consOf(t,m); if(Ct&&Ct.err) return {fail:"its constraints: "+lcFirst(consErr(Ct))}; if(Ct&&SX) return {fail:"constraints are not taken with the X errors"};
   if(Ct&&Ct.ineqs.some(r=>Bt.fixed[r.hi])) return {fail:"a fixed parameter is kept above another by a constraint"};
+  const keep=Object.assign({model:t.model,fixed:Bt.fixed.slice()},t.app?{app:clone(t.app)}:{},Ct?{cons:t.cons}:{},t.fn?{fn:clone(t.fn)}:{},t.lim?{lim:clone(t.lim)}:{},t.dig?{dig:t.dig.slice()}:{});
+  if(!SX&&!Ct){ const pd=polyDirect(t.model,Xm,Ym,Wm,Bt,WT.scale);
+    if(pd&&pd.res){ if(pd.res.error) return {fail:pd.res.error}; if(!pd.res.params.every(Number.isFinite)) return {fail:"the fit diverged"};
+      return {fit:out(pd.res,Object.assign(keep,{poly:pd.res.poly,ctl:Object.assign({},t.ctl||{},{method:"qr"})}))}; }
+    if(pd&&pd.start) Bt.p0=pd.start; }
   const fo=Object.assign({lo:Bt.lo,hi:Bt.hi,scale:WT.scale},t.ctl?{maxIter:t.ctl.maxIter,tol:t.ctl.tol}:{});
   const res=SX?odrFit(m.f,X,Y,SY,SX,Bt.p0.slice(),Bt.fixed.slice(),fo):consFit(m.f,Xm,Ym,Wm,Bt.p0.slice(),Bt.fixed.slice(),fo,Ct); if(res.error) return {fail:res.error};
   if(!res.params.every(Number.isFinite)) return {fail:"the fit diverged"};
-  return {fit:out(res,Object.assign({model:t.model,fixed:Bt.fixed.slice()},t.app?{app:clone(t.app)}:{},Ct?{cons:t.cons}:{},t.fn?{fn:clone(t.fn)}:{},t.ctl?{ctl:Object.assign({},t.ctl,{method:SX?"odr":"lm"})}:{},t.lim?{lim:clone(t.lim)}:{},t.dig?{dig:t.dig.slice()}:{}))};
+  return {fit:out(res,Object.assign(keep,t.ctl?{ctl:Object.assign({},t.ctl,{method:SX?"odr":"lm"})}:{}))};
 }
 // Peaks from the peak finder in this spectrum, each of the template's first shape, on its baseline.
 function batchFoundSeed(c,t){

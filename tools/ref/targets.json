@@ -98,15 +98,11 @@
   "tol": 1e-12
  },
  "norris.lmFit": {
-  "tol": 1e-12,
-  "until": "4.1",
-  "now": 3e-08,
-  "why": "a straight line fitted by Levenberg–Marquardt with a numerical Jacobian; 4.1 solves linear models by QR"
+  "tol": 1e-07,
+  "why": "the iterative fit (Levenberg–Marquardt with a numerical Jacobian), which a straight line meets only when a limit or a constraint asks for it; the curve fit solves a line by QR (nist.poly)"
  },
  "norris.lmFit.errors": {
-  "tol": 1e-09,
-  "until": "4.1",
-  "now": 3e-08
+  "tol": 1e-07
  },
  "norris.R2": {
   "tol": 1e-12
@@ -669,5 +665,45 @@
  "rocCompare": {
   "tol": 1e-13,
   "why": "The difference of two areas, DeLong's SE from the exact differences of their deviations, z and the normal tail"
+ },
+ "nist.poly": {
+  "tol": 1e-12,
+  "why": "NIST's certified coefficients, Filip's included (rated higher), whose doubles allow about 14 digits"
+ },
+ "nist.poly.sd": {
+  "tol": 1e-12
+ },
+ "nist.poly.R2": {
+  "tol": 1e-12
+ },
+ "polyLsq.fit": {
+  "tol": 1e-13,
+  "why": "the fitted values (over the values' spread) and the sums, against the least-squares solution of the doubles in rationals"
+ },
+ "polyLsq.b": {
+  "tol": 1e-13,
+  "why": "the coefficients about Kurve's centre (over the largest) and their errors"
+ },
+ "polyLsq.params": {
+  "tol": 1e-14,
+  "why": "the coefficients in powers of x, each over its own conditioning (Σ|T b| / |a|)"
+ },
+ "polyLsq.errors": {
+  "tol": 1e-12
+ },
+ "nist.nls": {
+  "tol": 1e-06,
+  "why": "NIST's 27 nonlinear sets from both starts, as NIST rates them; four first starts named in the output"
+ },
+ "nist.nls.sd": {
+  "tol": 1e-06
+ },
+ "polyLsq": {
+  "tol": 1e-13,
+  "why": "the fuzzer: random polynomials (X far from zero, weighted, an intercept fixed), Kurve's centred coefficients evaluated exactly against the rationals' fitted values, over their spread"
+ },
+ "polyLsq.stream": {
+  "tol": 1e-12,
+  "why": "the streamed path (a design past POLY_DD values): Givens rotations in doubles, the covariance from R alone; the fitted values over their spread, the sums, the errors of the centred coefficients"
  }
 }

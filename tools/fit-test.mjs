@@ -968,7 +968,7 @@ check("tPvalue: large t is tiny", N.tPvalue(30, 50) < 1e-20, N.tPvalue(30, 50));
   const listed = N.MODEL_GROUPS.flatMap(g => g[1]);
   check("models: 25 in the list, each once, each a model", listed.length === 25 && new Set(listed).size === 25 && listed.every(k => M[k]), listed.length);
   check("models: every model not hidden is in the list", ids.filter(k => !M[k].hide).every(k => listed.includes(k)), ids.filter(k => !M[k].hide && !listed.includes(k)).join(","));
-  check("models: polynomials of order 1 to 9, the order and the id going both ways", [1, 2, 3, 4, 5, 6, 7, 8, 9].every(k => M[N.polyIdOf(k)] && N.polyOrderOf(N.polyIdOf(k)) === k && M[N.polyIdOf(k)].params.length === k + 1) && N.polyOrderOf("gauss") === 0);
+  check("models: polynomials of order 1 to 10, the order and the id going both ways", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].every(k => M[N.polyIdOf(k)] && N.polyOrderOf(N.polyIdOf(k)) === k && M[N.polyIdOf(k)].params.length === k + 1) && N.polyOrderOf("gauss") === 0);
   const shape = ids.filter(k => { const m = M[k], n = m.params.length;
     return !(m.ph.length === n && m.mean.length === n && m.dim.length === n && typeof m.formula === "string" && m.formula.length && (!m.lo || m.lo.length === n) && (!m.hi || m.hi.length === n) && (m.derived || []).every(d => typeof d.fn === "function")); });
   check("models: every model has a label, a meaning and a unit for each parameter, and a formula", !shape.length, shape.join(","));
@@ -979,6 +979,7 @@ check("tPvalue: large t is tiny", N.tPvalue(30, 50) < 1e-20, N.tPvalue(30, 50));
   const cases = { linear: [[0, 10], [2, 0.5]], poly2: [[-2, 3], [1, -0.5, 0.3]], poly3: [[-2, 3], [1, -0.5, 0.3, 0.1]], poly4: [[-2, 2], [1, -0.5, 0.3, 0.1, -0.05]],
     poly5: [[-2, 2], [1, -0.5, 0.3, 0.1, -0.05, 0.02]], poly6: [[-1.5, 1.5], [1, -0.5, 0.3, 0.1, -0.05, 0.02, 0.01]], poly7: [[-1.5, 1.5], [1, -0.5, 0.3, 0.1, -0.05, 0.02, 0.01, -0.01]],
     poly8: [[-1.5, 1.5], [1, -0.5, 0.3, 0.1, -0.05, 0.02, 0.01, -0.01, 0.005]], poly9: [[-1.5, 1.5], [1, -0.5, 0.3, 0.1, -0.05, 0.02, 0.01, -0.01, 0.005, 0.003]],
+    poly10: [[-1.5, 1.5], [1, -0.5, 0.3, 0.1, -0.05, 0.02, 0.01, -0.01, 0.005, 0.003, -0.002]],
     expdec: [[0, 10], [1, 5, 2]], expdec2: [[0, 20], [0.5, 4, 0.8, 2, 6]], expdec3: [[0, 40], [0.2, 3, 0.5, 2, 3, 1.5, 15]], expgrow: [[0, 5], [1, 0.5, 1.5]], riseplat: [[0, 10], [0.5, 3, 2]],
     boltz: [[-10, 10], [1, 5, 0.5, 1.2]], logistic: [[0.05, 20], [0.2, 4, 2, 2.5]], doseresp: [[-4, 4], [10, 90, 0.3, 1.2]], hill: [[0, 10], [3, 2, 2.5]], gompertz: [[-2, 8], [5, 0.8, 1.5]], mm: [[0, 20], [4, 3]],
     gauss: [[-10, 10], [0.5, 3, 1, 1.5]], lorentz: [[-10, 10], [0.5, 3, 1, 2]], voigt: [[-10, 10], [0.2, 10, 0.5, 1.5, 1.0]], pvoigt: [[-10, 10], [0.2, 10, 0.5, 2, 0.4]], pearson7: [[-10, 10], [0.2, 10, 0.5, 2, 1.8]],

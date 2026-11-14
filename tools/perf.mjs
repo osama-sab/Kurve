@@ -64,6 +64,8 @@ const BUDGET = {
   "Excel: read 200 000 × 3": [6000, "that workbook read, its sheet turned into text and read by the import as the dialog reads it"],
   "Matrix: 1000 × 1000 drawn": [500, "a matrix of a million cells drawn as a map with contour lines on a graph of its own (SHEET_SPEC 3.6)"],
   "Matrix: 1000 × 1000 transposed": [200, "that matrix transposed in place: one undo step, its record's entry, the save and the windows drawn again"],
+  "Polynomial: order 10, 100 000 points": [900, "a polynomial of order 10 solved directly in double-double, its covariance refined (FIT2_SPEC 4.1)"],
+  "Polynomial: order 10, 10⁶ points": [1600, "the same on a million points, streamed a row at a time"],
   "ANOVA: Tukey, 10 groups": [1100, "Tukey–Kramer's 45 pairs and its quantile (worked out in the worker in the app)"],
 };
 const got = {};
@@ -173,6 +175,9 @@ await withPage(async (p) => {
     matSaveNew([matBookNew(s)], { undo: "a matrix", log: "made" }); window.__msid = s.id; plotMatrix(s.id, "both"); });
   got["Matrix: 1000 × 1000 drawn"] = await best(() => p.evaluate(() => { HEATM.clear(); const a = performance.now(); renderPlot(); if (!document.querySelector("#plot image[data-mat]")) throw new Error("no map"); return performance.now() - a; }));
   got["Matrix: 1000 × 1000 transposed"] = await best(() => p.evaluate(() => { const a = performance.now(); matTranspose(window.__msid); return performance.now() - a; }));
+  for (const [nm, N] of [["Polynomial: order 10, 100 000 points", 1e5], ["Polynomial: order 10, 10⁶ points", 1e6]])
+    got[nm] = await best(() => p.evaluate((N) => { const X = new Array(N), Y = new Array(N); for (let i = 0; i < N; i++) { X[i] = 1000 + 3000 * i / N; Y[i] = Math.sin(7 * i / N) + 1e-3 * Math.cos(1.7 * i); }
+      const a = performance.now(), r = polyLsq(X, Y, null, 10); if (r.error) throw new Error(r.error); return performance.now() - a; }, N));
   got["Correlation: 1M pairs"] = await best(() => p.evaluate(() => { const mb = mulberry32(10), n = 1000000, x = Array.from({ length: n }, () => mb()), rows = x.map((_, i) => i);
     const ins = [{ name: "A", vals: x, rows }, { name: "B", vals: x.map((v) => v + mb()), rows }];
     const a = performance.now(); anaRunKind("corr", ins, { methods: ["pearson", "spearman", "kendall"] }); return performance.now() - a; }));

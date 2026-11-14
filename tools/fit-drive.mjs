@@ -1,5 +1,6 @@
-/* The curve fit as complete as Origin's (ux/spec/FIT_SPEC.md), from slice 5 on: what each slice
-   added to the Fit window and Results, clicked and typed into in a real browser.
+/* The curve fit as complete as Origin's (ux/spec/FIT_SPEC.md), from slice 5 on, and wave 4's
+   (ux/spec/FIT2_SPEC.md): what each slice added to the Fit window and Results, clicked and typed
+   into in a real browser.
    (Slices 1 to 4 are checked by tools/fit-test.mjs and tools/odd-test.mjs, and slice 7 of the
    design system by tools/ds-test.mjs.)
    Needs Playwright with Chromium. Usage:
@@ -402,6 +403,77 @@ await page(async p => {
   check("Delete takes it out of the project, with Undo", r.n === 0 && /Deleted “.*” from this project/.test(r.toast), JSON.stringify(r));
   await p.evaluate(() => $("#formCancel").click());
 }, { name: "your functions" });
+
+console.log("Wave 4, slice 4.1: polynomials by QR");
+await page(async p => {
+  // Dates in seconds since 1970, three days of readings: a polynomial of order 5 far from x = 0.
+  await p.evaluate(async () => { const x = [], y = []; let s = 5; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; };
+    for (let i = 0; i < 61; i++) { const t = 1.7e9 + i * 4320, u = i / 60; x.push(t); y.push(3 + 2 * Math.sin(3 * u) + 0.5 * Math.cos(7 * u) + 0.02 * r()); }
+    const xc = makeCol("x", "Time", "s", x), yc = Object.assign(makeCol("y", "Reading", "mV", y), { pipe: [], mask: [] });
+    const pr = Object.assign(blankProject("Dates"), { cols: [xc, yc], activeY: yc.id }); pr.graphs = [{ id: newGid(), name: "Graph 1", cols: [yc.id], plot: { style: "auto" } }];
+    await createProject(pr, "test"); await new Promise(r => setTimeout(r, 80)); renderAll(); });
+  await p.waitForTimeout(300);
+  await p.evaluate(() => { S.fitMode = "curve"; showTab("fit"); chooseModel("poly5"); }); await p.waitForTimeout(200);
+  await p.evaluate(() => runFit()); await p.waitForTimeout(300);
+  let r = await p.evaluate(() => { const f = activeFit(), L = S.fitLog; return { m: f.ctl && f.ctl.method, it: f.stats.iter, poly: !!f.poly, note: L && L.note, sum: L && fitLogSum(L), n: f.stats.n }; });
+  check("a polynomial is solved, not iterated: no iterations, the method Least squares (QR)", r.m === "qr" && r.it === 0 && r.poly && /Solved directly/.test(r.note || "") && r.sum === "solved directly" && r.n === 61, JSON.stringify(r));
+  // Far from zero, the curve still goes through the points: the residuals are the noise (0.02 wide), not the rounding of 1.7e9⁵.
+  r = await p.evaluate(() => { const f = activeFit(), res = fitResiduals(f), rms = Math.sqrt(res.reduce((s, v) => s + v * v, 0) / res.length);
+    const FM = fitModel(f), raw = (x, q) => { let v = q[5]; for (let j = 4; j >= 0; j--) v = v * x + q[j]; return v; }, x = finalOf(activeYCol()).x[30];
+    return { rms, red: Math.sqrt(f.stats.redChi2), rawErr: Math.abs(raw(x, f.params) - FM.f(x, f.params)) }; });
+  check("its residuals are the noise, though the coefficients in powers of x cannot give the curve back there", r.rms < 0.03 && Math.abs(r.rms / r.red - Math.sqrt(55 / 61)) < 1e-6 && r.rawErr > 1, JSON.stringify(r));
+  r = await p.evaluate(() => { const pts = [...document.querySelectorAll("#plot path[data-fitc]")].map(e => e.getAttribute("d")), band = document.querySelector("#plot path[fill]") ? 1 : 0;
+    const xy = (pts[0] || "").slice(1).split("L").map(q => q.split(",").map(Number)), dd = xy.slice(2).map((q, i) => Math.abs(q[1] - 2 * xy[i + 1][1] + xy[i][1]));
+    return { n: xy.length, worst: Math.max(...dd), band }; });
+  check("the curve is drawn smoothly across the window (no step from rounding)", r.n > 100 && r.worst < 3, JSON.stringify(r));
+  // Find X/Y and the band from the centred coefficients.
+  r = await p.evaluate(() => { const f = activeFit(), c = findCtx(f), x = 1.7e9 + 30 * 4320, q = fitYAt(c.f, c.p, c.cov, c.fixed, x, c.t), FM = fitModel(f);
+    return { y: q.y, se: q.se, fy: FM.f(x, f.params), v: Math.sqrt(FM.var(x)), cp: c.p.length, k: c.p === f.poly.b }; });
+  check("Find X/Y reads the curve and its error from the coefficients about the centre", Math.abs(r.y - r.fy) < 1e-12 && r.se > 0 && r.se < 0.02 && Math.abs(r.se - r.v) <= r.v * 1e-6 && r.k, JSON.stringify(r));
+  r = await p.evaluate(() => { const D = fitDiag(activeFit()); return D && { h: D.h.reduce((s, v) => s + v, 0), out: D.out.idx.length }; });
+  check("the residual analysis works from them too: the leverages add up to the six coefficients", r && Math.abs(r.h - 6) < 1e-9, JSON.stringify(r));
+  r = await p.evaluate(() => { const f = activeFit(), L = statsList(f), B = statsBrief(f), M = methodLines().join("\n"); return { it: (L.find(x => x[0] === "Iterations") || [])[1], sa: (L.find(x => x[0] === "Solved in") || [])[1], bIt: B.some(x => x[0] === "Iterations"), bFc: B.some(x => x[0] === "Fit control"), bSa: B.some(x => x[0] === "Solved in"), M }; });
+  check("Results keeps to the numbers; the full list and the report say how it was solved, and about which X", /none: a polynomial is linear/.test(r.it) && r.sa === "t = (x − 1700129600)/131072" && !r.bIt && !r.bFc && !r.bSa && /Algorithm: least squares \(QR\), solved directly: no iterations/.test(r.M) && /Solved by least squares \(Householder QR, refined in double-double\) in t = \(x − 1700129600\)\/131072/.test(r.M), JSON.stringify(r));
+  // A fit of every column takes the same road.
+  r = await p.evaluate(() => { const f = activeFit(), o = fitOne(activeYCol(), batchTemplate(f), f.params); return o.fit && { m: o.fit.ctl && o.fit.ctl.method, same: o.fit.params.every((v, i) => Math.abs(v - f.params[i]) <= 1e-9 * Math.abs(f.params[i])), poly: !!o.fit.poly }; });
+  check("a fit of every column (and one that follows) is solved the same way", r && r.m === "qr" && r.same && r.poly, JSON.stringify(r));
+  // Order 10 from the list beside the model.
+  await p.evaluate(() => { showTab("fit"); renderFit(); }); await p.waitForTimeout(100);
+  await p.selectOption("#polyOrder", "10"); await p.waitForTimeout(200);
+  r = await p.evaluate(() => { runFit(); const f = activeFit(); return { model: f.model, n: f.params.length, m: f.ctl.method, unit: paramRows(f)[10].unit }; });
+  check("order 10 is in the list, solved the same way, its last unit mV/s¹⁰", r.model === "poly10" && r.n === 11 && r.m === "qr" && r.unit === "mV/s¹⁰", JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(200);
+  check("one undo puts the fit of order 5 back", await p.evaluate(() => activeFit().model === "poly5" && activeFit().ctl.method === "qr"));
+  // After a reload the fit still draws and reads from its centred coefficients.
+  await p.reload(); await ready(p); await p.waitForTimeout(200);
+  r = await p.evaluate(() => { const f = activeFit(), FM = fitModel(f); return { poly: !!FM.poly, m: f.ctl.method, rms: Math.sqrt(fitResiduals(f).reduce((s, v) => s + v * v, 0) / 61) }; });
+  check("after a reload the fit is drawn and read as before", r.poly && r.m === "qr" && r.rms < 0.03, JSON.stringify(r));
+  // A fit stored before this slice (no centred coefficients) is read as it was, in powers of x.
+  r = await p.evaluate(() => { const f = Object.assign({}, activeFit(), { ctl: { maxIter: 400, tol: 1e-12, method: "lm" }, stats: Object.assign({}, activeFit().stats, { iter: 12 }) }); delete f.poly; const FM = fitModel(f), L = statsList(f); return { poly: !!FM.poly, it: (L.find(x => x[0] === "Iterations") || [])[1], v: !!FM.var }; });
+  check("a fit made before is read as it was: no centred coefficients, its iterations listed", !r.poly && r.it === "12" && !r.v, JSON.stringify(r));
+}, { name: "polynomials on dates" });
+await page(async p => {
+  await p.evaluate(async () => { const x = [], y = []; for (let i = 0; i <= 40; i++) { const v = i / 4; x.push(v); y.push(2.5 + 0.3 * v - 0.07 * v * v + 0.004 * v ** 3 + 0.01 * Math.sin(17 * i)); }
+    const xc = makeCol("x", "X", "", x), yc = Object.assign(makeCol("y", "Y", "", y), { pipe: [], mask: [] });
+    const pr = Object.assign(blankProject("Cubic"), { cols: [xc, yc], activeY: yc.id }); pr.graphs = [{ id: newGid(), name: "Graph 1", cols: [yc.id], plot: { style: "auto" } }];
+    await createProject(pr, "test"); await new Promise(r => setTimeout(r, 80)); renderAll(); });
+  await p.waitForTimeout(300);
+  await p.evaluate(() => { S.fitMode = "curve"; showTab("fit"); chooseModel("poly3"); }); await p.waitForTimeout(200);
+  // The intercept fixed: solved directly, the intercept as given.
+  let r = await p.evaluate(() => { const d = ensureDraft(); d.fixed = [true, false, false, false]; d.init = [2.5].concat(d.init.slice(1)); runFit(); const f = activeFit(); return { m: f.ctl.method, a0: f.params[0], e0: f.errors[0], dof: f.stats.dof, poly: !!f.poly }; });
+  check("a coefficient fixed is honoured by the direct solve", r.m === "qr" && r.a0 === 2.5 && r.e0 === 0 && r.dof === 38 && r.poly, JSON.stringify(r));
+  // A limit the solution breaks sends the fit to the iterative one, started from the solution.
+  r = await p.evaluate(() => { const d = ensureDraft(); d.fixed = [false, false, false, false]; d.lim = { lo: [null, null, null, null], hi: [null, null, -0.08, null], slo: [], shi: [] }; runFit(); });
+  await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const f = activeFit(); return { m: f.ctl.method, a2: f.params[2], at: f.atBound[2], it: f.stats.iter, poly: !!f.poly }; });
+  check("a limit the solution breaks: the iterative fit, ending on that limit", r.m === "lm" && Math.abs(r.a2 + 0.08) < 1e-9 && r.at && r.it > 0 && !r.poly, JSON.stringify(r));
+  r = await p.evaluate(() => { const d = ensureDraft(); d.lim = { lo: [null, null, null, null], hi: [null, null, 5, null], slo: [], shi: [] }; runFit(); const f = activeFit(); return { m: f.ctl.method }; });
+  check("a limit the solution keeps changes nothing: solved directly", r.m === "qr", JSON.stringify(r));
+  // A constraint asks for the iterative fit too.
+  await p.evaluate(() => { const d = ensureDraft(); d.lim = null; d.cons = "a3 = a2/10"; runFit(); }); await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const f = activeFit(); return { m: f.ctl.method, cons: f.cons }; });
+  check("a constraint between coefficients: the iterative fit", r.m === "lm" && r.cons === "a3 = a2/10", JSON.stringify(r));
+}, { name: "polynomials with limits" });
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();

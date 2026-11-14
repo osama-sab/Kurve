@@ -758,8 +758,54 @@ def _():
     return [m_obj(Z, x, y), nx2, ny2], {"nx": nx2, "ny": ny2, "z": [None if v != v else float(v) for v in R]}
 POST["matResample"] = m_post
 
+# ---- Polynomials by QR (FIT2_SPEC 4.1): the least-squares solution of the doubles, in rationals; Kurve's centred
+# coefficients evaluated exactly at the points, so the error measured is the solve's, not the evaluation's ----
+from fractions import Fraction as Fr
+def fr_solve(G, g):
+    m = len(g); A = [row[:] + [g[i]] for i, row in enumerate(G)]
+    for c in range(m):
+        p = next(r for r in range(c, m) if A[r][c] != 0); A[c], A[p] = A[p], A[c]
+        for r in range(m):
+            if r != c and A[r][c] != 0:
+                f = A[r][c] / A[c][c]; A[r] = [a - f * b for a, b in zip(A[r], A[c])]
+    return [A[i][m] / A[i][i] for i in range(m)]
+@gen("polyLsq", 1e-13, 0.3)
+def _():
+    n, k = int(rng.integers(6, 40)), int(rng.integers(1, 9)); k = min(k, n - 2)
+    off = float(rng.choice([0.0, 1e3, -1e4, 1e6, 1.7e9])); span = float(10 ** rng.uniform(-2, 3)) * (1 if off == 0 else float(rng.choice([1e-3, 1e-1, 1])) * max(1.0, abs(off)) ** 0.5)
+    X = sorted(set(float(off + span * v) for v in rng.uniform(-1, 1, n)))
+    if len(X) < k + 2: raise ValueError("too few")
+    n = len(X); t0 = [(x - off) / span for x in X]
+    Y = [float(np.cos(2 * v) * 3 + 0.4 * v + rng.normal(0, 10 ** rng.uniform(-8, -1))) for v in t0]
+    W = [float(10 ** rng.uniform(-1, 1)) for _ in X] if rng.random() < 0.3 else None
+    fixed = [False] * (k + 1); p0 = [0.0] * (k + 1)
+    if rng.random() < 0.2 and off == 0: fixed[0] = True; p0[0] = float(rng.normal(0, 2))
+    return [X, Y, W, k, {"fixed": fixed, "p0": p0}], {"X": X, "Y": Y, "W": W, "k": k, "fixed": fixed, "p0": p0}
+def poly_post(c, out):
+    w = c["want"]; X, Y, W, k, fixed, p0 = w["X"], w["Y"], w["W"], w["k"], w["fixed"], w["p0"]
+    if not isinstance(out, dict) or "poly" not in out: return float("inf"), f"no fit: {str(out)[:120]}"
+    n, m = len(X), k + 1; free = [j for j in range(m) if not fixed[j]]
+    Xf, Yf = [Fr(x) for x in X], [Fr(y) for y in Y]; Wf = [Fr(v) for v in W] if W else [Fr(1)] * n
+    yr = [Yf[i] - sum(Fr(p0[j]) * Xf[i] ** j for j in range(m) if fixed[j]) for i in range(n)]
+    A = [[Wf[i] * Xf[i] ** j for j in free] for i in range(n)]
+    G = [[sum(A[i][a] * A[i][b] for i in range(n)) for b in range(len(free))] for a in range(len(free))]
+    g = [sum(A[i][a] * Wf[i] * yr[i] for i in range(n)) for a in range(len(free))]
+    af = fr_solve(G, g); a = [Fr(v) for v in p0]
+    for u, j in enumerate(free): a[j] = af[u]
+    fit = [sum(a[j] * Xf[i] ** j for j in range(m)) for i in range(n)]
+    P = out["poly"]; cF, sF = Fr(P["c"]), Fr(P["s"]); b = [Fr(v) for v in P["b"]]
+    mine = [sum(b[q] * ((Xf[i] - cF) / sF) ** q for q in range(m)) for i in range(n)]
+    spread = max(fit) - min(fit) or Fr(1)
+    e = float(max(abs(u - v) for u, v in zip(mine, fit)) / spread)
+    rss = sum((Yf[i] - fit[i]) ** 2 for i in range(n)); er = abs(out["stats"]["rss"] - float(rss)) / max(float(rss), 1e-300)
+    if er > 1e-12 and float(rss) < 1e-20 * float(spread) ** 2 * n: er = 0.0   # an exact fit: the residuals are the rounding of Y
+    return max(e, er), f"fitted values {e:.2e} over their spread, RSS {er:.2e}"
+POST["polyLsq"] = poly_post
+
 cases = []
+ONLY = os.environ.get("ONLY")  # ONLY=name,name: those generators alone
 for name, (f, tol) in GEN.items():
+    if ONLY and name not in ONLY.split(","): continue
     for k in range(max(1, math.ceil(per * SHARE.get(name, 1.0)))):
         for _ in range(20):
             try:

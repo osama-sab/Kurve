@@ -1024,6 +1024,23 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 4, slice 4.1: polynomials by QR (2026-11-14)
+
+- **A straight line or a polynomial is solved, not iterated**: least squares through the linear model's QR in X centred
+  and scaled to [−1, 1], refined in double-double; the Fit window says *Solved directly*, Results, the report and the CSV
+  *Least squares (QR)*, with no iterations; the same for a fit of every column and a fit that follows its data.
+- **Far from zero it keeps its digits**: the coefficients are reported in powers of x, but the curve, its bands, Find X/Y,
+  the residual analysis and the worksheet's `fit(B)` are worked out from the centred ones. On three days of readings
+  timed in seconds since 1970, a polynomial of order 5 written in powers of x is 10⁵ off its own curve; the centred one
+  is exact to 10⁻¹⁵ (the bench's rationals).
+- **A coefficient fixed** is honoured by the solve; a limit the solution breaks, a constraint or the X errors send the fit
+  to Levenberg–Marquardt, started from the solution. A polynomial of order 10 joins the list.
+- **The bench**: NIST's certified polynomials (Norris, Pontius, Filip of order 10, Wampler 1–5, NoInt1–2) to 13–15
+  digits; the least-squares solution of the doubles in rationals on twelve cases far from zero, weighted and with
+  coefficients fixed; NIST's 27 nonlinear sets through Levenberg–Marquardt from both starts (6–11 digits; four first
+  starts end in another minimum, named); the fuzzer's random polynomials. NIST's files are in `tools/ref/nist/`.
+- **A million points** at order 10 are streamed a row at a time (Givens rotations): 0.5 s and no copy of the design.
+
 ## Closing the gap with Origin, wave 3, slice 3.6: matrices (2026-11-14)
 
 - **Matrices**, as Origin's: books of grids of Z with their X and Y. *Data › Matrix › New matrix…* (a size, X and Y from

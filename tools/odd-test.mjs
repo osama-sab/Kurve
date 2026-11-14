@@ -446,6 +446,23 @@ await page(async p => {
   check("…and what is left opens and draws", d.img && d.cells === 6, JSON.stringify(d));
 }, { name: "matrices from storage", timeout: 90000 });
 
+console.log("Polynomial fits from storage (FIT2_SPEC 4.1): centred coefficients that are junk");
+await page(async p => {
+  const g = await p.evaluate(() => { const x = [], y = []; for (let i = 0; i < 50; i++) { x.push(2e9 + i * 60); y.push(1 + 0.5 * (i / 50) - 0.2 * (i / 50) ** 2 + 0.01 * Math.cos(i * 3)); } return { x, y }; });
+  await p.evaluate(async g => { await mkSpec("dates", g.x, g.y); }, g); await p.waitForTimeout(200);
+  await p.evaluate(() => { S.fitMode = "curve"; showTab("fit"); chooseModel("poly3"); runFit(); }); await p.waitForTimeout(200);
+  const good = await p.evaluate(() => { const f = activeFit(); return { m: f.ctl.method, rms: Math.sqrt(fitResiduals(f).reduce((s, v) => s + v * v, 0) / 50) }; });
+  check("a cubic on X near 2e9 is solved and drawn from its centred coefficients", good.m === "qr" && good.rms < 0.012, JSON.stringify(good));
+  // Each kind of junk an older version or a damaged store could leave: the fit is read in powers of x as before, nothing throws.
+  const junk = [null, 7, "poly", { c: "a", s: 1, b: [1, 2, 3, 4], V: [] }, { c: 0, s: 0, b: [1, 2, 3, 4], V: [[1]] }, { c: 0, s: 1, b: [1, 2], V: [[1, 0], [0, 1]] }, { c: 0, s: 1, b: [1, 2, 3, NaN], V: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]] }, { c: 0, s: 1, b: [1, 2, 3, 4], V: "x" }];
+  const r = await p.evaluate(junk => junk.map(j => { const f = Object.assign({}, activeFit(), { poly: j }); try { const FM = fitModel(f), V = fitView(f); return [!!FM.poly, !!FM.var, V.centred, Number.isFinite(FM.f(2e9, f.params))]; } catch (e) { return ["threw " + e.message]; } }), junk);
+  check("junk in place of the centred coefficients is ignored: the fit is read in powers of x", r.every(q => q.length === 4 && !q[0] && !q[1] && !q[2] && q[3]), JSON.stringify(r));
+  await p.evaluate(async () => { const f = Object.assign({}, activeFit(), { poly: { c: 1, s: "two", b: [], V: null } }); S.store.save(S.pid, { fit: f }); flushEdits(); }); await p.waitForTimeout(800);
+  await p.reload(); await ready(p); await p.waitForTimeout(400);
+  const d = await p.evaluate(() => { renderPlot(); const f = activeFit(); return { fit: !!document.querySelector("#plot path[data-fitc]"), poly: !!fitModel(f).poly, lst: statsList(f).length > 5 }; });
+  check("…and after a reload such a fit still draws, read in powers of x", d.fit && !d.poly && d.lst, JSON.stringify(d));
+}, { name: "polynomial fits from storage" });
+
 console.log("A curve fit held to one iteration, a tolerance of zero, starting values it cannot use");
 await page(async p => {
   const g = await p.evaluate(() => { const x=[], y=[]; for(let i=0;i<120;i++){ x.push(i*0.1); y.push(1+4*Math.exp(-i*0.1/1.7)+0.01*Math.sin(i)); } return {x,y}; });

@@ -898,6 +898,18 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-14: polynomials solved, not iterated (FIT2_SPEC 4.1)
+
+- **What is linear is solved.** A straight line or a polynomial has one least-squares answer, and iterating towards it
+  only adds a tolerance to how close it gets. The Fit window says *Solved directly* where its Iterations would be, and
+  the method is named; the iterative fit stays for what a direct solve cannot honour (a limit the answer breaks, a
+  constraint, the X errors), started from the answer.
+- **Shown in powers of x, computed about the centre.** People write and read a polynomial in powers of x, and Origin
+  reports it so; but those coefficients, rounded to doubles, cannot give back a curve on a narrow window far from zero.
+  So the numbers shown are the familiar ones, and everything drawn or read from the fit uses the centred ones the
+  solve found. Results keeps to the numbers (information hygiene); the full list, the report and the CSV say about
+  which X it was solved.
+
 ### 2026-11-14: matrices (SHEET_SPEC 3.6)
 
 - **A matrix is a thing of its own, in a window of its own.** A grid of Z is not columns: its X runs along

@@ -329,6 +329,106 @@ if (fixtures.mat) {
   if (!(relErr(sm.params[0], b0) < 1e-10 && relErr(sm.bse[1], sb1) < 1e-10)) refBad.push("statsmodels disagrees with NIST's certified Norris values");
 }
 
+/* ---- Polynomials by QR (FIT2_SPEC 4.1) ----
+   NIST's polynomial sets through polyLsq, the curve fit's straight line and polynomials: each coefficient, its standard
+   deviation and the residual SD against the certified values (R² too, but for NoInt's, which NIST takes about 0); then the
+   least-squares solution of the doubles given, exactly (fixtures/poly.json): the fitted values, the sums, the coefficients about
+   Kurve's centre and their errors, and those in powers of x within their own conditioning. */
+const nistRead = (name) => { const txt = readFileSync(join(here, "ref", "nist", name + ".dat"), "utf8").split(/\r?\n/);
+  const k = txt.map((l) => l.trim().startsWith("Data:")).lastIndexOf(true);
+  return { txt, rows: txt.slice(k + 1).filter((l) => l.trim()).map((l) => l.trim().split(/\s+/).map(Number)) }; };
+{
+  const lre = [];
+  for (const [name, deg, noint] of [["Norris", 1], ["Pontius", 2], ["Filip", 10], ["Wampler1", 5], ["Wampler2", 5], ["Wampler3", 5], ["Wampler4", 5], ["Wampler5", 5], ["NoInt1", 1, 1], ["NoInt2", 1, 1]]) {
+    const { txt, rows } = nistRead(name), Y = rows.map((r) => r[0]), X = rows.map((r) => r[1]), cert = [];
+    for (const l of txt) { const m = /^\s*B(\d+)\s+(\S+)\s+(\S+)/.exec(l); if (m) cert[+m[1]] = [+m[2], +m[3]]; }
+    const rsd = +txt.map((l) => /^\s*(?:Residual\s+)?Standard Deviation\s+(\S+)\s*$/.exec(l)).find(Boolean)[1];
+    const r2 = +txt.find((l) => /R-Squared/.test(l)).trim().split(/\s+/).pop();
+    const R = get("polyLsq")(X, Y, null, deg, noint ? { fixed: [true, false], p0: [0, 0] } : {});
+    if (R.error) { note("nist.poly", Infinity, name + ": " + R.error); continue; }
+    const big = Math.max(...cert.filter(Boolean).map((c) => Math.abs(c[0]))); let worstB = 0;
+    cert.forEach((c, i) => { if (!c) return; const j = noint ? 1 : i, e = relErr(R.params[j], c[0]); worstB = Math.max(worstB, e); note("nist.poly", e, name + " B" + i);
+      note("nist.poly.sd", c[1] === 0 ? Math.abs(R.errors[j]) / big : relErr(R.errors[j], c[1]), name + " sd B" + i); });
+    note("nist.poly.sd", rsd === 0 ? Math.sqrt(R.stats.redChi2) / big : relErr(Math.sqrt(R.stats.redChi2), rsd), name + " residual SD");
+    if (!noint) note("nist.poly.R2", relErr(R.stats.R2, r2), name + " R²");
+    lre.push(name + " " + (worstB === 0 ? "15+" : Math.min(15, -Math.log10(worstB)).toFixed(1)));
+  }
+  console.log("  NIST's polynomials through polyLsq, digits right in the worst coefficient: " + lre.join(", "));
+  for (const c of fixtures.poly.cases) {
+    const [X, Y, W, k, o] = c.args, w = c.want, R = get("polyLsq")(X, Y, W, k, o);
+    if (R.error) { note("polyLsq.fit", Infinity, c.name + ": " + R.error); continue; }
+    if (R.poly.c !== w.c || R.poly.s !== w.s) note("polyLsq.fit", Infinity, c.name + ": centred elsewhere");
+    const ys = Math.max(...w.fit) - Math.min(...w.fit) || 1, bs = Math.max(...w.b.map(Math.abs)) || 1;
+    note("polyLsq.fit", Math.max(...X.map((x, i) => Math.abs(get("polyEval")(R.poly, x) - w.fit[i]) / ys)), c.name);
+    note("polyLsq.fit", relErr(R.stats.rss, w.rss), c.name + " RSS"); note("polyLsq.fit", relErr(R.stats.chi2, w.chi2), c.name + " χ²");
+    note("polyLsq.b", Math.max(...w.b.map((v, q) => Math.abs(R.poly.b[q] - v) / bs)), c.name);
+    note("polyLsq.b", Math.max(...w.seb.map((v, q) => relErr(Math.sqrt(R.poly.V[q][q]), v))), c.name + " errors");
+    note("polyLsq.params", Math.max(...w.params.map((v, j) => o.fixed[j] ? 0 : relErr(R.params[j], v) / w.cond[j])), c.name);
+    note("polyLsq.errors", Math.max(...w.errors.map((v, j) => o.fixed[j] ? 0 : relErr(R.errors[j], v))), c.name);
+    // the streamed path, which a design past POLY_DD values takes: in doubles, from R alone
+    const G = get("polyLsq")(X, Y, W, k, Object.assign({}, o, { stream: true }));
+    if (G.error) { note("polyLsq.stream", Infinity, c.name + ": " + G.error); continue; }
+    note("polyLsq.stream", Math.max(...X.map((x, i) => Math.abs(get("polyEval")(G.poly, x) - w.fit[i]) / ys)), c.name);
+    note("polyLsq.stream", Math.max(relErr(G.stats.rss, w.rss), relErr(G.stats.chi2, w.chi2)), c.name + " sums");
+    note("polyLsq.stream", Math.max(...w.seb.map((v, q) => relErr(Math.sqrt(G.poly.V[q][q]), v))), c.name + " errors");
+  }
+}
+
+/* ---- NIST's nonlinear sets: lmFit from both of NIST's starts, with the tolerance at 1e-15 (as Fit control can set it) ----
+   Each parameter and its standard deviation against the certified values. From the first start four sets go to another
+   minimum or none (as many fitters do): they are named, and a fifth would fail. Lanczos1's data are its function to 13
+   digits, so its residuals are the rounding of the data: its standard deviations cannot be had in doubles, and are left out. */
+{
+  const E = Math.exp, PI = Math.PI;
+  const NLS = {
+  Misra1a: (x, b) => b[0] * (1 - E(-b[1] * x)),
+  Chwirut2: (x, b) => E(-b[0] * x) / (b[1] + b[2] * x), Chwirut1: (x, b) => E(-b[0] * x) / (b[1] + b[2] * x),
+  Lanczos3: (x, b) => b[0] * E(-b[1] * x) + b[2] * E(-b[3] * x) + b[4] * E(-b[5] * x),
+  Gauss1: (x, b) => b[0] * E(-b[1] * x) + b[2] * E(-((x - b[3]) ** 2) / b[4] ** 2) + b[5] * E(-((x - b[6]) ** 2) / b[7] ** 2),
+  Gauss2: (x, b) => b[0] * E(-b[1] * x) + b[2] * E(-((x - b[3]) ** 2) / b[4] ** 2) + b[5] * E(-((x - b[6]) ** 2) / b[7] ** 2),
+  DanWood: (x, b) => b[0] * x ** b[1],
+  Misra1b: (x, b) => b[0] * (1 - (1 + b[1] * x / 2) ** -2),
+  Kirby2: (x, b) => (b[0] + b[1] * x + b[2] * x * x) / (1 + b[3] * x + b[4] * x * x),
+  Hahn1: (x, b) => (b[0] + b[1] * x + b[2] * x ** 2 + b[3] * x ** 3) / (1 + b[4] * x + b[5] * x ** 2 + b[6] * x ** 3),
+  Nelson: null,
+  MGH17: (x, b) => b[0] + b[1] * E(-x * b[3]) + b[2] * E(-x * b[4]),
+  Lanczos1: (x, b) => b[0] * E(-b[1] * x) + b[2] * E(-b[3] * x) + b[4] * E(-b[5] * x),
+  Lanczos2: (x, b) => b[0] * E(-b[1] * x) + b[2] * E(-b[3] * x) + b[4] * E(-b[5] * x),
+  Gauss3: (x, b) => b[0] * E(-b[1] * x) + b[2] * E(-((x - b[3]) ** 2) / b[4] ** 2) + b[5] * E(-((x - b[6]) ** 2) / b[7] ** 2),
+  Misra1c: (x, b) => b[0] * (1 - (1 + 2 * b[1] * x) ** -0.5),
+  Misra1d: (x, b) => b[0] * b[1] * x * (1 + b[1] * x) ** -1,
+  Roszman1: (x, b) => b[0] - b[1] * x - Math.atan(b[2] / (x - b[3])) / PI,
+  ENSO: (x, b) => b[0] + b[1] * Math.cos(2 * PI * x / 12) + b[2] * Math.sin(2 * PI * x / 12) + b[4] * Math.cos(2 * PI * x / b[3]) + b[5] * Math.sin(2 * PI * x / b[3]) + b[7] * Math.cos(2 * PI * x / b[6]) + b[8] * Math.sin(2 * PI * x / b[6]),
+  MGH09: (x, b) => b[0] * (x * x + x * b[1]) / (x * x + x * b[2] + b[3]),
+  Thurber: (x, b) => (b[0] + b[1] * x + b[2] * x ** 2 + b[3] * x ** 3) / (1 + b[4] * x + b[5] * x ** 2 + b[6] * x ** 3),
+  BoxBOD: (x, b) => b[0] * (1 - E(-b[1] * x)),
+  Rat42: (x, b) => b[0] / (1 + E(b[1] - b[2] * x)),
+  MGH10: (x, b) => b[0] * E(b[1] / (x + b[2])),
+  Eckerle4: (x, b) => (b[0] / b[1]) * E(-0.5 * ((x - b[2]) / b[1]) ** 2),
+  Rat43: (x, b) => b[0] / (1 + E(b[1] - b[2] * x)) ** (1 / b[3]),
+  Bennett5: (x, b) => b[0] * (b[1] + x) ** (-1 / b[2]),
+};
+  const HARD1 = new Set(["MGH17", "BoxBOD", "MGH10", "Eckerle4"]), miss1 = [], lreN = [];
+  for (const name of Object.keys(NLS)) {
+    const { txt, rows } = nistRead(name), P = [];
+    for (const l of txt) { const m = /^\s*b(\d+)\s*=\s*(\S+)\s+(\S+)\s+(\S+)\s+(\S+)/.exec(l); if (m) P[+m[1] - 1] = [+m[2], +m[3], +m[4], +m[5]]; }
+    let f = NLS[name], X = rows.map((r) => r[1]), Y = rows.map((r) => r[0]);
+    if (name === "Nelson") { const x1 = rows.map((r) => r[1]), x2 = rows.map((r) => r[2]); X = rows.map((_, i) => i); Y = rows.map((r) => Math.log(r[0])); f = (i, b) => b[0] - b[1] * x1[i] * E(-b[2] * x2[i]); }
+    let worstB = 0;
+    for (const st of [0, 1]) {
+      const p0 = P.map((q) => q[st]), r = get("lmFit")(f, X, Y, X.map(() => 1), p0, p0.map(() => false), { maxIter: 2000, tol: 1e-15 });
+      const eb = r.error ? Infinity : Math.max(...P.map((q, i) => relErr(r.params[i], q[2]))), es = r.error ? Infinity : Math.max(...P.map((q, i) => relErr(r.errors[i], q[3])));
+      if (st === 0 && HARD1.has(name) && !(eb <= TARGET["nist.nls"].tol)) { miss1.push(name); continue; }
+      note("nist.nls", eb, name + " from start " + (st + 1)); if (name !== "Lanczos1") note("nist.nls.sd", es, name + " from start " + (st + 1));
+      worstB = Math.max(worstB, eb);
+    }
+    lreN.push(name + " " + Math.min(15, -Math.log10(worstB)).toFixed(1));
+  }
+  console.log("  NIST's nonlinear sets through lmFit, digits right in the worst parameter: " + lreN.join(", "));
+  if (miss1.length) console.log("  From NIST's first start, another minimum or none: " + miss1.join(", ") + " (each right from the second)");
+  [...HARD1].filter((n) => !miss1.includes(n)).forEach((n) => console.log("  " + n + " is now right from NIST's first start too"));
+}
+
 /* ---- the table ---- */
 let fail = 0, short = 0, pass = 0;
 console.log("\n  function              worst error   target");

@@ -189,6 +189,13 @@ each.
 
 ## 4.1 Polynomials by QR
 
+Done 14.11, as below, with these changes of plan: past 2·10⁶ values of the design the solve is streamed a row at a time
+(Givens rotations, `lsqStream`) in doubles, so a million points take 0.5 s and no copy of the design (the budget is 1.6 s,
+not 0.5); NIST's nonlinear sets are checked with Fit control's tolerance at 1e-15 (6 to 11 digits; with the default 1e-12,
+5 to 10), and from NIST's first start MGH17, BoxBOD, MGH10 and Eckerle4 end in another minimum or none, named in the
+bench; a fixed coefficient is solved in powers of x, so far from zero it is refused in words when the powers cannot be
+told apart; Results leaves the method out (the full list, the report and the CSV have it).
+
 **What.** A straight line or a polynomial in the Fit window, a fit of every column, a fit that
 follows its data and a saved fit setting are solved directly (decision 1), with no iterations: the
 Iterations strip says *Solved directly: a polynomial is linear in its coefficients*; Results, the

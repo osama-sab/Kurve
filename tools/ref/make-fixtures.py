@@ -1243,6 +1243,71 @@ for t in range(3):
     cases.append({"fn": "matText", "name": f"check-code text {t}", "args": [m], "want": txt})
 out["mat"] = cases
 
+# ---- Polynomials by QR (FIT2_SPEC 4.1): the least-squares solution of the doubles given, exactly (rationals), with the
+# coefficients about Kurve's centre and scale, the fitted values, the sums and the errors (square roots in 40 digits) ----------
+from fractions import Fraction as Fr
+cases = []; rng = np.random.default_rng(41)
+def fr_solve(G, g):  # Gaussian elimination in rationals
+    m = len(g); A = [row[:] + [g[i]] for i, row in enumerate(G)]
+    for c in range(m):
+        p = next(r for r in range(c, m) if A[r][c] != 0); A[c], A[p] = A[p], A[c]
+        for r in range(m):
+            if r != c and A[r][c] != 0:
+                f = A[r][c] / A[c][c]; A[r] = [a - f * b for a, b in zip(A[r], A[c])]
+    return [A[i][m] / A[i][i] for i in range(m)]
+def fr_inv(G):
+    m = len(G); return [list(col) for col in zip(*[fr_solve(G, [Fr(int(i == k)) for i in range(m)]) for k in range(m)])]
+def fsqrt(q): return float(refs.mp.sqrt(refs.mp.mpf(q.numerator) / q.denominator)) if q > 0 else 0.0
+def polycase(name, X, Y, k, W=None, fixed=None, p0=None):
+    n, m = len(X), k + 1; fixed = fixed or [False] * m; p0 = p0 or [0.0] * m
+    free = [j for j in range(m) if not fixed[j]]
+    lo, hi = min(X), max(X); c = lo / 2 + hi / 2; half = hi / 2 - lo / 2; s = 2.0 ** math.ceil(math.log2(half)) if half > 0 else 1.0
+    Xf, Yf = [Fr(x) for x in X], [Fr(y) for y in Y]; Wf = [Fr(w) for w in W] if W else [Fr(1)] * n
+    yr = [Yf[i] - sum(Fr(p0[j]) * Xf[i] ** j for j in range(m) if fixed[j]) for i in range(n)]
+    A = [[Wf[i] * Xf[i] ** j for j in free] for i in range(n)]
+    G = [[sum(A[i][a] * A[i][b] for i in range(n)) for b in range(len(free))] for a in range(len(free))]
+    g = [sum(A[i][a] * Wf[i] * yr[i] for i in range(n)) for a in range(len(free))]
+    af = fr_solve(G, g); a = [Fr(p0[j]) for j in range(m)]
+    for u, j in enumerate(free): a[j] = af[u]
+    fit = [sum(a[j] * Xf[i] ** j for j in range(m)) for i in range(n)]
+    rss = sum((Yf[i] - fit[i]) ** 2 for i in range(n)); chi = sum((Wf[i] * (Yf[i] - fit[i])) ** 2 for i in range(n))
+    dof = n - len(free); scale = chi / dof if not W else Fr(1)
+    Gi = fr_inv(G); Cr = [[Fr(0)] * m for _ in range(m)]
+    for u, j in enumerate(free):
+        for v, l in enumerate(free): Cr[j][l] = Gi[u][v] * scale
+    cF, sF = Fr(c), Fr(s)
+    Ti = [[Fr(math.comb(j, q)) * cF ** (j - q) * sF ** q if j >= q else Fr(0) for j in range(m)] for q in range(m)]
+    b = [sum(Ti[q][j] * a[j] for j in range(m)) for q in range(m)]
+    Vb = [[sum(Ti[q][j] * Cr[j][l] * Ti[r][l] for j in range(m) for l in range(m)) for r in range(m)] for q in range(m)]
+    T = [[Fr(math.comb(q, j)) * (-cF) ** (q - j) / sF ** q if q >= j else Fr(0) for q in range(m)] for j in range(m)]
+    cond = [float(sum(abs(T[j][q] * b[q]) for q in range(m)) / abs(a[j])) if a[j] != 0 else 1.0 for j in range(m)]
+    cases.append({"fn": "polyLsq", "name": name, "args": [X, Y, W, k, {"fixed": fixed, "p0": p0}],
+                  "want": {"c": c, "s": s, "params": [float(v) for v in a], "cond": cond, "errors": [fsqrt(Cr[j][j]) for j in range(m)],
+                           "b": [float(v) for v in b], "seb": [fsqrt(Vb[q][q]) for q in range(m)], "fit": [float(v) for v in fit],
+                           "rss": float(rss), "chi2": float(chi), "dof": dof}})
+def smooth(x, x0, w): return [float(3 + 2 * math.sin((v - x0) / w) + 0.5 * math.cos(2.3 * (v - x0) / w)) for v in x]
+# dates in seconds since 1970, three days of them
+x = sorted(float(v) for v in 1.7e9 + rng.uniform(0, 3 * 86400, 60)); y = [v + float(e) for v, e in zip(smooth(x, x[0], 86400), rng.normal(0, 0.05, 60))]
+for k in (2, 3, 5): polycase(f"dates, order {k}", x, y, k)
+# a narrow window far from zero
+x = [10000 + 0.5 * i for i in range(101)]; y = [v + float(e) for v, e in zip(smooth(x, 10000, 9), rng.normal(0, 0.01, 101))]
+for k in (5, 9): polycase(f"window 10000 to 10050, order {k}", x, y, k)
+# a wavenumber axis, falling
+x = [4000 - 3.0 * i for i in range(1001)][::5]; y = [v + float(e) for v, e in zip(smooth(x, 1000, 600), rng.normal(0, 0.02, len(x)))]
+polycase("wavenumbers 4000 to 1000, order 9", x, y, 9)
+# order 10 near zero, and weighted
+x = sorted(float(v) for v in rng.uniform(-1, 5, 70)); y = [float(math.exp(-v / 2) * math.cos(v)) + float(e) for v, e in zip(x, rng.normal(0, 1e-3, 70))]
+polycase("order 10 on -1 to 5", x, y, 10)
+W = [float(1 / (0.001 + 0.002 * abs(v))) for v in x]; polycase("order 4, weighted", x, y, 4, W)
+# coefficients fixed: the intercept, and the slope of a cubic
+x = [0.25 * i for i in range(1, 41)]; y = [2.5 + 0.3 * v - 0.07 * v * v + 0.004 * v ** 3 + float(e) for v, e in zip(x, rng.normal(0, 0.02, 40))]
+polycase("cubic, intercept fixed at 2.5", x, y, 3, None, [True, False, False, False], [2.5, 0, 0, 0])
+polycase("cubic, slope fixed at 0.3, weighted", x, y, 3, [float(1 / (0.02 + 0.001 * v)) for v in x], [False, True, False, False], [0, 0.3, 0, 0])
+polycase("a straight line through the origin", x, [0.31 * v + float(e) for v, e in zip(x, rng.normal(0, 0.02, 40))], 1, None, [True, False], [0, 0])
+# few points: exactly one more than the coefficients
+polycase("order 3 through five points", [0.0, 1.0, 2.0, 3.5, 5.0], [1.0, 2.5, 2.0, 4.0, 3.0], 3)
+out["poly"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")
