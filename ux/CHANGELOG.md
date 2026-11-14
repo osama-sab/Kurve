@@ -1024,6 +1024,25 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 3, slice 3.3: filters (2026-11-14)
+
+- **Data › Filter and a column's menu**: keep the rows whose value is ticked (every value with its count, searched) or that
+  meet one or two conditions (equals, less than, between, among the largest or smallest with ties kept, above the mean,
+  contains, begins with, is empty…), joined by and or or; the dialog counts the rows it would show.
+- **A view**: the funnel on a filtered column's letter, *21 of 40 rows shown, filtered by B* in the foot with Clear; rows keep
+  their numbers; graphs, fits, formulas, processing, exports and the check code read every row.
+- **A row being typed in does not vanish**: a value that would fail the filter stays in view until *Apply again*, the funnels
+  and the foot saying the filter is older than the data. Paste, fill and inserting rows ask to clear the filter first.
+- **Analyses keep their own rows**: one made on a filtered sheet takes the conditions (ticked in its dialog, said in its
+  report) and works them out on its data each time, whatever the filter does afterwards.
+- Fixes found by the worksheet fuzzer on its new path: a fill treated a text cell as empty (under the lock it overwrote a
+  recorded text; unlocked it left the text behind the number, lost on reload), and a formula set on a column of names kept
+  the names.
+
+Checked: `fixtures/filt.json` (every condition on four sizes of numbers and of numbers, text and empty cells, and two columns,
+against pandas: every row the same, 216 cases), `tools/sheet-drive.mjs` (31 new checks), the worksheet fuzzer with filters,
+two budgets (a filter on a million rows, 198 ms; the sheet drawn with it, 19 ms), screenshots in both themes and at 390 px.
+
 ## Closing the gap with Origin, wave 3, slice 3.1: formulas, further (2026-11-14)
 
 - **A column's formula reaches other rows**: `B[i-1]` the row above, `B[1]` the first, `x[i-1]` the X above; a row

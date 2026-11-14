@@ -232,6 +232,110 @@ if (want("3.1")) {
   }, { name: "formulas of before" });
 }
 
+if (want("3.3")) {
+  console.log("3.3 Filters");
+  // X 1…40, B = (i*7) % 23 (ties), C text groups a/b/c with an empty cell every 9th row, D = i.
+  const SET33 = () => { const x = [], b = [], d = [], ct = {}; for (let i = 0; i < 40; i++) { x.push(i + 1); b.push((i * 7) % 23); d.push(i); if (i % 9 !== 4) ct[i] = "abc"[i % 3]; }
+    save({ cols: [makeCol("x", "X", "", x), Object.assign(makeCol("y", "B", "", b), { pipe: [], mask: [] }), Object.assign(makeCol("ignore", "Group", "", new Array(40).fill(null)), { txt: ct }), Object.assign(makeCol("y", "D", "", d), { pipe: [], mask: [] })], activeY: null }, "typed"); };
+  const B = Array.from({ length: 40 }, (_, i) => (i * 7) % 23), G = Array.from({ length: 40 }, (_, i) => i % 9 !== 4 ? "abc"[i % 3] : null);
+  const view = p => p.evaluate(() => ({ n: S.wsm.n, rows: S.wsm.ord ? S.wsm.ord.slice() : null, foot: $("#wsFoot").textContent, funnels: [...document.querySelectorAll("#ws [data-filt]")].map(b => ({ id: b.dataset.filt, old: b.classList.contains("old"), title: b.title })) }));
+  await page(async p => {
+    await p.evaluate(SET33); await p.waitForTimeout(300); await p.evaluate(() => focusWin("sheet"));
+    // A condition through the dialog, from the column menu's Filter submenu.
+    let r = await p.evaluate(() => { const c = sheetCols()[1]; const it = colMenuItems ? null : null; return filterItems(c.id).map(i => i.label); });
+    check("the column menu's Filter lists Filter by column B…, Apply again and Clear every filter", r[0] === "Filter by column B…" && r.includes("Apply the filter again") && r.some(l => /Clear every filter/.test(l)), JSON.stringify(r));
+    await p.evaluate(() => { filtDlg(sheetCols()[1].id); }); await p.waitForTimeout(150);
+    r = await p.evaluate(() => ({ cond: $("#fdMc").checked, list: document.querySelectorAll(".fdv").length }));
+    check("B has 23 values, so the dialog opens on conditions (its values listed too)", r.cond && r.list === 23, JSON.stringify(r));
+    await p.selectOption("#fd1Op", "gt"); await p.fill("#fd1A", "15"); await p.waitForTimeout(80);
+    const wantGt = B.map((v, i) => v > 15 ? i : -1).filter(i => i >= 0);
+    r = await p.textContent("#fdN");
+    check("the hint counts the rows it would show as it is set", r === `B > 15: ${wantGt.length} of 40 rows would be shown.`, r);
+    await p.click("#formOk"); await p.waitForTimeout(250);
+    r = await view(p);
+    check("B > 15: the view keeps those rows, in their order", JSON.stringify(r.rows) === JSON.stringify(wantGt) && r.n === wantGt.length, JSON.stringify(r.rows));
+    check("…B's letter carries the funnel, its tooltip the condition", r.funnels.length === 1 && /Filtered: B > 15/.test(r.funnels[0].title) && !r.funnels[0].old, JSON.stringify(r.funnels));
+    check("…and the foot says how many rows are shown, filtered by B", new RegExp(`${wantGt.length} of 40 rows shown, filtered by B`).test(r.foot) && /Clear/.test(r.foot), r.foot);
+    r = await p.evaluate(() => ({ t: $("#toast").textContent, log: P().log.slice(-1)[0].text, data: sheetCols()[1].data.length, fp: P().raw.fp }));
+    check("a toast with Undo and a log line; the data are untouched", /^Filtered by B > 15: \d+ of 40 rows shown\.Undo$/.test(r.t) && /filtered by B > 15/.test(r.log) && r.data === 40, JSON.stringify(r));
+    // Values ticked on the text column, searched; two columns combine by and.
+    await p.evaluate(() => { filtDlg(sheetCols()[2].id); }); await p.waitForTimeout(150);
+    r = await p.evaluate(() => ({ vals: $("#fdMv").checked, list: [...document.querySelectorAll(".fdv")].map(e => e.querySelector("label").textContent.trim() + " " + e.querySelector(".num").textContent) }));
+    check("the text column opens on its values: a, b, c and (empty), with their counts", r.vals && JSON.stringify(r.list) === JSON.stringify(["a 14", "b 9", "c 13", "(empty) 4"]), JSON.stringify(r.list));
+    await p.fill("#fdQ", "b"); await p.waitForTimeout(80);
+    r = await p.evaluate(() => [...document.querySelectorAll(".fdv")].filter(e => !e.hidden).map(e => e.querySelector("label").textContent.trim() + " " + e.querySelector(".num").textContent));
+    check("the search keeps the values containing it in the list", JSON.stringify(r) === JSON.stringify(["b 9"]), JSON.stringify(r));
+    await p.fill("#fdQ", ""); await p.click("#fdNone"); await p.click("#fdV_0"); await p.click("#fdV_2"); await p.waitForTimeout(80);
+    await p.click("#formOk"); await p.waitForTimeout(250);
+    const wantTwo = wantGt.filter(i => G[i] === "a" || G[i] === "c");
+    r = await view(p);
+    check("C is a or c, with B > 15: both columns' conditions hold in every row shown", JSON.stringify(r.rows) === JSON.stringify(wantTwo) && r.funnels.length === 2 && /filtered by B, C/.test(r.foot), JSON.stringify([r.rows, wantTwo, r.foot]));
+    // Two conditions joined by or, then undo and redo.
+    await p.evaluate(() => { filtDlg(sheetCols()[1].id); }); await p.waitForTimeout(150);
+    await p.selectOption("#fd1Op", "lt"); await p.fill("#fd1A", "3"); await p.selectOption("#fdJoin", "or"); await p.selectOption("#fd2Op", "top"); await p.fill("#fd2A", "2"); await p.waitForTimeout(80);
+    r = await p.textContent("#fdN");
+    check("two conditions read back as words: B < 3 or B among the 2 largest", /^B < 3 or B among the 2 largest: \d+ of 40 rows would be shown \(with the other columns' filters\)\.$/.test(r), r);
+    await p.click("#formOk"); await p.waitForTimeout(250);
+    const top2 = [...B].sort((a, b) => b - a)[1], wantOr = B.map((v, i) => (v < 3 || v >= top2) && (G[i] === "a" || G[i] === "c") ? i : -1).filter(i => i >= 0);
+    r = await view(p);
+    check("…its rows: the two largest kept with their ties", JSON.stringify(r.rows) === JSON.stringify(wantOr), JSON.stringify([r.rows, wantOr]));
+    await p.evaluate(() => undo()); await p.waitForTimeout(250); r = await view(p);
+    check("undo puts B > 15 back", JSON.stringify(r.rows) === JSON.stringify(wantTwo), JSON.stringify(r.rows));
+    await p.evaluate(() => redo()); await p.waitForTimeout(250); r = await view(p);
+    check("redo the or", JSON.stringify(r.rows) === JSON.stringify(wantOr), JSON.stringify(r.rows));
+    // A value typed that fails stays in view until the filter is applied again.
+    const first = wantOr[0];
+    await p.locator('#ws td[data-r="0"][data-ci="1"]').click(); await p.keyboard.type("10"); await p.keyboard.press("Enter"); await p.waitForTimeout(400);
+    r = await view(p); const t = await toastText(p);
+    check("a value typed that fails the filter (10 in a row of B < 3) stays in view, the funnels and foot saying the filter is older", r.rows.includes(first) && r.funnels.every(f => f.old) && /Apply again/.test(r.foot), JSON.stringify([r.rows.slice(0, 3), r.funnels, r.foot]));
+    check("…said once, with Apply it again", /stay as they were in view until the filter is applied again\.Apply it again$/.test(t), t);
+    await p.click("#wsFiltRe"); await p.waitForTimeout(250); r = await view(p);
+    check("Apply again: the row leaves the view, the funnels are themselves again", !r.rows.includes(first) && r.funnels.every(f => !f.old) && !/Apply again/.test(r.foot), JSON.stringify([r.rows.slice(0, 3), r.foot]));
+    await p.evaluate(() => undo()); await p.waitForTimeout(250);
+    // What a filter blocks: a block pasted, a fill, rows inserted; each with the way out.
+    r = await p.evaluate(() => { wsSelect(0, 1, false); wsPasteText("1\t2\n3\t4"); return $("#toast").textContent; });
+    check("a block pasted is refused with Clear it", /^Clear the filter first: a block fills every row, the filter's hidden ones too\.Clear it$/.test(r), r);
+    r = await p.evaluate(() => { openFillDlg("rows"); return $("#toast").textContent; });
+    check("a fill is refused the same way", /^Clear the filter first: a fill follows every row/.test(r), r);
+    r = await p.evaluate(() => { wsRowsEdit("insert", false); return $("#toast").textContent; });
+    check("rows inserted are refused the same way", /^Clear the filter first: rows are inserted and deleted/.test(r), r);
+    // Sorted with a filter on: the rows shown, in the sort's order.
+    r = await p.evaluate(() => { wsSortBy(sheetCols()[3].id, -1); const o = S.wsm.ord.slice(); wsSortBy(null, 0); return o; });
+    check("sorting with a filter on orders the rows shown", JSON.stringify(r) === JSON.stringify([...wantOr].reverse()), JSON.stringify(r));
+    // An analysis made on the filtered sheet takes the conditions as its rows; a later filter does not change it.
+    await p.evaluate(() => { wsSelect(0, 3, false); anaDlg("desc", { cols: [sheetCols()[3].id] }); }); await p.waitForTimeout(200);
+    r = await p.evaluate(() => ({ on: $("#aWhere") && $("#aWhere").checked, lab: $("#aWhere") && $("#aWhere").parentElement.textContent.trim() }));
+    check("Statistics on columns on a filtered sheet offers its rows, ticked, naming the conditions", r.on && r.lab === "Only the rows where (B < 3 or B among the 2 largest) and (C is “a” or “c”)", JSON.stringify(r));
+    await p.click("#formOk"); await p.waitForTimeout(400);
+    const nTwo = wantOr.length;
+    r = await p.evaluate(() => { const a = P().ana[0]; return { N: a.res.report.sections[0].tables[0].rows[0][1], notes: a.res.report.notes || [] }; });
+    check("its N is the rows the filter showed, and its report says which rows", r.N === nTwo && r.notes.some(n => n === `Rows where (Sheet 1!B < 3 or Sheet 1!B among the 2 largest) and (Sheet 1!C is “a” or “c”) (${nTwo} of 40).`), JSON.stringify(r));
+    await p.evaluate(() => { showSheet("s1"); setFilter("s1", null, null); }); await p.waitForTimeout(300);
+    r = await p.evaluate(() => P().ana[0].res.report.sections[0].tables[0].rows[0][1]);
+    check("clearing the filter afterwards leaves the analysis's rows as they were", r === nTwo, r);
+    await p.evaluate((k) => { const c = sheetCols("s1")[1]; const d = c.data.slice(); d[k] = 10; save({ cols: P().cols.map(o => o.id === c.id ? Object.assign({}, o, { data: d }) : o) }, "changed B"); renderAll(); }, wantOr[0]); await p.waitForTimeout(400);
+    r = await p.evaluate(() => P().ana[0].res.report.sections[0].tables[0].rows[0][1]);
+    check("a value of B changed so its row fails its conditions: the analysis follows them (one row fewer)", r === nTwo - 1, r);
+    // Junk from storage.
+    r = await p.evaluate(() => { const q = JSON.parse(JSON.stringify(P())); q.wsFilter = { s1: { x: { c1: { op: "gt", a: "7" } }, y: { vals: [1, "a", null, {}] }, z: { c1: { op: "nope" } }, ok: { c1: { op: "top", n: 150, pct: true } }, good: { c1: { op: "between", a: 1, b: 2 }, c2: { op: "teq", t: "x" }, join: "or" } }, s2: 5, s3: [] };
+      migrate(q); const a = q.ana[0]; a.in.where = { k: { c1: { op: "le", a: NaN } } }; migrate(q); return { f: q.wsFilter, w: q.ana[0].in.where }; });
+    check("junk in p.wsFilter from storage: only a condition that reads stays; an analysis's junk rows go", JSON.stringify(r.f) === JSON.stringify({ s1: { good: { c1: { op: "between", a: 1, b: 2 }, c2: { op: "teq", t: "x" }, join: "or" } } }) && r.w === undefined, JSON.stringify(r));
+  }, { name: "filters" });
+  // Kept across a reload and in a project file.
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } }); let pid;
+    await page(async p => { await p.evaluate(SET33); await p.waitForTimeout(300); await p.evaluate(() => setFilter("s1", sheetCols("s1")[1].id, { c1: { op: "ge", a: 20 } })); pid = await p.evaluate(() => { flushEdits(); return S.pid; }); await p.waitForTimeout(800); }, { name: "a filter before a reload", ctx });
+    await page(async p => {
+      await p.evaluate(pid => { if (S.pid !== pid) switchProject(pid); focusWin("sheet"); }, pid); await p.waitForTimeout(500);
+      let r = await view(p); const want = B.map((v, i) => v >= 20 ? i : -1).filter(i => i >= 0);
+      check("after a reload the sheet is filtered as it was", JSON.stringify(r.rows) === JSON.stringify(want) && r.funnels.length === 1, JSON.stringify(r.rows));
+      r = await p.evaluate(async () => { const doc = JSON.parse(JSON.stringify(pfDoc(S.pid))); await pfOpenDoc(doc, "F.kurve"); await new Promise(r => setTimeout(r, 300)); focusWin("sheet"); renderWs(); return { f: P().wsFilter, n: S.wsm.n }; });
+      check("a project file carries the filter", r.f && Object.values(r.f.s1 || {})[0].c1.op === "ge" && r.n === want.length, JSON.stringify(r));
+    }, { name: "a filter after a reload", ctx });
+    await ctx.close();
+  }
+}
+
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

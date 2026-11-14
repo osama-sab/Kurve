@@ -1461,7 +1461,23 @@ graph first, with the taskbar kept at the bottom of the screen.
   `nd` the data's rows, `n` those shown, `hidR`), so `wsDR` maps around them; the row after them
   is marked (`th.rh.hidab`, `wsHiddenAbove`) and a double click on its number shows them. The
   address (`wsBar`) names the data row, as the row number does. The foot says how many are
-  hidden, with Show. **Formula suggestions** (`fxsAttach(inp, {on, items})`, `fxsUpdate`,
+  hidden, with Show. **Filters** (SHEET_SPEC 3.3; a view, as hiding is): `p.wsFilter` (`{sheetId: {colId:
+  condition}}`, in `UNDO_KEYS`), the conditions of the ANA block's `FILT_OPS` (`{vals: [cells]}` or `{c1, c2?, join}`;
+  `filtCell`, `filtRule`, `filtCond`, `filtRows(cols, conds, n)`, `filtList`, `filtText`, `filtAll` (several columns'
+  words, a column's own *or* bracketed), `filtNum`); `filtRuleOk`, `filtOk`, `filtClean` (in `migrate`), `filtOf(p, sid)`
+  the one reader, `setFilter(sid, colId|null, cond|null)` the one writer (one undo step, a log line, a toast with Undo).
+  The rows hidden are worked out when the filter changes, and kept (`S.wsFilt`, per project and sheet, `filtState`:
+  `{hide (a byte a row), hid, n, stale, conds, ordFor}`; `filtEval`, `filtSame`): a value typed that would fail it stays in
+  view, the state `stale` (said once by a toast, the funnels and the foot in the warning colour) until `filtReapply`; undo and
+  redo clear the cache, so the view comes back with the data. `wsOrder` leaves them out as hidden rows (`m.filtR` the mask,
+  `m.filt` the state; filtered alone, the order is made once and kept in `ordFor`). The header's funnel (`[data-filt]`,
+  `.flt`, `.old`), the foot (`.wsflt`, `#wsFiltRe`, `#wsFiltClr`), `filtBlocks(m, what)` (paste, fill, the fill dialog
+  and rows inserted or deleted: *Clear the filter first*), `filtValues` (a column's distinct cells and counts, null past
+  200), `filtDlg(id)` (`.fdlg`: `#fdOn`, `#fdMv`/`#fdMc`, `#fdQ`, `#fdAll`, `#fdNone`, `#fdV_<i>`, `#fd1Op`, `#fd1A`,
+  `#fd1B`, `#fd1Pct`, `#fdJoin`, `#fd2…`, `#fdN` counting the rows it would show), `filterItems(id)` (Data › Filter and the
+  column menu's Filter). An analysis made on a filtered sheet: `anaDlg`'s `#aWhere` (ticked for a new one) puts the
+  conditions in `a.in.where`, copied; `anaInputs` keeps the rows they pass on the data as they are, with a note (*Rows
+  where …*), `anaSig` reads the columns they name, `runAna` says when one has gone, `anaClean` drops junk. **Formula suggestions** (`fxsAttach(inp, {on, items})`, `fxsUpdate`,
   `fxsRender`, `fxsAccept`, `fxsKey`, `fxsClose`, `#fxSug` `.fxs`, `fxsOpen`): a list under a
   formula as it is typed, in the F(x)= cell (and a cell starting with `=`, `wsRestoreEditor`),
   the formula bar (`#wsValIn`) and a fit function (`#fbExpr`); `fxsSheetItems(self)` the columns
@@ -3225,7 +3241,11 @@ sum, text compared, `=` as equality, another sheet by a name with its spaces lef
 inserted there, four refusals in words, the live check, the suggestions of a function and of a sheet's columns, undo),
 constants through their dialog (a name refused, added, read, renamed and changed, undone, deleted in use by a second
 press and undone, the report's Method, a project file, a reload, junk from storage, two tabs adding one each), and
-thirteen formulas of before giving the same values in the new grammar.
+thirteen formulas of before giving the same values in the new grammar; 3.3, filters (the column menu's Filter, a condition
+through the dialog and its count, the funnel and the foot, values ticked and searched on a text column, two columns, two
+conditions joined by or with ties kept, undo and redo, a value typed that fails staying in view until Apply again, paste,
+fill and rows refused with Clear it, sorting the rows shown, an analysis taking the filter as its rows and keeping them
+when the filter changes, following its own conditions when the data change, junk from storage, a reload, a project file).
 `node tools/text-drive.mjs [path]` (Playwright) checks text cells (FOUNDATION_SPEC 1.2): typed
 among numbers, marked, left out of a curve, Numbers only refusing and Text only keeping 007 and
 back, undo, the status bar's count, sorting, find, copy, clear, rows inserted and deleted, the
@@ -3788,6 +3808,14 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   for the first count where "below zero, or past α" held; −1 made it true at the start too, so for four
   trials the search stopped there and the power was 0 instead of 0.452 (the fuzzer, once its packages
   were installed). Each `bs` predicate is now false up to the boundary and true after it.
+- **A text cell is a value.** A fill wrote numbers wherever `data[r]` was null, so under the lock it overwrote a recorded
+  text and, unlocked, left the text behind the number; on reload the cleaner dropped it, and what was on screen and what
+  came back differed (the worksheet fuzzer, seed 10, once filters changed its path). A formula set on a column of names
+  kept its names too (seed 9). Anything that asks whether a cell is empty asks `cellTxt` as well, and a number written
+  takes the text away (`dropTxtAt`).
+- **Undo puts the view back with the data.** A filter keeps the rows it hid until it is applied again, so that a row being
+  typed in does not vanish; undoing the value that made it fail left the row hidden. Undo and redo work the filter out
+  afresh.
 - **A window restored hands back the keys.** Minimised, the worksheet lost the focus to the
   page; restored from its taskbar button, typing went nowhere. A window brought forward by the
   user takes the keys. And a test that measures a window while it grows out of its taskbar
@@ -4795,7 +4823,8 @@ Next, in order:
    a table, seven slices in the order 3.1, 3.3, 3.4, 3.5, 3.7, 3.2, 3.6; its fourteen decisions, 14.11); slice 3.1,
    formulas further (rows by offset and number, aggregates, conditions, text compared, other sheets, the project's
    constants; NumPy and exact sums agreeing to 3e-16, a fuzzer of random expressions; the exact binomial test's power
-   for small sizes put right on the way), done 14.11
+   for small sizes put right on the way), done 14.11; slice 3.3, filters (values ticked or conditions, a view kept with the
+   project, applied again when asked, an analysis keeping a filter as its own rows; pandas agreeing on every row), done 14.11
 
 ## Known gaps
 

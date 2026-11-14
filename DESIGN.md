@@ -898,6 +898,19 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-14: filters (SHEET_SPEC 3.3)
+
+- **A dialog, not a drop-down under the header.** Kurve's dialogs already have the keys, focus and undo a panel would need
+  again; the funnel in the header opens it, so the column is never more than one click from its filter.
+- **The rows stay put until asked.** A spreadsheet that hides the row you just typed into loses your place; the filter is
+  marked older than the data instead, in the warning colour the stale fit uses, and *Apply again* is one click.
+- **Text conditions ignore capitals; `==` in a formula does not.** A filter is a search people type into; a formula is a
+  definition. Both are said where they are used.
+- **The opposite of a number's condition keeps every other cell**, text and empty ones too, as a spreadsheet's does: *does
+  not equal 5* hides only the fives.
+- **An analysis copies the conditions, not the rows.** Rows as a list would freeze it; conditions follow new data, and the
+  filter can change without the analysis changing under the user's feet (the plan's decision 3).
+
 ### 2026-11-14: formulas, further (SHEET_SPEC 3.1)
 
 - **Missing in, missing out, said once for everything.** The rule formulas already had (a row with an empty input is

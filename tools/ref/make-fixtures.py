@@ -823,6 +823,75 @@ with np.errstate(invalid="ignore", divide="ignore"):
             cases.append({"fn": "fxCalc", "name": f"{src} on {nm}", "args": [src, cols, {"G": {str(r): t for r, t in Gt.items()}}, X, nDef], "want": want, "floor": 16 * 2.0 ** -52 * scale * max(1.0, GAIN.get(src, 1.0))})
 out["fx"] = cases
 
+# ---------- filters (SHEET_SPEC 3.3): the rows each condition keeps, by pandas ----------
+# A cell is a number, a text or empty; a number's rule keeps numbers that meet it (its negation every other cell), a text's rule
+# reads a number as JavaScript writes it, capitals ignored; top and bottom keep ties (nlargest/nsmallest keep="all"), a percent
+# of the count rounded up; columns combine by and.
+import pandas as pd
+cases = []; rng = np.random.default_rng(33)
+def jsstr(x): return str(int(x)) if float(x).is_integer() and abs(x) < 1e21 else repr(float(x))
+def fcol(n, kind):
+    v, t = [], {}
+    for r in range(n):
+        u = rng.random()
+        if u < 0.12: v.append(None)
+        elif kind != "num" and u < 0.45: v.append(None); t[r] = str(rng.choice(["Control", "control", "treated A", "treated B", "blank", "n/a", "12"]))
+        else: v.append(float(rng.integers(-5, 15)) if rng.random() < 0.5 else round(float(rng.normal(3, 4)), 2))
+    return v, t
+def frule(v, t, r):
+    n = len(v); s = pd.Series([np.nan if x is None else x for x in v], dtype=float); isnum = s.notna()
+    cells = [v[i] if v[i] is not None else t.get(i) for i in range(n)]
+    op = r["op"]
+    if op in ("empty", "nempty"): e = pd.Series([c is None for c in cells]); return e if op == "empty" else ~e
+    if op in ("teq", "tne", "contains", "ncontains", "begins", "ends"):
+        q = r["t"].lower(); base = {"tne": "teq", "ncontains": "contains"}.get(op, op)
+        def ok(c):
+            if c is None: return False
+            st = (jsstr(c) if isinstance(c, float) else c).lower()
+            return st == q if base == "teq" else q in st if base == "contains" else st.startswith(q) if base == "begins" else st.endswith(q)
+        m = pd.Series([ok(c) for c in cells]); return ~m if op in ("tne", "ncontains") else m
+    if op in ("top", "bottom"):
+        nums = s[isnum]; cnt = len(nums); k = max(1, math.ceil(cnt * r["n"] / 100 - 1e-9)) if r.get("pct") else int(r["n"])
+        if cnt == 0: return pd.Series([False] * n)
+        keep = nums.nlargest(k, keep="all") if op == "top" else nums.nsmallest(k, keep="all")
+        return pd.Series([i in keep.index for i in range(n)])
+    if op in ("above", "below"):
+        m = math.fsum(s[isnum].tolist()) / isnum.sum() if isnum.sum() else math.nan
+        return (s > m) if op == "above" else (s < m)
+    a, b = r.get("a"), r.get("b")
+    if op in ("eq", "ne"): m = s == a
+    elif op == "lt": m = s < a
+    elif op == "le": m = s <= a
+    elif op == "gt": m = s > a
+    elif op == "ge": m = s >= a
+    else: m = s.between(min(a, b), max(a, b))
+    m = m & isnum
+    return ~m if op in ("ne", "nbetween") else m
+def fcond(v, t, c):
+    if "vals" in c:
+        S = c["vals"]; cells = [v[i] if v[i] is not None else t.get(i) for i in range(len(v))]
+        return pd.Series([(x in S) if x is not None else (None in S) for x in cells])
+    m = frule(v, t, c["c1"])
+    if c.get("c2"): m2 = frule(v, t, c["c2"]); m = (m | m2) if c.get("join") == "or" else (m & m2)
+    return m
+RULES = [{"op": "eq", "a": 3.0}, {"op": "ne", "a": 3.0}, {"op": "lt", "a": 2.5}, {"op": "le", "a": 2.0}, {"op": "gt", "a": 4.0}, {"op": "ge", "a": 4.0},
+         {"op": "between", "a": 6.0, "b": 0.0}, {"op": "nbetween", "a": 0.0, "b": 6.0}, {"op": "top", "n": 3}, {"op": "bottom", "n": 4}, {"op": "top", "n": 25, "pct": True},
+         {"op": "bottom", "n": 10, "pct": True}, {"op": "above"}, {"op": "below"}, {"op": "teq", "t": "control"}, {"op": "tne", "t": "control"}, {"op": "contains", "t": "treat"},
+         {"op": "ncontains", "t": "A"}, {"op": "begins", "t": "T"}, {"op": "ends", "t": "2"}, {"op": "empty"}, {"op": "nempty"}]
+for size in (1, 8, 40, 300):
+    for kind in ("num", "mixed"):
+        v, t = fcol(size, kind); v2, t2 = fcol(size, "mixed")
+        cells = sorted({x for x in (v[i] if v[i] is not None else t.get(i) for i in range(size))}, key=lambda z: (z is None, isinstance(z, str), str(z)))
+        conds = [{"c1": r} for r in RULES] + [{"c1": RULES[2], "c2": RULES[4], "join": "or"}, {"c1": RULES[5], "c2": RULES[11], "join": "and"},
+                 {"vals": cells[: max(1, len(cells) // 2)]}, {"vals": [None]}]
+        for c in conds:
+            want = [int(i) for i in np.flatnonzero(fcond(v, t, c).to_numpy())]
+            cases.append({"fn": "filtList", "name": f"{json.dumps(c)} on {size} {kind}", "args": [{"A": {"v": v, "t": {str(k): x for k, x in t.items()}}}, {"A": c}, size], "want": want})
+        c1, c2 = {"c1": RULES[4]}, {"c1": RULES[16]}
+        want = [int(i) for i in np.flatnonzero((fcond(v, t, c1) & fcond(v2, t2, c2)).to_numpy())]
+        cases.append({"fn": "filtList", "name": f"two columns on {size} {kind}", "args": [{"A": {"v": v, "t": {str(k): x for k, x in t.items()}}, "B": {"v": v2, "t": {str(k): x for k, x in t2.items()}}}, {"A": c1, "B": c2}, size], "want": want})
+out["filt"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

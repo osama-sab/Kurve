@@ -374,6 +374,7 @@ spectroscopy tools), and nowhere else.
 | not counted as a peak | a candidate the finder set aside, with its reason | Peaks, Peak fit | turned down |
 | series | the order or variable that a set of columns follows | Batch, trend graphs, heat map | — |
 | constant | a named number of the project, read by column formulas (k_B) | Data › Constants…, formulas, the report | variable, parameter (a fit's) |
+| filter; filtered | rows kept in view by a column's values or conditions; a sheet or column that has one | Data › Filter, the column menu, the foot | query, hide (for a filter's rows) |
 
 ## 3.7 Defaults that fit the data
 

@@ -166,6 +166,11 @@ const actions=[
   ["sheet",3,async()=>{ const s=pick(["raw","final","raw"]); log(`sheet ${s}`); await page.click(`#wsSheet [data-sheet="${s}"]`).catch(()=>{}); }],
   ["sort",2,async()=>{ const d=pick([1,-1,0]); log(`sort ${d}`); await page.evaluate(d=>{ const m=S.wsm; const q=m&&m.cols.find(q=>!q.phantom); if(q) wsSortBy(d?q.id:null,d); },d); }],
   ["lock",3,async()=>{ log("lock toggle"); await page.click("#wsLockBtn").catch(()=>{}); }],
+  // A filter put on or taken off (SHEET_SPEC 3.3): the rows shown change, the data never.
+  ["filter",2,async()=>{ const k=pick(["gt","vals","clear","clear"]), u=rnd(), w=rnd(); log(`filter ${k}`); await page.evaluate(([k,u,w])=>{ const m=S.wsm; if(!m||m.kind!=="raw"||S.readOnly) return; const qs=m.cols.filter(q=>!q.phantom&&!q.hidden&&q.col&&!q.col.ana); if(!qs.length) return; const q=qs[Math.floor(u*qs.length)];
+      if(k==="clear"){ setFilter(curSheet(),null,null); return; } const nums=(q.col.data||[]).filter(v=>v!=null).sort((a,b)=>a-b);
+      if(k==="gt"){ if(nums.length) setFilter(curSheet(),q.id,{c1:{op:"gt",a:nums[Math.floor(w*nums.length)]}}); }
+      else setFilter(curSheet(),q.id,{vals:nums.length?[nums[Math.floor(w*nums.length)]]:[null]}); },[k,u,w]); await wait(150); }],
   ["addcol",3,async()=>{ const w=pick(["A column at the end","Row above","Row below","Column to the left","Column to the right","A column at the end"]); log(`insert: ${w}`);
       await page.click("#addColBtn").catch(()=>{}); await wait(80);
       await page.evaluate(w=>{ const it=[...document.querySelectorAll(".menu .mi")].find(e=>(e.querySelector(".mlab")||{}).textContent===w||((e.querySelector(".mlab")||{}).textContent||"").replace(/^\d+ /,"").replace(/s (above|below|to)/," $1")===w); if(it&&!it.disabled) it.click(); else if(typeof closeMenu==="function") closeMenu(false); },w).catch(()=>{}); await wait(100); await closeDialogs(); }],

@@ -256,6 +256,16 @@ if (fixtures.fx) {
   }
 }
 
+/* ---- filters (SHEET_SPEC 3.3): the rows each condition keeps, against pandas; any row kept or dropped
+   differently is an error of 1 ---- */
+if (fixtures.filt) {
+  const f = get("filtList");
+  for (const c of fixtures.filt.cases) {
+    let got; try { got = f(...c.args); } catch (e) { note("filtList", Infinity, `${c.name}: ${e.message}`); continue; }
+    note("filtList", JSON.stringify(got) === JSON.stringify(c.want) ? 0 : 1, c.name);
+  }
+}
+
 /* ---- NIST's Norris: certified values read from the file itself ---- */
 {
   const txt = readFileSync(join(here, "ref", "nist", "Norris.dat"), "utf8").split(/\r?\n/);

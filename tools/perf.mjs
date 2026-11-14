@@ -38,6 +38,8 @@ const BUDGET = {
   "1M: draw": [150, "the graph of a million points drawn"],
   "1M: zoomed draw": [60, "the graph drawn zoomed into a thousandth of it"],
   "1M: worksheet": [150, "the worksheet drawn at the middle of a million rows"],
+  "1M: a filter": [600, "a filter (Signal > 0) put on a million rows: worked out, saved and the worksheet drawn (SHEET_SPEC 3.3)"],
+  "1M: filtered worksheet": [150, "the worksheet drawn with that filter on"],
   "1M: a column formula": [300, "B - mean(B) + B[i-1] worked out over a million rows (SHEET_SPEC 3.1)"],
   "1M: save to a file": [2000, "the project of a million rows written as a .kurve file (packed and compressed)"],
   "1M: open a file": [2000, "that file read, checked and opened as a new project"],
@@ -93,6 +95,10 @@ await withPage(async (p) => {
   // A column formula with an aggregate and a row of another row (SHEET_SPEC 3.1), worked out as recalcFx does.
   await p.evaluate(() => { setColFormula(2, "B - mean(B) + B[i-1]"); });
   got["1M: a column formula"] = await best(() => p.evaluate(() => { const c = sheetCols()[2]; if (!c || !c.fx) return Infinity; const a = performance.now(), r = fxEval(c, P().cols); const ms = performance.now() - a; return r.data && r.data.length === 1000000 ? ms : Infinity; }));
+  // A filter on a million rows (SHEET_SPEC 3.3): put on, and the sheet drawn with it.
+  got["1M: a filter"] = await best(() => p.evaluate(() => { focusWin("sheet"); setFilter(curSheet(), null, null); const c = sheetCols()[1], a = performance.now(); setFilter(curSheet(), c.id, { c1: { op: "gt", a: Math.random() * 0.01 } }); const ms = performance.now() - a; return S.wsm && S.wsm.filtR ? ms : Infinity; }));
+  got["1M: filtered worksheet"] = await best(() => p.evaluate(() => { const b = document.querySelector("#ws"); b.scrollTop = b.scrollHeight / 2; const a = performance.now(); renderWs(); return performance.now() - a; }));
+  await p.evaluate(() => setFilter(curSheet(), null, null));
   // A project file, written and read again (FOUNDATION_SPEC 1.1): what Ctrl+S and Open a project file do, without the picker.
   got["1M: save to a file"] = await best(() => p.evaluate(async () => { fpSettle(); const a = performance.now(); window.__pfb = await pfGzip(JSON.stringify(pfDoc(S.pid))); return performance.now() - a; }));
   got["1M: open a file"] = await best(async () => { const ms = await p.evaluate(async () => { const pid0 = S.pid, a = performance.now(); await openProjectFile(new File([window.__pfb], "Million.kurve")); return S.pid !== pid0 ? performance.now() - a : Infinity; });

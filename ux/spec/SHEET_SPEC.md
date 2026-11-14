@@ -303,6 +303,13 @@ of another project.
 
 ## 3.3 Filters
 
+Done 14.11, as below, with these changes of plan: the filter is a dialog opened from the column menu, Data › Filter and the
+funnel (not a panel under the header); a filter older than the data is *applied again* when asked (Origin's Reapply), and
+undo and redo work it out afresh; the hidden rows are a byte mask with the view's order kept until either changes (the
+budget); the reference is `filt.json` (pandas, every row) without a fuzzer generator, and junk from storage is checked in
+`sheet-drive` rather than `odd-test`. On its new path the worksheet fuzzer found a fill overwriting text cells and a formula
+keeping a column's names (fixed).
+
 **What.** A column's menu and Data › Filter: *Filter by this column…* opens the filter's panel
 under the column's header (as Excel's): the column's distinct values with their counts, each
 ticked (text, categorical, or numbers with at most 200 distinct values), a search over them, and

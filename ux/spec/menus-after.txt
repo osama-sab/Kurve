@@ -79,6 +79,10 @@ Data
     Hide the selected row  ## "Hide the n selected rows" with several
     Show every hidden column
     Show every hidden row
+  Filter  ## new (SHEET_SPEC 3.3): rows kept in view by a column's values or conditions; also the column menu's Filter and the funnel in a filtered column's header
+    Filter by column (the active column)…
+    Apply the filter again  ## ↓ until the data changed since it was set
+    Clear every filter of this sheet
   Columns  ## ~ "Spectra"
     New column from the processed data  ## ~ "New spectrum from the processed data"
     Copy with the same processing  ## ~ "Copy with the same steps"

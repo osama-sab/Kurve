@@ -362,6 +362,17 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .ws .fxm{font:italic 700 var(--fs-cap) var(--mono);color:var(--accent);padding:0 var(--sp-1)}
 .ws .fxm.bad{color:var(--bad)}
 .ws .fxm.old{color:var(--warn)}
+/* A filtered column's funnel (SHEET_SPEC 3.3): the accent while it holds, the warning colour once the data changed since. */
+.ws .hc .flt{color:var(--accent);width:16px;height:20px;min-width:16px;padding:0}
+.fdlg .fdm{display:flex;flex-wrap:wrap;gap:var(--sp-2) var(--sp-5);align-items:center;margin:var(--sp-4) 0 var(--sp-3)}
+.fdlg .fdbar{display:flex;flex-wrap:wrap;gap:var(--sp-2);align-items:center;margin:0 0 var(--sp-3)}
+.fdlg .fdbar input[type=search]{flex:1 1 12em;min-width:8em}
+.fdlg .fdbar input[type=text]{width:9em}
+.fdlg .fdlist{max-height:260px;overflow:auto;border:1px solid var(--rule);border-radius:var(--r-s);padding:var(--sp-1) var(--sp-3)}
+.fdlg .fdv{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-5);min-height:26px}
+.fdlg .fdv[hidden]{display:none}
+.ws .hc .flt.old,.wsflt.old{color:var(--warn)}
+.ws th.ch.hsel .flt{color:var(--accent-ink)}
 .ptab.pg input.pgsfx{font-style:italic;color:var(--accent)}
 .ptab.pg input.pgfol{font-style:italic}
 .rgdlg{display:grid;gap:var(--sp-2)}
@@ -2183,6 +2194,7 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
   <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.4c-.6.3-1 .8-1 1.5v.8M12 17h.01"/></symbol>
   <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><circle cx="9" cy="9" r="1.8"/><path d="m20.5 15.5-5-5-11 10"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5z"/></symbol>
   <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z"/><circle cx="12" cy="12" r="3"/></symbol>
   <symbol id="i-flow" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="5" rx="1"/><rect x="14" y="9.5" width="7" height="5" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/><path d="M6.5 8v8M10 5.5h3a1.5 1.5 0 0 1 1.5 1.5v2.5"/></symbol>
   <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 7-5 5 5 5M16 7l5 5-5 5M13.5 4.5l-3 15"/></symbol>
@@ -7937,6 +7949,70 @@ ANA_KINDS.roc={label:"ROC curve", base:"ROC", cats:true, xs:true,
     return {tables:[{cols}],report:{sections:secs,method:`Positive: ${g.name} = ${nm(pos)}, a ${dir==="low"?"lower":"higher"} score more positive; the area as U/(n₁n₀), DeLong's standard error, the interval the area ± z·SE.`,roc:R.length,curves:R.length},notes}; }};
 // A kind run by name: the page's call, and the worker's ("call" job).
 function anaRunKind(kind,ins,p){ const K=ANA_KINDS[kind]; if(!K) throw new Error("the analysis "+kind+" is not known here"); return K.run(ins,p||{}); }
+/* ---- Filters (SHEET_SPEC 3.3), pure: which rows of a sheet a filter shows ------------------------------
+   A column's condition is {vals: [the cells kept]} (a cell a number, a text, or null for an empty one) or
+   {c1: rule, c2?: rule, join: "and" | "or"}, a rule {op, a?, b?, n?, pct?, t?}. FILT_OPS: each [key, words,
+   what it needs ("" | "a" | "ab" | "n" | "t"), what it reads ("num" | "text" | "any")]. A number's rule passes
+   only numbers (a text or an empty cell fails it), its negation (ne, nbetween) every cell the rule fails; a
+   text's rule reads a text cell as written and a number as String writes it, capitals ignored (as a
+   spreadsheet's filter), its negation every other cell. Top and bottom keep each row whose number reaches
+   the nth largest or smallest (ties kept; a percent of the count rounded up, at least one); above and below
+   the mean compare with the mean of the column's numbers. Columns combine by and. */
+const FILT_OPS=[["eq","equals","a","num"],["ne","does not equal","a","num"],["lt","is less than","a","num"],["le","is at most","a","num"],
+  ["gt","is greater than","a","num"],["ge","is at least","a","num"],["between","is between","ab","num"],["nbetween","is not between","ab","num"],
+  ["top","is among the largest","n","num"],["bottom","is among the smallest","n","num"],["above","is above the mean","","num"],["below","is below the mean","","num"],
+  ["teq","is the text","t","text"],["tne","is not the text","t","text"],["contains","contains","t","text"],["ncontains","does not contain","t","text"],
+  ["begins","begins with","t","text"],["ends","ends with","t","text"],["empty","is empty","","any"],["nempty","is not empty","","any"]];
+const FILT_OP=Object.fromEntries(FILT_OPS.map(o=>[o[0],o]));
+// A cell as a filter reads it: its number, its text, or null.
+function filtCell(v,t,i){ const x=v&&i<v.length?v[i]:null; if(x!=null&&Number.isFinite(x)) return x; if(x==null&&t&&Object.prototype.hasOwnProperty.call(t,i)) return t[i]; return null; }
+// One rule over n rows: a flag a row.
+function filtRule(v,t,r,n){ const out=new Uint8Array(n), o=r&&FILT_OP[r.op]; if(!o){ out.fill(1); return out; }
+  const k=o[0], cell=i=>filtCell(v,t,i);
+  if(k==="empty"||k==="nempty"){ for(let i=0;i<n;i++) out[i]=(cell(i)==null)===(k==="empty")?1:0; return out; }
+  if(o[3]==="text"){ const neg=k==="tne"||k==="ncontains", base=k==="tne"?"teq":k==="ncontains"?"contains":k, q=String(r.t==null?"":r.t).toLocaleLowerCase();
+    for(let i=0;i<n;i++){ const c=cell(i); let ok=false;
+      if(c!=null){ const s=String(c).toLocaleLowerCase(); ok=base==="teq"?s===q:base==="contains"?s.includes(q):base==="begins"?s.startsWith(q):s.endsWith(q); }
+      out[i]=ok!==neg?1:0; }
+    return out; }
+  const a=+r.a, b=+r.b; let test=null, neg=false;
+  if(k==="top"||k==="bottom"||k==="above"||k==="below"){ const nums=[]; for(let i=0;i<n;i++){ const c=cell(i); if(typeof c==="number") nums.push(c); }
+    if(k==="above"||k==="below"){ const m=nums.length?neuSum(nums)/nums.length:NaN; test=k==="above"?x=>x>m:x=>x<m; }
+    else { const cnt=nums.length, want=r.pct?Math.max(1,Math.ceil(cnt*(+r.n)/100-1e-9)):Math.floor(+r.n);
+      if(!(want>=1)||!cnt) test=()=>false;
+      else if(want>=cnt) test=()=>true;
+      else { const s=Float64Array.from(nums).sort(), thr=k==="top"?s[cnt-want]:s[want-1]; test=k==="top"?x=>x>=thr:x=>x<=thr; } } }
+  else { const lo=Math.min(a,b), hi=Math.max(a,b);
+    test={eq:x=>x===a,ne:x=>x===a,lt:x=>x<a,le:x=>x<=a,gt:x=>x>a,ge:x=>x>=a,between:x=>x>=lo&&x<=hi,nbetween:x=>x>=lo&&x<=hi}[k]; neg=k==="ne"||k==="nbetween"; }
+  for(let i=0;i<n;i++){ const c=cell(i), ok=typeof c==="number"&&test(c); out[i]=ok!==neg?1:0; }
+  return out; }
+// A column's condition over n rows.
+function filtCond(v,t,cond,n){ if(cond&&Array.isArray(cond.vals)){ const S=new Set(cond.vals), out=new Uint8Array(n); for(let i=0;i<n;i++) out[i]=S.has(filtCell(v,t,i))?1:0; return out; }
+  const r1=filtRule(v,t,cond&&cond.c1,n); if(!(cond&&cond.c2&&FILT_OP[cond.c2.op])) return r1;
+  const r2=filtRule(v,t,cond.c2,n), or=cond.join==="or"; for(let i=0;i<n;i++) r1[i]=or?(r1[i]|r2[i]):(r1[i]&r2[i]); return r1; }
+// The rows a sheet's filter shows: cols {colId: {v, t}}, conds {colId: condition}; n the sheet's rows. Columns combine by and.
+function filtRows(cols,conds,n){ const out=new Uint8Array(n).fill(1);
+  Object.keys(conds||{}).forEach(id=>{ const c=cols[id]; if(!c) return; const f=filtCond(c.v,c.t,conds[id],n); for(let i=0;i<n;i++) out[i]&=f[i]; });
+  return out; }
+// The rows that pass, as a list from 0 (for the bench).
+function filtList(cols,conds,n){ const f=filtRows(cols,conds,n), out=[]; for(let i=0;i<n;i++) if(f[i]) out.push(i); return out; }
+// A condition in words: B > 3, C is “ctl” or “trt”, B is among the 10 largest.
+const filtNum=v=>String(v).replace("e+","e");
+function filtText(cond,name){ if(!cond) return ""; const q=v=>v==null?"empty":typeof v==="number"?filtNum(v):`“${v}”`;
+  if(Array.isArray(cond.vals)){ const L=cond.vals.map(q); return `${name} is ${L.length<=4?(L.length>1?L.slice(0,-1).join(", ")+" or "+L[L.length-1]:L[0]||"none of its values"):L.slice(0,3).join(", ")+` or ${L.length-3} more`}`; }
+  const one=r=>{ const o=r&&FILT_OP[r.op]; if(!o) return ""; const a=filtNum(r.a), b=filtNum(r.b);
+    switch(o[0]){ case "eq": return `${name} = ${a}`; case "ne": return `${name} ≠ ${a}`; case "lt": return `${name} < ${a}`; case "le": return `${name} ≤ ${a}`;
+      case "gt": return `${name} > ${a}`; case "ge": return `${name} ≥ ${a}`; case "between": return `${name} between ${filtNum(Math.min(r.a,r.b))} and ${filtNum(Math.max(r.a,r.b))}`;
+      case "nbetween": return `${name} not between ${filtNum(Math.min(r.a,r.b))} and ${filtNum(Math.max(r.a,r.b))}`;
+      case "top": case "bottom": return `${name} among the ${r.pct?filtNum(r.n)+" % ":filtNum(r.n)+" "}${o[0]==="top"?"largest":"smallest"}`;
+      case "above": return `${name} above its mean`; case "below": return `${name} below its mean`;
+      case "teq": return `${name} is “${r.t}”`; case "tne": return `${name} is not “${r.t}”`; case "contains": return `${name} contains “${r.t}”`;
+      case "ncontains": return `${name} does not contain “${r.t}”`; case "begins": return `${name} begins with “${r.t}”`; case "ends": return `${name} ends with “${r.t}”`;
+      case "empty": return `${name} is empty`; case "nempty": return `${name} is not empty`; } return ""; };
+  const s1=one(cond.c1), s2=cond.c2?one(cond.c2):""; return s2?`${s1} ${cond.join==="or"?"or":"and"} ${s2}`:s1; }
+// Several columns' conditions in words, joined by and; a column's own "or" in brackets so the words read one way.
+function filtAll(conds,nameOf){ const ids=Object.keys(conds||{}), parts=ids.map(id=>filtText(conds[id],nameOf(id)));
+  return parts.map(t=>ids.length>1&&/ or /.test(t)?`(${t})`:t).join(" and "); }
 /* ==ANA:END== */
 
 /* ============================================================
@@ -9054,6 +9130,10 @@ function xCatPos(xc){ const key=xc.data||xc, m=XCATM.get(key), sig=JSON.stringif
    typed stays text, "007" too), "num" (text refused), or none (a number when it reads as one). */
 const TXT_MAX=10000, TXT_OK=new WeakSet(), RAWA=new WeakMap();
 function txtOf(c){ return c&&c.txt&&typeof c.txt==="object"?c.txt:null; }
+// The text cells of rows a number has just been written into go (the map replaced, never changed in place).
+function dropTxtAt(col,rows){ const t=txtOf(col); if(!t||!rows||!rows.length) return; let o=null;
+  rows.forEach(r=>{ if(Object.prototype.hasOwnProperty.call(t,r)){ if(!o) o=Object.assign({},t); delete o[r]; } });
+  if(o){ if(Object.keys(o).length) col.txt=o; else delete col.txt; } }
 function cellTxt(c,i){ const t=txtOf(c); if(!t||!Object.prototype.hasOwnProperty.call(t,i)) return null; return (c.data||[])[i]==null?t[i]:null; }
 function textCount(c){ const t=txtOf(c); if(!t) return 0; let n=0; const d=c.data||[]; for(const k in t) if(d[k]==null) n++; return n; }
 function hasVals(c){ return !!c&&((c.data||[]).some(v=>v!=null)||textCount(c)>0); }
@@ -9352,7 +9432,7 @@ function migrate(p){
   // Keys of older versions can come back from storage after an upgrade.
   ["x","y","e","xLong","xUnit","yLong","yUnit","eLong","eUnit","steps","mask","plot"].forEach(k=>{ if(k in p) delete p[k]; });
   p.cols.forEach(c=>{ c.data=c.data||[]; if(c.role==="y"){ c.pipe=c.pipe||[]; c.mask=c.mask||[]; } cleanTxt(c); cleanCat(c); if(c.fmt!==undefined&&c.fmt!=="text"&&c.fmt!=="num") delete c.fmt; });
-  anaClean(p); constClean(p);
+  anaClean(p); constClean(p); filtClean(p);
   if(!p.cols.some(c=>c.role==="x")) p.cols.unshift(makeCol("x","",""));
   if(!p.cols.some(c=>c.id===p.activeY)){ const y=p.cols.find(c=>c.role==="y"); p.activeY=y?y.id:null; }
   p.raw=p.raw||{fp:"",hist:[]}; p.fits=p.fits||[];
@@ -9398,7 +9478,7 @@ function migrateGraphs(p){
 }
 /* Undo is per-session and local: it rewinds your own edits, not other
    people's. Cross-user undo in a shared document is a different problem. */
-const UNDO_KEYS=["cols","activeY","meta","fit","annos","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","fitSets","lines","rawLock","tree","wsAlign","wsHide","sheets","detcal","ana","consts"];
+const UNDO_KEYS=["cols","activeY","meta","fit","annos","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","fitSets","lines","rawLock","tree","wsAlign","wsHide","sheets","detcal","ana","consts","wsFilter"];
 const undoStack=[], redoStack=[], UNDO_MAX=40;
 /* Raw values are replaced, never changed in place, so a snapshot keeps each
    column's data array as it is and copies the rest: with 20 spectra of 50 000
@@ -9465,6 +9545,8 @@ function undo(){
   if(!undoStack.length||S.readOnly||heldBlocks()) return;
   const s=undoStack.pop(); if(s.pid!==S.pid){ renderUndo(); return; }
   redoStack.push(Object.assign(snapshot(),{label:s.label,t:s.t}));
+  // A filter shows again the rows the state undone to passes (SHEET_SPEC 3.3): undo puts the view back with the data.
+  if(S.wsFilt) S.wsFilt.clear();
   applySnapshot(s); toast(`Undid ${s.label}.`); renderUndo();
 }
 function redo(){
@@ -9472,6 +9554,7 @@ function redo(){
   if(!redoStack.length||S.readOnly||heldBlocks()) return;
   const s=redoStack.pop(); if(s.pid!==S.pid){ renderUndo(); return; }
   undoStack.push(Object.assign(snapshot(),{label:s.label,t:s.t}));
+  if(S.wsFilt) S.wsFilt.clear();
   applySnapshot(s); toast(`Redid ${s.label}.`); renderUndo();
 }
 /* The undo list (roadmap 6, slice 1): every change this window can take back, the newest first, with
@@ -15606,7 +15689,8 @@ function setColFormula(ci,text){
     pushUndo("removing a formula"); const L=colLetter(col); delete col.fx; col.data=[]; FX_ERR.delete(col.id);
     save({cols:p.cols},`removed the formula of column ${L}`); renderAll();
     toast(`Column ${L} has no formula now, and is empty.`,{action:"Undo",run:undo}); return; }
-  const had=col&&!col.fx?col.data.filter(v=>v!=null).length:0;
+  // Text cells are values too: a formula over a column of names replaces them, recorded as numbers would be.
+  const had=col&&!col.fx?col.data.filter(v=>v!=null).length+textCount(col):0;
   if(had&&rawLocked()){ toast(`Column ${q.letter} holds original values and the original data is locked. Type the formula into the F(x)= row of an empty column.`); renderWs(); return; }
   let f; try{ f=fxParse(t,col); }
   catch(err){ const here=$("#ws").contains(document.activeElement);
@@ -15615,7 +15699,7 @@ function setColFormula(ci,text){
   if(col&&col.fx&&col.fx.src===f.src&&JSON.stringify(col.fx.refs)===JSON.stringify(f.refs)){ renderWs(); return; }
   pushUndo("that formula");
   if(!col) col=wsMakeCols(ci);
-  col.fx=f; recalcFx(p);
+  col.fx=f; delete col.txt; recalcFx(p);
   const L=colLetter(col), err=FX_ERR.get(col.id), nv=col.data.filter(v=>v!=null).length, shown=fxShow(col), cid=col.id;
   // A column computed from X values alone is an axis (channels to energy).
   const fromX=col.role==="y"&&!err&&xReaders(col).length>0&&Object.values(f.refs).every(id=>{ const o=colById(id); return o&&o.role==="x"; });
@@ -15812,7 +15896,13 @@ function wsOrder(m){
   // Rows hidden in the Original view leave its order, as they would a filter;
   // m.n is then the rows shown and m.nd the rows of data.
   const H=m.kind==="raw"?new Set(wsHideOf(m.p).rows.filter(k=>k<m.n)):null;
-  if(ci<0&&!(H&&H.size)) return m;
+  // A filter's rows leave it too (SHEET_SPEC 3.3), as the rows it hid when it was set.
+  const F=m.kind==="raw"?filtState(m.p,m.sid||curSheet()):null, FH=F&&F.hid?F.hide:null;
+  if(ci<0&&!(H&&H.size)&&!FH){ if(F) m.filt=F; return m; }
+  // Filtered alone: the order made once for the filter and the sheet's rows, and kept until either changes.
+  if(ci<0&&!(H&&H.size)&&FH){ const k=F.ordFor; if(k&&k.n===m.n&&k.hide===FH) return Object.assign(m,{ord:k.ord,inv:k.inv,nd:m.n,n:k.ord.length,sorted:false,sortCi:null,sortDir:0,hidR:null,filtR:FH,filt:F});
+    const ord=[], inv=new Array(m.n).fill(null); for(let i=0;i<m.n;i++) if(!FH[i]){ inv[i]=ord.length; ord.push(i); }
+    F.ordFor={n:m.n,hide:FH,ord,inv}; return Object.assign(m,{ord,inv,nd:m.n,n:ord.length,sorted:false,sortCi:null,sortDir:0,hidR:null,filtR:FH,filt:F}); }
   let ord=Array.from({length:m.n},(_,k)=>k);
   if(ci>=0){ const q=m.cols[ci], get=k=>{ const v=m.kind==="final"?q.get(k):q.col.data[k]; return v==null||!Number.isFinite(v)?null:v; };
     const gt=k=>m.kind==="final"||q.phantom?null:cellTxt(q.col,k), cmp=new Intl.Collator(undefined,{numeric:true,sensitivity:"base"}).compare;
@@ -15823,9 +15913,9 @@ function wsOrder(m){
     else ord.sort((a,b)=>{ const va=get(a), vb=get(b);
       if(va!=null&&vb!=null) return (va-vb)*s.dir||a-b; if(va!=null) return -1; if(vb!=null) return 1;
       const ta=gt(a), tb=gt(b); if(ta!=null&&tb!=null) return cmp(ta,tb)*s.dir||a-b; if(ta!=null) return -1; if(tb!=null) return 1; return a-b; }); }
-  if(H&&H.size) ord=ord.filter(k=>!H.has(k));
+  if((H&&H.size)||FH) ord=ord.filter(k=>!(H&&H.has(k))&&!(FH&&FH[k]));
   const inv=new Array(m.n).fill(null); ord.forEach((k,r)=>{ inv[k]=r; });
-  return Object.assign(m,{ord,inv,nd:m.n,n:ord.length,sorted:ci>=0,sortCi:ci>=0?ci:null,sortDir:ci>=0?s.dir:0,hidR:H&&H.size?H:null});
+  return Object.assign(m,{ord,inv,nd:m.n,n:ord.length,sorted:ci>=0,sortCi:ci>=0?ci:null,sortDir:ci>=0?s.dir:0,hidR:H&&H.size?H:null,filtR:FH,filt:F});
 }
 // A row of the sheet → its data row; below the data shown, the rows after the data.
 const wsDR=(m,r)=>m&&m.ord&&r>=0?(r<m.n?m.ord[r]:r-m.n+m.nd):r;
@@ -15879,6 +15969,117 @@ function hideItems(){ const m=S.wsm, p=P(), raw=!!m&&m.kind==="raw", ro=S.readOn
     {label:h.cols.length?`Show every hidden column (${h.cols.length})`:"Show every hidden column", enabled:!ro&&h.cols.length>0, run:()=>wsShowCols(null)},
     {label:h.rows.length?`Show every hidden row (${h.rows.length})`:"Show every hidden row", enabled:!ro&&h.rows.length>0, run:()=>wsShowRows(null)}]; }
 function wsSortBy(id,dir,cat){ S.wsSort=id&&dir?{sheet:S.sheet,id,dir,cat:!!cat}:null; if(S.ws) S.ws.win=null; renderWs(); }
+/* ---- Filters (SHEET_SPEC 3.3): a view of a sheet, kept with the project ----------------------------------
+   p.wsFilter: {sheetId: {colId: condition}} (the conditions of the ANA block's FILT_OPS), in UNDO_KEYS; filtOf(p,
+   sid) the one reader (the sheet's columns that still exist, conditions that read), setFilter(sid, colId, cond)
+   the one writer (one undo step, a log line, a toast with Undo). The rows it hides are worked out when the filter
+   changes and kept per project and sheet (S.wsFilt, filtState): a value typed afterwards that would fail it stays
+   in view, the funnels and the foot saying the filter is older than the data, until it is applied again
+   (filtReapply), as a spreadsheet's. A view only: graphs, fits, steps, formulas and exports read every row; an
+   analysis made on a filtered sheet takes the conditions as its own rows (a.in.where). */
+const FILT_VMAX=2000;
+function filtRuleOk(r){ const o=r&&typeof r==="object"&&FILT_OP[r.op]; if(!o) return false; const need=o[2];
+  if(need.includes("a")&&!Number.isFinite(r.a)) return false; if(need==="ab"&&!Number.isFinite(r.b)) return false;
+  if(need==="n"&&!(Number.isFinite(r.n)&&r.n>0&&(!r.pct||r.n<=100))) return false; if(need==="t"&&typeof r.t!=="string") return false; return true; }
+function filtOk(c){ if(!c||typeof c!=="object") return false;
+  if(Array.isArray(c.vals)) return c.vals.length<=FILT_VMAX&&c.vals.every(v=>v===null||typeof v==="string"||(typeof v==="number"&&Number.isFinite(v)));
+  return filtRuleOk(c.c1)&&(c.c2==null||filtRuleOk(c.c2))&&(c.join==null||c.join==="and"||c.join==="or"); }
+function filtClean(p){ const f=p.wsFilter; if(f==null) return; if(typeof f!=="object"||Array.isArray(f)){ delete p.wsFilter; return; }
+  const out={}; Object.keys(f).forEach(sid=>{ const g=f[sid]; if(!g||typeof g!=="object"||Array.isArray(g)) return; const o={};
+    Object.keys(g).forEach(id=>{ if(filtOk(g[id])) o[id]=g[id]; }); if(Object.keys(o).length) out[sid]=o; });
+  if(Object.keys(out).length) p.wsFilter=out; else delete p.wsFilter; }
+function filtOf(p,sid){ p=p||P(); sid=sid||curSheet(); const f=p&&p.wsFilter&&p.wsFilter[sid]; if(!f||typeof f!=="object") return {};
+  const ids=new Set(sheetCols(sid).map(c=>c.id)), out={}; Object.keys(f).forEach(id=>{ if(ids.has(id)&&filtOk(f[id])) out[id]=f[id]; }); return out; }
+const filtSheetN=sid=>sheetCols(sid).reduce((a,c)=>Math.max(a,(c.data||[]).length,txtLen(c)),0);
+// The rows a sheet's conditions hide, worked out on its columns as they are now: {hide (1 a row hidden), hid (how many), n}.
+function filtEval(sid,conds){ const cols={}, n=filtSheetN(sid); sheetCols(sid).forEach(c=>{ if(conds[c.id]) cols[c.id]={v:c.data||[],t:txtOf(c)}; });
+  const f=filtRows(cols,conds,n); let hid=0; for(let i=0;i<n;i++){ f[i]^=1; hid+=f[i]; } return {hide:f,hid,n}; }
+const filtSame=(a,b)=>{ if(a.hid!==b.hid) return false; const n=Math.max(a.n,b.n); for(let i=0;i<n;i++) if((a.hide[i]|0)!==(b.hide[i]|0)) return false; return true; };
+// The filter of a sheet as the view shows it: {hide, hid, n, stale (the data changed since, in a way that changes which rows pass), conds}, or null.
+function filtState(p,sid){ p=p||P(); sid=sid||curSheet(); if(!p) return null; const conds=filtOf(p,sid), ids=Object.keys(conds); if(!ids.length) return null;
+  S.wsFilt=S.wsFilt||new Map(); const key=p.id+"|"+sid, ck=JSON.stringify(conds), refs=[]; ids.forEach(id=>{ const c=colById(id); refs.push(c?c.data:null,c?c.txt:null); });
+  let st=S.wsFilt.get(key);
+  if(!st||st.ck!==ck){ st=Object.assign({ck,refs,stale:false,conds},filtEval(sid,conds)); S.wsFilt.set(key,st); return st; }
+  if(st.refs.length!==refs.length||st.refs.some((r,i)=>r!==refs[i])){ const now=filtEval(sid,conds); st.refs=refs;
+    // A change that leaves the same rows hidden is no change to the view; one that does not is said once.
+    if(filtSame(now,st)){ st.stale=false; st.n=now.n; }
+    else if(!st.stale){ st.stale=true; if(!st.said){ st.said=true; setTimeout(()=>toast("This change makes rows pass or fail the filter differently. They stay as they were in view until the filter is applied again.",{action:"Apply it again",run:()=>filtReapply(sid)}),0); } } }
+  return st; }
+function filtReapply(sid){ const p=P(); if(!p) return; sid=sid||curSheet(); if(S.wsFilt) S.wsFilt.delete(p.id+"|"+sid); if(S.ws) S.ws.win=null; renderWs(); }
+// The one writer: a column's condition put in or taken off (cond null), or every condition of the sheet off (colId null).
+function setFilter(sid,colId,cond){ const p=P(); if(!p||S.readOnly) return; sid=sid||curSheet();
+  const was=filtOf(p,sid), next=Object.assign({},was), c=colId?colById(colId):null, L=c?colLetter(c):"";
+  if(colId==null){ if(!Object.keys(was).length) return; Object.keys(next).forEach(k=>delete next[k]); }
+  else if(cond) next[colId]=cond; else { if(!was[colId]) return; delete next[colId]; }
+  if(JSON.stringify(next)===JSON.stringify(was)) return;
+  pushUndo(colId==null?"clearing the filter":cond?"the filter":"clearing that filter");
+  const all=Object.assign({},p.wsFilter||{}); if(Object.keys(next).length) all[sid]=next; else delete all[sid];
+  if(Object.keys(all).length) p.wsFilter=all; else delete p.wsFilter;
+  if(S.wsFilt) S.wsFilt.delete(p.id+"|"+sid); if(S.ws) S.ws.win=null;
+  const st=filtState(p,sid), n=filtSheetN(sid), shown=st?n-st.hid:n, sh=sheetList().length>1?` of ${sheetName(sid)}`:"";
+  const what=colId==null?`cleared every filter${sh}`:cond?`filtered${sh} by ${filtText(cond,L)}: ${fmtCount(shown)} of ${fmtCount(n)} rows shown`:`cleared the filter of column ${L}`;
+  save({wsFilter:p.wsFilter||null},what); renderWs();
+  toast(capFirst(what)+".",{action:"Undo",run:undo}); }
+// What stops a block, a fill or rows inserted while the view is filtered: said with the way out.
+function filtBlocks(m,what){ if(!(m&&m.filtR&&!m.sorted)) return false; toast(`Clear the filter first: ${what}.`,{action:"Clear it",run:()=>setFilter(m.sid,null,null)}); return true; }
+// The distinct cells of a column, with their counts, in the sheet's sort order (numbers, then text, then empty), or null past 200.
+function filtValues(c,n){ const by=new Map(), cmp=new Intl.Collator(undefined,{numeric:true,sensitivity:"base"}).compare;
+  for(let i=0;i<n;i++){ const v=filtCell(c.data||[],txtOf(c),i); by.set(v,(by.get(v)||0)+1); if(by.size>200) return null; }
+  return [...by.entries()].sort((a,b)=>{ const x=a[0], y=b[0]; if(x===null) return y===null?0:1; if(y===null) return -1;
+    if(typeof x==="number"&&typeof y==="number") return x-y; if(typeof x==="number") return -1; if(typeof y==="number") return 1; return cmp(x,y); }); }
+/* A column's filter, as a dialog (the column menu's Filter by this column…, Data › Filter, the funnel in its
+   header): the values ticked (while there are 200 or fewer) or one or two conditions joined by and or or, the rows
+   it would show counted as it is set. */
+async function filtDlg(id){ const p=P(), c=colById(id); if(!p||!c||S.readOnly) return;
+  const sid=sheetOf(c), L=colLetter(c), n=filtSheetN(sid), cur=filtOf(p,sid)[id]||null, vals=filtValues(c,n);
+  const showV=v=>v===null?"(empty)":typeof v==="number"?fmt(v,10):v;
+  const numCol=(c.data||[]).some(v=>v!=null), mode0=cur?(Array.isArray(cur.vals)?"vals":"cond"):(vals&&!numCol?"vals":vals&&vals.length<=12?"vals":"cond");
+  const opSel=(k,r)=>`<select id="${k}Op" aria-label="Condition">${k==="fd2"?`<option value="">(none)</option>`:""}${FILT_OPS.filter(o=>numCol||o[3]!=="num").map(o=>`<option value="${o[0]}"${r&&r.op===o[0]?" selected":""}>${esc(o[1])}</option>`).join("")}</select>`;
+  const valIn=(k,r)=>`<input type="text" id="${k}A" aria-label="Value" size="9" spellcheck="false" value="${esc(r?(r.t!=null?r.t:r.a!=null?filtNum(r.a):r.n!=null?filtNum(r.n):""):"")}"><span id="${k}And" class="lab"> and </span><input type="text" id="${k}B" aria-label="Second value" size="9" spellcheck="false" value="${esc(r&&r.b!=null?filtNum(r.b):"")}"><label class="chk" id="${k}PctL"><input type="checkbox" id="${k}Pct"${r&&r.pct?" checked":""}> %</label>`;
+  const set=new Set(cur&&cur.vals?cur.vals:vals?vals.map(o=>o[0]):[]);
+  const html=`<div class="fdlg"><label class="chk"><input type="checkbox" id="fdOn" checked> Filter the sheet by column ${esc(L)}${c.name?" ("+esc(c.name)+")":""}</label>
+    <div class="fdm" role="radiogroup" aria-label="Keep the rows"><span class="lab">Keep the rows</span><label class="chk"><input type="radio" name="fdM" id="fdMv" value="vals"${mode0==="vals"?" checked":""}${vals?"":" disabled"}> whose value is ticked</label><label class="chk"><input type="radio" name="fdM" id="fdMc" value="cond"${mode0==="cond"?" checked":""}> that meet conditions</label></div>
+    <div id="fdVals"${mode0==="vals"?"":" hidden"}>${vals?`<div class="fdbar"><input type="search" id="fdQ" placeholder="Search the values" aria-label="Search the values"><button type="button" class="btn sm" id="fdAll">Tick all</button><button type="button" class="btn sm" id="fdNone">None</button></div>
+      <div class="fdlist">${vals.map(([v,k],i)=>`<div class="fdv" data-q="${esc(String(showV(v)).toLowerCase())}"><label class="chk"><input type="checkbox" id="fdV_${i}"${set.has(v)?" checked":""}> ${esc(showV(v))}</label><span class="lab num">${k}</span></div>`).join("")}</div>`:`<p class="lab">More than 200 different values: filter by conditions.</p>`}</div>
+    <div id="fdConds"${mode0==="cond"?"":" hidden"}><div class="fdbar">${opSel("fd1",cur&&cur.c1)} ${valIn("fd1",cur&&cur.c1)}</div>
+      <div class="fdbar"><select id="fdJoin" aria-label="Join"><option value="and"${cur&&cur.join==="or"?"":" selected"}>and</option><option value="or"${cur&&cur.join==="or"?" selected":""}>or</option></select></div>
+      <div class="fdbar">${opSel("fd2",cur&&cur.c2)} ${valIn("fd2",cur&&cur.c2)}</div></div>
+    <p class="wshint lab" id="fdN" role="status"></p></div>`;
+  let condNow=null;
+  // The condition the dialog says now, or {why} in words.
+  const read=()=>{ if(!$("#fdOn").checked) return {off:true};
+    if($("#fdMv")&&$("#fdMv").checked&&vals){ const keep=vals.filter((o,i)=>{ const b=$("#fdV_"+i); return b&&b.checked; }).map(o=>o[0]); if(!keep.length) return {why:"Tick at least one value"}; return {cond:{vals:keep}}; }
+    const rule=k=>{ const op=$("#"+k+"Op").value; if(!op) return null; const o=FILT_OP[op], need=o[2], A=$("#"+k+"A").value.trim(), B=$("#"+k+"B").value.trim(), r={op};
+      if(need==="t"){ if(!A) return {why:`Type the text it ${o[1]}`}; r.t=A; }
+      if(need.includes("a")){ const a=parseNum(A); if(a==null) return {why:A?`“${A}” is not a number`:"Type a number"}; r.a=a; }
+      if(need==="ab"){ const b=parseNum(B); if(b==null) return {why:B?`“${B}” is not a number`:"Type the second number"}; r.b=b; }
+      if(need==="n"){ const v=parseNum(A); if(!(v>0)) return {why:"Type how many (more than 0)"}; r.n=v; if($("#"+k+"Pct").checked){ if(v>100) return {why:"A percent is at most 100"}; r.pct=true; } else if(v!==Math.round(v)) return {why:"How many is a whole number, or tick %"}; }
+      return r; };
+    const r1=rule("fd1"), r2=rule("fd2"); if(r1&&r1.why) return r1; if(r2&&r2.why) return r2; if(!r1) return {why:"Choose a condition"};
+    const cond={c1:r1}; if(r2){ cond.c2=r2; cond.join=$("#fdJoin").value; } return {cond}; };
+  const show=()=>{ ["fd1","fd2"].forEach(k=>{ const op=$("#"+k+"Op").value, o=FILT_OP[op], need=o?o[2]:"";
+      $("#"+k+"A").hidden=!need; $("#"+k+"B").hidden=need!=="ab"; $("#"+k+"And").hidden=need!=="ab"; $("#"+k+"PctL").hidden=need!=="n"; });
+    const r=read(), h=$("#fdN"), ok=$("#formOk"); condNow=r.cond||null;
+    if(r.off){ h.textContent=cur?`Column ${L} will no longer filter the sheet.`:"No filter."; if(ok) ok.disabled=!cur; return; }
+    if(r.why){ h.textContent=r.why+"."; if(ok) ok.disabled=true; return; }
+    const conds=Object.assign({},filtOf(p,sid),{[id]:r.cond}), f=filtEval(sid,conds), shown=n-f.hid;
+    h.textContent=`${capFirst(filtText(r.cond,L))}: ${fmtCount(shown)} of ${fmtCount(n)} rows would be shown${Object.keys(conds).length>1?" (with the other columns' filters)":""}.`; if(ok) ok.disabled=false; };
+  const pr=formDlg({title:`Filter by column ${L}`,html,ok:"Filter",wide:true});
+  const body=$("#formBody"); body.addEventListener("input",show); body.addEventListener("change",e=>{ if(e.target.name==="fdM"){ $("#fdVals").hidden=!$("#fdMv").checked; $("#fdConds").hidden=!$("#fdMc").checked; } show(); });
+  const q=$("#fdQ"); if(q) q.addEventListener("input",()=>{ const t=q.value.trim().toLowerCase(); body.querySelectorAll(".fdv").forEach(el=>{ el.hidden=!(!t||el.dataset.q.includes(t)); }); });
+  const tick=on=>{ body.querySelectorAll(".fdv").forEach(el=>{ if(!el.hidden) el.querySelector("input").checked=on; }); show(); };
+  if($("#fdAll")) $("#fdAll").onclick=()=>tick(true); if($("#fdNone")) $("#fdNone").onclick=()=>tick(false);
+  show();
+  const v=await pr; if(!v) return;
+  if(!v.fdOn){ setFilter(sid,id,null); return; }
+  if(condNow) setFilter(sid,id,condNow); }
+// Data › Filter, and the column menu's.
+function filterItems(id){ const m=S.wsm, p=P(), raw=!!m&&m.kind==="raw", ro=S.readOnly||!p, sid=curSheet(), F=p?filtOf(p,sid):{}, n=Object.keys(F).length;
+  const q=id?null:m&&S.ws&&m.cols[S.ws.c], cid=id||(q&&!q.phantom&&q.id), c=cid?colById(cid):null, st=p?filtState(p,sid):null;
+  return [{label:c?`Filter by column ${colLetter(c)}…`:"Filter by this column…", enabled:!ro&&raw&&!!c, title:c?"Keep the rows whose value is ticked, or that meet one or two conditions: a view, the data untouched":"Select a cell of the column first", run:()=>filtDlg(cid)},
+    ...(c&&F[cid]?[{label:`Clear the filter of column ${colLetter(c)}`, enabled:!ro, run:()=>setFilter(sid,cid,null)}]:[]),
+    {label:"Apply the filter again", enabled:!!(st&&st.stale), title:"The data changed since it was set: the rows it hides worked out again", run:()=>filtReapply(sid)},
+    {label:`Clear every filter of this sheet${n>1?` (${n})`:""}`, enabled:!ro&&n>0, run:()=>setFilter(sid,null,null)}]; }
 
 /* ---- Filling -------------------------------------------------------------------
    The fill handle, as in a spreadsheet: drag the square at the corner of the
@@ -15897,7 +16098,7 @@ function wsFillPlan(src,dir,to,alt){
       vals.forEach((v,k)=>{ sxy+=(k-mk)*(v-mv); sxx+=(k-mk)*(k-mk); }); const b=sxx?sxy/sxx:0; return +(mv+b*(L+j-mk)).toPrecision(12); }
     if(nums&&L===1&&alt) return +(vals[0]+j+1).toPrecision(12);
     return vals[(L+j)%L]; };
-  const locked=(ci,r)=>{ const q=m.cols[ci]; return !!(q&&!q.phantom&&(q.col.fx||(lock&&q.col.data[r]!=null))); };
+  const locked=(ci,r)=>{ const q=m.cols[ci]; return !!(q&&!q.phantom&&(q.col.fx||(lock&&(q.col.data[r]!=null||cellTxt(q.col,r)!=null)))); };
   if(dir==="down"){
     if(src.r1<0) return {writes,bad:-1};
     const ra=Math.max(src.r0,0);
@@ -15917,6 +16118,7 @@ function wsFill(src,dir,to,alt){ if(anaRO()) return;
   const p=P(), m=wsLive(); if(!p||!m) return;
   if(m.kind!=="raw"){ toast("The Processed view is read only."); return; }
   if(S.readOnly) return;
+  if(filtBlocks(m,"filling follows every row, the filter's hidden ones too")) return;
   if(m.ord){ toast(m.hidR?"Show the hidden rows first: filling follows every row in the order they were recorded.":"Unsort the sheet first: filling follows the rows in the order they were recorded."); return; }
   const {writes,bad}=wsFillPlan(src,dir,to,alt);
   if(bad<0){ toast("Fill down continues the values of data rows: select some first."); return; }
@@ -15925,11 +16127,11 @@ function wsFill(src,dir,to,alt){ if(anaRO()) return;
   pushUndo("filling cells");
   const maxCi=writes.reduce((a,w)=>Math.max(a,w[0]),0);
   if(sheetCols().length<=maxCi) wsMakeCols(maxCi);
-  const cols=sheetCols(), touched=new Map(); let nv=0;
+  const cols=sheetCols(), touched=new Map(), rowsOf=new Map(); let nv=0;
   writes.forEach(([ci,r,v])=>{ const col=cols[ci]; if(!col) return;
     if(r<0){ const L=WS_LABS.find(z=>z.r===r); if(L&&L.k!=="fx") col[L.k]=String(v).slice(0,L.max); return; }
-    let arr=touched.get(col); if(!arr){ arr=col.data.slice(); touched.set(col,arr); } while(arr.length<=r) arr.push(null); arr[r]=v; nv++; });
-  touched.forEach((arr,col)=>{ trimTail(arr); col.data=arr; });
+    let arr=touched.get(col); if(!arr){ arr=col.data.slice(); touched.set(col,arr); rowsOf.set(col,[]); } while(arr.length<=r) arr.push(null); arr[r]=v; rowsOf.get(col).push(r); nv++; });
+  touched.forEach((arr,col)=>{ trimTail(arr); col.data=arr; dropTxtAt(col,rowsOf.get(col)); });
   migrate(p);
   const raw=nv?recordRaw(`filled ${nv} cell${nv===1?"":"s"} in the worksheet`):null, s=S.ws;
   s.ar=src.r0; s.ac=src.c0; if(dir==="down"){ s.r=to; s.c=src.c1; } else { s.r=src.r1; s.c=to; }
@@ -16045,7 +16247,7 @@ function fillPlan(v){
   const res=fillSeries(o,n); if(res.err) return Object.assign(base,{err:res.err});
   const writes=[]; let skipped=0;
   const lock=rawLocked(); let replaced=0;
-  res.v.forEach((val,j)=>{ const r=r0+j, had=col&&col.data[r]!=null; if(had&&lock) skipped++; else { if(had&&col.data[r]!==val) replaced++; writes.push([r,val]); } });
+  res.v.forEach((val,j)=>{ const r=r0+j, had=!!col&&(col.data[r]!=null||cellTxt(col,r)!=null); if(had&&lock) skipped++; else { if(had&&col.data[r]!==val) replaced++; writes.push([r,val]); } });
   if(!writes.length) return Object.assign(base,{err:res.v.length?`Every one of these ${res.v.length===1?"cells holds an original value":res.v.length+" cells holds an original value"}, which is locked: fill a new column, or other rows.`:"Nothing to fill."});
   return Object.assign(base,{ok:true,n,vals:res.v,writes,skipped,replaced,note:res.note,words,role:v.fillRole||"y"});
 }
@@ -16053,7 +16255,8 @@ async function openFillDlg(kind,opt){
   const p=P(); if(!p||S.readOnly) return; opt=opt||{};
   if(!winOpen("sheet")) openWin("sheet",{render:true}); else focusWin("sheet");
   if(S.sheet!=="raw") setSheet("raw");
-  if(S.wsm&&S.wsm.ord){ if(S.wsm.hidR&&!S.wsm.sorted){ toast("Show the hidden rows first: a fill follows every row in the order they were recorded.",{action:"Show them",run:()=>wsShowRows(null)}); return; }
+  if(S.wsm&&S.wsm.ord){ if(filtBlocks(S.wsm,"a fill follows every row, the filter's hidden ones too")) return;
+    if(S.wsm.hidR&&!S.wsm.sorted){ toast("Show the hidden rows first: a fill follows every row in the order they were recorded.",{action:"Show them",run:()=>wsShowRows(null)}); return; }
     toast("Unsort the sheet first: a fill follows the rows in the order they were recorded.",{action:"Unsort",run:()=>wsSortBy(null,0)}); return; }
   const L=fillLast(), t=fillTarget(opt.col), k0=FILL_KINDS.some(([k])=>k===kind)?kind:L.kind;
   // A column full in the rows chosen gives way to a new one, and so does one
@@ -16118,10 +16321,11 @@ function doFill(pl){ if(anaRO()) return;
   let col=pl.col?colById(pl.col.id):null;
   if(!col){ col=wsMakeCols(sheetCols().length);
     if(pl.role&&col.role!==pl.role){ col.role=pl.role; if(pl.role!=="y"){ delete col.pipe; delete col.mask; } else { col.pipe=col.pipe||[]; col.mask=col.mask||[]; } } }
-  const arr=col.data.slice(); let nv=0;
+  const arr=col.data.slice(), wrote=[]; let nv=0;
   const lock=rawLocked();
-  pl.writes.forEach(([r,v])=>{ while(arr.length<=r) arr.push(null); if(arr[r]==null||!lock){ arr[r]=v; nv++; } });
-  trimTail(arr); col.data=arr; migrate(p);
+  // A text cell is an original value too: under the lock it is kept, else the number written replaces it.
+  pl.writes.forEach(([r,v])=>{ while(arr.length<=r) arr.push(null); if((arr[r]==null&&cellTxt(col,r)==null)||!lock){ arr[r]=v; wrote.push(r); nv++; } });
+  trimTail(arr); col.data=arr; dropTxtAt(col,wrote); migrate(p);
   const L=colLetter(col), last=pl.r0+pl.vals.length, rng=`${L}${pl.r0+1}${pl.vals.length>1?`:${L}${last}`:""}`;
   const raw=recordRaw(`filled ${nv} cell${nv===1?"":"s"} of column ${L} with ${pl.words}`);
   save(Object.assign({cols:p.cols,activeY:p.activeY},raw?{raw}:{}),`filled ${rng} with ${pl.words}`); renderAll();
@@ -16232,12 +16436,13 @@ function wsModel(){
   const cols=sheetCols(), n=nRows(), actRoot=rootOf(activeYCol()), xs=cols.filter(c=>c.role==="x"), hid=new Set(wsHideOf(p).cols);
   // "Not plotted" is a column with values on no graph at all, whichever graph is in front.
   const onG=new Set(); (p.graphs||[]).forEach(g=>{ if(!g.fig) g.cols.forEach(k=>onG.add(k)); });
+  const FC=filtOf(p);
   const mc=cols.map((c,i)=>{ const isY=c.role==="y", isAct=c===actRoot, off=isY&&!onG.has(c.id)&&c.data.some(v=>v!=null), L=wsLetter(i), w=hid.has(c.id)?WS_HIDW:W[c.id]||WS_W;
     if(hid.has(c.id)) return {id:c.id, col:c, letter:L, role:ROLE_LABEL[c.role]||c.role, w, hidden:true, lab:{name:c.name||"",unit:c.unit||"",comm:c.comm||"",fx:c.fx?fxShow(c):""}, calc:!!c.fx,
       title:`Column ${L}${c.name?" ("+c.name+")":""} is hidden. Double-click to show it.`};
     const mkSpark=()=>{ if(!c.data.some(v=>v!=null)) return ""; const xc=isY||c.role==="e"?xColFor(c.role==="e"?colById(c.of)||c:c):null, sw=Math.max(20,w-12), t=sparkPts(c.data,xc?xc.data:null,2*sw);
       return t.y.length>1?sparkSvg(t,sw,16,"wspark"):""; };
-    return {id:c.id, col:c, letter:L, role:c.role==="x"&&xs.length>1?"X"+(xs.indexOf(c)+1):c.role==="e"?errTag(c):ROLE_LABEL[c.role]||c.role, w, off, act:isAct, menu:true, mkSpark, cat:!!c.cat,
+    return {id:c.id, col:c, letter:L, role:c.role==="x"&&xs.length>1?"X"+(xs.indexOf(c)+1):c.role==="e"?errTag(c):ROLE_LABEL[c.role]||c.role, w, off, act:isAct, menu:true, mkSpark, cat:!!c.cat, flt:FC[c.id]?filtText(FC[c.id],L):"",
       lab:{name:c.name||"",unit:c.unit||"",comm:c.comm||"",fx:c.fx?fxShow(c):""}, calc:!!c.fx, fxErr:c.fx?FX_ERR.get(c.id)||"":"", fxNote:c.fx?FX_NOTE.get(c.id)||"":"",
       title:`Column ${L}${c.name?": "+c.name:""}. ${roleText(c)}${c.fx?`, computed: = ${fxShow(c)}${FX_ERR.get(c.id)?` (${FX_ERR.get(c.id)})`:FX_NOTE.get(c.id)?` (${FX_NOTE.get(c.id).toLowerCase()})`:""}`:""}${isAct?", active":""}${off?", on no graph yet":""}. Click to select it; right-click, or the arrow, for its options; drag its right edge to resize it.`}; });
   // Empty columns to the edge of the window and a little beyond, as a grid has.
@@ -16333,7 +16538,7 @@ function wsTable(m){
   const tw=WS_IDX+m.cols.reduce((a,q)=>a+q.w,0);
   box.style.setProperty("--ws-rh",wsRowH()+"px");
   let h=`<table class="grid" style="width:${tw}px"><colgroup><col style="width:${WS_IDX}px">${W.lw?`<col style="width:${W.lw}px">`:""}${C.map(i=>`<col data-cw="${esc(m.cols[i].id)}" style="width:${m.cols[i].w}px">`).join("")}${W.rw?`<col style="width:${W.rw}px">`:""}</colgroup><thead>`;
-  h+=`<tr class="hr1"><th class="corner" title="Select everything (Ctrl+A)"><button type="button" class="wsrows" data-wsrows aria-haspopup="menu" aria-expanded="false" title="Rows under the letters: Comments, F(x)=, Sparklines" aria-label="Rows to show under the letters">⋯</button></th>${cells("th",(q,i)=>q.hidden?`<th class="ch hidc" data-ch="${i}" title="${esc(q.title)}" aria-label="${esc(q.title)}"></th>`:`<th class="ch${q.act?" act":""}${q.phantom?" ph":""}" data-ch="${i}" title="${esc(q.title||"")}"><div class="hc"><span class="cl">${q.letter}</span><span class="cd">(${esc(q.role)})</span>${q.cat?`<span class="lab cat" title="Categorical: its values are categories, in the order its menu's Categorical… sets">cat</span>`:""}${q.calc?`<span class="fxm${q.fxErr?" bad":q.fxNote?" old":""}" title="${esc(q.fxErr?"This formula does not work: "+q.fxErr:"Computed: = "+q.lab.fx+(q.fxNote?". "+q.fxNote:""))}">fx</span>`:""}${m.sortCi===i?`<span class="srt" title="The sheet is shown sorted by this column (the data keep their order)">${m.sortDir>0?"↑":"↓"}</span>`:""}${q.off?`<span class="lab hoff" title="On no graph yet: select it and press Plot">not plotted</span>`:""}${q.menu?`<button class="tb sm icon cm" data-cmenu="${esc(q.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Column ${q.letter} options" tabindex="-1">${ICON("chev","sm")}</button>`:""}</div>${q.phantom?"":`<span class="rz" data-rz="${i}" title="Drag to resize; double-click to fit the contents"></span>`}</th>`)}</tr>`;
+  h+=`<tr class="hr1"><th class="corner" title="Select everything (Ctrl+A)"><button type="button" class="wsrows" data-wsrows aria-haspopup="menu" aria-expanded="false" title="Rows under the letters: Comments, F(x)=, Sparklines" aria-label="Rows to show under the letters">⋯</button></th>${cells("th",(q,i)=>q.hidden?`<th class="ch hidc" data-ch="${i}" title="${esc(q.title)}" aria-label="${esc(q.title)}"></th>`:`<th class="ch${q.act?" act":""}${q.phantom?" ph":""}" data-ch="${i}" title="${esc(q.title||"")}"><div class="hc"><span class="cl">${q.letter}</span><span class="cd">(${esc(q.role)})</span>${q.cat?`<span class="lab cat" title="Categorical: its values are categories, in the order its menu's Categorical… sets">cat</span>`:""}${q.flt?`<button type="button" class="tb sm icon flt${m.filt&&m.filt.stale?" old":""}" data-filt="${esc(q.id)}" title="${esc(`Filtered: ${q.flt}${m.filt&&m.filt.stale?". The data have changed since: apply it again from Data › Filter":""}. Click to change it`)}" aria-label="${esc(`Filter of column ${q.letter}: ${q.flt}`)}" tabindex="-1">${ICON("filter","sm")}</button>`:""}${q.calc?`<span class="fxm${q.fxErr?" bad":q.fxNote?" old":""}" title="${esc(q.fxErr?"This formula does not work: "+q.fxErr:"Computed: = "+q.lab.fx+(q.fxNote?". "+q.fxNote:""))}">fx</span>`:""}${m.sortCi===i?`<span class="srt" title="The sheet is shown sorted by this column (the data keep their order)">${m.sortDir>0?"↑":"↓"}</span>`:""}${q.off?`<span class="lab hoff" title="On no graph yet: select it and press Plot">not plotted</span>`:""}${q.menu?`<button class="tb sm icon cm" data-cmenu="${esc(q.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Column ${q.letter} options" tabindex="-1">${ICON("chev","sm")}</button>`:""}</div>${q.phantom?"":`<span class="rz" data-rz="${i}" title="Drag to resize; double-click to fit the contents"></span>`}</th>`)}</tr>`;
   const AL=p.wsAlign||{};
   wsLabRows().forEach(L=>{ h+=`<tr class="lab"><th class="rl" scope="row" data-lr="${L.r}"${L.k==="fx"?` title="A column's formula: letters are columns (B*2, (B-C)/A, log10(B)), x the row's X value, i the row number. Click a cell here to type one."`:""}>${L.label}</th>${cells("td",(q,i)=>{ const bd=L.k==="fx"&&q.fxErr, al=L.k!=="fx"&&AL[q.id]?" al-"+AL[q.id]:""; if(q.hidden) return `<td class="lc hid" data-r="${L.r}" data-ci="${i}"></td>`; return `<td class="lc${L.k==="fx"?" fxc":""}${bd?" bad":""}${al}" data-r="${L.r}" data-ci="${i}"${bd?` title="${esc(q.fxErr)}"`:L.k==="fx"&&m.kind==="raw"&&!q.lab.fx?` title="Click to type a formula for column ${q.letter}"`:""}>${esc(q.lab[L.k]||"")}</td>`; })}</tr>`; });
   if(wsRowsPref().meta) wsMetaAll(m).slice(0,WS_META_MAX).forEach(k=>{ h+=`<tr class="meta"><th class="rl mk" scope="row" data-mkey="${esc(k)}" title="${esc(k)}, from the files' headers: click for its menu" aria-haspopup="menu">${esc(k)}</th>${cells("td",q=>{ if(q.hidden) return `<td class="hid"></td>`; const v=wsMetaVal(q,k); return `<td${v?` title="${esc(k+": "+v)}"`:""}>${esc(v)}</td>`; })}</tr>`; });
@@ -16639,11 +16844,15 @@ function wsFoot(){ wsEmptyShow();
     left=n?`<span${lk?` title="The original data is locked: empty cells can be filled or pasted into; typing over a value asks for a reason and records a correction step instead."`:""}>${lk?ICON("lock","sm")+" ":""}${fmtCount(n)} row${n===1?"":"s"}${lk?", locked":""}${(()=>{ const nc=sheetCols(curSheet()).filter(c=>c.data.some(v=>v!=null)).length; return nc?` · ${nc} column${nc===1?"":"s"}`:""; })()}${fp&&ok===false?` · <a href="#" id="wsFp">Original data changed</a>`:""}${nm?` · ${nm} masked`:""}${S.wsFixed.size?` · ${S.wsFixed.size} corrected`:""}</span>`
       :"Empty · type into any cell, or paste a block from a spreadsheet"; }
   if(m.sorted) left+=` · <span title="Only the view is sorted: the data keep the order they were recorded in">sorted by ${esc(m.cols[m.sortCi].letter)} ${m.sortDir>0?"↑":"↓"}</span> <a href="#" id="wsUnsort">Unsort</a>`;
+  if(m.kind==="raw"&&m.filt){ const F=m.filt, ids=Object.keys(F.conds||{}), L=ids.map(id=>colLetter(colById(id))).filter(Boolean), shown=m.n;
+    left+=` · <span class="wsflt${F.stale?" old":""}" title="${esc(filtAll(F.conds,id=>colLetter(colById(id)))+(F.stale?". The data have changed since it was set":""))}">${ICON("filter","sm")} ${fmtCount(shown)} of ${fmtCount(m.nd!=null?m.nd:m.n)} rows shown, filtered by ${L.join(", ")}</span> ${F.stale?`<a href="#" id="wsFiltRe">Apply again</a> `:""}<a href="#" id="wsFiltClr">Clear</a>`; }
   if(m.kind==="raw"){ const h=wsHideOf(p), nc=h.cols.length, nr=m.hidR?m.hidR.size:0;
     if(nc||nr) left+=` · <span title="Hidden from view, still in the data">${[nc?`${nc} column${nc===1?"":"s"}`:"",nr?`${nr} row${nr===1?"":"s"}`:""].filter(Boolean).join(" and ")} hidden</span> <a href="#" id="wsShowAll">Show</a>`; }
   foot.innerHTML=`<span class="wsl">${left}</span><span class="sp"></span><span id="wsStat" class="wsstat"></span>`;
   const wf=$("#wsFp"); if(wf) wf.onclick=e=>{ e.preventDefault(); showRawInfo(); };
   const wu=$("#wsUnsort"); if(wu) wu.onclick=e=>{ e.preventDefault(); wsSortBy(null,0); };
+  const fr=$("#wsFiltRe"); if(fr) fr.onclick=e=>{ e.preventDefault(); filtReapply(); };
+  const fc=$("#wsFiltClr"); if(fc) fc.onclick=e=>{ e.preventDefault(); setFilter(curSheet(),null,null); };
   const wa=$("#wsShowAll"); if(wa) wa.onclick=e=>{ e.preventDefault(); const h=wsHideOf(P()); if(!h.cols.length&&!h.rows.length) return; wsHideSave([],[],"showing everything hidden",`showed every hidden column and row`); };
   wsStats();
 }
@@ -16871,6 +17080,8 @@ const newAnaId=()=>"a"+Math.random().toString(36).slice(2,9);
 function anaSig(a){ const parts=[a.kind,JSON.stringify(a.p||{}),JSON.stringify(a.in||{})];
   (a.in.cols||[]).forEach(id=>{ const c=colById(id); parts.push(c?pipeSig(c)+"|"+maskSig(c)+(c.cat?"|"+JSON.stringify(c.cat):""):"gone:"+id); });
   if(a.in.by){ const g=colById(a.in.by); parts.push(g?arrKey(g.data)+txtKey(g.txt)+JSON.stringify(g.cat||null):"gone:"+a.in.by); }
+  // The columns its rows are chosen by (a filter's conditions taken as its own, SHEET_SPEC 3.3).
+  Object.keys(a.in.where||{}).forEach(id=>{ const g=colById(id); parts.push(g?"w"+arrKey(g.data)+txtKey(g.txt):"gone:"+id); });
   return sha256(parts.join("\u0002")).slice(0,24); }
 // Out of date, and why (null when it is not).
 function anaStale(a){ if(!a) return null; if(a.res&&a.res.err) return a.res.err; const gone=(a.in.cols||[]).filter(id=>!colById(id));
@@ -16892,6 +17103,13 @@ function anaInputs(a,cs,by,notes,K){ const rr=anaRowsOf(a.in), list=a.in.miss===
   const keepRows=(d,f)=>{ const k=[]; d.rows.forEach((i,j)=>{ if(f(i)) k.push(j); }); const out=d.rows.length-k.length; if(!out) return 0;
     d.rows=k.map(j=>d.rows[j]); if(d.keys) d.keys=k.map(j=>d.keys[j]); d.vals=d.lev?[]:k.map(j=>d.vals[j]); return out; };
   if(rr){ rd.forEach(d=>keepRows(d,inR)); notes.push(`Rows ${rr[0]||1} to ${rr[1]==null?"the last":rr[1]} only.`); }
+  // A filter's conditions taken as its rows when it was made (SHEET_SPEC 3.3): worked out on the columns as they are now.
+  const W=a.in.where&&typeof a.in.where==="object"?a.in.where:null;
+  if(W&&Object.keys(W).length){ const wc={}; let n=0; Object.keys(W).forEach(id=>{ const c=colById(id); if(c){ wc[id]={v:c.data||[],t:txtOf(c)}; n=Math.max(n,(c.data||[]).length,txtLen(c)); } });
+    rd.forEach(d=>{ n=Math.max(n,(d.c.data||[]).length,txtLen(d.c)); });
+    const pass=filtRows(wc,W,n); let shown=0; for(let i=0;i<n;i++) shown+=pass[i];
+    rd.forEach(d=>keepRows(d,i=>i>=0&&i<n&&pass[i]===1));
+    notes.push(`Rows where ${filtAll(W,id=>{ const c=colById(id); return c?colRef(c):"?"; })} (${shown} of ${n}).`); }
   if(list){ let common=null; rd.forEach(d=>{ const s=new Set(d.rows.filter(i=>i>=0)); common=common?new Set([...common].filter(i=>s.has(i))):s; });
     let out=0; rd.forEach(d=>{ out+=keepRows(d,i=>common.has(i)); });
     if(out) notes.push(`Listwise: the ${common.size} row${common.size===1?"":"s"} with a value in every column chosen; ${out} value${out===1?"":"s"} in other rows left out.`); }
@@ -16907,8 +17125,8 @@ function anaInputs(a,cs,by,notes,K){ const rr=anaRowsOf(a.in), list=a.in.miss===
     return q; }); }
 // Work it out: the inputs read, the kind run, the result sheet's columns written. Mutates p.cols and a.
 function runAna(a,p,o){ o=o||{}; const K=ANA_KINDS[a.kind]; p=p||P(); if(!K||!p) return false; const sig=anaSig(a);
-  const cs=(a.in.cols||[]).map(colById), gone=cs.filter(c=>!c).length, by=a.in.by?colById(a.in.by):null;
-  if(gone||(a.in.by&&!by)){ a.res=Object.assign({},a.res||{},{err:gone?`${gone===1?"An input column has":gone+" input columns have"} been deleted`:"Its column of groups has been deleted"}); a.sig=sig; return false; }
+  const cs=(a.in.cols||[]).map(colById), gone=cs.filter(c=>!c).length, by=a.in.by?colById(a.in.by):null, wg=Object.keys(a.in.where||{}).filter(id=>!colById(id)).length;
+  if(gone||(a.in.by&&!by)||wg){ a.res=Object.assign({},a.res||{},{err:gone?`${gone===1?"An input column has":gone+" input columns have"} been deleted`:wg?"A column its rows were chosen by has been deleted":"Its column of groups has been deleted"}); a.sig=sig; return false; }
   const notes=[], ins=anaInputs(a,cs,by,notes,K);
   // A large one is worked out by the compute worker (1.3c), its result put in when it comes back
   // (anaDone), if what it read has not changed meanwhile; the page goes on.
@@ -17176,6 +17394,10 @@ async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[kin
   const sel=new Set(a0?a0.in.cols:(o.cols||(wsSelColIds?wsSelColIds():[])).filter(id=>cand.some(c=>c.id===id)));
   if(!sel.size&&cand.length){ const act=activeYCol(); if(act&&cand.includes(act)) sel.add(act.id); else sel.add(cand[0].id); if(o.two&&cand.length>1){ const nx=cand.find(c=>!sel.has(c.id)); if(nx) sel.add(nx.id); } }
   const rd=a0?a0.in.read||{}:{}, bys=F.noGroup?[]:sheetCols(sid).filter(c=>!c.ana&&(isCatCol(c)||textCount(c))), rr=a0?anaRowsOf(a0.in):null, p0=a0?a0.p||{}:{};
+  // A filter on the sheet is offered as the analysis's own rows (SHEET_SPEC 3.3): ticked for a new one; an analysis that has its own keeps them.
+  const W0=a0&&a0.in.where&&Object.keys(a0.in.where).length?a0.in.where:null, Wf=filtOf(p,sid), whereC=W0||(Object.keys(Wf).length?Wf:null);
+  const whereT=whereC?filtAll(whereC,id=>{ const c=colById(id); return c?colRef(c):"?"; }):"";
+  const whereH=whereC&&!K.typed?`<label class="chk" title="${esc(W0?"The rows it was made with: a filter changed since does not change them":"The rows the sheet's filter shows now, kept with the analysis: a later change of the filter does not change them")}"><input type="checkbox" id="aWhere"${W0||!a0?" checked":""}> Only the rows where ${esc(whereT)}</label><br>`:"";
   const rowsH=cand.map(c=>{ const st=anaSteps(c).length, i=c.id; return `<div class="anarow"><label class="chk"><input type="checkbox" id="aI_${i}"${sel.has(i)?" checked":""}> ${esc(colLetter(c))} ${esc(c.name||"")}</label><span class="muted grow">${esc(anaReadText(c,rd[i])||"its values")}</span>${st&&!c.src?`<select id="aR_${i}" aria-label="What ${esc(colLetter(c))} gives"><option value="proc">Processed</option><option value="orig"${rd[i]==="orig"?" selected":""}>Original</option></select>`:""}</div>`; }).join("");
   const html=K.typed?`<div class="anadlg">${F.html?F.html(p0):""}</div>`:`<div class="anadlg"><p class="lab">Columns</p><div class="colpick anacols">${rowsH}</div>
     <div class="grid2">${bys.length?`<label for="aBy">Group by</label><select id="aBy"><option value="">Nothing</option>${bys.map(c=>`<option value="${c.id}"${a0&&a0.in.by===c.id?" selected":""}>${esc(colRef(c)+(c.name?" "+c.name:""))}</option>`).join("")}</select>`:""}
@@ -17183,7 +17405,7 @@ async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[kin
     <label for="aMiss" class="tipd" title="Pairwise: each column its own values. Listwise: only the rows with a value in every column chosen">Missing values</label><select id="aMiss"><option value="pair">Each column's own</option><option value="list"${a0&&a0.in.miss==="list"?" selected":""}>Only rows complete in every column</option></select></div>
     ${F.html?F.html(p0):""}
     <div class="grid2"><label for="aRc">Recalculate</label><select id="aRc"><option value="auto">By itself, when its data change</option><option value="manual"${a0&&a0.recalc==="manual"?" selected":""}>Only when asked</option></select></div>
-    <label class="chk"><input type="checkbox" id="aMask"${a0&&a0.in.masked?" checked":""}> Include masked points</label></div>`;
+    ${whereH}<label class="chk"><input type="checkbox" id="aMask"${a0&&a0.in.masked?" checked":""}> Include masked points</label></div>`;
   const rowsOk=v=>[v.aRow0,v.aRow1].every(t=>String(t||"").trim()===""||/^\d+$/.test(String(t).trim())&&+t>=1)&&!(+v.aRow0>0&&+v.aRow1>0&&+v.aRow1<+v.aRow0);
   const pr=formDlg({title:a0?`${a0.name}: settings`:K.label,html,ok:"Work it out",valid:r=>K.typed?(!F.valid||F.valid(r)):cand.some(c=>r["aI_"+c.id])&&rowsOk(r)&&(!F.valid||F.valid(r))});
   const box=$("#formBody .anadlg"); if(box&&F.wire) F.wire(box);
@@ -17191,6 +17413,7 @@ async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[kin
   const cols=cand.filter(c=>v["aI_"+c.id]).map(c=>c.id), read={}; cols.forEach(id=>{ if(v["aR_"+id]==="orig") read[id]="orig"; });
   const r0=String(v.aRow0||"").trim(), r1=String(v.aRow1||"").trim(), rows=r0||r1?[r0?+r0:null,r1?+r1:null]:null;
   const inp={cols,by:v.aBy||null,read,masked:!!v.aMask}; if(rows) inp.rows=rows; if(v.aMiss==="list") inp.miss="list"; if(K.typed) v.aRc=a0?a0.recalc:"auto";
+  if(v.aWhere&&whereC) inp.where=JSON.parse(JSON.stringify(whereC));
   const kp=F.read?F.read(v,p0):{}, ana=anaList(q).map(x=>Object.assign({},x));
   if(a0){ const a=ana.find(x=>x.id===a0.id); if(!a) return; pushUndo(`the settings of ${a.name}`); Object.assign(a,{in:inp,p:kp,recalc:v.aRc,by:who()}); runAna(a,q);
     save({ana,cols:q.cols},`changed the settings of ${a.name}`); showSheet(a.out.sheet,{quiet:true}); toast(`${a.name} worked out again.`,{action:"Undo",run:undo}); return; }
@@ -17354,7 +17577,9 @@ function anaClean(p){ if(p.ana!==undefined&&!Array.isArray(p.ana)) delete p.ana;
   if(Array.isArray(p.ana)) p.ana=p.ana.filter(a=>a&&typeof a==="object"&&typeof a.id==="string"&&!seen.has(a.id)&&seen.add(a.id)&&ANA_KINDS[a.kind]&&a.in&&Array.isArray(a.in.cols)&&a.out&&sids.has(a.out.sheet))
     .map(a=>{ if(typeof a.name!=="string"||!a.name) a.name=ANA_KINDS[a.kind].base; if(a.recalc!=="manual") a.recalc="auto"; if(!a.in.read||typeof a.in.read!=="object") a.in.read={}; a.in.cols=a.in.cols.filter(x=>typeof x==="string");
       if(a.in.rows!==undefined&&!(Array.isArray(a.in.rows)&&a.in.rows.length===2&&a.in.rows.every(x=>x==null||(Number.isInteger(x)&&x>=1))&&a.in.rows.some(x=>x!=null))) delete a.in.rows;
-      if(a.in.miss!==undefined&&a.in.miss!=="list") delete a.in.miss; if(!a.p||typeof a.p!=="object"||Array.isArray(a.p)) a.p={}; return a; });
+      if(a.in.miss!==undefined&&a.in.miss!=="list") delete a.in.miss; if(!a.p||typeof a.p!=="object"||Array.isArray(a.p)) a.p={};
+      if(a.in.where!==undefined){ const w=a.in.where, o={}; if(w&&typeof w==="object"&&!Array.isArray(w)) Object.keys(w).forEach(id=>{ if(filtOk(w[id])) o[id]=w[id]; }); if(Object.keys(o).length) a.in.where=o; else delete a.in.where; }
+      return a; });
   const ids=new Set((p.ana||[]).map(a=>a.id)), own=new Map((p.ana||[]).map(a=>[a.out.sheet,a.id]));
   (p.cols||[]).forEach(c=>{ if(c.ana!==undefined&&!ids.has(c.ana)){ delete c.ana; delete c.ak; } });
   if(Array.isArray(p.sheets)) p.sheets.forEach(s=>{ if(s&&s.ana!==undefined&&own.get(s.id)!==s.ana) delete s.ana; }); }
@@ -17398,6 +17623,7 @@ function wsPasteText(text){ if(anaRO()) return;
   const lines=unwrapQuoted(String(text).replace(/\r\n?/g,"\n")).split("\n"); while(lines.length&&!lines[lines.length-1].trim()) lines.pop();
   if(!lines.length) return;
   if(lines.length===1&&!lines[0].includes("\t")){ wsSetCell(r0,c0,lines[0]); return; }
+  if(filtBlocks(m,"a block fills every row, the filter's hidden ones too")) return;
   if(m.ord){ toast(m.sorted?"Unsort the sheet to paste a block: the rows are shown in another order than they were recorded in.":"Show the hidden rows to paste a block: it fills every row, hidden or not.",m.sorted?{}:{action:"Show them",run:()=>wsShowRows(null)}); return; }
   const labs=r0<0?lines.splice(0,Math.min(-r0,lines.length)).map(l=>l.split("\t")):[];
   // A spreadsheet's block (fields split by tabs, a field with a tab or a quote quoted) is read field
@@ -17533,6 +17759,7 @@ function setupWs(){
     const t=e.target;
     if(t.closest("input.wsed")) return;
     if(t.closest("[data-cmenu]")) return;
+    if(t.closest("[data-filt]")) return;
     if(t.closest("[data-wsrows]")) return;
     { const mh=t.closest("th[data-mkey]"); if(mh){ e.preventDefault(); toggleMenu(mh,()=>wsMetaItems(mh.dataset.mkey),{label:mh.dataset.mkey}); return; } }
     if(t.closest("tr.meta")){ e.preventDefault(); return; }
@@ -17628,7 +17855,7 @@ function setupWs(){
     if(td.classList.contains("fh")){ const rc=td.getBoundingClientRect(); if(e.clientX>=rc.right-10&&e.clientY>=rc.bottom-10){ wsFillDbl(); return; } }
     wsSelect(+td.dataset.r,+td.dataset.ci,false); wsBeginEdit(null,"edit");
   });
-  box.addEventListener("click",e=>{ const b=e.target.closest("[data-cmenu]"); if(!b) return; e.stopPropagation(); if(menuOpen&&menuOpen.trigger===b){ closeMenu(false); return; } openColMenu(b.dataset.cmenu,b); });
+  box.addEventListener("click",e=>{ const f=e.target.closest("[data-filt]"); if(f){ e.stopPropagation(); filtDlg(f.dataset.filt); return; } const b=e.target.closest("[data-cmenu]"); if(!b) return; e.stopPropagation(); if(menuOpen&&menuOpen.trigger===b){ closeMenu(false); return; } openColMenu(b.dataset.cmenu,b); });
   box.addEventListener("contextmenu",e=>{
     if(e.target.closest("input.wsed")) return;
     const th=e.target.closest("th[data-ch]"), m=S.wsm; if(!m) return;
@@ -17722,7 +17949,8 @@ function wsRowsEdit(kind,below){ if(anaRO()) return;
   const p=P(), m=wsLive(); if(!p||!m||S.readOnly) return;
   if(m.kind!=="raw"){ toast("The Processed view is read only."); return; }
   if(rawLocked()){ toast("The original data is locked, so rows cannot be inserted or deleted.",{action:"Unlock",run:()=>setRawLock(false)}); return; }
-  if(m.ord){ if(m.hidR&&!m.sorted){ toast("Show the hidden rows first: rows are inserted and deleted among every row.",{action:"Show them",run:()=>wsShowRows(null)}); return; }
+  if(m.ord){ if(filtBlocks(m,"rows are inserted and deleted among every row, the filter's hidden ones too")) return;
+    if(m.hidR&&!m.sorted){ toast("Show the hidden rows first: rows are inserted and deleted among every row.",{action:"Show them",run:()=>wsShowRows(null)}); return; }
     toast("Unsort the sheet first: rows are inserted and deleted in the order they were recorded.",{action:"Unsort",run:()=>wsSortBy(null,0)}); return; }
   if(S.ws.edit) wsCommit(0,0,true);
   const {r0,r1}=wsSelRect(), n=r1-Math.max(0,r0)+1, a=kind==="insert"&&below?r1+1:Math.max(0,r0); if(r1<0||n<1) return;
@@ -17834,7 +18062,8 @@ function colMenuItems(id){
       {label:"Ascending", radio:true, checked:!!(on&&m.sortDir>0), run:()=>{ if(S.sheet!=="raw") setSheet("raw"); wsSortBy(id,1); }},
       {label:"Descending", radio:true, checked:!!(on&&m.sortDir<0), run:()=>{ if(S.sheet!=="raw") setSheet("raw"); wsSortBy(id,-1); }},
       ...(c.cat?[{label:"By its categories", title:"In the order its Categorical… sets", radio:true, checked:!!(on&&S.wsSort&&S.wsSort.cat), run:()=>{ if(S.sheet!=="raw") setSheet("raw"); wsSortBy(id,1,true); }}]:[]),
-      "-",{label:"Original order", title:"The rows as they were recorded", enabled:!!(m&&m.sorted), run:()=>wsSortBy(null,0)}]; }});
+      "-",{label:"Original order", title:"The rows as they were recorded", enabled:!!(m&&m.sorted), run:()=>wsSortBy(null,0)}]; }},
+    {label:"Filter", title:"Keep in view the rows whose value is ticked, or that meet conditions: a view, the data untouched", enabled:!S.readOnly&&!c.ana, sub:()=>filterItems(id)});
   if(c.fx&&FX_ERR.get(c.id)) items.push({group:"Formula: "+FX_ERR.get(c.id),plain:true});
   else if(c.fx&&FX_NOTE.get(c.id)) items.push({group:FX_NOTE.get(c.id),plain:true});
   { const n=colMenuTargets(id).length; items.push("-",{label:n>1?`Move the ${n} columns`:"Move", title:"Or drag the selected columns by their letters", sub:()=>colMoveItems(id)},{label:"Align", sub:()=>colAlignItems(id)}); }
@@ -23107,6 +23336,7 @@ function dataMenu(){
     {label:"Fill", sub:fillMenuItems, enabled:edit},
     {label:"Sort the view", title:"By the column of the selected cell; the data keep their recorded order", sub:()=>sortViewItems(), enabled:!!p},
     {label:"Hide and show", title:"Columns and rows of the worksheet: hidden from view, still in the data", sub:hideItems, enabled:!!p},
+    {label:"Filter", title:"Rows kept in view by a column's values or conditions: a view, the data untouched", sub:()=>filterItems(), enabled:!!p},
     {label:"Columns", sub:()=>spectrumItems().filter(it=>!it.group)},
     {label:"Masks", sub:()=>[{label:"Mask points on the graph", run:()=>setMode("mask"), enabled:has},
       {label:"Restore every masked point", run:unmaskAll, enabled:edit&&!!(p&&maskOf(activeYCol()).length)}]},
@@ -25452,6 +25682,18 @@ ${DL([["Long Name","The column's name, used on the axes and in the legend."],["U
 <p>Type over a value to change it, ${K("Delete")} to clear the selection, and paste or fill over values. To insert or delete, right-click a cell: <em>Insert</em> › Row above, Row below, Column to the left, Column to the right, A column at the end or A sheet, and <em>Delete</em> › Rows or Columns; as many rows or columns are inserted as are selected. The same are in a column's menu, in Edit › Insert and Delete, on the <strong>Insert</strong> button above the grid, and on the keys: ${K("Ctrl","Shift","=")} inserts and ${K("Ctrl","−")} deletes (columns when whole columns are selected, rows otherwise). Masked points and corrections move with their rows. Each change is one undo step and goes into the original-data record with the check code, so what was changed, when and by whom is kept.</p>
 <h2 id="lock">Locking the original data</h2>
 <p>The lock button above the grid, or ${MP("Data › Lock the original data")}, keeps the original values as they are, for the whole project. Empty cells can still be filled. Typing over a value then asks for a reason and adds a <em>Correct values</em> step, so the original stays in the original data and the correction shows in the History, the report and the CSV; pasting over values offers new columns; rows cannot be inserted or deleted. ${DA("rawdata","Original data and its check code")}</p>`},
+{id:"filter", g:"Data", t:"Filters", kw:"filter funnel rows show hide keep condition values ticked between top bottom largest smallest above below mean contains begins ends empty reapply apply again view",
+ lead:"A filter keeps in view the rows whose values you choose, as a spreadsheet's does: the data stay as they are.",
+ body:`<h2>Filtering by a column</h2>
+<p>A column's menu (or ${MP("Data › Filter")}) has <em>Filter by this column…</em>. Keep the rows <strong>whose value is ticked</strong> (each value of the column with how many rows hold it, a search over them, <em>Tick all</em> and <em>None</em>; while there are 200 values or fewer) or <strong>that meet conditions</strong>, one or two joined by <em>and</em> or <em>or</em>:</p>
+${DL([["Numbers","equals, does not equal, is less than, is at most, is greater than, is at least, is between, is not between (both ends included), among the largest or the smallest (a count, or a percent of the column's numbers; ties are kept), above or below the column's mean"],["Text","is the text, is not the text, contains, does not contain, begins with, ends with; capitals are ignored, and a number is read as it is written"],["Any cell","is empty, is not empty"]])}
+<p>A condition on numbers keeps only numbers; its opposite (<em>does not equal</em>, <em>is not between</em>) keeps every other cell, text and empty ones too. The dialog counts the rows it would show while you set it. Filters on several columns all hold together.</p>
+<h2>What you see</h2>
+<p>A filtered column's letter carries a funnel (its tooltip the condition; a click opens it again), and the foot says <em>21 of 40 rows shown, filtered by B</em> with <em>Clear</em>. Rows keep their numbers, so the gaps show what is hidden. Sorting and hiding still work on the rows shown.</p>
+<h2 id="again">Applying it again</h2>
+<p>A value typed that would fail the filter stays in view, so the row you are working on does not vanish: the funnels and the foot turn to the warning colour and offer <em>Apply again</em> (also ${MP("Data › Filter › Apply the filter again")}). Undo puts the view back with the data.</p>
+<h2>A view, not the data</h2>
+<p>Graphs, fits, processing, formulas and exports read every row, filtered or not; the check code does not change. Pasting a block, filling and inserting or deleting rows ask you to clear the filter first, because they work along every row. An analysis made while a sheet is filtered offers <em>Only the rows where…</em>, ticked: it keeps those conditions as its own rows, works them out on its data whenever it is worked out again, and says them in its report; changing or clearing the filter later does not change it. ${DA("analyses","Analyses")}</p>`},
 {id:"formulas", g:"Data", t:"Column formulas", kw:"formula f(x) set column values compute calculate expression function log sqrt fit resid residuals fitted values if condition compare mean sum count median sd percentile cumsum running sum previous row offset other sheet constant k_B text equals missing",
  lead:"A column can be computed, row by row, from other columns: Origin's F(x)= row.",
  body:`<h2>Writing one</h2>
