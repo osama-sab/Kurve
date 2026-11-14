@@ -629,6 +629,68 @@ def _():
     if not math.isfinite(floor): raise Ambiguous()
     return [fx_text(tree), {"B": D["B"], "C": D["C"], "G": D["G"], "k": D["k"]}, {"G": {str(q): t for q, t in D["Gt"].items()}}, D["X"], D["nDef"], r, floor], v
 
+# Kurve's workbooks read back (SHEET_SPEC 3.7): random sheets of numbers, text (some that reads as a number,
+# some with XML's characters, _xHHHH_, spaces at the ends), dates and times written by xlsxBytes, then read by
+# openpyxl and pandas; every cell compared. The output is the workbook's bytes, compared in POST.
+import io, base64, datetime as _dt
+POST = {}
+def xl_sheet():
+    n, m = int(rng.integers(0, 30)), int(rng.integers(1, 6)); cols = []
+    for j in range(m):
+        kind = str(rng.choice(["num", "num", "text", "date", "time"])); vals, txt = [], {}
+        for r in range(n):
+            u = rng.random()
+            if u < 0.15: vals.append(None); continue
+            if kind == "num": vals.append(float(rng.choice([rng.normal(0, lognum(-300, 300)), float(rng.integers(-1000, 1000)), 0.1 + 0.2, 1 / 3])))
+            elif kind == "date": vals.append(float(rng.integers(-2203891200, 4102444800)) + float(rng.integers(0, 1000)) / 1000)
+            elif kind == "time": vals.append(float(rng.integers(0, 3600 * 900)) + float(rng.integers(0, 1000)) / 1000)
+            else:
+                vals.append(None); txt[str(r)] = str(rng.choice(["007", "1.5", "a & b <c>", "_x0041_", " lead", "trail ", 'q"uote', "naïve 日本", "#N/A", "x" * int(rng.integers(1, 40))]))
+        cols.append({"name": str(rng.choice(["", "Time", "Signal", "2019", "a&b"])) , "unit": str(rng.choice(["", "", "s", "°C"])), "comm": str(rng.choice(["", "", "note"])), "vals": vals, "txt": txt, "tfmt": kind if kind in ("date", "time") else None})
+    return {"name": str(rng.choice(["Sheet", "Data", "a:b", "History", "x" * 40])), "cols": cols}
+@gen("xlsxBytes", 0, 0.25)
+def _():
+    sheets = [xl_sheet() for _ in range(int(rng.integers(1, 4)))]
+    return [sheets], sheets
+def xl_post(c, out):
+    data = bytes(out); sheets = c["want"]
+    try: wb = __import__("openpyxl").load_workbook(io.BytesIO(data))
+    except Exception as e: return math.inf, f"openpyxl cannot read it: {e}"
+    import pandas as pd
+    if len(wb.worksheets) != len(sheets): return math.inf, f"{len(wb.worksheets)} sheets for {len(sheets)}"
+    xls = pd.read_excel(io.BytesIO(data), sheet_name=None, header=None, na_filter=False)  # "#N/A" is a text here, not pandas' missing value
+    for ws, sh in zip(wb.worksheets, sheets):
+        cols = sh["cols"]; k = 0 if not any(q["name"] or q["unit"] or q["comm"] for q in cols) else 3 if any(q["comm"] for q in cols) else 2 if any(q["unit"] for q in cols) else 1
+        df = xls[ws.title]
+        for j, q in enumerate(cols):
+            hd = [q["name"], q["unit"], q["comm"]][:k]
+            for r, h in enumerate(hd):
+                v = ws.cell(row=r + 1, column=j + 1).value
+                if (v or "") != h: return math.inf, f"{ws.title} header {r},{j}: {v!r} for {h!r}"
+            n = max(len(q["vals"]), max([int(t) + 1 for t in q["txt"]] or [0]))
+            for r in range(n):
+                v = q["vals"][r] if r < len(q["vals"]) else None; t = q["txt"].get(str(r)); got = ws.cell(row=r + k + 1, column=j + 1).value
+                pv = df.iat[r + k, j] if r + k < df.shape[0] and j < df.shape[1] else None
+                if v is not None:
+                    if q["tfmt"] == "date": want = _dt.datetime(1970, 1, 1) + _dt.timedelta(seconds=v)
+                    elif q["tfmt"] == "time": want = _dt.timedelta(seconds=v)
+                    else: want = v
+                    if q["tfmt"] == "date":
+                        ok = isinstance(got, _dt.datetime) and abs((got - want).total_seconds()) <= 1e-3 and abs((pd.Timestamp(pv).to_pydatetime() - want).total_seconds()) <= 1e-3
+                    elif q["tfmt"] == "time":
+                        gs = got.total_seconds() if isinstance(got, _dt.timedelta) else (got.hour * 3600 + got.minute * 60 + got.second + got.microsecond / 1e6) if isinstance(got, _dt.time) else None
+                        ok = gs is not None and abs(gs - v) <= 1e-3
+                    else:  # openpyxl: a double, or a whole number a double holds exactly (past 2^53 Kurve writes the exponent, so it is
+                        # not read as an exact integer a few units away); pandas turns a whole double into an int, exactly
+                        exact = isinstance(got, float) or (isinstance(got, int) and abs(got) < 2 ** 53)
+                        ok = exact and float(got) == want and float(pv) == want and (not isinstance(pv, (int, np.integer)) or int(pv) == int(want))
+                    if not ok: return math.inf, f"{ws.title} {r + k + 1},{j + 1}: {got!r} / pandas {pv!r} for {want!r}"
+                elif t is not None:
+                    if got != t or pv != t: return math.inf, f"{ws.title} {r + k + 1},{j + 1}: {got!r} / pandas {pv!r} for the text {t!r}"
+                elif got is not None: return math.inf, f"{ws.title} {r + k + 1},{j + 1}: {got!r} for an empty cell"
+    return 0.0, ""
+POST["xlsxBytes"] = xl_post
+
 cases = []
 for name, (f, tol) in GEN.items():
     for k in range(max(1, math.ceil(per * SHARE.get(name, 1.0)))):
@@ -639,7 +701,7 @@ for name, (f, tol) in GEN.items():
                 continue
         else:
             continue
-        cases.append({"id": len(cases), "fn": fn, "gen": name, "args": [a if isinstance(a, list) or a is None else num(a) for a in args], "want": num(want), "tol": tol, "k": k})
+        cases.append({"id": len(cases), "fn": fn, "gen": name, "args": [a if isinstance(a, (list, dict)) or a is None else num(a) for a in args], "want": want if name in POST else num(want), "tol": tol, "k": k})
 
 node = subprocess.run(["node", os.path.join(here, "run.mjs")] + sys.argv[3:4], input="\n".join(json.dumps(c) for c in cases),
                       capture_output=True, text=True, cwd=os.path.join(here, "..", ".."))
@@ -659,6 +721,11 @@ for c in cases:
     w = val(c["want"])
     if "err" in r:
         fails.append((c, f"error: {r['err']}")); continue
+    if c["gen"] in POST:
+        e, why = POST[c["gen"]](c, r["out"])
+        if e > worst.get(c["gen"], (0, None))[0]: worst[c["gen"]] = (e, c)
+        if not e <= c["tol"]: fails.append((c, why))
+        continue
     g = val(r["out"]) if not isinstance(r["out"], (dict, list)) else r["out"]
     if not isinstance(g, float) and not isinstance(g, int):
         fails.append((c, f"not a number: {r['out']}")); continue
@@ -697,7 +764,7 @@ for name in GEN:
     print(f"  {name:15} worst {e:.2e}  tolerance {GEN[name][1]:.0e}  {state}")
 for name in GEN:
     e, c = worst.get(name, (0.0, None))
-    if c is not None and not e <= c["tol"] and not (TARGET.get(name, {}).get("until") and e <= TARGET[name]["now"]):
+    if c is not None and name not in POST and not e <= c["tol"] and not (TARGET.get(name, {}).get("until") and e <= TARGET[name]["now"]):
         print(f"  worst {name}{tuple(c['args']) if len(json.dumps(c['args'])) < 160 else '(…)'}  case {c['k']}: got {val(got[c['id']].get('out'))!r}, the reference {val(c['want'])!r}")
 for c, why in fails[:40]:
     print(f"  FAIL {c['fn']}{tuple(c['args']) if len(json.dumps(c['args'])) < 120 else '(…)'}  case {c['k']}: {why}")

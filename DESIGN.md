@@ -898,6 +898,23 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-14: Excel workbooks (SHEET_SPEC 3.7)
+
+- **A workbook is read from its cells, then through the import's own reading.** Each sheet is turned into the text the import
+  dialog already understands (a tab between cells, every digit of a number, dates in ISO), so a sheet gets the same header
+  detection, roles, findings and preview as a text file; what text cannot say travels with it on a first line (the sheet's
+  name, a column's formula, its frozen rows), and a text that would read as a number is marked so that 007 stays 007.
+- **Several sheets are a choice, one sheet a dialog.** The list comes first (sizes, a hidden sheet said) because a workbook's
+  other sheets are often notes or charts; one ticked goes through the dialog, several come in with its automatic choices on
+  sheets of their own, one undo step, as a batch of files does. Asking every question for every sheet would be ten dialogs.
+- **Frozen rows are the header.** A row a person froze at the top is the most reliable sign of what names the columns: two
+  rows are names and units, three add the comments, as Origin writes them. Publish › Data as Excel freezes them so its own
+  files come back exactly; without frozen rows the line above the numbers is read, as for text.
+- **A formula's value, not the formula.** Excel's language is not Kurve's; carrying the cached value and saying the formula in
+  the column's comment keeps the numbers without pretending to recompute them.
+- **A pasted web table fills its spans.** A merged cell in a web table names every row or column it spans; leaving all but
+  the first empty would lose that. A spreadsheet's own copy (tab-separated, no spans) is read as before.
+
 ### 2026-11-14: reshaping (SHEET_SPEC 3.5)
 
 - **Analyses, not commands.** A stacked or pivoted table that does not follow its data is a copy that goes stale silently; as an

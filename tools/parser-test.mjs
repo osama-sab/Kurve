@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import zlib from "node:zlib";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const html = readFileSync(process.argv[2] || join(here, "..", "kurve.html"), "utf8");
@@ -12,7 +13,7 @@ const m = html.match(/==PARSER:START==[\s\S]*?\*\/([\s\S]*?)\/\* ==PARSER:END==/
 if (!m) { console.error("Could not find the parser block in kurve.html"); process.exit(1); }
 
 // checkColumns formats numbers with the app's fmt(); a plain stub is enough here.
-const src = `const fmt=(v)=>String(v);\n${m[1]}\nreturn {analyzeFile,colFields,toNumber,detectFormat,checkColumns,splitLine,splitColName,detectRoles,parseLineList,parseFillList,timeOf,spcFile,spcTable,opusFile,speBinFile};`;
+const src = `const fmt=(v)=>String(v);\n${m[1]}\nreturn {analyzeFile,colFields,toNumber,detectFormat,checkColumns,splitLine,splitColName,detectRoles,parseLineList,parseFillList,timeOf,spcFile,spcTable,opusFile,speBinFile,xlsxRead,xlsxSheetText,xlsxParts,xlsxBytes,zipWrite,zipEntries,zipData,inflateRaw,crc32,xlsxDateFmt,xlsxSerialToUnix,htmlTable,xmlRead,XL_TXT};`;
 const P = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -541,6 +542,89 @@ check("negative kept", close(P.toNumber("-999", "."), -999));
   check("a file whose last column is notes: one block, the notes as text, the empty ones empty", r.rows.length === 6 && r.txt[2][0] === "start" && !(1 in r.txt[2]) && r.txt[2][4] === "re-zeroed" && r.cols[1][5] === 4.0, JSON.stringify([r.rows.length, r.txt[2]])); }
 { const r = P.analyzeFile("x,y\n1,2\n2,4\n3,6\n4,8\n5,10\n");
   check("a file of numbers has no text cells", r.txt.every(t => !t), JSON.stringify(r.txt)); }
+
+
+/* ---- Excel workbooks (SHEET_SPEC 3.7) ----
+   Every cell of the workbooks in tools/ref/xlsx/ against openpyxl's reading of it (fixtures/xlsx.json;
+   openpyxl leaves _xHHHH_ as written, where Excel and Kurve read the character it stands for). */
+{ const fx = JSON.parse(readFileSync(join(here, "ref", "fixtures", "xlsx.json"), "utf8")).cases;
+  const unx = s => s.replace(/_x([0-9A-Fa-f]{4})_/g, (m, h) => String.fromCharCode(parseInt(h, 16)));
+  for (const c of fx) {
+    const u = new Uint8Array(readFileSync(join(here, "ref", "xlsx", c.file))), b = P.xlsxRead(u), w = c.want;
+    if (w.fail) { check(`xlsx ${c.file}: refused as ${w.fail}`, b.fail && b.fail.includes(w.fail), b.fail || "read"); continue; }
+    if (b.fail) { check(`xlsx ${c.file}: read`, false, b.fail); continue; }
+    check(`xlsx ${c.file}: its sheets and the date system`, b.d1904 === w.d1904 && b.sheets.length === w.sheets.length && w.sheets.every((s, i) => b.sheets[i].name === s.name && b.sheets[i].hidden === s.hidden && b.sheets[i].frozen === s.frozen),
+      JSON.stringify([b.d1904, b.sheets.map(s => [s.name, s.hidden, s.frozen])]));
+    w.sheets.forEach((s, i) => { const sh = b.sheets[i]; let bad = [];
+      for (const [r, col, k, v] of s.cells) { const g = sh.cols[col] && sh.cols[col][r];
+        const ok = k === "n" || k === "b" ? typeof g === "number" && g === v : k === "s" ? g === unx(v) : k === "e" ? g === v : k === "d" ? g && g.k === "date" && Math.abs(g.d - v) <= 1e-3 : g && g.k === "time" && Math.abs(g.d - v) <= 1e-3;
+        if (!ok) bad.push(`${String.fromCharCode(65 + col)}${r + 1} ${k} ${JSON.stringify(v)} got ${JSON.stringify(g)}`); }
+      check(`xlsx ${c.file} › ${s.name}: ${s.cells.length} cells as openpyxl reads them`, !bad.length && sh.n === s.cells.length, bad.slice(0, 4).join("; ") + ` (${sh.n} cells)`); }); }
+  const book = f => P.xlsxRead(new Uint8Array(readFileSync(join(here, "ref", "xlsx", f))));
+  { const sh = book("basic.xlsx").sheets[0], r = P.analyzeFile(P.xlsxSheetText(sh), { fname: "basic.xlsx" });
+    const vals = [0.1, 1 / 3, -2.5e-300, 1.7976931348623157e308, 5e-324, 123456789012345.6, 0, 42, 0.30000000000000004];
+    check("xlsx through the import: the header and nine rows, every number to the last digit", r.headerRow.join("|") === "Time (s)|Signal|Label|Flag|" && r.rows.length === 9 && vals.every((v, i) => r.cols[1][i] === v), JSON.stringify([r.headerRow, r.rows.length, r.cols[1]]));
+    check("xlsx: text that reads as a number stays text (007, 1.5, 1e5), its mark gone", r.cols[2][0] === null && r.txt[2][0] === "007" && r.txt[2][1] === "1.5" && r.txt[2][8] === "1e5" && !JSON.stringify(r.txt).includes(P.XL_TXT) && !r.lines.join("").includes(P.XL_TXT), JSON.stringify(r.txt[2]));
+    check("xlsx: a tab and a line break in a cell made spaces, a quote kept, an error kept as text", r.txt[2][2] === "a b" && r.txt[2][3] === 'say "hi"' && r.txt[2][4] === "two lines" && r.txt[2][7] === "#DIV/0!" && r.txt[4][0] === "#N/A", JSON.stringify(r.txt));
+    check("xlsx: booleans as 1 and 0", r.cols[3][0] === 1 && r.cols[3][1] === 0 && r.cols[3][2] === null, JSON.stringify(r.cols[3]));
+    check("xlsx: the sheet's name kept with the file's fields", r.xl.sheet === "Data" && r.meta["Excel sheet"] === "Data", JSON.stringify([r.xl, r.meta])); }
+  { const r = P.analyzeFile(P.xlsxSheetText(book("dates.xlsx").sheets[0]), { fname: "dates.xlsx" });
+    check("xlsx: dates and times by their number format read as dates and times", ["date", "date", "date", "time", "time", "date", "time"].every((k, i) => r.tkind[i + 1] === k) && r.tkind[0] === null && r.tkind[8] === null && r.tkind[9] === null && r.tkind[10] === "date" && r.tkind[11] === "time", JSON.stringify(r.tkind));
+    check("xlsx: a date and time to the millisecond, a day before 1970, Excel's 1900 leap day passed", r.cols[3][0] === 1709294730.25 && r.cols[3][1] === -14182940 && r.cols[1][1] === -2203977600 && r.cols[2][1] === -2203891200, JSON.stringify([r.cols[3], r.cols[1], r.cols[2]]));
+    check("xlsx: elapsed hours past a day, a time of day, minutes to a tenth", r.cols[5][0] === 180187 && r.cols[4][0] === 49510 && r.cols[11][0] === 150.5, JSON.stringify([r.cols[5], r.cols[4], r.cols[11]])); }
+  { const r = P.analyzeFile(P.xlsxSheetText(book("mac1904.xlsx").sheets[0]), {});
+    check("xlsx: the 1904 date system", r.cols[0][0] === -2082844800 + 86400 && r.cols[0][1] === 1709272800 && r.tkind[0] === "date", JSON.stringify(r.cols[0])); }
+  { const b = book("sheets.xlsx"), r0 = P.analyzeFile(P.xlsxSheetText(b.sheets[0]), {}), r1 = P.analyzeFile(P.xlsxSheetText(b.sheets[1]), {}), r4 = P.analyzeFile(P.xlsxSheetText(b.sheets[4]), {});
+    check("xlsx: a merged title and a blank row over the header: thirty rows under Shift, Counts, Note", r0.headerRow.join("|") === "Shift|Counts|Note" && r0.rows.length === 30 && r0.txt[2][7] === "spike", JSON.stringify([r0.headerRow, r0.rows.length]));
+    check("xlsx: two frozen rows are names and units, a year as a name stays a name", r1.headerRow.join("|") === "Time (s)|Temperature (°C)|2019 (K)" && r1.rows.length === 12 && r1.xl.frozen === 2, JSON.stringify([r1.headerRow, r1.rows.length]));
+    check("xlsx: three frozen rows are names, units and comments", r4.headerRow.join("|") === "Wavelength (nm)|Absorbance|Absorbance (a.u.)" && r4.xl.comm[1] === "sample A" && r4.xl.comm[2] === "sample B" && r4.rows.length === 8, JSON.stringify([r4.headerRow, r4.xl]));
+    check("xlsx: the empty sheet holds nothing", b.sheets[2].n === 0, b.sheets[2].n); }
+  { const r = P.analyzeFile(P.xlsxSheetText(book("formulas.xlsx").sheets[0]), {});
+    check("xlsx: a column that is one formula is said, its cached values read; one formula in a column is not", r.xl.fx && r.xl.fx[1] === "=A2*2" && !(2 in r.xl.fx) && r.cols[1].join() === "2,4,6,8,10" && r.cols[2][0] === 15, JSON.stringify([r.xl, r.cols])); }
+  // Kurve's own workbooks, read back
+  const sheets = [{ name: "Spectra: run/1?", cols: [
+      { name: "Wavelength", unit: "nm", vals: [400, 410.5, 420.25, null, 440], txt: { 3: "007" } },
+      { name: "Absorbance", unit: "", comm: "sample A", vals: [0.1, 1 / 3, null, -2e-300, 5], txt: { 2: "n/a" } },
+      { name: "When", unit: "", vals: [1709294730.25, 0, -2203891200, null, 86400 * 3], tfmt: "date" },
+      { name: "Clock", unit: "s", vals: [0, 1.5, 49510, 180187, null], tfmt: "time" }] },
+    { name: "spectra: RUN/1?", cols: [{ name: "", unit: "", vals: [1, 2, 3] }] },
+    { name: "History", cols: [{ name: "x", vals: [] , txt: { 0: "_x0041_ & <tag> \"q\"", 1: " both ", 2: "a\u0001b" } }] }];
+  const out = P.xlsxBytes(sheets), back = P.xlsxRead(out);
+  check("xlsx written: read back with three sheets, names Excel takes, none twice", !back.fail && back.sheets.map(s => s.name).join("|") === "Spectra_ run_1_|spectra_ RUN_1_ (2)|History_" && back.by === "Kurve", JSON.stringify(back.fail || back.sheets.map(s => s.name)));
+  { const s0 = back.sheets[0], r = P.analyzeFile(P.xlsxSheetText(s0), {});
+    check("xlsx written: names, units and comments as three frozen rows", s0.frozen === 3 && r.headerRow.join("|") === "Wavelength (nm)|Absorbance|When|Clock (s)" && r.xl.comm[1] === "sample A", JSON.stringify([s0.frozen, r.headerRow, r.xl]));
+    check("xlsx written: numbers to the last digit, text kept as text, an empty cell empty", r.cols[0].join() === "400,410.5,420.25,,440" && r.cols[1][1] === 1 / 3 && r.cols[1][3] === -2e-300 && r.txt[1][2] === "n/a" && r.txt[0][3] === "007" && r.cols[1][2] === null, JSON.stringify([r.cols[0], r.cols[1], r.txt]));
+    check("xlsx written: dates and times come back as dates and times, to the millisecond", r.tkind[2] === "date" && r.tkind[3] === "time" && r.cols[2][0] === 1709294730.25 && r.cols[2][2] === -2203891200 && r.cols[3].slice(0, 4).join() === "0,1.5,49510,180187", JSON.stringify([r.tkind, r.cols[2], r.cols[3]])); }
+  { const t = back.sheets[2].cols[0];
+    check("xlsx written: _x0041_, entities, spaces and a control character survive", t[1] === "_x0041_ & <tag> \"q\"" && t[2] === " both " && t[3] === "a\u0001b", JSON.stringify(t)); }
+  check("xlsx written: a sheet with no names has no header row and is not frozen", back.sheets[1].frozen === 0 && back.sheets[1].cols[0][0] === 1, JSON.stringify(back.sheets[1]));
+  // zips: stored and deflated parts, the deflate of the browser stood in for by node's
+  { const te = new TextEncoder(), a = te.encode("hello ".repeat(500)), b2 = te.encode("x"), z = P.zipWrite([{ name: "a.txt", data: a, z: new Uint8Array(zlib.deflateRawSync(a)) }, { name: "b.txt", data: b2 }]);
+    const e = P.zipEntries(z), da = P.zipData(z, e.entries[0]), db = P.zipData(z, e.entries[1]);
+    check("zip written and read: a deflated part and a stored one", e.entries.length === 2 && e.entries[0].method === 8 && e.entries[1].method === 0 && new TextDecoder().decode(da.data) === "hello ".repeat(500) && new TextDecoder().decode(db.data) === "x", JSON.stringify(e)); }
+  // inflate against zlib, at every level (stored, fixed and dynamic codes), random and repetitive bytes
+  { let bad = 0, n = 0, seed = 7; const rnd = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296;
+    for (const size of [0, 1, 10, 300, 5000, 70000, 300000]) for (const kind of ["rand", "text", "runs"]) for (const level of [0, 1, 6, 9]) {
+      const d = new Uint8Array(size); for (let i = 0; i < size; i++) d[i] = kind === "rand" ? rnd() * 256 : kind === "text" ? "the quick brown fox 0123456789\n".charCodeAt((i * 7 + (rnd() < 0.1 ? 3 : 0)) % 31) : (i >> 9) & 255;
+      const z = zlib.deflateRawSync(d, { level }); let g; try { g = P.inflateRaw(new Uint8Array(z), size); } catch (x) { g = null; }
+      n++; if (!g || g.length !== size || g.some((v, i) => v !== d[i])) bad++;
+      const g2 = P.inflateRaw(new Uint8Array(z), 0); if (g2.length !== size) bad++; }
+    check(`inflate: ${n} streams of zlib's, each byte as written (with and without the size known)`, !bad, bad); }
+  { let threw = 0; for (const z of [new Uint8Array([0xff, 0xff]), new Uint8Array([0x07]), new Uint8Array([0x01, 0x05, 0x00, 0x00, 0x00])]) { try { P.inflateRaw(z, 10); } catch (x) { threw++; } }
+    check("inflate: damaged streams refused, not looped on", threw === 3, threw); }
+  check("number formats: dates, times, elapsed, numbers", P.xlsxDateFmt("yyyy-mm-dd") === "d" && P.xlsxDateFmt("h:mm AM/PM") === "t" && P.xlsxDateFmt("[h]:mm:ss") === "e" && P.xlsxDateFmt("dd/mm/yyyy hh:mm") === "dt" && P.xlsxDateFmt('0.00 "days"') === null && P.xlsxDateFmt("0.0E+00") === null && P.xlsxDateFmt("General") === null && P.xlsxDateFmt("#,##0;[Red]-#,##0") === null && P.xlsxDateFmt("mmm") === "d" && P.xlsxDateFmt('[$-409]d-mmm-yy;@') === "d");
+  check("serial days: 1, 59, 60, 61 in the 1900 system and 0 in 1904", P.xlsxSerialToUnix(1) === -2208988800 && P.xlsxSerialToUnix(59) === -2203977600 && P.xlsxSerialToUnix(60) === -2203977600 && P.xlsxSerialToUnix(61) === -2203891200 && P.xlsxSerialToUnix(0, true) === -2082844800);
+  // a table from a web page
+  { const g = P.htmlTable('<p>x</p><table><thead><tr><th rowspan="2">Sample</th><th colspan=2>Signal &amp; error</th></tr><tr><th>mV</th><th>&plusmn;</th></tr></thead><tbody><tr><td>A<br>1</td><td>1.5</td><td>0.1</td></tr><tr><td rowspan="2">B</td><td>2&nbsp;000</td><td><table><tr><td>in</td></tr></table>0.2</td></tr><tr><td>3</td><td></td></tr></tbody></table><table><tr><td>second</td></tr></table>');
+    check("an HTML table: spans filled into each cell, entities read, a break a space, a nested table's rows its own, the first table only", JSON.stringify(g) === JSON.stringify([["Sample", "Signal & error", "Signal & error"], ["Sample", "mV", "±"], ["A 1", "1.5", "0.1"], ["B", "2 000", "in0.2"], ["B", "3", ""]]), JSON.stringify(g)); }
+  check("no table in the HTML: nothing", P.htmlTable("<p>no table</p>") === null);
+  // a large sheet, read and turned into text
+  { const N = 200000, cols = [{ name: "t", unit: "s", vals: Array.from({ length: N }, (_, i) => i * 0.001) }, { name: "y", vals: Array.from({ length: N }, (_, i) => Math.sin(i / 1000)) }, { name: "z", vals: Array.from({ length: N }, (_, i) => i % 7 ? i / 3 : null) }];
+    const te = new TextEncoder(), parts = P.xlsxParts([{ name: "Big", cols }]), z = P.zipWrite(parts.map(q => { const d = te.encode(q.text); return { name: q.name, data: d, z: new Uint8Array(zlib.deflateRawSync(d)) }; }));
+    const t0 = Date.now(), b = P.xlsxRead(z), txt = P.xlsxSheetText(b.sheets[0]), r = P.analyzeFile(txt, {}), ms = Date.now() - t0;
+    check(`xlsx: ${N} rows of three columns read, turned into text and imported in ${ms} ms`, r.rows.length === N && r.cols[1][123456] === Math.sin(123456 / 1000) && r.cols[2][7] === null && ms < 8000, `${r.rows.length} rows, ${ms} ms`);
+    results.push(["note", `xlsx of ${N}×3 (${(z.length / 1e6).toFixed(1)} MB): read, text and import in ${ms} ms`, ""]); }
+}
 
 for (const [state, name, detail] of results) {
   if (state === "ok") console.log(`  ok   ${name}`);

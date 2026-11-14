@@ -863,8 +863,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   notes; a line without a number skipped and counted). `parseFillList(text)` reads the Fill
   dialog's list (spaces, semicolons, or commas alone; decimal commas between spaces; the words
   that are not numbers returned in `bad`). `tools/parser-test.mjs` extracts this block
-  straight out of the HTML and tests it under node (TKA files and line lists among the rest);
-  run it after touching anything here.
+  straight out of the HTML and tests it under node (TKA files and line lists among the rest;
+  Excel: every cell of the workbooks in `tools/ref/xlsx/` against openpyxl's reading,
+  `fixtures/xlsx.json`, and seven refused, the import's reading of them, Kurve's own workbooks
+  read back, inflate against zlib at every level); run it after touching anything here.
   **Dates and times** (`timeOf`, `T_DATE`, `T_TIME`, in the block): an ISO date or date and
   time (with T, Z or an offset) is seconds since 1970 in UTC, `h:mm(:ss)` is seconds, year-first
   dates only; `toNumber` and `parseNum` read them, `splitLine` keeps a date and its time of day
@@ -980,6 +982,46 @@ graph first, with the taskbar kept at the bottom of the screen.
   3101, coefficients at 3263), else the pixel; the exposure, date and time, detector temperature,
   laser line (3311) and comments as `meta`; `{fail}` in words; the shape of `spcFile`. `readAny` reads
   every `.spe` as bytes and decodes text when `speBinFile` says it is not one; `impFindings` (`spe`).
+  **Excel workbooks** (SHEET_SPEC 3.7; PARSER block): `crc32` (moved here: the PNG and TIFF writers use
+  it too), `inflateRaw(src, size)` (RFC 1951 in plain code, so the block stays pure and synchronous:
+  `infTable` canonical codes as tables read by their next bits, `INF_FIX` the fixed ones; damaged
+  streams refused), `zipEntries(u)` (the end record, the central directory; `{fail}` in words: not a
+  zip, cut short, zip64), `zipData(u, e)` (stored or deflated, its CRC checked; a password, another
+  method, past `ZIP_MAX` unpacked refused), `xmlRead(text)` (a tree `{n, a, c, t}` of a small part,
+  prefixes dropped from names, attributes by name and local name, entities; no DTD), `xmlKids`,
+  `xmlFind`, `xmlText`, `xlEsc` (OOXML's `_xHHHH_`), `zipPath`; `xlsxDateFmt(code)` (`d`, `dt`, `t`,
+  `e` elapsed, or null: Excel's built-in numbers `XL_FMT_KIND`, else d, m, y, h, s outside quotes,
+  escapes and brackets), `xlsxSerialToUnix(v, d1904)` (Excel's 29 February 1900), `xlsxRef`,
+  `xlsxStr`, `xlsxShared`, `xlsxStyles` (each cell format's kind), `xlsxSheet(xml, ctx)` (scanned, not
+  parsed: `{cols (by column, by row: a number, a string, or {d, k: date|time, o: date only}), nr, nc,
+  n, merges, fx (per column: formulas, the first and its row), frozen (a frozen pane's rows)}`),
+  `xlsxRead(u)` (`{sheets [{name, hidden, chart, ...}], d1904, by (docProps' Application)}` or
+  `{fail}`: a Word or PowerPoint file named), `xlCellText`, `xlsxSheetText(sh)` (the sheet as the
+  import reads text: tabs, a number as JavaScript writes it, a date ISO 8601 in UTC, a time h:mm:ss,
+  a text that would read as a number marked `XL_TXT`, and a first line `XL_HEAD` + JSON `{sheet, fx,
+  comm, frozen}`; frozen rows of text over numbers made one line of `Name (unit)`, a third row the
+  comments), and the writer: `xlSheetName` (no `: \ / ? * [ ]`, 31 characters, none twice, not
+  History), `xmlEsc`, `xlColName`, `xlsxParts(sheets, o)` (the parts as text: names, units and
+  comments as frozen rows when any, shared strings, styles for a date, a date and time and `[h]:mm:ss`;
+  `XL_ROWS`, `XL_COLS`), `zipWrite(files, o)` (a part deflated when given `z`, else stored),
+  `xlsxBytes` (stored, for the tests); `htmlTable(html)` (the first table's rows and cells, spans
+  filled, entities, a break a space). `analyzeFile` reads an `XL_HEAD` text with tabs and decimal
+  points, no JCAMP, analyser or TKA reading, keeps a cell's quotes (`res.xl` the head; the marks off
+  the header, lines, text cells and fields; `meta["Excel sheet"]`). The page (after `readFileIn`):
+  `isXlsx`, `xlUsed` (the sheets that hold anything), `xlSize`, `readAny` (a workbook's sheets as
+  `book`, its first sheet's text as `text`), `readFileIn` → `xlsxOpen(book, fname)` (one sheet: the
+  dialog; several: a `formDlg` of ticks `xlS<i>` and `#xlAll`, listeners on `#formBody .xlpick`;
+  one ticked the dialog, several `importBook`), `openImport(text, fname, {sname})` (`S.imp.sname`:
+  the title, a new sheet's name, a new project's first sheet), `renderImport` (for `r.xl` a line
+  and Data starts at line), `impFindings` (`xlsx`), `impBuild` (a comment from the comments row or
+  *Computed in Excel by =…*), `importBook(book, fname, idx, o)` (each sheet through `impBuild` with
+  the automatic choices, each on a sheet of its own named after it, the first in an empty project
+  on the first sheet; one undo step, one record entry, one log line; dropped on a graph, plotted
+  there; *Read it differently*), `autoImport` (a dropped workbook's visible sheets), `rawDeflate`
+  (`CompressionStream("deflate-raw")`, else gzip less its 10 and 8 bytes, else stored),
+  `exportXlsx()` (Publish › Data as Excel (.xlsx): every sheet with values, a computed column its
+  values, refused past Excel's rows or columns); the worksheet's paste takes `text/html` when it has
+  a table with a span or the plain text has no tab.
   `batchFile` reads one-column
   files the same way. A Y column whose X column holds no values is drawn against its row
   number (`rawSeries`, `anyVal`, xn "Row").
@@ -3205,7 +3247,8 @@ each function's worst error against its target in `tools/ref/targets.json`; one 
 names the slice that brings it there (`until`) and must not pass where it stood (`now`).
 `tools/ref/make-fixtures.py [--check] [--only name,…]` makes the fixtures again (`--only fx` writes or checks those
 files alone, so a newer NumPy does not rewrite the rest) and `tools/ref/diff-fuzz.py [seed]
-[n]` (`FUZZDUMP=file` writes every failing case in full) throws random cases at the same functions (both need Python 3.13 and the packages in `$PYREF`,
+[n]` (`FUZZDUMP=file` writes every failing case in full) throws random cases at the same functions (`xlsxBytes`: random sheets
+written by Kurve, every cell read back by openpyxl and pandas; both need Python 3.13 and the packages in `$PYREF`,
 see the README; `tools/ref/run.mjs` is the pure blocks under node, any function by name).
 `node tools/perf.mjs [path]` measures what a person waits for (boot; a million rows: save, a value
 typed, draw, zoomed draw, worksheet, saved to a project file and opened from one; one-way ANOVA of a million
@@ -3283,7 +3326,11 @@ their dialogs and the count, a new rule first, the fill read as drawn and the se
 undo, text highlighted with capitals ignored, a value typed taking its fill, three dialogs in a row leaving no listener
 behind, clearing a sheet's rules and undo, junk from storage, a reload); 3.5, reshaping (the menu's ten kinds, each through its
 dialog with its result checked, a stack followed after a value typed, a reshape on a filtered sheet taking the filter's rows, Cut
-from its data keeping numbers and text, undo, a pivot across a reload).
+from its data keeping numbers and text, undo, a pivot across a reload); 3.7, Excel (a workbook's sheets listed with their sizes, a
+hidden one said, Every sheet and none ticked, one sheet through the dialog named after its Excel sheet with names and units from
+its frozen rows, every sheet at once on sheets of their own with one undo step, record entry and log line, the comments row, a
+column of one formula said in its comment, a password and a cut file refused in words, a drop keeping every digit and 007 as
+text, Publish's workbook read back with its frozen rows, digits, text and dates, an HTML table pasted with its spans filled).
 `node tools/text-drive.mjs [path]` (Playwright) checks text cells (FOUNDATION_SPEC 1.2): typed
 among numbers, marked, left out of a curve, Numbers only refusing and Text only keeping 007 and
 back, undo, the status bar's count, sorting, find, copy, clear, rows inserted and deleted, the
@@ -4871,7 +4918,11 @@ Next, in order:
    project, applied again when asked, an analysis keeping a filter as its own rows; pandas agreeing on every row), done 14.11;
    slice 3.4, conditional formatting (colour scales and highlights, ordered rules, fills from the panel's colour reading in
    both themes), done 14.11; slice 3.5, reshaping (stack, unstack, split, pivot table, reduce rows, duplicates, a sorted copy,
-   transpose, join, append, each an analysis following its data; pandas agreeing to 2e-16 on 68 results), done 14.11
+   transpose, join, append, each an analysis following its data; pandas agreeing to 2e-16 on 68 results), done 14.11; slice
+   3.7, Excel (workbooks read from their cells, every sheet or the ones ticked, dates and times by their formats in either
+   date system, frozen rows as names, units and comments, a formula's cached value; Publish › Data as Excel; a web page's
+   table pasted with its spans; openpyxl agreeing on every cell of 13 workbooks, and openpyxl and pandas reading Kurve's
+   own), done 14.11
 
 ## Known gaps
 
@@ -5231,9 +5282,16 @@ Next, in order:
 - A peak set follows its spectrum's processing, but not a change of the finder's settings made
   while another spectrum is analysed: "Every spectrum" applies them to all. Two identical
   spectra overlaid draw their labels on top of each other
-- Worksheet formulas are whole-column (row by row); there are no cell formulas, no references
-  to other rows (`B[i-1]`), no relative formulas when filling right, no replace in find, and
-  sorting never reorders the recorded data (by design)
+- Worksheet formulas are whole-column (row by row, another row read by `B[i-1]`); there are no
+  cell formulas, no relative formulas when filling right, no replace in find, and sorting never
+  reorders the recorded data (by design)
+- Excel: `.xlsx` and `.xlsm` only (not `.xls`, `.ods`, nor one protected by a password or a zip64
+  file); a formula's value as Excel last worked it out (a formula is never carried over or written);
+  styles, charts, pictures, comments in cells and defined names are not read; a header is frozen
+  rows of text or the line above the numbers (not a table's header row, nor a merged header over
+  sub-columns); several sheets come in with the automatic choices (one at a time for the dialog's);
+  the export writes values, names, units and comments, frozen, and nothing of the graphs; an HTML
+  table pasted is the first table on the clipboard, a nested table's text joined to its cell
 - Binary instrument formats other than SPC, OPUS and Princeton's SPE are not read, nor SPC's old
   format (before 1996) or its log block, nor an OPUS file's other blocks (one spectrum is read, the
   first of absorbance, single channel, interferogram), nor an SPE file's regions of interest or

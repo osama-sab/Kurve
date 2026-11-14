@@ -391,6 +391,8 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .ws .fxm.old{color:var(--warn)}
 /* A filtered column's funnel (SHEET_SPEC 3.3): the accent while it holds, the warning colour once the data changed since. */
 .ws .hc .flt{color:var(--accent);width:16px;height:20px;min-width:16px;padding:0}
+.xlpick{display:grid;gap:var(--sp-3);justify-items:start}
+.xlpick .xlall{margin-top:var(--sp-2);padding-top:var(--sp-4);border-top:1px solid var(--rule);justify-self:stretch}
 .fdlg .fdm{display:flex;flex-wrap:wrap;gap:var(--sp-2) var(--sp-5);align-items:center;margin:var(--sp-4) 0 var(--sp-3)}
 .fdlg .fdbar{display:flex;flex-wrap:wrap;gap:var(--sp-2);align-items:center;margin:0 0 var(--sp-3)}
 .fdlg .fdbar input[type=search]{flex:1 1 12em;min-width:8em}
@@ -2285,7 +2287,7 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
     <button class="tb icon" id="xplBtn" aria-pressed="true" aria-controls="xpl" aria-label="Project Explorer" title="Project Explorer (Alt+1)"><svg class="ic"><use href="#i-tree"/></svg></button>
     <div class="tsep"></div>
     <button class="tb lbl" id="importBtn" title="Import (Ctrl+O)"><svg class="ic"><use href="#i-upload"/></svg><span>Import</span></button>
-    <input type="file" id="fileIn" accept=".csv,.txt,.tsv,.dat,.asc,.xy,.prn,.dpt,.text,.tka,.spe,.n42,.xml,.jdx,.dx,.jcm,.spc,.0,.1,.2,.3,.4,.5,.6,.7,.8,.9,.kurve" class="sr" tabindex="-1" aria-hidden="true" multiple>
+    <input type="file" id="fileIn" accept=".csv,.txt,.tsv,.dat,.asc,.xy,.prn,.dpt,.text,.tka,.spe,.n42,.xml,.jdx,.dx,.jcm,.spc,.xlsx,.xlsm,.0,.1,.2,.3,.4,.5,.6,.7,.8,.9,.kurve" class="sr" tabindex="-1" aria-hidden="true" multiple>
     <input type="file" id="projFileIn" accept=".kurve" class="sr" tabindex="-1" aria-hidden="true">
     <button class="tb lbl" id="exportBtn" aria-haspopup="menu" aria-expanded="false" title="Export"><svg class="ic"><use href="#i-download"/></svg><span>Export</span><svg class="ic sm"><use href="#i-chev"/></svg></button>
     <div class="tsep"></div>
@@ -8459,7 +8461,7 @@ function textColsOf(F,dec,ncol){ const tc=new Array(ncol).fill(0), nc=new Array(
   return tc.map((t,j)=>nl>=2&&nc[j]>0&&t>=0.8*nc[j]); }
 // A column's fields as written, one a row of the block (a column kept as text keeps "007" so).
 function colFields(res,j){ const out=[], skip=new Set(res.skipped||[]);
-  for(let i=res.start;i<res.end;i++){ if(skip.has(i)) continue; const f=splitLine(res.lines[i],res.delim); if(f.length!==res.ncol) continue; out.push(String(f[j]==null?"":f[j]).trim().replace(/^"|"$/g,"")); }
+  for(let i=res.start;i<res.end;i++){ if(skip.has(i)) continue; const f=splitLine(res.lines[i],res.delim); if(f.length!==res.ncol) continue; const t=String(f[j]==null?"":f[j]).trim(); out.push(res.xl?t:t.replace(/^"|"$/g,"")); }
   return out; }
 function classify(t,dec){ if(t===""||MISSING.test(t)) return 0; return toNumber(t,dec)!=null?1:-1; }
 function rowScore(fields,dec){
@@ -8884,6 +8886,11 @@ function spcTable(sp){
   return lines.join("\n"); }
 function analyzeFile(raw,opt){
   opt=opt||{};
+  // A sheet of an Excel workbook, written as text by xlsxSheetText: tabs and decimal points, its own
+  // notes on the first line, a text that would read as a number marked so it stays text.
+  let xl=null;
+  if(String(raw).charCodeAt(0)===0xE001){ const s=String(raw), nl=s.indexOf("\n"); try{ xl=JSON.parse(s.slice(1,nl<0?s.length:nl))||{}; }catch(e){ xl={}; }
+    raw=nl<0?"":s.slice(nl+1); opt=Object.assign({},opt,{delim:opt.delim||"\t",dec:opt.dec||".",jdx:false,mca:false,tka:false}); }
   // JCAMP-DX: decoded into a table of X and Y under their names, its labels kept as the file's header.
   if(!opt._jdx&&opt.jdx!==false&&/##JCAMP/i.test(String(raw).slice(0,4000))){ const j=jcampFile(raw);
     if(j&&j.fail) return {jdxFail:j.fail,rows:[],cols:[],lines:[],meta:{},headerRow:null,roles:[],skipped:[],ncol:0};
@@ -8942,7 +8949,8 @@ function analyzeFile(raw,opt){
     const f=splitLine(lines[i],delim);
     if(f.length!==ncol){ skipped.push(i); continue; }
     const row=f.map(c=>toNumber(c,dec)), k=rows.length; rows.push(row);
-    f.forEach((c,j)=>{ const t=String(c).trim().replace(/^"|"$/g,"");
+    // A workbook's cell was quoted only to hold its quotes, and splitLine has taken the quoting off.
+    f.forEach((c,j)=>{ const t=xl?String(c).trim():String(c).trim().replace(/^"|"$/g,"");
       // What does not read as a number is kept as text, "n/a" and "<0.01" too (FOUNDATION_SPEC 1.2b).
       if(t!==""&&row[j]==null&&j<ncol) (txt[j]||(txt[j]={}))[k]=t;
       if(t===""||MISSING.test(t)||!tk[j]) return; tk[j].n++; const q=timeOf(t); if(q) tk[j][q.kind]++; });
@@ -8954,11 +8962,15 @@ function analyzeFile(raw,opt){
   const paired=detectPaired(cols);
   const det=detectRoles(headerRow,cols);
   const roles=opt.roles||det.roles;
-  const metaLines=lines.slice(0,headerAt>=0?headerAt:start), meta=parseMeta(metaLines);
+  const metaLines=lines.slice(0,headerAt>=0?headerAt:start); let meta=parseMeta(metaLines), LN=lines;
   if(tka){ meta["Live time"]=tka.live+" s"; meta["Real time"]=tka.real+" s";
     if(tka.real>=tka.live) meta["Dead time"]=(+((1-tka.live/tka.real)*100).toFixed(2))+" %"; }
+  // The marks that kept a workbook's text as text come off everything shown and kept.
+  if(xl){ const un=s=>typeof s==="string"&&s.indexOf(XL_TXT)>=0?s.split(XL_TXT).join(""):s;
+    if(headerRow) headerRow=headerRow.map(un); LN=lines.map(un); txt.forEach(t=>{ if(t) for(const k in t) t[k]=un(t[k]); });
+    const m2={}; Object.keys(meta).forEach(k=>{ m2[un(k)]=un(meta[k]); }); meta=m2; if(xl.sheet&&!meta["Excel sheet"]) meta["Excel sheet"]=String(xl.sheet).slice(0,100); }
   return {
-    text,lines,delim,dec,ncol,start,end,headerRow,headerAt,unitsAt,rows,cols,roles,paired,tka,single:ncol===1,tkind,txt,
+    text,lines:LN,delim,dec,ncol,start,end,headerRow,headerAt,unitsAt,rows,cols,roles,paired,tka,single:ncol===1,tkind,txt,xl,
     auto:{delim:auto.delim,dec:auto.dec},
     meta,
     metaLineCount:metaLines.filter(l=>l.trim()!=="").length,
@@ -9033,6 +9045,331 @@ function parseFillList(text){
   const vals=[], bad=[];
   t.forEach(s=>{ const v=toNumber(s,s.includes(",")&&!s.includes(".")?",":"."); if(v==null) bad.push(s); else vals.push(v); });
   return {vals,bad};
+}
+/* ---- Excel workbooks (SHEET_SPEC 3.7) ---------------------------------------------
+   An .xlsx is a zip of XML parts. zipEntries reads the zip's directory and zipData one entry
+   (stored, or deflated: inflateRaw is RFC 1951's decoder, here so the block stays pure and
+   synchronous); xmlRead reads a small part as a tree, and the sheets and the shared strings,
+   which can be large, are scanned. xlsxRead is the whole workbook: each sheet's cells as numbers,
+   text, booleans (1 and 0), errors (text) or dates and times by the cell's number format, in either
+   date system. xlsxSheetText writes a sheet as the tab-separated text the import reads (analyzeFile),
+   a text that would read as a number marked (XL_TXT) so it stays text, and its first line the
+   sheet's own notes (XL_HEAD, JSON: its name, the formulas of whole columns, frozen header rows).
+   xlsxParts and zipWrite make a workbook; htmlTable reads a table pasted from a web page. */
+const CRC_T=(()=>{ const t=new Uint32Array(256); for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c=c&1?0xEDB88320^(c>>>1):c>>>1; t[n]=c>>>0; } return t; })();
+function crc32(u8){ let c=0xFFFFFFFF; for(let i=0;i<u8.length;i++) c=CRC_T[(c^u8[i])&255]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
+const INF_LB=[3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258],
+  INF_LX=[0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0],
+  INF_DB=[1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577],
+  INF_DX=[0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13],
+  INF_CO=[16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15];
+// A canonical Huffman code as a table indexed by its next b bits (in the order they are read): each
+// entry the symbol << 4 | its length, -1 where no code is.
+function infTable(lens,n){
+  let mx=0; for(let i=0;i<n;i++) if(lens[i]>mx) mx=lens[i];
+  const cnt=new Int32Array(16); for(let i=0;i<n;i++) cnt[lens[i]]++; cnt[0]=0;
+  const next=new Int32Array(16); let code=0; for(let b=1;b<=15;b++){ code=(code+cnt[b-1])<<1; next[b]=code; }
+  const b=Math.max(1,mx), size=1<<b, t=new Int32Array(size).fill(-1);
+  for(let s=0;s<n;s++){ const L=lens[s]; if(!L) continue; let c=next[L]++; if(c>=1<<L) throw new Error("a code that cannot be"); let r=0; for(let k=0;k<L;k++){ r=(r<<1)|(c&1); c>>=1; } for(let j=r;j<size;j+=1<<L) t[j]=s<<4|L; }
+  return {t,b};
+}
+let INF_FIX=null;
+function inflateRaw(src,size){
+  const n=src.length; let out=new Uint8Array(size>0?size:Math.max(1<<16,n*4)), op=0, pos=0, bb=0, bc=0, last=0;
+  const room=k=>{ if(op+k<=out.length) return; let L=out.length*2; while(L<op+k) L*=2; const o=new Uint8Array(L); o.set(out.subarray(0,op)); out=o; };
+  const bits=k=>{ while(bc<k){ if(pos>n+3) throw new Error("it ends early"); bb|=(pos<n?src[pos]:0)<<bc; pos++; bc+=8; } const v=bb&((1<<k)-1); bb>>>=k; bc-=k; return v; };
+  const sym=T=>{ while(bc<T.b){ if(pos>n+3) throw new Error("it ends early"); bb|=(pos<n?src[pos]:0)<<bc; pos++; bc+=8; } const e=T.t[bb&((1<<T.b)-1)]; if(e<0) throw new Error("a code that cannot be"); const L=e&15; bb>>>=L; bc-=L; return e>>4; };
+  while(!last){ last=bits(1); const type=bits(2);
+    if(type===0){ pos-=bc>>3; bb=0; bc=0; if(pos+4>n) throw new Error("it ends early"); const len=src[pos]|src[pos+1]<<8, nl=src[pos+2]|src[pos+3]<<8; pos+=4;
+      if((len^0xFFFF)!==nl) throw new Error("a stored block is damaged"); if(pos+len>n) throw new Error("it ends early"); room(len); out.set(src.subarray(pos,pos+len),op); op+=len; pos+=len; continue; }
+    let LT, DT;
+    if(type===1){ if(!INF_FIX){ const l=new Uint8Array(288); l.fill(8,0,144); l.fill(9,144,256); l.fill(7,256,280); l.fill(8,280,288); INF_FIX=[infTable(l,288),infTable(new Uint8Array(30).fill(5),30)]; } [LT,DT]=INF_FIX; }
+    else if(type===2){ const hl=bits(5)+257, hd=bits(5)+1, hc=bits(4)+4, cl=new Uint8Array(19);
+      for(let i=0;i<hc;i++) cl[INF_CO[i]]=bits(3);
+      const CT=infTable(cl,19), L=new Uint8Array(hl+hd); let i=0;
+      while(i<hl+hd){ const s=sym(CT);
+        if(s<16) L[i++]=s;
+        else if(s===16){ if(!i) throw new Error("a repeat with nothing before it"); const v=L[i-1]; let k=3+bits(2); if(i+k>hl+hd) throw new Error("too many code lengths"); while(k--) L[i++]=v; }
+        else { let k=s===17?3+bits(3):11+bits(7); if(i+k>hl+hd) throw new Error("too many code lengths"); while(k--) L[i++]=0; } }
+      LT=infTable(L.subarray(0,hl),hl); DT=infTable(L.subarray(hl),hd); }
+    else throw new Error("a block of an unknown kind");
+    for(;;){ const s=sym(LT);
+      if(s<256){ if(op>=out.length) room(1); out[op++]=s; continue; }
+      if(s===256) break;
+      const li=s-257; if(li>28) throw new Error("a length that cannot be");
+      const len=INF_LB[li]+(INF_LX[li]?bits(INF_LX[li]):0), di=sym(DT); if(di>29) throw new Error("a distance that cannot be");
+      const d=INF_DB[di]+(INF_DX[di]?bits(INF_DX[di]):0); if(d>op) throw new Error("a distance before the start");
+      room(len); for(let k=0;k<len;k++,op++) out[op]=out[op-d]; } }
+  return op===out.length?out:out.slice(0,op);
+}
+const ZIP_MAX=400e6;
+const zip16=(u,i)=>u[i]|u[i+1]<<8, zip32=(u,i)=>(u[i]|u[i+1]<<8|u[i+2]<<16|u[i+3]<<24)>>>0;
+function zipEntries(u){
+  const n=u.length; if(n<22||u[0]!==0x50||u[1]!==0x4B) return {fail:"not a zip file, which an .xlsx is"};
+  let e=-1; for(let i=n-22;i>=Math.max(0,n-22-65535);i--) if(zip32(u,i)===0x06054b50){ e=i; break; }
+  if(e<0) return {fail:"cut short or damaged (the zip has no directory)"};
+  if(e>=20&&zip32(u,e-20)===0x07064b50) return {fail:"a zip64 file, which Kurve does not read"};
+  const cnt=zip16(u,e+10), cdOff=zip32(u,e+16);
+  if(cnt===0xFFFF||cdOff===0xFFFFFFFF) return {fail:"a zip64 file, which Kurve does not read"};
+  const out=[], td=new TextDecoder(); let p=cdOff;
+  for(let k=0;k<cnt;k++){ if(p+46>n||zip32(u,p)!==0x02014b50) return {fail:"damaged (its zip directory is broken)"};
+    const fl=zip16(u,p+8), m=zip16(u,p+10), crc=zip32(u,p+16), cs=zip32(u,p+20), us=zip32(u,p+24), nl=zip16(u,p+28), xl=zip16(u,p+30), cl=zip16(u,p+32), lo=zip32(u,p+42);
+    if(cs===0xFFFFFFFF||us===0xFFFFFFFF||lo===0xFFFFFFFF) return {fail:"a zip64 file, which Kurve does not read"};
+    out.push({name:td.decode(u.subarray(p+46,p+46+nl)),method:m,flags:fl,crc,csize:cs,size:us,off:lo}); p+=46+nl+xl+cl; }
+  return {entries:out};
+}
+function zipData(u,e){
+  if(e.flags&1) return {fail:"protected by a password"};
+  if(e.method!==0&&e.method!==8) return {fail:`compressed in a way Kurve does not read (method ${e.method})`};
+  if(e.size>ZIP_MAX) return {fail:`too large: one of its parts is ${Math.round(e.size/1e6)} MB unpacked`};
+  const lo=e.off; if(lo+30>u.length||zip32(u,lo)!==0x04034b50) return {fail:"damaged (a part's header is missing)"};
+  const start=lo+30+zip16(u,lo+26)+zip16(u,lo+28); if(start+e.csize>u.length) return {fail:"cut short (it ends inside one of its parts)"};
+  const raw=u.subarray(start,start+e.csize); let d;
+  if(e.method===0) d=raw; else { try{ d=inflateRaw(raw,e.size); }catch(x){ return {fail:`damaged (${x.message})`}; } }
+  if(d.length!==e.size||crc32(d)!==e.crc) return {fail:"damaged (a part does not match its checksum)"};
+  return {data:d};
+}
+/* The XML a workbook's small parts are written in: elements (a prefix like x: dropped from their
+   names), attributes (by their name as written and, where it is not taken, without its prefix),
+   text, the five entities and character references. No DTDs: a declaration is passed over and
+   nothing it defines is expanded. */
+const XML_ENT={amp:"&",lt:"<",gt:">",quot:'"',apos:"'"};
+function xmlText(s){ if(s.indexOf("&")>=0) s=s.replace(/&(#[xX][0-9a-fA-F]+|#\d+|\w+);/g,(m,k)=>{ if(k[0]!=="#") return XML_ENT[k]!=null?XML_ENT[k]:m; const c=k[1]==="x"||k[1]==="X"?parseInt(k.slice(2),16):+k.slice(1); return c>0&&c<=0x10FFFF?String.fromCodePoint(c):""; }); return s; }
+// OOXML writes a character XML cannot hold as _xHHHH_, and an underscore that would start one as _x005F_.
+const xlEsc=s=>s.indexOf("_x")>=0?s.replace(/_x([0-9A-Fa-f]{4})_/g,(m,h)=>String.fromCharCode(parseInt(h,16))):s;
+const xmlLocal=n=>{ const i=n.indexOf(":"); return i<0?n:n.slice(i+1); };
+function xmlAttrs(s){ const a={}; if(!s) return a; const re=/([\w.:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g; let m;
+  while((m=re.exec(s))){ const v=xmlText(m[2]!=null?m[2]:m[3]); a[m[1]]=v; const l=xmlLocal(m[1]); if(!(l in a)) a[l]=v; } return a; }
+function xmlRead(text){
+  const root={n:"#",a:{},c:[],t:""}, st=[root], re=/<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<!\[CDATA\[([\s\S]*?)\]\]>|<![^>]*>|<(\/?)([\w.:-]+)((?:\s+[\w.:-]+\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/?)>|([^<]+)/g; let m;
+  while((m=re.exec(text))){ const top=st[st.length-1];
+    if(m[1]!=null) top.t+=m[1];
+    else if(m[6]!=null) top.t+=xmlText(m[6]);
+    else if(m[3]){ const nm=xmlLocal(m[3]);
+      if(m[2]){ for(let i=st.length-1;i>0;i--) if(st[i].n===nm){ st.length=i; break; } }
+      else { const el={n:nm,a:xmlAttrs(m[4]),c:[],t:""}; top.c.push(el); if(!m[5]) st.push(el); } } }
+  return root;
+}
+const xmlKids=(e,n)=>e?e.c.filter(k=>k.n===n):[];
+function xmlFind(e,n){ if(!e) return null; for(const k of e.c){ if(k.n===n) return k; const f=xmlFind(k,n); if(f) return f; } return null; }
+// A part's path from the folder of the part whose relationship names it ("worksheets/sheet1.xml" from "xl/").
+function zipPath(base,t){ if(t[0]==="/") return t.slice(1); const parts=(base?base.split("/"):[]).concat(t.split("/")), out=[]; parts.forEach(s=>{ if(s===".."){ out.pop(); } else if(s&&s!==".") out.push(s); }); return out.join("/"); }
+/* Number formats that show a date or a time: Excel's built-in ones by their number, any other by
+   its code: d, m, y, h or s outside quoted text, escapes and brackets ([h] elapsed hours are a
+   time). "d" a date, "dt" a date and time, "t" a time of day, "e" elapsed time; null a number. */
+const XL_FMT_KIND={14:"d",15:"d",16:"d",17:"d",18:"t",19:"t",20:"t",21:"t",22:"dt",27:"d",28:"d",29:"d",30:"d",31:"d",32:"t",33:"t",34:"t",35:"t",36:"d",45:"t",46:"e",47:"t",50:"d",51:"d",52:"d",53:"d",54:"d",55:"d",56:"d",57:"d",58:"d"};
+function xlsxDateFmt(code){
+  if(code==null) return null; let s=String(code).split(";")[0];
+  s=s.replace(/"[^"]*"/g,"").replace(/\\./g,"").replace(/[_*]./g,"");
+  const el=/\[(h+|m+|s+)\]/i.test(s); s=s.replace(/\[[^\]]*\]/g,"");
+  if(el) return "e";
+  if(/^\s*general\s*$/i.test(s)) return null;
+  const d=/[dy]/i.test(s), t=/[hs]/i.test(s)||/AM\/PM|A\/P/i.test(s), m=/m/i.test(s.replace(/AM\/PM|A\/P/ig,""));
+  if(d) return t?"dt":"d"; if(t) return "t"; if(m) return "d"; return null;
+}
+// A serial day number as seconds since 1970 in UTC, to the millisecond: the 1900 system counts
+// Excel's 29 February 1900, a day that never was, so a serial before it is a day later than it says.
+function xlsxSerialToUnix(v,d1904){ if(!Number.isFinite(v)) return null; let d=d1904?v+1462:v; if(!d1904&&v<60) d+=1; return Math.round((d-25569)*86400000)/1000; }
+const XL_COL=s=>{ let c=0; for(let i=0;i<s.length;i++) c=c*26+(s.charCodeAt(i)-64); return c-1; };
+function xlsxRef(r){ const m=/^([A-Z]{1,3})(\d+)$/.exec(r||""); return m?{c:XL_COL(m[1]),r:+m[2]-1}:null; }
+// The text of a string item: its runs' <t> (not <rPh>, the reading of East Asian text).
+function xlsxStr(x){ let s=""; const noPh=x.indexOf("rPh")>=0?x.replace(/<(?:\w+:)?rPh\b[\s\S]*?<\/(?:\w+:)?rPh>/g,""):x, re=/<(?:\w+:)?t\b[^>]*?(?:\/>|>([\s\S]*?)<\/(?:\w+:)?t>)/g; let m;
+  while((m=re.exec(noPh))) if(m[1]) s+=m[1];
+  return xlEsc(xmlText(s)); }
+function xlsxShared(x){ const out=[], re=/<(?:\w+:)?si\b[^>]*?(?:\/>|>([\s\S]*?)<\/(?:\w+:)?si>)/g; let m; while((m=re.exec(x))) out.push(m[1]?xlsxStr(m[1]):""); return out; }
+function xlsxStyles(x){
+  const doc=xmlRead(x), fm={}; xmlKids(xmlFind(doc,"numFmts"),"numFmt").forEach(f=>{ fm[f.a.numFmtId]=f.a.formatCode; });
+  return xmlKids(xmlFind(doc,"cellXfs"),"xf").map(f=>{ const id=+f.a.numFmtId||0; return fm[id]!=null?xlsxDateFmt(fm[id]):XL_FMT_KIND[id]||null; });
+}
+/* A sheet's cells, by column (each an array by row: a number, a string, or {d: seconds, k: "date" or
+   "time"}), with how many rows and columns hold anything, the merged ranges, the frozen rows, and per
+   column its formulas (how many cells, the first one and its row). */
+function xlsxSheet(x,ctx){
+  ctx=ctx||{}; const ss=ctx.ss||[], xf=ctx.xf||[], d1904=!!ctx.d1904, cols=[], fx=[];
+  let nr=0, nc=0, n=0, row=-1, lastC=-1;
+  const sd=x.search(/<(?:\w+:)?sheetData\b/); if(sd<0) return {cols,nr,nc,n,merges:[],fx,frozen:0};
+  const re=/<((?:\w+:)?)(row|c)\b([^>]*?)(\/?)>|<\/(?:\w+:)?sheetData>/g, ar=/([\w:]+)\s*=\s*"([^"]*)"/g; re.lastIndex=sd; let m;
+  while((m=re.exec(x))){
+    if(m[2]==null) break;
+    let R=null, T="n", Sx=0; ar.lastIndex=0; let q; while((q=ar.exec(m[3]))){ const k=q[1]; if(k==="r") R=q[2]; else if(k==="t") T=q[2]; else if(k==="s") Sx=+q[2]||0; }
+    if(m[2]==="row"){ row=R?+R-1:row+1; lastC=-1; continue; }
+    let inner="";
+    if(!m[4]){ const close="</"+m[1]+"c>", e=x.indexOf(close,re.lastIndex); if(e<0) break; inner=x.slice(re.lastIndex,e); re.lastIndex=e+close.length; }
+    const ref=R?xlsxRef(R):null; let r=row, c=lastC+1;
+    if(ref){ r=ref.r; c=ref.c; row=r; } if(r<0) r=row=0; lastC=c;
+    let v=null, vs=null;
+    if(inner){ const a=inner.indexOf("<"+m[1]+"v"); if(a>=0){ const b=inner.indexOf(">",a), e=inner.indexOf("</"+m[1]+"v>",b); if(b>=0&&e>b&&inner[b-1]!=="/") vs=inner.slice(b+1,e); } }
+    if(T==="s"){ const k=vs==null?NaN:+vs; v=Number.isInteger(k)&&k>=0&&k<ss.length?ss[k]:null; }
+    else if(T==="inlineStr"){ const im=/<(?:\w+:)?is\b[^>]*>([\s\S]*?)<\/(?:\w+:)?is>/.exec(inner); v=im?xlsxStr(im[1]):null; }
+    else if(T==="str") v=vs==null?null:xlEsc(xmlText(vs));
+    else if(T==="b") v=vs==null?null:(vs.trim()==="1"||/^true$/i.test(vs.trim())?1:0);
+    else if(T==="e") v=vs==null?null:xmlText(vs).trim();
+    else if(T==="d"){ const t=vs==null?"":vs.trim(), ms=t?Date.parse(/[zZ]$|[+-]\d\d:?\d\d$|^\d{4}-\d\d-\d\d$/.test(t)?t:t+"Z"):NaN; v=Number.isFinite(ms)?{d:ms/1000,k:"date",o:/^\d{4}-\d\d-\d\d$/.test(t)}:null; }
+    else if(vs!=null&&vs.trim()!==""){ const num=Number(vs); if(Number.isFinite(num)){ const k=xf[Sx]||null;
+      if(k==="d"||k==="dt") v={d:xlsxSerialToUnix(num,d1904),k:"date",o:k==="d"};
+      else if(k==="t"&&num>=1) v={d:xlsxSerialToUnix(num,d1904),k:"date"};
+      else if(k==="t"||k==="e") v={d:Math.round(num*86400000)/1000,k:"time"};
+      else v=num; } }
+    if(inner&&inner.indexOf("<"+m[1]+"f")>=0){ const fm=/<(?:\w+:)?f\b[^>]*?(?:\/>|>([\s\S]*?)<\/(?:\w+:)?f>)/.exec(inner), f=fx[c]||(fx[c]={n:0,first:null,row:-1});
+      f.n++; if(f.first==null&&fm&&fm[1]&&fm[1].trim()){ f.first="="+xmlText(fm[1]).trim(); f.row=r; } }
+    if(v==null||v==="") continue;
+    (cols[c]||(cols[c]=[]))[r]=v; n++; if(r+1>nr) nr=r+1; if(c+1>nc) nc=c+1; }
+  const merges=[]; x.replace(/<(?:\w+:)?mergeCell\b[^>]*\bref="([A-Z]+\d+):([A-Z]+\d+)"/g,(q,a,b)=>{ const A=xlsxRef(a), B=xlsxRef(b); if(A&&B) merges.push({r0:A.r,c0:A.c,r1:B.r,c1:B.c}); return q; });
+  const pm=/<(?:\w+:)?pane\b([^>]*)>/.exec(x), ys=pm&&/state="frozen"/.test(pm[1])?+((/ySplit="([\d.]+)"/.exec(pm[1])||[])[1]||0):0;
+  return {cols,nr,nc,n,merges,fx,frozen:Number.isInteger(ys)&&ys>0?ys:0};
+}
+/* The workbook: its sheets in order ({name, hidden, chart, ...xlsxSheet}), the date system, who
+   wrote it; or {fail} in words. Every part is read whole, its checksum checked. */
+function xlsxRead(u){
+  const z=zipEntries(u); if(z.fail) return {fail:z.fail};
+  const E={}, td=new TextDecoder(); z.entries.forEach(e=>{ E[e.name.replace(/^\//,"")]=e; });
+  const part=nm=>{ const e=E[nm]; if(!e) return {miss:true}; const d=zipData(u,e); return d.fail?{fail:d.fail}:{text:td.decode(d.data)}; };
+  const rels=nm=>{ const i=nm.lastIndexOf("/"), r=part((i<0?"":nm.slice(0,i+1))+"_rels/"+nm.slice(i+1)+".rels"); if(r.fail) return r; const out={}; if(r.text){ const d=xmlRead(r.text); xmlKids(xmlFind(d,"Relationships")||d,"Relationship").forEach(q=>{ out[q.a.Id]={t:q.a.Target||"",type:q.a.Type||"",ext:q.a.TargetMode==="External"}; }); } return {map:out}; };
+  if(E["EncryptionInfo"]||E["EncryptedPackage"]) return {fail:"protected by a password"};
+  const top=rels(""); if(top.fail) return {fail:top.fail};
+  const off=Object.values(top.map).find(q=>/\/officeDocument$/.test(q.type));
+  const wbPath=off?zipPath("",off.t):"xl/workbook.xml", wb=part(wbPath);
+  if(wb.fail) return {fail:wb.fail}; if(wb.miss) return {fail:E["word/document.xml"]?"a Word document, not a workbook":E["ppt/presentation.xml"]?"a PowerPoint file, not a workbook":"not an Excel workbook (it has no workbook part)"};
+  const dir=wbPath.indexOf("/")>=0?wbPath.slice(0,wbPath.lastIndexOf("/")):"", wr=rels(wbPath); if(wr.fail) return {fail:wr.fail};
+  const doc=xmlRead(wb.text), pr=xmlFind(doc,"workbookPr"), d1904=!!pr&&/^(1|true)$/i.test(pr.a.date1904||"");
+  const typed=k=>Object.values(wr.map).find(q=>new RegExp("/"+k+"$").test(q.type));
+  const sst=typed("sharedStrings"), sty=typed("styles");
+  let ss=[], xf=[];
+  if(sst){ const q=part(zipPath(dir,sst.t)); if(q.fail) return {fail:q.fail}; if(q.text) ss=xlsxShared(q.text); }
+  if(sty){ const q=part(zipPath(dir,sty.t)); if(q.fail) return {fail:q.fail}; if(q.text) xf=xlsxStyles(q.text); }
+  const app=part("docProps/app.xml"), by=app.text?((/<Application>([^<]*)<\/Application>/.exec(app.text)||[])[1]||""):"";
+  const sheets=[];
+  for(const s of xmlKids(xmlFind(doc,"sheets"),"sheet")){ const rid=s.a["r:id"]||s.a.id, rel=wr.map[rid], name=String(s.a.name||"Sheet").slice(0,100);
+    const hidden=s.a.state==="hidden"||s.a.state==="veryHidden";
+    if(!rel||rel.ext){ sheets.push({name,hidden,chart:false,cols:[],nr:0,nc:0,n:0,merges:[],fx:[],frozen:0}); continue; }
+    if(/\/chartsheet$/.test(rel.type)){ sheets.push({name,hidden,chart:true,cols:[],nr:0,nc:0,n:0,merges:[],fx:[],frozen:0}); continue; }
+    const q=part(zipPath(dir,rel.t)); if(q.fail) return {fail:q.fail};
+    sheets.push(Object.assign({name,hidden,chart:false},q.text?xlsxSheet(q.text,{ss,xf,d1904}):{cols:[],nr:0,nc:0,n:0,merges:[],fx:[],frozen:0})); }
+  if(!sheets.length) return {fail:"a workbook with no sheets"};
+  return {sheets,d1904,by};
+}
+/* A sheet as the import reads text: a line per row, a tab between cells, the columns before the
+   first that holds anything left out. A number as JavaScript writes it (every digit it has), a date
+   as ISO 8601 in UTC, a time as h:mm:ss, a text with its line breaks and tabs made spaces, quoted
+   when it holds a quote, and marked (XL_TXT) when it would read as a number. The first line, XL_HEAD
+   and JSON, is what the text cannot say: the sheet's name, a whole column's formula, and the rows a
+   frozen pane holds (names, units, comments), written as one line of names "Name (unit)". */
+const XL_TXT="\uE000", XL_HEAD="\uE001";
+function xlCellText(v){
+  if(v==null) return "";
+  if(typeof v==="number") return Object.is(v,-0)?"0":String(v);
+  if(typeof v==="object"){ if(!Number.isFinite(v.d)) return "";
+    if(v.k==="time"){ if(v.d<0) return String(v.d); const ms=Math.round(v.d*1000), h=Math.floor(ms/3600000); if(h>999) return String(v.d);
+      const mi=Math.floor(ms/60000)%60, sm=ms%60000, se=String(Math.floor(sm/1000)).padStart(2,"0")+(sm%1000?"."+String(sm%1000).padStart(3,"0").replace(/0+$/,""):"");
+      return h+":"+String(mi).padStart(2,"0")+":"+se; }
+    const t=new Date(Math.round(v.d*1000)); if(!Number.isFinite(t.getTime())) return String(v.d); const iso=t.toISOString();
+    return v.o&&/T00:00:00\.000Z$/.test(iso)?iso.slice(0,10):iso.replace(/\.000Z$/,"Z"); }
+  let s=String(v).replace(/[\t\r\n]+/g," ");
+  if(s.trim()!==""&&toNumber(s,".")!=null) s=XL_TXT+s;
+  return s.indexOf('"')>=0?'"'+s.replace(/"/g,'""')+'"':s;
+}
+function xlsxSheetText(sh){
+  let c0=0; while(c0<sh.nc&&!(sh.cols[c0]&&sh.cols[c0].some(v=>v!=null))) c0++;
+  const nc=sh.nc, head={sheet:sh.name}, lines=[], fx={}, comm={};
+  // A column that is one formula all the way down (from its first formula, every value a formula's) says so.
+  for(let c=c0;c<nc;c++){ const f=sh.fx[c], col=sh.cols[c]||[]; if(!f||!f.first||f.n<2) continue; let nv=0; for(let r=f.row;r<sh.nr;r++) if(col[r]!=null) nv++; if(nv&&f.n>=nv) fx[c-c0]=f.first; }
+  let r0=0;
+  // Frozen rows that hold only text over rows with numbers are the header: names, then units, then comments.
+  const k=sh.frozen; if(k>=1&&k<=3&&k<sh.nr){ let ok=true, named=0, used=0;
+    for(let c=c0;c<nc;c++){ const col=sh.cols[c]||[]; let any=false; for(let r=k;r<sh.nr;r++) if(col[r]!=null){ any=true; break; } if(any) used++;
+      for(let r=0;r<k;r++){ const v=col[r]; if(v!=null&&typeof v!=="string") ok=false; } if(typeof col[0]==="string"&&col[0].trim()) named++; }
+    if(ok&&used&&named>=used/2){ r0=k; const f=[];
+      for(let c=c0;c<nc;c++){ const col=sh.cols[c]||[], nm=String(col[0]||"").trim(), u=k>1?String(col[1]||"").trim():"", cm=k>2?String(col[2]||"").trim():"";
+        if(cm) comm[c-c0]=cm; f.push(xlCellText(u?(nm?nm+" ("+u+")":"("+u+")"):nm)); }
+      head.frozen=k; lines.push(f.join("\t")); } }
+  if(Object.keys(fx).length) head.fx=fx; if(Object.keys(comm).length) head.comm=comm;
+  for(let r=r0;r<sh.nr;r++){ const f=new Array(nc-c0); for(let c=c0;c<nc;c++) f[c-c0]=xlCellText(sh.cols[c]&&sh.cols[c][r]); lines.push(f.join("\t")); }
+  return XL_HEAD+JSON.stringify(head)+"\n"+lines.join("\n");
+}
+/* A workbook made from sheets [{name, cols: [{name, unit, comm, vals (numbers or null), txt ({row:
+   text}), tfmt ("date" or "time")}]}]: its parts as text, for zipWrite. A sheet's first rows are its
+   columns' names, then units and comments when any column has them, frozen; numbers are numbers,
+   text a shared string, dates (seconds since 1970) and times (seconds) Excel's serial days with a
+   date or time format. A sheet name Excel refuses is mended: no : \ / ? * [ ], 31 characters, none
+   twice whatever its capitals. */
+const XL_ROWS=1048576, XL_COLS=16384;
+function xlSheetName(nm,used){ let b=String(nm||"").replace(/[:\\\/?*\[\]\u0000-\u001F]/g,"_").replace(/^'+|'+$/g,"").trim().slice(0,31)||"Sheet";
+  if(/^history$/i.test(b)) b="History_"; let s=b, k=2; while(used.has(s.toLowerCase())){ const t=` (${k++})`; s=b.slice(0,31-t.length)+t; } used.add(s.toLowerCase()); return s; }
+// A number as every reader takes it for the same double: past 2⁵³ a whole number is written with its exponent, which Python's
+// readers (openpyxl, pandas) read as a double and not as an exact integer a few units away.
+const xlNum=v=>Object.is(v,-0)?"0":Number.isInteger(v)&&Math.abs(v)>=9007199254740992?v.toExponential():String(v);
+const xmlEsc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/_(?=x[0-9A-Fa-f]{4}_)/g,"_x005F_").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g,c=>"_x"+c.charCodeAt(0).toString(16).toUpperCase().padStart(4,"0")+"_");
+function xlColName(i){ let s=""; i++; while(i>0){ const m=(i-1)%26; s=String.fromCharCode(65+m)+s; i=Math.floor((i-1)/26); } return s; }
+function xlsxParts(sheets,o){
+  o=o||{}; const used=new Set(), ss=[], ssi=new Map(), parts=[];
+  const str=t=>{ let i=ssi.get(t); if(i==null){ i=ss.length; ss.push(t); ssi.set(t,i); } return i; };
+  const names=sheets.map(s=>xlSheetName(s.name,used));
+  sheets.forEach((sh,si)=>{ const cols=sh.cols.slice(0,XL_COLS), nu=cols.some(c=>c.unit), nm=cols.some(c=>c.comm), hasN=cols.some(c=>c.name)||nu||nm;
+    const k=hasN?(nm?3:nu?2:1):0, rows=[]; let nRow=0;
+    cols.forEach(c=>{ nRow=Math.max(nRow,(c.vals||[]).length); if(c.txt) for(const q in c.txt){ const r=+q; if(Number.isInteger(r)&&r+1>nRow) nRow=r+1; } });
+    const hrow=(r,f)=>{ const cs=[]; cols.forEach((c,j)=>{ const t=f(c); if(t) cs.push(`<c r="${xlColName(j)}${r+1}" t="s"><v>${str(String(t))}</v></c>`); }); rows.push(`<row r="${r+1}">${cs.join("")}</row>`); };
+    if(k>=1) hrow(0,c=>c.name); if(k>=2) hrow(1,c=>c.unit); if(k>=3) hrow(2,c=>c.comm);
+    const L=cols.map((_,j)=>xlColName(j));
+    for(let r=0;r<Math.min(nRow,XL_ROWS-k);r++){ let line=""; const R=r+k+1;
+      for(let j=0;j<cols.length;j++){ const c=cols[j], v=c.vals?c.vals[r]:null;
+        if(v!=null&&Number.isFinite(v)){ if(c.tfmt==="date") line+=`<c r="${L[j]}${R}" s="${Math.abs(v)%86400?2:1}"><v>${String(v/86400+25569)}</v></c>`; else if(c.tfmt==="time") line+=`<c r="${L[j]}${R}" s="3"><v>${String(v/86400)}</v></c>`; else line+=`<c r="${L[j]}${R}"><v>${xlNum(v)}</v></c>`; }
+        else { const t=c.txt&&c.txt[r]; if(t!=null&&t!=="") line+=`<c r="${L[j]}${R}" t="s"><v>${str(String(t))}</v></c>`; } }
+      if(line) rows.push(`<row r="${R}">${line}</row>`); }
+    const pane=k?`<sheetViews><sheetView workbookViewId="0"><pane ySplit="${k}" topLeftCell="A${k+1}" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft"/></sheetView></sheetViews>`:`<sheetViews><sheetView workbookViewId="0"/></sheetViews>`;
+    const dim=cols.length&&(nRow+k)?`<dimension ref="A1:${xlColName(cols.length-1)}${Math.max(1,Math.min(nRow+k,XL_ROWS))}"/>`:`<dimension ref="A1"/>`;
+    parts.push({name:`xl/worksheets/sheet${si+1}.xml`,text:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${dim}${pane}<sheetData>${rows.join("")}</sheetData></worksheet>`}); });
+  const NS="http://schemas.openxmlformats.org", head=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n`;
+  parts.unshift({name:"[Content_Types].xml",text:head+`<Types xmlns="${NS}/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${sheets.map((_,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`},
+    {name:"_rels/.rels",text:head+`<Relationships xmlns="${NS}/package/2006/relationships"><Relationship Id="rId1" Type="${NS}/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/><Relationship Id="rId2" Type="${NS}/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="${NS}/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>`},
+    {name:"docProps/app.xml",text:head+`<Properties xmlns="${NS}/officeDocument/2006/extended-properties"><Application>Kurve</Application></Properties>`},
+    {name:"docProps/core.xml",text:head+`<cp:coreProperties xmlns:cp="${NS}/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">${o.title?`<dc:title>${xmlEsc(o.title)}</dc:title>`:""}${o.at?`<dcterms:created xsi:type="dcterms:W3CDTF">${xmlEsc(o.at)}</dcterms:created>`:""}</cp:coreProperties>`},
+    {name:"xl/workbook.xml",text:head+`<workbook xmlns="${NS}/spreadsheetml/2006/main" xmlns:r="${NS}/officeDocument/2006/relationships"><workbookPr/><bookViews><workbookView/></bookViews><sheets>${names.map((n,i)=>`<sheet name="${xmlEsc(n)}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join("")}</sheets></workbook>`},
+    {name:"xl/_rels/workbook.xml.rels",text:head+`<Relationships xmlns="${NS}/package/2006/relationships">${names.map((_,i)=>`<Relationship Id="rId${i+1}" Type="${NS}/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join("")}<Relationship Id="rId${names.length+1}" Type="${NS}/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId${names.length+2}" Type="${NS}/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/></Relationships>`},
+    {name:"xl/styles.xml",text:head+`<styleSheet xmlns="${NS}/spreadsheetml/2006/main"><numFmts count="2"><numFmt numFmtId="164" formatCode="yyyy\\-mm\\-dd"/><numFmt numFmtId="165" formatCode="yyyy\\-mm\\-dd\\ hh:mm:ss"/></numFmts><fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="46" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`});
+  parts.push({name:"xl/sharedStrings.xml",text:head+`<sst xmlns="${NS}/spreadsheetml/2006/main" count="${ss.length}" uniqueCount="${ss.length}">${ss.map(t=>`<si><t${/^\s|\s$/.test(t)?' xml:space="preserve"':""}>${xmlEsc(t)}</t></si>`).join("")}</sst>`});
+  return parts;
+}
+/* A zip of [{name, data (bytes), z (the same raw-deflated, or none: stored)}], dated 1980-01-01 or
+   o.date (a Date). */
+function zipWrite(files,o){
+  o=o||{}; const te=new TextEncoder(), d=o.date, dt=d?((d.getFullYear()-1980)<<9|(d.getMonth()+1)<<5|d.getDate()):33, tm=d?(d.getHours()<<11|d.getMinutes()<<5|(d.getSeconds()>>1)):0;
+  const loc=[], cen=[]; let off=0;
+  files.forEach(f=>{ const nm=te.encode(f.name), z=f.z&&f.z.length<f.data.length?f.z:null, body=z||f.data, crc=crc32(f.data);
+    const h=new Uint8Array(30+nm.length), v=new DataView(h.buffer);
+    v.setUint32(0,0x04034b50,true); v.setUint16(4,20,true); v.setUint16(6,0x0800,true); v.setUint16(8,z?8:0,true); v.setUint16(10,tm,true); v.setUint16(12,dt,true);
+    v.setUint32(14,crc,true); v.setUint32(18,body.length,true); v.setUint32(22,f.data.length,true); v.setUint16(26,nm.length,true); h.set(nm,30);
+    const c=new Uint8Array(46+nm.length), w=new DataView(c.buffer);
+    w.setUint32(0,0x02014b50,true); w.setUint16(4,20,true); w.setUint16(6,20,true); w.setUint16(8,0x0800,true); w.setUint16(10,z?8:0,true); w.setUint16(12,tm,true); w.setUint16(14,dt,true);
+    w.setUint32(16,crc,true); w.setUint32(20,body.length,true); w.setUint32(24,f.data.length,true); w.setUint16(28,nm.length,true); w.setUint32(42,off,true); c.set(nm,46);
+    loc.push(h,body); cen.push(c); off+=h.length+body.length; });
+  const cs=cen.reduce((a,c)=>a+c.length,0), e=new Uint8Array(22), ev=new DataView(e.buffer);
+  ev.setUint32(0,0x06054b50,true); ev.setUint16(8,files.length,true); ev.setUint16(10,files.length,true); ev.setUint32(12,cs,true); ev.setUint32(16,off,true);
+  const all=loc.concat(cen,[e]), out=new Uint8Array(all.reduce((a,c)=>a+c.length,0)); let p=0; all.forEach(c=>{ out.set(c,p); p+=c.length; }); return out;
+}
+// The workbook's bytes, stored (the page deflates the parts itself where the browser can).
+function xlsxBytes(sheets,o){ const te=new TextEncoder(); return zipWrite(xlsxParts(sheets,o).map(q=>({name:q.name,data:te.encode(q.text)})),o); }
+/* A table from a web page (the text/html a browser puts on the clipboard): the first <table>'s rows
+   and cells, a cell's text with its tags taken out, entities read and white space made one space, a
+   cell that spans rows or columns filled into each, as a paste of tab-separated text reads. Rows of
+   a nested table are its own (skipped). null without a table. */
+function htmlTable(h){
+  h=String(h||""); const t0=h.search(/<table\b/i); if(t0<0) return null;
+  const ent=s=>s.replace(/&(#[xX][0-9a-fA-F]+|#\d+|[a-zA-Z]+);/g,(m,k)=>{ if(k[0]==="#"){ const c=k[1]==="x"||k[1]==="X"?parseInt(k.slice(2),16):+k.slice(1); return c>0&&c<=0x10FFFF?String.fromCodePoint(c):""; } const E={amp:"&",lt:"<",gt:">",quot:'"',apos:"'",nbsp:" ",minus:"−",times:"×",deg:"°",micro:"µ",plusmn:"±",middot:"·",ndash:"–",mdash:"—"}; return E[k]!=null?E[k]:m; });
+  const grid=[], re=/<(\/?)(table|tr|td|th)\b([^>]*)>/gi; let m, depth=0, r=-1, cell=null, from=0, done=false;
+  const close=end=>{ if(!cell) return; const txt=ent(h.slice(from,end).replace(/<br\s*\/?>/gi," ").replace(/<(script|style)\b[\s\S]*?<\/\1>/gi,"").replace(/<[^>]*>/g,"")).replace(/[\s\u00A0]+/g," ").trim();
+    const row=grid[cell.r]||(grid[cell.r]=[]); let c=0; while(row[c]!=null) c++;
+    for(let i=0;i<cell.rs;i++) for(let j=0;j<cell.cs;j++){ const rr=grid[cell.r+i]||(grid[cell.r+i]=[]); if(rr[c+j]==null) rr[c+j]=txt; } cell=null; };
+  re.lastIndex=t0;
+  while(!done&&(m=re.exec(h))){ const end=!!m[1], tag=m[2].toLowerCase();
+    if(tag==="table"){ if(end){ depth--; if(depth===0){ close(m.index); done=true; } } else depth++; continue; }
+    if(depth!==1) continue;
+    if(tag==="tr"){ close(m.index); if(!end) r++; continue; }
+    close(m.index); if(end) continue; if(r<0) r=0;
+    const sp=k=>{ const q=new RegExp(k+"\\s*=\\s*[\"']?(\\d+)","i").exec(m[3]); return q?Math.max(1,Math.min(1000,+q[1])):1; };
+    cell={r,rs:sp("rowspan"),cs:sp("colspan")}; from=re.lastIndex; }
+  if(cell) close(h.length);
+  const w=grid.reduce((a,row)=>Math.max(a,row?row.length:0),0); if(!w) return null;
+  return grid.map(row=>Array.from({length:w},(_,j)=>row&&row[j]!=null?row[j]:""));
 }
 /* ==PARSER:END== */
 
@@ -18255,7 +18592,12 @@ function setupWs(){
   box.addEventListener("copy",e=>{ if(e.target.closest&&e.target.closest("input.wsed")) return; if(!S.wsm) return; e.preventDefault(); e.clipboardData.setData("text/plain",wsCopyText());
     const {r0,r1,c0,c1}=wsSelRect(), n=(r1-r0+1)*(c1-c0+1); setStatus(`Copied ${n} cell${n===1?"":"s"}.`); });
   box.addEventListener("paste",e=>{
-    const inEd=e.target.closest&&e.target.closest("input.wsed"), text=(e.clipboardData||window.clipboardData).getData("text");
+    const cd=e.clipboardData||window.clipboardData, inEd=e.target.closest&&e.target.closest("input.wsed");
+    let text=cd.getData("text");
+    // A table from a web page: its rows and cells, a cell spanning rows or columns filled into each (SHEET_SPEC 3.7).
+    // A spreadsheet's own copy (tab-separated, no spans) is read as it is.
+    const html=cd.getData?cd.getData("text/html"):"";
+    if(html&&/<table\b/i.test(html)&&(/\b(?:row|col)span\s*=\s*["']?0*(?:[2-9]|[1-9]\d)/i.test(html)||!/\t/.test(text))){ const g=htmlTable(html); if(g&&g.length) text=g.map(r=>r.map(s=>/["\t]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s).join("\t")).join("\n"); }
     if(inEd&&!/[\t\n]/.test(text.trim())) return;              // a value typed into a cell pastes as text
     e.preventDefault(); if(inEd) wsCancelEdit();
     wsPasteText(text);
@@ -19443,6 +19785,8 @@ function impCounts(i){ const r=S.imp.res, ys=(r.cols[i]||[]).filter(v=>v!=null);
 const impSqrtable=()=>impYs().filter(i=>impErrFor(i)<0&&impCounts(i));
 function impFindings(){
   const {x,y}=impCols(), out=[], r=S.imp.res, ny=impYs().length;
+  if(r.xl){ const nf=Object.keys(r.xl.fx||{}).length, fr=r.xl.frozen;
+    out.push({id:"xlsx",level:"good",text:`The sheet ${r.xl.sheet||""} of an Excel workbook: ${fmtCount(r.rows.length)} row${r.rows.length===1?"":"s"} of its cells${fr?`, the ${fr>2?"names, units and comments":fr>1?"names and units":"names"} from its ${fr} frozen row${fr===1?"":"s"}`:""}${nf?`; ${nf} column${nf===1?"":"s"} computed by one formula in Excel, its values as Excel last worked them out (the formula in the column's comment)`:""}.`}); }
   if(/\.spe$/i.test(S.imp.fname||"")&&!r.mca) out.push({id:"spe",level:"good",text:`A Princeton Instruments SPE file, decoded from its bytes: ${fmtCount(r.rows.length)} points${r.ncol>2?` in ${r.ncol-1} rows`:""}, X ${/Wavelength/.test((r.headerRow||[])[0]||"")?"in wavelength from its calibration":"by pixel (it has no calibration)"}.`});
   if(binName(S.imp.fname)&&r.meta.Block) out.push({id:"opus",level:"good",text:`A Bruker OPUS file, decoded from its bytes: ${fmtCount(r.rows.length)} points of its ${r.meta.Block} block. Its ${Object.keys(r.meta).length} fields are kept with the column.`});
   else if(/\.spc$/i.test(S.imp.fname||"")) out.push({id:"spc",level:"good",text:`An SPC file, decoded from its bytes: ${fmtCount(r.rows.length)} points in ${r.ncol-1} column${r.ncol===2?"":"s"} besides X. Its header's ${Object.keys(r.meta).length} fields are kept with the columns.`});
@@ -19462,14 +19806,15 @@ function impFindings(){
 // What the dialog starts with for a file: a file that states its calibration is calibrated, and
 // its channels numbered as it numbers them.
 const impStart=res=>({ch0:res&&res.mca?res.mca.ch0:0, fixes:res&&res.mca&&res.mca.cal?{ecal:true}:{}});
-function openImport(text,fname){
-  const res=analyzeFile(text,{fname:fname||""});
+function openImport(text,fname,o){
+  o=o||{}; const res=analyzeFile(text,{fname:fname||""});
   if(res.jdxFail){ toast(`${fname||"That file"} is ${res.jdxFail}.`); logError(`Import of ${fname||"a file"}: ${res.jdxFail}`,"import"); return; }
-  if(!res.rows.length){ toast("No rows of numbers were found in that file."); logError(`Import of ${fname||"pasted data"}: no rows of numbers`,"import"); return; }
+  if(!res.rows.length){ toast(o.sname?`No rows of numbers were found in the sheet ${o.sname}.`:"No rows of numbers were found in that file."); logError(`Import of ${fname||"pasted data"}${o.sname?" › "+o.sname:""}: no rows of numbers`,"import"); return; }
   const m=$("#impModal"), wasOpen=!m.hidden;
-  S.imp=Object.assign({raw:text,fname:fname||"pasted data",opt:{fname:fname||""},res,use:impUseDefault(res),pv:-1,sqrt:false,mode:S.impReplace?"replace":null},impStart(res));
+  // A workbook's sheet keeps its name: the sheet it goes on is called so.
+  S.imp=Object.assign({raw:text,fname:fname||"pasted data",opt:{fname:fname||""},res,use:impUseDefault(res),pv:-1,sqrt:false,mode:S.impReplace?"replace":null,sname:o.sname||null},impStart(res));
   S.impReplace=null;
-  $("#impTitle").textContent="Import "+S.imp.fname;
+  $("#impTitle").textContent="Import "+S.imp.fname+(S.imp.sname?" › "+S.imp.sname:"");
   renderImport();
   if(!wasOpen){ m._cancel=closeImport; openModal(m,$("#impGo")); }
 }
@@ -19512,8 +19857,10 @@ function renderImport(){
   // Controls. Auto is the default everywhere: what it chose is tinted (the
   // design system's ImportDialog, a "Detected" key below), and a choice of
   // one's own has Auto beside it to go back.
-  const det=k=>im.opt[k]==null?` class="det" title="Detected"`:"", anyDet=im.opt.delim==null||im.opt.dec==null||im.opt.start==null;
-  let h=mca?`<p class="lab">Read as ${mca.kind==="N42"?"an N42 file":"a .Spe file"} of a multichannel analyser: its counts, times and calibration from their own tags.</p>`:`<div class="grid2">
+  const det=k=>im.opt[k]==null?` class="det" title="Detected"`:"", anyDet=r.xl?im.opt.start==null:im.opt.delim==null||im.opt.dec==null||im.opt.start==null;
+  let h=mca?`<p class="lab">Read as ${mca.kind==="N42"?"an N42 file":"a .Spe file"} of a multichannel analyser: its counts, times and calibration from their own tags.</p>`:r.xl?`<p class="lab">Read from the cells of the sheet ${esc(r.xl.sheet||"")}: numbers, text and dates as Excel keeps them.</p><div class="grid2">
+    <label for="impStart" class="tipd" title="${r.headerAt>=0?`Names on line ${r.headerAt+1}`:"No row of names found"}">Data starts at line</label><div class="pair">
+      <input id="impStart"${det("start")} type="number" min="1" max="${r.lines.length}" value="${r.start+1}" style="width:88px"></div></div>`:`<div class="grid2">
     <label for="impDelim">Delimiter</label><div class="pair">
       <select id="impDelim"${det("delim")}>${DELIMS.map(d=>`<option value="${d.id}"${d.id===r.delim?" selected":""}>${d.label}</option>`).join("")}</select>
       ${im.opt.delim?`<button class="btn ghost sm" id="impDelimAuto">Auto</button>`:""}</div>
@@ -19621,6 +19968,8 @@ function impBuild(){
     for(const j in t) T[j]=String(t[j]).slice(0,TXT_MAX); c.txt=T; const a=c.data.slice(); while(a.length<txtLen(c)) a.push(null); c.data=a; });
   // Error bars go with the Y before them, or after when none is before.
   u.forEach((k,i)=>{ if(impIsErr(k)&&at[i]){ const o=impErrOf(i); at[i].of=o>=0&&at[o]?at[o].id:undefined; } });
+  // A workbook's comments row, and the formula a column was computed by in Excel, as the column's comment.
+  if(r.xl){ const fx=r.xl.fx||{}, cm=r.xl.comm||{}; u.forEach((k,i)=>{ const c=at[i]; if(!c) return; const t=[cm[i],fx[i]?`Computed in Excel by ${fx[i]}`:""].filter(Boolean).join(" · "); if(t) c.comm=t.slice(0,200); }); }
   // √N error bars: a column computed by a formula, after each spectrum of counts.
   if(im.sqrt) impSqrtable().forEach(i=>{ const yc=at[i]; if(!yc) return; const e=yc.data.map(sqrtCounts); trimTail(e);
     cols.splice(cols.indexOf(yc)+1,0,Object.assign(makeCol("e","σ (√N)",yc.unit,e,yc.id),{fx:{src:SQRT_FX,refs:{B:yc.id}}})); });
@@ -19641,6 +19990,7 @@ async function doImport(){
 
   if(!S.pid||mode==="new"){
     const pr=Object.assign(blankProject(base),{cols,activeY:ids[0]||null,fit:null,meta:r.meta,srcName:base,v:DOC_V});
+    if(im.sname) pr.sheets=[{id:SHEET0.id,name:String(im.sname).trim().slice(0,40)||SHEET0.name}];
     const made=impGraphs(pr,ids,how,true);
     pr.raw=rawRecordFor(cols,`recorded from ${im.fname}`);
     await createProject(pr,`imported ${what} from ${im.fname}${stepNote}${how==="none"?", not plotted yet":""}`);
@@ -19656,7 +20006,7 @@ async function doImport(){
     // X column when it was measured on the same axis. Nothing is interpolated
     // or padded. Beside other spectra a file without names is known by its file name.
     let sid=curSheet();
-    if(mode==="sheet"){ stampSheets(p); sid=newSheetId(); p.sheets=sheetList(p).concat([{id:sid,name:sheetNameFor(base)}]); }
+    if(mode==="sheet"){ stampSheets(p); sid=newSheetId(); p.sheets=sheetList(p).concat([{id:sid,name:sheetNameFor(im.sname||base)}]); }
     cols.forEach(c=>{ c.sheet=sid; });
     if(mode==="add"){ const was=p.cols.length; p.cols=dropBlanks(p.cols,sid,p); if(p.cols.length<was&&!p.cols.some(c=>c.id===p.activeY)) p.activeY=ids[0]||null; }
     if(ys.length===1&&!ys[0].name) ys[0].name=base.slice(0,60);
@@ -19681,7 +20031,7 @@ async function doImport(){
   if(isUntitled(p.name)||(p.srcName&&p.name===p.srcName)) patch.name=uniqueProjName(base,S.pid);
   // The other graphs showed the data replaced, so they go with it.
   const q={cols,graphs:[]};
-  const made=impGraphs(q,ids,how,true); patch.graphs=q.graphs; patch.annos=[]; patch.sheets=null; patch.wsHide=null;
+  const made=impGraphs(q,ids,how,true); patch.graphs=q.graphs; patch.annos=[]; patch.sheets=im.sname?[{id:SHEET0.id,name:String(im.sname).trim().slice(0,40)||SHEET0.name}]:null; patch.wsHide=null;
   S.fitMode=null; S.selPeak=null;
   Object.assign(p,patch);
   const raw=recordRaw(`replaced all the original data with ${im.fname}`); if(raw) patch.raw=raw;
@@ -19855,6 +20205,11 @@ function fileDropAt(x,y){
 function readDropped(files){ return Promise.all(files.map(readAny)); }
 async function autoImport(files,o){
   o=o||{}; if(S.readOnly||!S.store){ toast("You can view this workspace but not import into it."); return null; }
+  // A workbook dropped: its sheets that Excel shows, each on a sheet of its own, after the other files.
+  const books=files.filter(f=>f&&f.book);
+  if(books.length){ const rest=files.filter(f=>!(f&&f.book)); let r=null; if(rest.length) r=await autoImport(rest,o);
+    for(const b of books){ const u=xlUsed(b.book), vis=u.filter(q=>!q.s.hidden); r=await importBook(b.book,b.name,(vis.length?vis:u).map(q=>q.i),o)||r; }
+    return r; }
   if(files.length>80){ toast(`Importing the first 80 of ${files.length} files.`); files=files.slice(0,80); }
   const built=[], bad=[];
   files.forEach(f=>{ if(f.fail){ bad.push(`${f.name}, ${f.fail}`); return; }
@@ -20148,10 +20503,15 @@ function wireXpl(){
 function readAny(f){ return new Promise(res=>{
   if(f.size>60e6){ res({name:f.name,fail:`${Math.round(f.size/1e6)} MB, too large for a text column`}); return; }
   // SPC by its name; OPUS (named sample.0, sample.1…) by its first bytes, a file so named that is not one read as text.
-  // SPE: Princeton's binary one by its header, Maestro's text one read as text.
-  const rd=new FileReader(), spc=/\.spc$/i.test(f.name||""), spe=/\.spe$/i.test(f.name||""), bin=spc||spe||binName(f.name);
+  // SPE: Princeton's binary one by its header, Maestro's text one read as text. An Excel workbook: its sheets,
+  // and as its text the first that holds anything (what a batch of files reads).
+  const rd=new FileReader(), spc=/\.spc$/i.test(f.name||""), spe=/\.spe$/i.test(f.name||""), xl=isXlsx(f.name), bin=spc||spe||xl||binName(f.name);
   rd.onload=()=>{ if(!bin){ res({name:f.name,text:String(rd.result)}); return; }
-    const u=new Uint8Array(rd.result), sp=spc?spcFile(u):spe?speBinFile(u):opusFile(u);
+    const u=new Uint8Array(rd.result);
+    if(xl){ let b; try{ b=xlsxRead(u); }catch(e){ b={fail:"damaged (it could not be read)"}; }
+      if(b.fail){ res({name:f.name,fail:b.fail}); return; } const used=xlUsed(b);
+      res(used.length?{name:f.name,text:xlsxSheetText(used[0].s),book:b}:{name:f.name,fail:"a workbook with no cells that hold anything"}); return; }
+    const sp=spc?spcFile(u):spe?speBinFile(u):opusFile(u);
     if(!sp){ res({name:f.name,text:new TextDecoder().decode(u)}); return; }
     res(sp.fail?{name:f.name,fail:sp.fail}:{name:f.name,text:spcTable(sp),bin:sp.kind}); };
   rd.onerror=()=>res({name:f.name,fail:"could not be read"});
@@ -20160,6 +20520,7 @@ const binName=n=>/\.(\d{1,4}|opus)$/i.test(String(n||""));
 function readFileIn(f){
   if(!f) return;
   if(isProjFile(f)){ openProjectFile(f); return; }
+  if(isXlsx(f.name)){ readAny(f).then(r=>{ if(r.fail){ toast(`${f.name} is ${r.fail}.`); logError(`Import of ${f.name}: ${r.fail}`,"import"); } else xlsxOpen(r.book,f.name); }); return; }
   if(/\.(spc|spe)$/i.test(f.name||"")||binName(f.name)){ readAny(f).then(r=>{ if(r.fail){ toast(`${f.name} is ${r.fail}.`); logError(`Import of ${f.name}: ${r.fail}`,"import"); } else importText(r.text,f.name); }); return; }
   if(f.size>60e6){ toast(`${f.name} is ${Math.round(f.size/1e6)} MB, more than a text export of a column should be.`); return; }
   const rd=new FileReader();
@@ -20168,6 +20529,87 @@ function readFileIn(f){
   rd.readAsText(f);
 }
 
+/* ---- Excel workbooks (SHEET_SPEC 3.7) ------------------------------------------------------
+   An .xlsx or .xlsm chosen, opened or dropped. A workbook with one sheet that holds anything goes
+   through the import dialog (on a sheet of its own, the sheet is named after its Excel sheet);
+   with several, they are listed first with what each holds, and those ticked come in with the
+   dialog's automatic choices, each on a sheet of its own named after it: one undo step, one record
+   entry, one log line. Publish › Data as Excel writes every sheet back as a workbook. */
+const isXlsx=n=>/\.(xlsx|xlsm)$/i.test(String(n||""));
+const xlUsed=b=>b.sheets.map((s,i)=>({s,i})).filter(q=>!q.s.chart&&q.s.n>0);
+const xlSize=s=>`${fmtCount(s.nr)} row${s.nr===1?"":"s"} × ${s.nc} column${s.nc===1?"":"s"}`;
+async function xlsxOpen(book,fname){
+  const list=xlUsed(book); if(!list.length){ toast(`${fname} has no cells that hold anything.`); logError(`Import of ${fname}: no cells`,"import"); return; }
+  let pick=[list.find(q=>!q.s.hidden)||list[0]];
+  if(list.length>1){
+    const html=`<div class="xlpick">${list.map(q=>`<label class="chk"><input type="checkbox" id="xlS${q.i}"${q===pick[0]?" checked":""}> <span>${esc(q.s.name)} <span class="muted">${xlSize(q.s)}${q.s.hidden?" · hidden in Excel":""}</span></span></label>`).join("")}<label class="chk xlall"><input type="checkbox" id="xlAll"> Every sheet</label></div>`;
+    const pr=formDlg({title:`Import ${fname}`,html,ok:"Import",valid:o=>list.some(q=>o["xlS"+q.i])});
+    // "Every sheet" ticks them all; a tick of one's own says whether every one is ticked. Listeners on the dialog's own elements.
+    const box=$("#formBody .xlpick");
+    if(box){ const all=box.querySelector("#xlAll"), ticks=list.map(q=>box.querySelector("#xlS"+q.i)), sync=()=>{ all.checked=ticks.every(t=>t.checked); };
+      all.addEventListener("change",()=>{ ticks.forEach(t=>{ t.checked=all.checked; }); box.dispatchEvent(new Event("input",{bubbles:true})); });
+      ticks.forEach(t=>t.addEventListener("change",sync)); sync(); }
+    const v=await pr; if(!v) return; pick=list.filter(q=>v["xlS"+q.i]); }
+  if(pick.length===1){ openImport(xlsxSheetText(pick[0].s),fname,{sname:pick[0].s.name}); return; }
+  return importBook(book,fname,pick.map(q=>q.i),{});
+}
+// Several sheets of a workbook at once, each on a sheet of its own named after it. o.gid: dropped on a graph, plotted there.
+async function importBook(book,fname,idx,o){
+  o=o||{}; if(S.readOnly||!S.store){ toast("You can view this workspace but not import into it."); return null; }
+  const built=[], bad=[], base=baseName(fname);
+  idx.forEach(i=>{ const sh=book.sheets[i]; if(!sh) return; const text=xlsxSheetText(sh), res=analyzeFile(text,{fname});
+    if(!res.rows.length){ bad.push(`${sh.name}, no rows of numbers`); return; }
+    const keep=S.imp; S.imp=Object.assign({raw:text,fname,opt:{fname},res,use:impUseDefault(res),pv:-1,sqrt:false,sname:sh.name},impStart(res));
+    try{ const b=impBuild(); if(b.cols.some(c=>hasVals(c))) built.push(Object.assign(b,{sname:sh.name,res,text})); else bad.push(`${sh.name}, nothing to import`); }
+    finally{ S.imp=keep; } });
+  if(!built.length){ toast(`Nothing imported from ${fname}: ${bad.join("; ")}.`); logError(`Nothing imported from ${fname}: ${bad.join("; ")}`,"import"); return null; }
+  if(!S.pid){ await createProject(blankProject(base),null); await new Promise(r=>whenOpen(r)); }
+  const p=P(); if(!p) return null;
+  if(S.ws&&S.ws.edit) wsCommit(0,0,true);
+  const fresh=!allCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null));
+  pushUndo(`importing ${fname}`);
+  S.view=null; S.draft=null; S.pdraft=null; S.stage=null; S.selStep=null;
+  if(!fresh) stampSheets(p);
+  // In a project that holds nothing the workbook's first sheet takes the first sheet's place.
+  const ss=fresh?[]:sheetList(p).slice(), ids=[], sids=[]; let cols=fresh?[]:p.cols.slice();
+  built.forEach((b,k)=>{ const sid=fresh&&k===0?SHEET0.id:newSheetId(); ss.push({id:sid,name:sheetNameFor(b.sname,ss)}); sids.push(sid);
+    if(b.ys.length===1&&!b.ys[0].name) b.ys[0].name=String(b.sname).slice(0,60);
+    b.cols.forEach(c=>{ c.sheet=sid; }); cols=cols.concat(b.cols); b.ys.forEach(c=>ids.push(c.id)); });
+  p.cols=cols; if(ids.length) p.activeY=ids[0];
+  const patch={cols:p.cols,activeY:p.activeY,sheets:ss}, what=`${built.length} sheet${built.length===1?"":"s"} of ${fname}`;
+  if(fresh){ Object.assign(patch,{meta:built[0].res.meta,fit:null,srcName:base,graphs:[],annos:[],wsHide:null});
+    if(isUntitled(p.name)||(p.srcName&&p.name===p.srcName)) patch.name=uniqueProjName(base,S.pid); }
+  else patch.meta=Object.assign({},p.meta||{},built[0].res.meta);
+  Object.assign(p,patch);
+  const raw=recordRaw(fresh?`recorded from ${what}`:`added ${what}`); if(raw) patch.raw=raw;
+  S.sheetAt=S.sheetAt||{}; S.sheetAt[S.pid]=sids[0]; S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.wsm=null; S.wsSort=null;
+  await save(patch,`${fresh?"imported":"added"} ${what} (${built.map(b=>b.sname).join(", ")}), each on a sheet of its own${bad.length?`; skipped ${bad.map(s=>s.split(",")[0]).join(", ")}`:""}`);
+  const sks=sids.map(s=>"ws:"+s); if(o.folder) xFile(sks,o.folder); else xNew(sks);
+  const again={action:"Read it differently",run:()=>{ undo(); xlsxOpen(book,fname); }};
+  if(o.gid&&ids.length&&(fresh||graphOf(o.gid))){ plotCols(ids,{into:fresh?null:o.gid,noUndo:true,quiet:true});
+    toast(`${ids.length===1?specName(colById(ids[0])):ids.length+" columns"} from ${what} ${ids.length===1?"is":"are"} plotted in ${graphName(S.gid)}${bad.length?`. Skipped: ${bad.join("; ")}`:""}.`,again); return {sheets:sks,gid:S.gid}; }
+  renderAll(); sheetForward();
+  toast(`${capFirst(what)} ${built.length===1?"is":"are"} in the worksheet, each on a sheet of its own${bad.length?`. Skipped: ${bad.join("; ")}`:""}.`,ids.length?{action:"Plot",run:()=>plotCols(ids.filter(k=>colById(k)).filter(k=>sheetOf(colById(k))===curSheet()),{})}:again);
+  return {sheets:sks};
+}
+// A part's bytes deflated as a zip keeps them: the browser's own deflate, or its gzip less its header and trailer; null to store them.
+async function rawDeflate(u8){ if(typeof CompressionStream==="undefined") return null;
+  const run=async kind=>new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new CompressionStream(kind))).arrayBuffer());
+  try{ return await run("deflate-raw"); }catch(e){ try{ const g=await run("gzip"); return g[3]===0?g.subarray(10,g.length-8):null; }catch(e2){ return null; } } }
+// Publish › Data as Excel (.xlsx): every sheet with columns, as the Original view shows them (a computed column its values).
+async function exportXlsx(){
+  const p=P(); if(!p) return; flushEdits(); fpSettle();
+  const sheets=sheetList(p).map(s=>({name:s.name,cols:sheetCols(s.id).map(c=>({name:c.name||"",unit:c.unit||"",comm:c.comm||"",vals:c.data||[],txt:txtOf(c),tfmt:c.tfmt||null}))})).filter(s=>s.cols.length&&s.cols.some(c=>c.vals.some(v=>v!=null)||c.txt));
+  if(!sheets.length){ toast("There is no data to export."); return; }
+  const tall=sheets.find(s=>s.cols.some(c=>c.vals.length+3>XL_ROWS)), wide=sheets.find(s=>s.cols.length>XL_COLS);
+  if(tall){ toast(`Excel holds ${fmtCount(XL_ROWS)} rows a sheet, and ${tall.name} has more: export it as CSV.`); return; }
+  if(wide){ toast(`Excel holds ${fmtCount(XL_COLS)} columns a sheet, and ${wide.name} has more: export it as CSV.`); return; }
+  const te=new TextEncoder(), parts=xlsxParts(sheets,{title:projName(p),at:new Date().toISOString().replace(/\.\d+Z$/,"Z")});
+  const files=await Promise.all(parts.map(async q=>{ const data=te.encode(q.text); return {name:q.name,data,z:data.length>512?await rawDeflate(data):null}; }));
+  const bytes=zipWrite(files,{date:new Date()}), nm=safeName(p.name,".xlsx");
+  const ok=await saveFile(nm,new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
+  if(ok) toast(ok==="dialog"?`Saved ${sheets.length} sheet${sheets.length===1?"":"s"} as an Excel workbook.`:`Sent ${nm} to your downloads: ${sheets.length} sheet${sheets.length===1?"":"s"}.`);
+}
 /* ============================================================
    Fit panel
    ============================================================ */
@@ -23245,8 +23687,7 @@ function expDress(svg,o,W,H){
   if(o.unit==="mm"||o.unit==="in") svg=svg.replace(/^<svg([^>]*?) width="[^"]+" height="[^"]+"/,`<svg$1 width="${(+o.w).toFixed(3)}${o.unit}" height="${(+o.h).toFixed(3)}${o.unit}"`);
   return svg;
 }
-const CRC_T=(()=>{ const t=new Uint32Array(256); for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c=c&1?0xEDB88320^(c>>>1):c>>>1; t[n]=c>>>0; } return t; })();
-function crc32(u8){ let c=0xFFFFFFFF; for(let i=0;i<u8.length;i++) c=CRC_T[(c^u8[i])&255]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
+// crc32 is the PARSER block's (a zip and a PNG check their bytes with the same one).
 // A PNG that says its resolution: a pHYs chunk after IHDR, so a word processor places it at its size.
 async function pngWithDpi(blob,dpi){
   const a=new Uint8Array(await blob.arrayBuffer()), ppm=Math.round(dpi/0.0254), ch=new Uint8Array(21), dv=new DataView(ch.buffer);
@@ -25562,6 +26003,7 @@ function exportItems(){
     yCols().length>1?{label:"Every column's processed data as CSV", run:exportAllCsv}:null,
     p&&p.batch?{label:"Batch results as CSV", run:exportBatchCsv}:null,
     {label:"Original data as CSV", title:"Exactly as recorded, with its check code", run:exportRawCsv, enabled:!!(p&&rawCols().length)},
+    {label:"Data as Excel (.xlsx)", title:"Every sheet as a sheet of a workbook: the columns' names and units at the top, then numbers, text and dates as Excel keeps them", run:exportXlsx, enabled:!!(p&&sheetList(p).some(s=>sheetCols(s.id).some(hasVals)))},
     {label:"Processing steps as JSON", run:exportRecipe, enabled:has},
     "-",
     {label:"Report", title:f?"A self-contained HTML document: the graph, the fit and its notes, the processing and the log":"A self-contained HTML document; without a fit it covers the data and its processing", run:exportReport, enabled:has}];
@@ -25935,7 +26377,7 @@ ${DL([["The project","The top of the tree, with the project's name. Right-click 
 <h2 id="use">Using it</h2>
 ${DL([["Open","Double-click or "+K("Enter")+": a graph comes onto the desk (a hidden one too), a sheet is shown in the worksheet, a folder opens or closes."],["Menu","Right-click, "+K("Shift","F10")+" or the menu key: what can be done with that item, and <em>Move to</em> any folder."],["Move","Drag an item or a folder onto a folder, or onto the project at the top."],["Plot","Drag a sheet onto a graph window: its Y columns with values are plotted there."],["Import","Drop files from your computer onto a folder: they are read, plotted and filed there. "+DA("import#drop","Dropping files")],["Rename, delete",K("F2")+" and "+K("Delete")+". Deleting a sheet takes its columns out of the project, after asking when it holds values (the original-data record notes it); Undo brings everything back."],["Filter","Type in the box above the tree to show only what is called that, and where it is."]])}
 <p>The folder selected, or the folder of the item selected, is the <strong>active folder</strong>: graphs, trend graphs and files made while the Explorer is open go into it, as Origin puts new windows in the active folder. ${K("↑")} ${K("↓")} move, ${K("→")} opens and ${K("←")} closes or goes up a level. Folders are kept with the project, so a colleague who opens it sees them, and every change to them is one Undo.</p>`},
-{id:"import", g:"Basics", t:"Importing data", kw:"import open file csv tsv txt delimiter decimal comma header metadata paste drop wizard add replace many several files batch columns role use as data not a spectrum leave out plot not yet worksheet only pairs",
+{id:"import", g:"Basics", t:"Importing data", kw:"import open file csv tsv txt delimiter decimal comma header metadata paste drop wizard add replace many several files batch columns role use as data not a spectrum leave out plot not yet worksheet only pairs excel xlsx xlsm workbook spreadsheet sheets frozen html table web page",
  lead:"Text exports from almost any instrument work. Drop a file on the window and it is read and plotted at once; use Import to see how it is read and choose what each column becomes, and nothing is plotted until you ask.",
  body:`<h2>Three ways in</h2>
 ${DL([["Drop files","Drop one file or many anywhere on the window. A project file (<em>.kurve</em>) opens as a new project ("+DA("projects#files","project files")+"); any other file is read with the automatic choices and plotted: on the graph you drop it on, or else on a new graph. Dropped on a folder of the "+DA("explorer","Project Explorer")+", it is filed there. The message that follows has <em>Read it differently</em>, which undoes it and opens the dialog."],["Import","<em>Import</em> on the toolbar, "+MP("File › Import data…")+", or "+K("Ctrl","O")+": the dialog shows how the file is read, every choice can be changed, and the columns go into the worksheet. Nothing is plotted: select columns and press Plot when you are ready."],["Text","A column of names or notes, and words among numbers (<code>n/a</code>, <code>&lt;0.01</code>), come in as text: see "+DA("sheet#text","text in the worksheet")+". The dialog's <em>Use</em> list has <em>Text (kept as written)</em> for a column whose numbers are names, as IDs like <code>007</code> are."],["Paste","Copy columns from a spreadsheet and paste them into a worksheet cell. Pasted into an empty sheet, they are read as an import reads them: with no X-like column every one is a Y, and the sheet's empty X column moves after them."]])}
@@ -25957,6 +26399,10 @@ ${DL([["Into","The project on the desk (named in the list, with how many columns
 <p>As from the single-file dialog, the columns go into the worksheet and are plotted when you choose. Dropped instead, the files are plotted at once.</p>
 <p>It is one change: one Undo, one line in the log, one entry in the original-data record. Columns measured on the same X share a column; one on a different axis gets its own, so nothing is interpolated. A file that cannot be read is listed with the reason and left out.</p>
 <p>Each column keeps the name of its file and the fields of its header (its Original data box in the History lists them). Fields that differ between the files, such as a temperature or the time each was taken, are offered as what the ${DA("batch","Batch window")} plots against.</p>
+<h2 id="excel">Excel workbooks</h2>
+<p>An <em>.xlsx</em> or <em>.xlsm</em> file is read from its cells, not as text: numbers with every digit Excel keeps, text as text (<code>007</code> and <code>1.5</code> written as text stay text), TRUE and FALSE as 1 and 0, an error such as <code>#DIV/0!</code> as text, and dates and times by the cell's number format, in either of Excel's date systems.</p>
+${DL([["Several sheets","The sheets that hold anything are listed with their sizes; tick one and it goes through the dialog above, tick several (or <em>Every sheet</em>) and they come in at once, each on a sheet of its own named after its Excel sheet. One Undo takes them all back."],["Names and units","Frozen rows at the top of a sheet that hold only text are its header: the first the names, the second the units, a third the columns' comments. Otherwise the line above the numbers is read as for a text file."],["Formulas","A cell's value as Excel last worked it out. A column that is one formula all the way down says so in its comment (<em>Computed in Excel by =A2*2</em>); the formula itself is not carried over."],["Not read","The old binary <em>.xls</em>, OpenDocument's <em>.ods</em>, a workbook protected by a password; styles, charts and pictures."]])}
+<p>${MP("Publish › Data as Excel (.xlsx)")} writes every sheet back: the columns' names, units and comments as frozen rows at the top, numbers, text and dates as Excel keeps them, a computed column as its values. A table copied from a web page and pasted into the worksheet is read as its rows and cells, a cell that spans two rows or columns filled into each.</p>
 <h2 id="onecol">One column: counts per channel</h2>
 <p>A multichannel analyser writes one number per line, the counts of one channel, with no X column. Kurve reads such a file as one spectrum against its <strong>channel number</strong>:</p>
 ${DL([["X column","<em>Channel number</em>: each line's position, counted from <em>First channel</em> (0 or 1). The channel numbers are kept as the spectrum's X column, so the record shows what the file said."],["The first two lines (TKA)","A <code>.TKA</code> file starts with the live time and the real time in seconds. With <em>The first two lines are the live and real time</em> ticked (the default for .TKA) they are not counts: they go into the metadata, with the dead time, and the counts start on line 3."],["Y error","<em>√N error bars for the counts</em> adds error bars of √N (1 for an empty channel), as a column computed from the counts: weights for a fit, and errors for a band's area. It is offered for whole numbers named as counts (<em>counts</em>, <em>cts</em>, <em>cps</em>, <em>events</em>) or read from a TKA file; whole numbers alone (ages, scores) are not counts."],["Counts per second","The line saying what was read from the TKA header has a button that adds a step dividing by the live time: the counts stay as recorded, the processed data are a count rate."]])}
@@ -26396,7 +26842,7 @@ ${TIP("Annotations are drawn only on data in the units they were placed in: a la
 ${DL([["Size","One column (85 mm), one and a half (114 mm) or two (174 mm); Nature's 89 and 183 mm; ACS's 3.25 and 7 in; a 1920 × 1080 slide; as on screen; or your own width and height in mm, inches or pixels. <em>As on screen</em> takes the graph's proportions."],["Tick numbers","Their size in points at the printed size; every other text keeps its size beside them, so 8 pt numbers come out as 8 pt on the page."],["Lines and symbols","<em>Scale with the text</em>: the whole figure keeps the proportions it has on screen, lines and symbols as thick beside the text as there (best for slides). <em>As drawn</em>: lines keep their width in points whatever the text size."],["Format","SVG, vector, at that size in mm or inches, its web fonts embedded; PDF and EPS, vector at that size, for journals and LaTeX (below); PNG at 150 to 1200 dpi, which it records so a word processor places it at its size; TIFF, lossless, with its resolution, for journals that ask for it."],["Background","White, or transparent for PNG, TIFF and SVG."],["Graphs","With several graphs, this one or all of them as one figure."]])}
 <p>The settings are remembered in this browser.</p>
 <h2>Everything else</h2>
-${DL([["Copy the graph as a picture","A PNG on the clipboard (Edit, and the graph's right-click menu), to paste straight into a document or slides; a panel copies its whole figure. A browser that will not put a picture there says so, and the PNG export does the same job."],["Graph as SVG","Vector, for papers: exactly what is on screen, at any size."],["Graph as PDF, Graph as EPS","Vector, at the size the graph has on screen (the dialog above for any other size)."],["Graph as PNG","An image at 2.5 times the screen's resolution, for slides."],["All graphs as one figure","With several graphs: every graph in one SVG or PNG, lettered (a), (b)… as they are on the desk."],["Processed data and fit as CSV","Every column with units, the mask, the fit, residuals, baseline and each peak's curve, followed by commented blocks: metadata, check code, processing steps with their warnings, marked peaks with labels, band integrals and fit statistics."],["Every column's processed data as CSV","With several columns: each one's processed X and Y side by side, and how each was processed."],["Batch results as CSV","After a batch fit: the Batch window's table with each value's error, how the fit was made, and the straight line through the trend. "+DA("batch","Fitting every column")],["Original data as CSV","The original data under a header that says how to verify its check code. "+DA("rawdata","Original data")],["Processing steps as JSON","The recipe: every step with its settings."],["Report","One self-contained HTML file: the figure, the notes on anything that makes the numbers less certain, the parameter table with t, p, confidence intervals and dependency, statistics, peaks, bands, the original-data record, every processing step with a filmstrip, the fit history, the method, every discussion thread and the log."],["Copy the results table","In Edit: tab-separated, to paste into a spreadsheet."]])}
+${DL([["Copy the graph as a picture","A PNG on the clipboard (Edit, and the graph's right-click menu), to paste straight into a document or slides; a panel copies its whole figure. A browser that will not put a picture there says so, and the PNG export does the same job."],["Graph as SVG","Vector, for papers: exactly what is on screen, at any size."],["Graph as PDF, Graph as EPS","Vector, at the size the graph has on screen (the dialog above for any other size)."],["Graph as PNG","An image at 2.5 times the screen's resolution, for slides."],["All graphs as one figure","With several graphs: every graph in one SVG or PNG, lettered (a), (b)… as they are on the desk."],["Processed data and fit as CSV","Every column with units, the mask, the fit, residuals, baseline and each peak's curve, followed by commented blocks: metadata, check code, processing steps with their warnings, marked peaks with labels, band integrals and fit statistics."],["Every column's processed data as CSV","With several columns: each one's processed X and Y side by side, and how each was processed."],["Batch results as CSV","After a batch fit: the Batch window's table with each value's error, how the fit was made, and the straight line through the trend. "+DA("batch","Fitting every column")],["Original data as CSV","The original data under a header that says how to verify its check code. "+DA("rawdata","Original data")],["Data as Excel (.xlsx)","Every sheet of the project as a sheet of a workbook: names, units and comments frozen at the top, then numbers, text and dates as Excel keeps them. "+DA("import#excel","Excel workbooks")],["Processing steps as JSON","The recipe: every step with its settings."],["Report","One self-contained HTML file: the figure, the notes on anything that makes the numbers less certain, the parameter table with t, p, confidence intervals and dependency, statistics, peaks, bands, the original-data record, every processing step with a filmstrip, the fit history, the method, every discussion thread and the log."],["Copy the results table","In Edit: tab-separated, to paste into a spreadsheet."]])}
 <h2 id="pdf">PDF and EPS</h2>
 <p>Everything on the graph is drawn again as vectors: lines, symbols, shading, clipping, an inset, a heat map's image and colour bar. In a PDF the text is set in the graph's own font, embedded in the file (each face drawn, fetched as TrueType from Fontsource's copy of Google Fonts), so it looks as on screen and can be searched and copied; the export says which fonts it embedded. A character the font lacks, a font that cannot be fetched (offline, or after 9 s), and every EPS use the standard fonts every PDF reader and printer has instead (Helvetica, Times or Courier, whichever is nearest the graph's font, with Symbol for Greek letters and signs), placed by those fonts' own widths, so centred and right-aligned text stays where it belongs; superscripts and subscripts keep their places either way, and the export says when the standard fonts stood in. A character none of the fonts has (Chinese, an emoji) is written as ? and the export says which. EPS has no transparency, so shading and translucent fills are mixed with white and cover what lies beneath.</p>
 <p>Tables in the Peaks, Integrate and Statistics windows have Copy buttons of their own.</p>

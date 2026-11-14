@@ -60,6 +60,8 @@ const BUDGET = {
   "Reshape: stack 20 × 100 000": [400, "twenty columns of 100 000 cells stacked into one with a column of names (SHEET_SPEC 3.5)"],
   "Reshape: pivot 1M rows": [1000, "a million rows pivoted by two text columns into the mean of a third, with totals"],
   "Reshape: join 100 000 × 100 000": [300, "two sheets of 100 000 rows joined on a key column, every row of both"],
+  "Excel: write 200 000 × 3": [3000, "a sheet of 200 000 rows of three columns written as a workbook, its parts deflated (SHEET_SPEC 3.7)"],
+  "Excel: read 200 000 × 3": [6000, "that workbook read, its sheet turned into text and read by the import as the dialog reads it"],
   "ANOVA: Tukey, 10 groups": [1100, "Tukey–Kramer's 45 pairs and its quantile (worked out in the worker in the app)"],
 };
 const got = {};
@@ -158,6 +160,12 @@ await withPage(async (p) => {
   got["Reshape: join 100 000 × 100 000"] = await best(() => p.evaluate(() => { const mb = mulberry32(33), n = 100000, k1 = Array.from({ length: n }, (_, i) => i * 2), k2 = Array.from({ length: n }, (_, i) => i * 3);
     const ins = [{ id: "k1", name: "K", unit: "", role: "x", sheet: "s1", order: null, cells: k1 }, { id: "a", name: "A", unit: "", role: "y", sheet: "s1", order: null, cells: k1.map(() => mb()) }, { id: "k2", name: "K", unit: "", role: "x", sheet: "s2", order: null, cells: k2 }, { id: "b", name: "B", unit: "", role: "y", sheet: "s2", order: null, cells: k2.map(() => mb()) }];
     const a = performance.now(), r = anaRunKind("join", ins, { lk: "k1", rk: "k2", right: "s2", how: "full" }); if (r.fail) throw new Error(r.fail); return performance.now() - a; }));
+  got["Excel: write 200 000 × 3"] = await best(() => p.evaluate(async () => { const N = 200000, cols = [{ name: "t", unit: "s", vals: Array.from({ length: N }, (_, i) => i * 0.001) }, { name: "y", vals: Array.from({ length: N }, (_, i) => Math.sin(i / 1000)) }, { name: "z", vals: Array.from({ length: N }, (_, i) => i % 7 ? i / 3 : null) }];
+    const a = performance.now(), te = new TextEncoder(), parts = xlsxParts([{ name: "Big", cols }]);
+    const files = await Promise.all(parts.map(async q => { const data = te.encode(q.text); return { name: q.name, data, z: data.length > 512 ? await rawDeflate(data) : null }; }));
+    window.__xl = zipWrite(files); return performance.now() - a; }));
+  got["Excel: read 200 000 × 3"] = await best(() => p.evaluate(() => { const a = performance.now(), b = xlsxRead(window.__xl); if (b.fail) throw new Error(b.fail);
+    const r = analyzeFile(xlsxSheetText(b.sheets[0]), {}); if (r.rows.length !== 200000) throw new Error("rows " + r.rows.length); return performance.now() - a; }));
   got["Correlation: 1M pairs"] = await best(() => p.evaluate(() => { const mb = mulberry32(10), n = 1000000, x = Array.from({ length: n }, () => mb()), rows = x.map((_, i) => i);
     const ins = [{ name: "A", vals: x, rows }, { name: "B", vals: x.map((v) => v + mb()), rows }];
     const a = performance.now(); anaRunKind("corr", ins, { methods: ["pearson", "spearman", "kendall"] }); return performance.now() - a; }));

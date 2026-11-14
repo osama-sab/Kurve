@@ -498,6 +498,83 @@ if (want("3.5")) {
   }
 }
 
+if (want("3.7")) {
+  console.log("3.7 Excel");
+  const XD = join(here, "ref", "xlsx"), dlg = p => p.evaluate(() => !$("#formModal").hidden), imp = p => p.evaluate(() => !$("#impModal").hidden);
+  await page(async p => {
+    // A workbook of several sheets: listed first, the first that Excel shows ticked, the empty one left out.
+    await p.setInputFiles("#fileIn", join(XD, "sheets.xlsx")); await p.waitForFunction(() => !$("#formModal").hidden, null, { timeout: 8000 });
+    let r = await p.evaluate(() => ({ title: $("#formTitle").textContent, rows: [...document.querySelectorAll("#formBody .xlpick label")].map(l => l.textContent.trim().replace(/\s+/g, " ")), ticked: [...document.querySelectorAll("#formBody .xlpick input:checked")].map(i => i.id) }));
+    check("sheets.xlsx: its four sheets that hold anything listed with their sizes, a hidden one said, the first ticked", r.title === "Import sheets.xlsx" && r.rows.length === 5 && /^Raw data 33 rows × 3 columns/.test(r.rows[0]) && /Calc 14 rows × 3 columns/.test(r.rows[1]) && /Hidden one .*hidden in Excel/.test(r.rows[2]) && /Every sheet/.test(r.rows[4]) && r.ticked.join() === "xlS0", JSON.stringify(r));
+    await p.click("#xlAll"); r = await p.evaluate(() => [...document.querySelectorAll("#formBody .xlpick input:checked")].length);
+    check("Every sheet ticks them all", r === 5, r);
+    await p.click("#xlAll"); r = await p.evaluate(() => $("#formOk").disabled);
+    check("…and none ticked, Import waits", r === true, r);
+    await p.click("#xlS1"); await p.click("#formOk");
+    await p.waitForFunction(() => !$("#impModal").hidden, null, { timeout: 8000 });
+    r = await p.evaluate(() => ({ title: $("#impTitle").textContent, side: $("#impSide").textContent.replace(/\s+/g, " "), delim: !!$("#impDelim"), start: !!$("#impStart") }));
+    check("one sheet ticked: the import dialog on it, named, its cells read without a delimiter to choose", r.title === "Import sheets.xlsx › Calc" && /Read from the cells of the sheet Calc/.test(r.side) && !r.delim && r.start && /names and units from its 2 frozen rows/.test(r.side), JSON.stringify(r));
+    await p.click("#impGo"); await p.waitForTimeout(600);
+    r = await p.evaluate(() => ({ sheets: sheetList().map(s => s.name), cols: sheetCols().map(c => [c.role, c.name, c.unit, c.data.slice(0, 3)]), file: sheetCols()[1].file }));
+    check("imported into the empty project: its sheet named Calc, names and units from the frozen rows, the values", r.sheets.join() === "Calc" && JSON.stringify(r.cols) === JSON.stringify([["x", "Time", "s", [0, 10, 20]], ["y", "Temperature", "°C", [20, 21.5, 23]], ["y", "2019", "K", [293.15, 294.15, 295.15]]]) && r.file === "sheets.xlsx", JSON.stringify(r));
+    // Every sheet at once: each on a sheet of its own, one undo step.
+    const before = await p.evaluate(() => ({ n: P().cols.length, rec: (P().raw.hist || []).length, undo: undoStack.length }));
+    await p.setInputFiles("#fileIn", join(XD, "sheets.xlsx")); await p.waitForFunction(() => !$("#formModal").hidden, null, { timeout: 8000 });
+    await p.click("#xlAll"); await p.click("#formOk"); await p.waitForTimeout(800);
+    r = await p.evaluate(() => ({ sheets: sheetList().map(s => s.name), origin: sheetCols(sheetList().find(s => s.name === "Origin").id).map(c => [c.name, c.unit, c.comm || ""]), raw: sheetCols(sheetList().find(s => s.name === "Raw data").id).map(c => [c.name, c.data.length, textCount(c)]), rec: (P().raw.hist || []).length, undo: undoStack.length, log: P().log[P().log.length - 1].text, toast: $("#toast").textContent }));
+    check("every sheet ticked: four sheets more, each named after its Excel sheet, Calc again as Calc (2)", r.sheets.join("|") === "Calc|Raw data|Calc (2)|Hidden one|Origin", JSON.stringify(r.sheets));
+    check("…the third frozen row is each column's comment", JSON.stringify(r.origin) === JSON.stringify([["Wavelength", "nm", ""], ["Absorbance", "", "sample A"], ["Absorbance", "a.u.", "sample B"]]), JSON.stringify(r.origin));
+    check("…under a merged title, thirty rows, the note kept as text", JSON.stringify(r.raw) === JSON.stringify([["Shift", 30, 0], ["Counts", 30, 0], ["Note", 8, 1]]), JSON.stringify(r.raw));
+    check("…one undo step, one record entry, one log line naming the sheets", r.undo === before.undo + 1 && r.rec === before.rec + 1 && /added 4 sheets of sheets\.xlsx \(Raw data, Calc, Hidden one, Origin\)/.test(r.log), JSON.stringify([r.undo, before.undo, r.rec, before.rec, r.log]));
+    await p.evaluate(() => undo()); await p.waitForTimeout(400);
+    r = await p.evaluate(() => ({ sheets: sheetList().map(s => s.name), n: P().cols.length }));
+    check("…undone: the project as it was", r.sheets.join() === "Calc" && r.n === before.n, JSON.stringify(r));
+    // A column computed by one formula in Excel: its values as Excel worked them out, the formula its comment.
+    await p.setInputFiles("#fileIn", join(XD, "formulas.xlsx")); await p.waitForFunction(() => !$("#impModal").hidden, null, { timeout: 8000 });
+    r = await p.evaluate(() => $("#impSide").textContent.replace(/\s+/g, " "));
+    check("formulas.xlsx: one sheet, straight to the dialog, which says a column is a formula's", /1 column computed by one formula in Excel/.test(r), r);
+    await p.click("#impGo"); await p.waitForTimeout(600);
+    r = await p.evaluate(() => { const c = sheetCols().find(c => c.name === "Twice"); return c ? { d: c.data, comm: c.comm, sheet: sheetName(sheetOf(c)) } : null; });
+    check("…the column's values and its comment", r && r.d.join() === "2,4,6,8,10" && r.comm === "Computed in Excel by =A2*2" && r.sheet === "Formulas", JSON.stringify(r));
+    // A workbook refused, in words.
+    await p.setInputFiles("#fileIn", join(XD, "password.xlsx")); await p.waitForTimeout(600);
+    check("a workbook protected by a password is refused in words", /password\.xlsx is protected by a password/.test(await toastText(p)), await toastText(p));
+    await p.setInputFiles("#fileIn", join(XD, "cut.xlsx")); await p.waitForTimeout(600);
+    check("…and one cut short", /cut\.xlsx is cut short/.test(await toastText(p)), await toastText(p));
+  }, { name: "Excel import" });
+  await page(async p => {
+    // A drop on the desk: the sheets Excel shows, with the automatic choices, text that reads as a number kept as text.
+    const b64 = readFileSync(join(XD, "basic.xlsx")).toString("base64");
+    await p.evaluate(b64 => { const u = Uint8Array.from(atob(b64), c => c.charCodeAt(0)), dt = new DataTransfer(); dt.items.add(new File([u], "basic.xlsx"));
+      const at = $("#desk").getBoundingClientRect(), x = at.left + at.width / 2, y = at.top + at.height / 2;
+      for (const t of ["dragenter", "dragover", "drop"]) window.dispatchEvent(new DragEvent(t, { dataTransfer: dt, clientX: x, clientY: y, bubbles: true, cancelable: true })); }, b64);
+    await p.waitForFunction(() => sheetList().some(s => s.name === "Data"), null, { timeout: 8000 });
+    let r = await p.evaluate(() => { const cs = sheetCols(sheetList().find(s => s.name === "Data").id); return cs.map(c => [c.name, c.data.slice(0, 9), txtOf(c)]); });
+    check("basic.xlsx dropped: on a sheet named Data, every digit of its numbers, 007 and 1.5 kept as text, booleans 1 and 0", r[1][1].join() === [0.1, 1 / 3, -2.5e-300, 1.7976931348623157e308, 5e-324, 123456789012345.6, 0, 42, 0.30000000000000004].join() && r[2][2] && r[2][2][0] === "007" && r[2][2][1] === "1.5" && r[3][1].slice(0, 2).join() === "1,0", JSON.stringify(r));
+    // Publish › Data as Excel: every sheet, read back.
+    await p.evaluate(() => { const s = sheetList().find(q => q.name === "Data"); const cs = sheetCols(s.id); cs[0].unit = "s"; cs[1].comm = "the signal"; const t = Object.assign(makeCol("ignore", "When", "", [1709294730.25, 0, null, -2203891200]), { tfmt: "date", sheet: s.id }); P().cols.push(t); save({ cols: P().cols }, "typed"); });
+    await p.waitForTimeout(300);
+    const items = await p.evaluate(() => exportItems().filter(Boolean).filter(i => i.label).map(i => [i.label, i.enabled !== false]));
+    check("Publish has Data as Excel (.xlsx)", items.some(([l, e]) => l === "Data as Excel (.xlsx)" && e), JSON.stringify(items));
+    const [dl] = await Promise.all([p.waitForEvent("download", { timeout: 10000 }), p.evaluate(() => { exportXlsx(); })]);
+    const path = await dl.path(), bytes = readFileSync(path);
+    r = await p.evaluate(b64 => { const u = Uint8Array.from(atob(b64), c => c.charCodeAt(0)), b = xlsxRead(u); if (b.fail) return { fail: b.fail };
+      const e = zipEntries(u); const sh = b.sheets.map(s => ({ name: s.name, frozen: s.frozen, res: analyzeFile(xlsxSheetText(s), {}) }));
+      return { names: b.sheets.map(s => s.name), by: b.by, deflated: e.entries.filter(q => q.method === 8).length, n: e.entries.length, sh: sh.map(q => ({ name: q.name, frozen: q.frozen, head: q.res.headerRow, cols: q.res.cols.map(c => c.slice(0, 9)), txt: q.res.txt, tk: q.res.tkind, comm: q.res.xl.comm })) }; }, bytes.toString("base64"));
+    check("Data as Excel: a workbook of the project's sheets that hold anything (not the empty first one), written by Kurve, its parts deflated", !r.fail && r.names.join() === "Data" && r.by === "Kurve" && r.deflated >= 3, JSON.stringify(r).slice(0, 400));
+    const d = r.sh && r.sh[0];
+    check("…names, units and comments frozen at the top, every digit, text as text, a date as a date", d && d.frozen === 3 && d.head.slice(0, 2).join("|") === "Time (s)|Signal" && d.comm[1] === "the signal" && d.cols[1].join() === [0.1, 1 / 3, -2.5e-300, 1.7976931348623157e308, 5e-324, 123456789012345.6, 0, 42, 0.30000000000000004].join() && d.txt[2][0] === "007" && d.tk[d.tk.length - 1] === "date" && d.cols[d.cols.length - 1][0] === 1709294730.25, JSON.stringify(d).slice(0, 600));
+    // A table pasted from a web page, its spans filled.
+    await p.evaluate(() => { newSheet(); focusWin("sheet"); S.ws = { r: 1, c: 2, ar: 1, ac: 2, extra: 0 }; renderWs(); });
+    await p.waitForTimeout(200);
+    await p.evaluate(() => { const dt = new DataTransfer(); dt.setData("text/plain", "Sample\tSignal\nA\t1.5\nB\t2"); dt.setData("text/html", '<table><tr><td rowspan="2">ctl</td><td colspan="2">x &amp; y</td></tr><tr><td>1.5</td><td>2</td></tr><tr><td>trt</td><td>3</td><td>4</td></tr></table>');
+      $("#ws").dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true })); });
+    await p.waitForTimeout(400);
+    r = await p.evaluate(() => sheetCols().map(c => ({ n: c.name, d: c.data.slice(0, 4), t: txtOf(c) })));
+    check("an HTML table pasted from row 2: its rows and cells, a cell spanning two rows or two columns in each", JSON.stringify(r.slice(2, 5).map(q => ({ d: q.d, t: q.t }))) === JSON.stringify([{ d: [null, null, null, null], t: { 1: "ctl", 2: "ctl", 3: "trt" } }, { d: [null, null, 1.5, 3], t: { 1: "x & y" } }, { d: [null, null, 2, 4], t: { 1: "x & y" } }]), JSON.stringify(r));
+  }, { name: "Excel drop, export and paste" });
+}
+
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

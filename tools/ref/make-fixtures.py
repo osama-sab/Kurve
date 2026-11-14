@@ -999,6 +999,146 @@ for n in (6, 24, 60):
     rcase(f"append by position n={n}", "append", ins2[:4], {"by": "pos", "src": False}, [("A", pos["A"].tolist()), ("B", pos["B"].tolist())])
 out["reshape"] = cases
 
+# ---- Excel workbooks (SHEET_SPEC 3.7) ------------------------------------------------------------
+# Workbooks made by openpyxl (and a few with their XML written by hand: cached formula values, inline
+# strings, cells without their addresses, prefixed elements, the 1904 date system), committed in
+# tools/ref/xlsx/; each case is one workbook and what openpyxl reads in it, cell by cell. The refusals
+# are workbooks of each kind Kurve says it does not read, with the words it says.
+import io, zipfile, openpyxl
+from openpyxl.utils.datetime import CALENDAR_MAC_1904
+XD = os.path.join(here, "xlsx")
+def xl_save(wb, name):
+    wb.properties.creator = "Kurve's bench"; wb.properties.created = wb.properties.modified = datetime.datetime(2026, 1, 1)
+    bio = io.BytesIO(); wb.save(bio); return bio.getvalue()
+def xl_edit(data, fn):  # every part of a zip through fn(name, text) -> text, written again deflated
+    zi = zipfile.ZipFile(io.BytesIO(data)); out = io.BytesIO(); zo = zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED)
+    for it in zi.infolist():
+        b = zi.read(it.filename)
+        if it.filename.endswith(".xml") or it.filename.endswith(".rels"): b = fn(it.filename, b.decode("utf-8")).encode("utf-8")
+        zi2 = zipfile.ZipInfo(it.filename, date_time=(2026, 1, 1, 0, 0, 0)); zi2.compress_type = zipfile.ZIP_DEFLATED; zo.writestr(zi2, b)
+    zo.close(); return out.getvalue()
+def xl_write(name, data):
+    if not check:
+        os.makedirs(XD, exist_ok=True)
+        with open(os.path.join(XD, name), "wb") as fh: fh.write(data)
+EPOCH70 = datetime.datetime(1970, 1, 1)
+def xl_cell(v):
+    if v is None: return None
+    if isinstance(v, bool): return ["b", 1 if v else 0]
+    if isinstance(v, (int, float)): return ["n", float(v)]
+    if isinstance(v, datetime.datetime): return ["d", (v - EPOCH70).total_seconds()]
+    if isinstance(v, datetime.date): return ["d", (datetime.datetime(v.year, v.month, v.day) - EPOCH70).total_seconds()]
+    if isinstance(v, datetime.time): return ["t", v.hour * 3600 + v.minute * 60 + v.second + v.microsecond / 1e6]
+    if isinstance(v, datetime.timedelta): return ["t", v.total_seconds()]
+    if isinstance(v, str): return ["e" if v.startswith("#") and v in ("#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A") else "s", v]
+    raise TypeError(type(v))
+def xl_read(name):
+    data = open(os.path.join(XD, name), "rb").read()
+    wb = openpyxl.load_workbook(io.BytesIO(data), data_only=True)
+    sheets = []
+    for ws in wb.worksheets + list(getattr(wb, "chartsheets", [])):
+        chart = ws not in wb.worksheets
+        cells = []
+        if not chart:
+            for row in ws.iter_rows():
+                for c in row:
+                    q = xl_cell(c.value)
+                    if q is not None and q != ["s", ""]: cells.append([c.row - 1, c.column - 1] + q)
+        sheets.append({"name": ws.title, "hidden": ws.sheet_state != "visible", "chart": chart, "cells": cells, "frozen": (ws.freeze_panes and openpyxl.utils.cell.coordinate_from_string(ws.freeze_panes)[1] - 1) or 0 if not chart else 0})
+    order = [s.title for s in wb._sheets]
+    sheets.sort(key=lambda s: order.index(s["name"]))
+    return {"d1904": wb.epoch == CALENDAR_MAC_1904, "sheets": sheets}
+cases = []
+# basic: numbers of every size, text that reads as a number, text with tabs, quotes and breaks, booleans, errors
+wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Data"
+ws.append(["Time (s)", "Signal", "Label", "Flag"])
+vals = [0.1, 1 / 3, -2.5e-300, 1.7976931348623157e308, 5e-324, 123456789012345.6, -0.0, 42, 0.30000000000000004]
+for i, v in enumerate(vals):
+    ws.append([i * 0.5, v, ["007", "1.5", "a\tb", 'say "hi"', "two\nlines", "naïve ü 日本", " lead", "#DIV/0!", "1e5"][i], [True, False, None, True, False, None, True, False, True][i]])
+ws["E2"] = "#N/A"; ws["E2"].data_type = "e"; ws["E3"] = "#DIV/0!"; ws["E3"].data_type = "e"
+ws.cell(row=14, column=2, value=7.25)  # past an empty row
+# openpyxl writes 16 digits, so 0.1 + 0.2 would be 0.3: the values are written as Excel writes them, every digit (repr)
+def exact(nm, t):
+    if not nm.endswith("sheet1.xml"): return t
+    import re as _re
+    return _re.sub(r'<c r="B(\d+)"([^>]*)><v>[^<]*</v>', lambda m: f'<c r="B{m.group(1)}"{m.group(2)}><v>{repr(vals[int(m.group(1)) - 2]) if 2 <= int(m.group(1)) <= 10 else "7.25"}</v>', t)
+xl_write("basic.xlsx", xl_edit(xl_save(wb, "basic"), exact))
+# dates in the 1900 system: every built-in kind and some written by hand
+wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Dates"
+fmts = [None, "yyyy-mm-dd", "dd/mm/yyyy", "yyyy-mm-dd hh:mm:ss", "hh:mm:ss", "[h]:mm:ss", "mmm d", "h:mm AM/PM", '0.00 "days"', "0.0E+00", '[Red]yyyy\\-mm\\-dd', "mm:ss.0"]
+ws.append(["Plain", "Date", "Day first", "Date and time", "Time", "Elapsed", "Month", "Clock", "Days", "Scientific", "Coloured", "Minutes"])
+rows = [[1.5, datetime.date(2024, 3, 1), datetime.date(1900, 1, 1), datetime.datetime(2024, 3, 1, 12, 5, 30, 250000), datetime.time(13, 45, 10), datetime.timedelta(hours=50, minutes=3, seconds=7), datetime.date(2023, 12, 25), datetime.time(9, 30), 3.25, 6.02e23, datetime.date(1999, 12, 31), datetime.time(0, 2, 30, 500000)],
+        [2.5, datetime.date(1900, 2, 28), datetime.date(1900, 3, 1), datetime.datetime(1969, 7, 20, 20, 17, 40), datetime.time(0, 0, 1), datetime.timedelta(seconds=1.5), datetime.date(2000, 2, 29), datetime.time(23, 59, 59), 0.5, -1e-10, datetime.date(2100, 1, 1), datetime.time(0, 59, 59)],
+        [None, datetime.datetime(2024, 6, 30, 0, 0), datetime.date(1970, 1, 1), datetime.datetime(2038, 1, 19, 3, 14, 7), datetime.time(12, 0), datetime.timedelta(days=3), datetime.date(2024, 1, 31), datetime.time(18, 15), 1.0, 1.0, datetime.date(1950, 6, 15), datetime.time(0, 0, 0)]]
+for r in rows: ws.append(r)
+for k, f in enumerate(fmts):
+    if f:
+        for r in range(2, 5): ws.cell(row=r, column=k + 1).number_format = f
+for r in range(2, 5): ws.cell(row=r, column=9).value = [3.25, 0.5, 1.0][r - 2]; ws.cell(row=r, column=10).value = [6.02e23, -1e-10, 1.0][r - 2]
+xl_write("dates.xlsx", xl_save(wb, "dates"))
+wb = openpyxl.Workbook(); wb.epoch = CALENDAR_MAC_1904; ws = wb.active; ws.title = "Mac"
+ws.append(["When", "Value"])
+for d, v in [(datetime.datetime(1904, 1, 2), 1.0), (datetime.datetime(2024, 3, 1, 6, 0), 2.0), (datetime.datetime(1999, 12, 31, 23, 59, 59), 3.0)]:
+    ws.append([d, v]); ws.cell(row=ws.max_row, column=1).number_format = "yyyy-mm-dd hh:mm:ss"
+xl_write("mac1904.xlsx", xl_save(wb, "mac"))
+# several sheets: a merged title over the header, a frozen header of names and units, an empty one, a hidden one
+wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Raw data"
+ws["A1"] = "Run 12, Raman"; ws.merge_cells("A1:C1"); ws.append([]); ws.append(["Shift", "Counts", "Note"])
+for i in range(30): ws.append([100 + 2 * i, round(1000 * math.exp(-((i - 15) / 4) ** 2) + 50, 3), "spike" if i == 7 else None])
+w2 = wb.create_sheet("Calc"); w2.append(["Time", "Temperature", "2019"]); w2.append(["s", "°C", "K"])
+for i in range(12): w2.append([i * 10, 20 + i * 1.5, 293.15 + i])
+w2.freeze_panes = "A3"
+wb.create_sheet("Empty")
+w4 = wb.create_sheet("Hidden one"); w4.append(["x", "y"]); w4.append([1, 2]); w4.sheet_state = "hidden"
+w5 = wb.create_sheet("Origin"); w5.append(["Wavelength", "Absorbance", "Absorbance"]); w5.append(["nm", "", "a.u."]); w5.append(["", "sample A", "sample B"])
+for i in range(8): w5.append([400 + 10 * i, 0.1 * i, 0.2 * i])
+w5.freeze_panes = "B4"
+xl_write("sheets.xlsx", xl_save(wb, "sheets"))
+# written by hand: cached values of formulas (a whole column, and one cell), inline strings, cells without addresses, a prefix
+wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Formulas"
+ws.append(["A", "Twice", "Sum"])
+for i in range(1, 6): ws.append([i, f"=A{i + 1}*2", None])
+ws["C2"] = "=SUM(A2:A6)"
+base = xl_save(wb, "formulas")
+def cache(nm, t):
+    if not nm.endswith("sheet1.xml"): return t
+    import re as _re
+    t = _re.sub(r'<c r="B(\d)"><f>A\d\*2</f><v></v></c>', lambda m: f'<c r="B{m.group(1)}"><f>A{m.group(1)}*2</f><v>{2 * (int(m.group(1)) - 1)}</v></c>', t)
+    t = _re.sub(r'<c r="C2"><f>SUM\(A2:A6\)</f><v></v></c>', '<c r="C2"><f>SUM(A2:A6)</f><v>15</v></c>', t)
+    return t
+xl_write("formulas.xlsx", xl_edit(base, cache))
+hand = ('<?xml version="1.0" encoding="UTF-8"?><x:worksheet xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><x:sheetData>'
+        '<x:row r="1"><x:c t="inlineStr"><x:is><x:t>Name</x:t></x:is></x:c><x:c t="inlineStr"><x:is><x:r><x:t>Val</x:t></x:r><x:r><x:t xml:space="preserve">ue </x:t></x:r></x:is></x:c></x:row>'
+        '<x:row><x:c t="inlineStr"><x:is><x:t>a&amp;b &lt;c&gt; _x0009_tab</x:t></x:is></x:c><x:c><x:v>1.25</x:v></x:c></x:row>'
+        '<x:row><x:c r="A3" t="str"><x:f>"q"&amp;"r"</x:f><x:v>qr</x:v></x:c><x:c r="B3" t="b"><x:v>1</x:v></x:c></x:row>'
+        '<x:row r="5"><x:c r="B5"><x:v>-3</x:v></x:c></x:row></x:sheetData></x:worksheet>')
+wb = openpyxl.Workbook(); wb.active.title = "Hand"; base = xl_save(wb, "hand")
+xl_write("hand.xlsx", xl_edit(base, lambda nm, t: hand if nm.endswith("sheet1.xml") else t))
+for nm in ["basic.xlsx", "dates.xlsx", "mac1904.xlsx", "sheets.xlsx", "formulas.xlsx", "hand.xlsx"]:
+    cases.append({"fn": "xlsxRead", "file": nm, "want": xl_read(nm)})
+# refusals: each with the words Kurve gives
+ok = open(os.path.join(XD, "basic.xlsx"), "rb").read() if os.path.exists(os.path.join(XD, "basic.xlsx")) else b""
+def patch_cd(data, fn):  # every central directory record through fn(bytearray, offset)
+    b = bytearray(data); e = b.rfind(b"PK\x05\x06"); off = int.from_bytes(b[e + 16:e + 20], "little"); n = int.from_bytes(b[e + 10:e + 12], "little"); p = off
+    for _ in range(n):
+        fn(b, p); p += 46 + int.from_bytes(b[p + 28:p + 30], "little") + int.from_bytes(b[p + 30:p + 32], "little") + int.from_bytes(b[p + 32:p + 34], "little")
+    return bytes(b)
+refuse = {}
+refuse["not-a-zip.xlsx"] = (b"Time,Signal\n1,2\n", "not a zip file")
+refuse["cut.xlsx"] = (ok[: len(ok) * 6 // 10], "cut short or damaged")
+def enc(b, p): b[p + 8] |= 1
+refuse["password.xlsx"] = (patch_cd(ok, enc), "protected by a password")
+def meth(b, p): b[p + 10:p + 12] = (12).to_bytes(2, "little")
+refuse["bzip2.xlsx"] = (patch_cd(ok, meth), "compressed in a way Kurve does not read")
+b = bytearray(ok); e = b.rfind(b"PK\x05\x06"); b[e + 10:e + 12] = b"\xff\xff"; refuse["zip64.xlsx"] = (bytes(b), "a zip64 file")
+def crc(b, p): b[p + 16] ^= 0xFF
+refuse["checksum.xlsx"] = (patch_cd(ok, crc), "does not match its checksum")
+dz = io.BytesIO(); z = zipfile.ZipFile(dz, "w"); z.writestr("[Content_Types].xml", "<Types/>"); z.writestr("word/document.xml", "<w:document/>"); z.close()
+refuse["word.xlsx"] = (dz.getvalue(), "a Word document")
+for nm, (data, words) in refuse.items():
+    xl_write(nm, data); cases.append({"fn": "xlsxRead", "file": nm, "want": {"fail": words}})
+out["xlsx"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

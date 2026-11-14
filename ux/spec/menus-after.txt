@@ -313,6 +313,7 @@ Publish  ## new (DS2): what leaves Kurve, ← File › Export, + Edit's two copi
   Graph as PNG  ## ~ "Figure as PNG (image, for slides)"
   Processed data and fit as CSV  ## ~ "Final data and fit as CSV"
   Original data as CSV  ## ~ "Raw data as CSV, with its fingerprint"
+  Data as Excel (.xlsx)  ## new (SHEET_SPEC 3.7): every sheet as a sheet of a workbook
   Report…  ## ~ "Report as HTML"
   Copy the graph as a picture  ## ← Edit; + "Copy the figure as a picture" (File › Export), "Copy as a picture" (the graph's menus)
   Copy the results table  ## ~ "Copy results table"; ← Edit

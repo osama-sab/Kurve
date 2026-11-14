@@ -443,6 +443,14 @@ gridding (5.7); images kept as colour.
 
 ## 3.7 Excel
 
+Done 14.11, as below, with these changes of plan: several sheets ticked come in with the dialog's automatic choices, each on
+a sheet of its own (one through the dialog); a sheet is turned into the import's own text (`xlsxSheetText`, its notes on a
+first line), so the header rows, roles and findings are the dialog's; frozen rows of text are the header (names, units,
+comments: Kurve's own workbooks freeze theirs), and otherwise the line above the numbers; the export writes a comments row too
+when any column has one; the workbook's XML is scanned (`xlsxSheet`, `xlsxShared`) and only its small parts read as trees;
+the parser-test reads `fixtures/xlsx.json` (openpyxl's reading), and the fuzzer's `xlsxBytes` has openpyxl and pandas read
+Kurve's workbooks; Origin's own `.opju` stays out.
+
 **What.** An `.xlsx` (or `.xlsm`) imported, chosen or dropped, goes through the import dialog:
 every sheet of the workbook listed with its size, the first ticked (or all), each becoming a
 Kurve sheet named after its Excel sheet; the rows before the data offered as header rows (Long

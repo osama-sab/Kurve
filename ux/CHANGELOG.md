@@ -1024,6 +1024,27 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 3, slice 3.7: Excel (2026-11-14)
+
+- **An .xlsx or .xlsm file** (Import, Ctrl+O, a drop) is read from its cells: numbers with every digit, text as text (007 stays
+  007), TRUE and FALSE as 1 and 0, errors as text, dates and times by the cell's number format in either date system, a
+  formula's value as Excel last worked it out.
+- **Several sheets** are listed first with their sizes (a hidden one said, *Every sheet*); one ticked goes through the import
+  dialog, its sheet named after the Excel sheet; several come in at once, each on a sheet of its own, one undo step, one
+  record entry, one log line. Dropped, the sheets Excel shows come in so.
+- **Frozen rows of text are the header**: names, then units, then comments; a column that is one formula all the way down
+  says so in its comment.
+- **Publish › Data as Excel (.xlsx)**: every sheet with values as a workbook, names, units and comments frozen at the top,
+  numbers, text and dates as Excel keeps them.
+- **A table pasted from a web page** is read as its rows and cells, a cell spanning rows or columns filled into each.
+- Refused in words: not a zip, cut short, protected by a password, a zip64 file, another compression, a damaged part, a Word
+  document.
+
+Checked: parser-test (51 new: every cell of six workbooks made by openpyxl, some with their XML written by hand, against
+openpyxl's reading, `fixtures/xlsx.json`; seven refusals; the import's reading; Kurve's own workbooks read back; inflate against
+zlib at every level), the fuzzer's `xlsxBytes` (random sheets written by Kurve, every cell read back by openpyxl and pandas),
+sheet-drive (21 new checks), two budgets (200 000 rows × 3 written in 1.1 s, read and imported in 2.4 s).
+
 ## Closing the gap with Origin, wave 3, slice 3.5: reshaping (2026-11-14)
 
 - **Data › Reshape**, ten kinds, each an analysis with a result sheet that follows its data: *Stack columns* (wide to long, with
