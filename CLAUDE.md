@@ -3453,7 +3453,8 @@ and back); add a section to it for each report fixed.
 the pointer and keys (typing junk into cells and fields, sizing columns and rows, zooming, every
 pointer tool, wandering the menus and right-click menus, dialogs answered at random, windows
 dragged, resized, maximised and minimised, the dock, undo bursts, Find a command, examples, files
-imported, screen sizes, the theme, a sheet's own window, a matrix made, typed into and changed, coffee breaks), sampling
+imported, screen sizes, the theme, a sheet's own window, a matrix made, typed into and changed, Analyze › Fit's dialogs with
+their lists and ticks changed at random and run or left, coffee breaks), sampling
 memory, page elements, listeners, lag, long tasks and storage every 30 s into a CSV, and at the end reloading and comparing
 every project; run it for a long while (40 minutes) after touching windows, storage or rendering. `BIAS=text` makes the
 actions whose name holds the text twenty times as likely, to watch a new one closely.
