@@ -481,7 +481,7 @@ if (fixtures.implicit) {
     w.params.forEach((v, j) => note("implFit", Math.abs(r.params[at[j]] - v) / Math.max(w.errors[j], 1e-12 * Math.abs(v), 1e-300), `${c.name} p${j}`));
     w.errors.forEach((v, j) => note("implFit.se", relErr(r.errors[at[j]], v), `${c.name} se${j}`));
     note("implFit", relErr(r.dist.reduce((t, d) => t + d * d, 0), w.ss), c.name + " sum of squared distances");
-    w.odr.forEach((v, j) => note("implFit.odr", Math.abs(r.params[at[j]] - v) / Math.max(w.errors[j], 1e-300), `${c.name} odr p${j}`));
+    if (w.odr) w.odr.forEach((v, j) => note("implFit.odr", Math.abs(r.params[at[j]] - v) / Math.max(w.errors[j], 1e-300), `${c.name} odr p${j}`));
     // their published values, to four decimals (the turn in radians): within half a unit of the last place
     if (w.pub) w.pub.forEach((v, j) => note("implFit.pub", Math.abs(r.params[j] - v) / (j === 4 ? 0.00005 * 180 / Math.PI : 0.00005), `${c.name} p${j} against the paper`));
   }

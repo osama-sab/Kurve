@@ -76,8 +76,8 @@ const BUDGET = {
   "Self-deconvolution: 100 000 points": [160, "Fourier self-deconvolution of 100 000 points, Bessel apodisation, twice narrower (FIT2_SPEC 4.7)"],
   "Surface: quintic, 100 000 points": [1100, "a polynomial surface of order 5 (21 coefficients) on 100 000 points, solved directly in double-double (FIT2_SPEC 4.4)"],
   "Surface: Gaussian, 200 × 200 matrix": [800, "a turned Gaussian surface fitted to a matrix of 40 000 cells by Levenberg–Marquardt from its guess (FIT2_SPEC 4.4)"],
-  "Implicit: ellipse, 20 000 points": [1500, "a turned ellipse through 20 000 points by orthogonal distance, each point's foot by Eberly's root, from the algebraic ellipse (FIT2_SPEC 4.5)"],
-  "Implicit: formula, 500 points": [600, "a parabola written as y − (a x² + b x + c) = 0 through 500 points by orthogonal distance, each foot by Newton's projection (FIT2_SPEC 4.5)"],
+  "Implicit: ellipse, 20 000 points": [1200, "a turned ellipse through 20 000 points by orthogonal distance, each point's foot by Eberly's root, from the algebraic ellipse (FIT2_SPEC 4.5)"],
+  "Implicit: formula, 500 points": [500, "a parabola written as y − (a x² + b x + c) = 0 through 500 points by orthogonal distance, each foot by Newton's projection (FIT2_SPEC 4.5)"],
   "ANOVA: Tukey, 10 groups": [1100, "Tukey–Kramer's 45 pairs and its quantile (worked out in the worker in the app)"],
 };
 const got = {};

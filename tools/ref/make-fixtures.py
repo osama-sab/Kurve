@@ -1732,8 +1732,10 @@ def lsq_full(fun, q0, m, n):
     J = r.jac; rss = float(np.sum(r.fun ** 2)); C = np.linalg.inv(J.T @ J) * rss / (n - m)
     return [float(v) for v in r.x[:m]], [float(math.sqrt(C[i, i])) for i in range(m)], rss
 def odr_impl(f, X, Y, b0):
+    # None unless ODRPACK says it converged (info's last digit 1, 2 or 3): on Gander, Golub and Strebel's eight points of an ellipse
+    # its penalty runs off to 10⁵ even from the optimum and stops at its iteration limit (info 4)
     o = odr.ODR(odr.Data(np.vstack([X, Y]), y=1), odr.Model(lambda b, x: f(b, x[0], x[1]), implicit=True), beta0=b0, maxit=5000, sstol=1e-15, partol=1e-15).run()
-    return [float(v) for v in o.beta]
+    return [float(v) for v in o.beta] if o.info % 10 in (1, 2, 3) else None
 def tn(t): return ((t + 90) % 180 + 180) % 180 - 90
 def ell_case(name, X, Y, p0, theta=True, formula=None, start=None):
     X, Y = np.asarray(X, float), np.asarray(Y, float); n = len(X)

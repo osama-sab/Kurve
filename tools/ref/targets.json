@@ -804,11 +804,11 @@
  },
  "implFit.pub": {
   "tol": 1,
-  "why": "Gander, Golub and Strebel's (1994) circle and ellipse as they print them, to four decimals: each parameter within half a unit of the last place printed (1 means half a unit)"
+  "why": "Gander, Golub and Strebel's (1994) circle and ellipse as they print them, to four decimals: each parameter within half a unit of the last place printed (1 means half a unit; worst seen 0.87)"
  },
  "implFit.odr": {
   "tol": 1e-2,
-  "why": "against SciPy's odr in its implicit mode, started from the optimum, which reaches the curve by a penalty and stops a few thousandths of an error from it (worst seen 2.7e-3)"
+  "why": "against SciPy's odr in its implicit mode, started from the optimum, which reaches the curve by a penalty and stops a few thousandths of an error from it (worst seen 2.7e-3); left out where ODRPACK does not say it converged (Gander, Golub and Strebel's ellipse, where it runs off to its iteration limit)"
  },
  "xps.shirley": {
   "tol": 1e-12,

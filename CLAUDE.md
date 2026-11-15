@@ -4653,6 +4653,15 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   found, 5e-9 from statsmodels: near a kink of the median (the middle residual changing places) each round closed only 9 % of
   the gap, and it needed 245. The limit is 1000 rounds, and a fit that reaches it says it did not settle. A limit on rounds is
   set from the slowest case measured, not from the typical one.
+- **Two implementations agreeing is not a reference.** The fixture's "Gander, Golub and Strebel's ellipse" had two of its eight
+  points transposed; Kurve, SciPy's least squares and its ODR all agreed on the ellipse through the wrong points, and only the
+  paper's printed values (2.6996, 3.8160, 6.5187, 3.0319, 0.3596 rad) showed it. A published example is checked against what is
+  published. And a reference is checked too: SciPy's parametric fit left a point on the far side of a thin ellipse and stopped
+  short, and its ODR ran off to its iteration limit on those eight points even from the optimum.
+- **A root near −1 and a root near 0 want different variables.** An ellipse's distance by Eberly's root s lost four digits for a
+  point near the long axis inside a thin ellipse (s near −1, s + 1 cancelling); worked in w = s + 1 instead it lost them near the
+  curve (s near 0). It is worked in s, and again in w when the root is below −½, and the distance taken as |s| times a vector
+  that has no difference of nearly equal numbers. 40-digit references at the hard places found both; a sampled curve did not.
 - **A variable taken out is grepped for.** Removing the Explorer's files took `fids` out of
   `autoImport`, and three `return {fids}` further down threw on every dropped file; the syntax
   check passes a reference to a name that does not exist. `review-drive`'s drop caught it. After
