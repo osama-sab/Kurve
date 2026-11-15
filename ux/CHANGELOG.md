@@ -1024,6 +1024,20 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 4's end (2026-11-15)
+
+- **The suite** green on the last slice: every node test, the bench (231 checks), the fuzzer, every drive, the menus and 47 speed
+  budgets.
+- **A 40-minute lab day** with a new action: Analyze › Fit's dialogs opened, their lists and ticks changed at random, then run or
+  left. It found a fault from 06.11: every move of the pointer over a map of a series threw (its readout read the rows' order,
+  which the cached grid no longer kept); fixed, and odd-test reads the value under the pointer. Memory, page elements and
+  listeners came back down by the end, and the reload lost nothing.
+- **Screenshots** of the wave's tools (a robust fit with bootstrap intervals in Results, multiple regression's dialog and report,
+  Compare models, a fitted surface as a map, an implicit fit's plot) at 1440, 1024 and 390 px, light and dark, Bench and
+  Graphite: read by eye. Results' statistics box cut a long line (the robust fit's) at its edge; it wraps after a semicolon now.
+- **Origin's tutorials** for the wave could not be worked: originlab.com is refused by this environment's network, as in waves 1
+  to 3. Gander, Golub and Strebel's published circle and ellipse stand in for the implicit fit's (every printed digit).
+
 ## Closing the gap with Origin, wave 4, slice 4.5: implicit fits (2026-11-15)
 
 - **Analyze › Fit › Implicit fit…**: a curve f(x, y) = 0 through points whose x and y are both measured, fitted by orthogonal

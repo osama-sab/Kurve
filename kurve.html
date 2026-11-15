@@ -25074,7 +25074,7 @@ function renderResults0(){
   if(rShow().find) h+=findHtml(f);
   h+=honestHtml(f);
   h+=diagHtml(f);
-  h+=`</div><div class="rside"><dl class="kv">${statsBrief(f).concat(diagStats(f)).map(([k,v])=>{ const t=k==="Fit control"?ctlShort(f):String(v); return `<dt>${esc(k)}</dt><dd${t.length>18?' class="w"':""}>${t.split(" · ").map(x=>`<span class="nw">${esc(x)}</span>`).join(" · ")}</dd>`; }).join("")}</dl></div></div>`;
+  h+=`</div><div class="rside"><dl class="kv">${statsBrief(f).concat(diagStats(f)).map(([k,v])=>{ const t=k==="Fit control"?ctlShort(f):String(v); return `<dt>${esc(k)}</dt><dd${t.length>18?' class="w"':""}>${t.split(" · ").map(x=>x.split("; ").map(y=>`<span class="nw">${esc(y)}</span>`).join("; ")).join(" · ")}</dd>`; }).join("")}</dl></div></div>`;
   const fa=document.activeElement, keep=fa&&fa.id&&box.contains(fa)&&fa.tagName==="INPUT"?{id:fa.id,s:fa.selectionStart,e:fa.selectionEnd}:null;
   box.innerHTML=h;
   if(keep){ const el=document.getElementById(keep.id); if(el){ el.focus({preventScroll:true}); try{ el.setSelectionRange(keep.s,keep.e); }catch(e){} } }
