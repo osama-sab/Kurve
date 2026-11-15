@@ -475,6 +475,94 @@ await page(async p => {
   check("a constraint between coefficients: the iterative fit", r.m === "lm" && r.cons === "a3 = a2/10", JSON.stringify(r));
 }, { name: "polynomials with limits" });
 
+console.log("Wave 4, slice 4.8: honest intervals");
+const lineProj = async (p, out) => p.evaluate(async (out) => { const x = [], y = []; let s = 11; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; };
+    for (let i = 0; i < 40; i++) { const v = i / 4; x.push(v); y.push(2 + 3 * v + 0.6 * r()); }
+    if (out) { y[6] += 9; y[20] -= 11; y[33] += 14; }
+    const xc = makeCol("x", "X", "s", x), yc = Object.assign(makeCol("y", "Signal", "mV", y), { pipe: [], mask: [] });
+    const pr = Object.assign(blankProject("Line"), { cols: [xc, yc], activeY: yc.id }); pr.graphs = [{ id: newGid(), name: "Graph 1", cols: [yc.id], plot: { style: "auto", resid: true } }];
+    await createProject(pr, "test"); await new Promise(r => setTimeout(r, 80)); renderAll(); }, out);
+await page(async p => {
+  await lineProj(p, true); await p.waitForTimeout(300);
+  await p.evaluate(() => { S.fitMode = "curve"; showTab("fit"); chooseModel("linear"); runFit(); }); await p.waitForTimeout(300);
+  const ls = await p.evaluate(() => { const v = activeFit().params.slice(); showTab("fit"); renderFit(); return v; }); await p.waitForTimeout(100);
+  check("the Fit window offers Robust: None, Huber, Bisquare", await p.evaluate(() => [...document.querySelectorAll("#fitRob option")].map(o => o.value).join() === "none,huber,bisquare"));
+  await p.selectOption("#fitRob", "bisquare"); await p.waitForTimeout(80);
+  await p.click("#doFit"); await p.waitForTimeout(400);
+  let r = await p.evaluate(() => { const f = activeFit(), c = activeYCol(), X = finalOf(c).x, Y = finalOf(c).y, fl = (x, q) => q[0] + q[1] * x;
+    const R = robustFit(fl, X, Y, null, [0, 0], [false, false], (W, p0) => polyLsq(X, Y, W, 1, {}), { kind: "bisquare" });
+    return { rob: f.robust, p: f.params, e: f.errors, pr: R.res.params, er: R.res.errors, s: R.robust.s, poly: !!f.poly, m: f.ctl.method }; });
+  check("Bisquare: a robust fit stored with its kind, scale and rounds; solved directly then reweighted", r.rob && r.rob.kind === "bisquare" && r.rob.conv && r.rob.iter > 2 && r.m === "qr" && !r.poly, JSON.stringify(r.rob));
+  check("its line is robustFit's to the last digits, errors as RLM's H1", r.p.every((v, i) => Math.abs(v - r.pr[i]) <= 1e-12 * Math.max(1, Math.abs(v))) && r.e.every((v, i) => Math.abs(v - r.er[i]) <= 1e-9 * v) && Math.abs(r.rob.s - r.s) < 1e-12, JSON.stringify(r));
+  check("the outliers pull least squares and not the robust line", Math.abs(r.p[1] - 3) < 0.05 && Math.abs(ls[1] - 3) > Math.abs(r.p[1] - 3) * 2, JSON.stringify({ ls, rob: r.p }));
+  r = await p.evaluate(() => { const ws = [...document.querySelectorAll("#plot circle[data-rw]")].map(c => +c.dataset.rw); return { n: ws.length, zero: ws.filter(w => w === 0).length, low: ws.filter(w => w < 0.5).length, rad: [...document.querySelectorAll("#plot circle[data-rw]")].map(c => +c.getAttribute("r")) }; });
+  check("under the graph each residual is as large as its point counts, the three outliers open rings at weight 0", r.n === 40 && r.zero === 3 && r.low === 3 && Math.max(...r.rad) > Math.min(...r.rad), JSON.stringify({ n: r.n, zero: r.zero, low: r.low }));
+  await p.evaluate(() => { openWin("res", { render: true }); focusWin("res"); }); await p.waitForTimeout(250);
+  r = await p.evaluate(() => { const sec = document.querySelector('#pane-res section[data-rd="rob"]'), note = [...document.querySelectorAll("#pane-res .note")].map(n => n.textContent).join(" | ");
+    return { sec: !!sec, rows: sec ? sec.querySelectorAll("tbody tr").length : 0, txt: sec ? sec.textContent : "", note, side: [...document.querySelectorAll("#pane-res .rside dt")].map(d => d.textContent).join(",") }; });
+  check("Results: a Robust weights section listing the three points that count least, and a note with the count", r.sec && r.rows === 3 && /bisquare weights, c = 4\.685/i.test(r.txt) && /Robust: 3 of 40 points count less than half, 3 not at all/.test(r.note), JSON.stringify(r).slice(0, 400));
+  r = await p.evaluate(() => ({ st: (statsList(activeFit()).find(x => x[0] === "Robust") || [])[1], meth: methodLines().filter(l => /^Robust|^Algorithm/.test(l)), txt: resultsText(",").split("\n").filter(l => /^Robust|Points counting/.test(l)) }));
+  check("the statistics, the report's Method and the copied table say it", /bisquare weights/.test(r.st || "") && r.meth.length === 2 && /then iteratively reweighted/.test(r.meth.join()) && r.txt.length === 2, JSON.stringify(r.txt));
+  check("the prediction band is drawn with the robust scale", await p.evaluate(() => { setPlotKey("bandPred", true, "x"); return !!document.querySelector("#plot path[data-pband]"); }));
+  // Bootstrap: ticked, worked out at once for the fit on screen, in the worker.
+  await p.evaluate(() => { showTab("fit"); renderFit(); }); await p.waitForTimeout(100);
+  await p.click("#fitBoot"); await p.waitForTimeout(100);
+  check("Bootstrap intervals ticked: resample, resamples and seed offered", await p.evaluate(() => !!$("#fitBootK") && $("#fitBootB").value === "1000" && $("#fitBootS").value === "1"));
+  await p.waitForFunction(() => activeFit().boot, null, { timeout: 30000 });
+  r = await p.evaluate(() => { const f = activeFit(), q = bootJobOf(f, { kind: "cases", B: 1000, seed: 1 }), b = bootFit(q); return { boot: f.boot, se: b.se, ci: b.ci, rob: q.robust }; });
+  check("the worker's bootstrap is bootFit's, the same seed giving the same numbers, each resample fitted robustly", r.boot.B === 1000 && r.boot.seed === 1 && r.rob && r.rob.kind === "bisquare" && r.boot.se.every((v, i) => v === r.se[i]) && r.boot.ci.every((c, i) => c[0] === r.ci[i][0] && c[1] === r.ci[i][1]), JSON.stringify(r).slice(0, 300));
+  r = await p.evaluate(() => { openWin("res", { render: true }); focusWin("res"); const sec = document.querySelector('#pane-res section[data-rd="boot"]'); return { sec: !!sec, rows: sec ? sec.querySelectorAll("tbody tr").length : 0, txt: sec ? sec.textContent : "" }; });
+  check("Results' Bootstrap section: each parameter's bootstrap error and percentile interval beside the curvature's", r.sec && r.rows === 2 && /1000 resamples of the points, seed 1; each fitted robustly\. Percentile intervals \(not BCa\)/.test(r.txt), JSON.stringify(r).slice(0, 300));
+  r = await p.evaluate(() => { const L = resultsText(",").split("\n"), csvH = L.findIndex(l => /^Bootstrap,/.test(l)); return { h: csvH >= 0, rows: L.slice(csvH + 1, csvH + 4).length }; });
+  check("the copied table carries the bootstrap", r.h, JSON.stringify(r));
+  // Stopped, nothing changes; another seed, the next seed's numbers.
+  await p.evaluate(() => { const b = activeFit().boot; window._b0 = b.se.slice(); $("#rBootAgain").click(); }); await p.waitForTimeout(30);
+  r = await p.evaluate(() => ({ run: !!S.bootRun, bar: !!document.getElementById("rBootBar") }));
+  check("Another seed shows a progress line with Stop", r.run && r.bar, JSON.stringify(r));
+  await p.evaluate(() => { const b = $("#rBootStop"); if (b) b.click(); }); await p.waitForTimeout(400);
+  r = await p.evaluate(() => ({ run: !!S.bootRun, seed: activeFit().boot.seed }));
+  check("Stop leaves the fit's bootstrap as it was", !r.run && r.seed === 1, JSON.stringify(r));
+  await p.evaluate(() => $("#rBootAgain").click());
+  await p.waitForFunction(() => activeFit().boot && activeFit().boot.seed === 2, null, { timeout: 30000 });
+  r = await p.evaluate(() => ({ se: activeFit().boot.se, se0: window._b0 }));
+  check("Another seed: the next seed's intervals, a little different", r.se.some((v, i) => v !== r.se0[i]) && r.se.every((v, i) => Math.abs(v / r.se0[i] - 1) < 0.25), JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(200);
+  check("one undo puts the first seed's intervals back", await p.evaluate(() => activeFit().boot && activeFit().boot.seed === 1));
+  // A fit of every column, and one that follows, is robust too.
+  r = await p.evaluate(() => { const f = activeFit(), o = fitOne(activeYCol(), batchTemplate(f), f.params); return o.fit && { rob: o.fit.robust, same: o.fit.params.every((v, i) => Math.abs(v - f.params[i]) <= 1e-9 * Math.max(1, Math.abs(f.params[i]))) }; });
+  check("a fit of every column takes the template's robust weights", r && r.rob && r.rob.kind === "bisquare" && r.same, JSON.stringify(r));
+  // After a reload.
+  await p.reload(); await ready(p); await p.waitForTimeout(300);
+  r = await p.evaluate(() => { openWin("res", { render: true }); focusWin("res"); const f = activeFit(); return { rob: f.robust && f.robust.kind, boot: f.boot && f.boot.B, secs: [...document.querySelectorAll("#pane-res section[data-rd]")].map(s => s.dataset.rd).filter(k => k === "rob" || k === "boot").join() }; });
+  check("after a reload: the robust fit, its weights and its bootstrap", r.rob === "bisquare" && r.boot === 1000 && r.secs === "rob,boot", JSON.stringify(r));
+  // Refusals in words.
+  r = await p.evaluate(() => { showTab("fit"); const d = ensureDraft(); d.robust = "huber"; d.cons = MODELS.linear.params[1] + " = 3"; S.fitError = ""; runFit(); const e = S.fitError; d.cons = ""; S.fitError = ""; return e; });
+  check("robust with constraints between parameters is refused in words", /robust fit does not take constraints/.test(r), r);
+  // Huber, the iterative road: a decay.
+  r = await p.evaluate(() => { const d = ensureDraft(); d.robust = "huber"; chooseModel("expdec"); ensureDraft().robust = "huber"; runFit(); return null; }); await p.waitForTimeout(500);
+  r = await p.evaluate(() => { const f = activeFit(); return { m: f.model, rob: f.robust, ctl: f.ctl.method, ct: ctlText(f) }; });
+  check("Huber on an iterative model: reweighted from Levenberg–Marquardt's fit", r.m === "expdec" && r.rob && r.rob.kind === "huber" && r.ctl === "lm" && /then iteratively reweighted/.test(r.ct), JSON.stringify(r));
+}, { name: "a robust line and its bootstrap" });
+await page(async p => {
+  // A peak fit, robust, its bootstrap by residuals.
+  await p.evaluate(async () => { const x = [], y = []; let s = 3; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; };
+    for (let i = 0; i < 160; i++) { const v = i / 8; x.push(v); y.push(0.5 + 8 * Math.exp(-0.5 * ((v - 9) / 1.4) ** 2) + 0.2 * r()); }
+    y[40] += 6; y[120] += 5;
+    const xc = makeCol("x", "X", "", x), yc = Object.assign(makeCol("y", "Y", "", y), { pipe: [], mask: [] });
+    const pr = Object.assign(blankProject("Peak"), { cols: [xc, yc], activeY: yc.id }); pr.graphs = [{ id: newGid(), name: "Graph 1", cols: [yc.id], plot: { style: "auto" } }];
+    await createProject(pr, "test"); await new Promise(r => setTimeout(r, 80)); renderAll(); });
+  await p.waitForTimeout(300);
+  await p.evaluate(() => { S.fitMode = "peaks"; showTab("fit"); const d = ensurePeakDraft(); d.base = "const"; d.peaks = []; renderFit(); });
+  await p.evaluate(() => { const d = ensurePeakDraft(); d.base = "const"; d.peaks = [{ type: "gauss", id: "pk1" }]; const m = pdraftModel(); d.init = m.slots.map(s => s.kind === "base" ? 0.5 : s.name === "xc" ? 9 : s.name === "A" ? 28 : 1.4); d.fixed = d.init.map(() => false); renderFit(); });
+  await p.waitForTimeout(150);
+  check("the peak fit offers Robust and Bootstrap intervals too", await p.evaluate(() => !!$("#pfRob") && !!$("#pfBoot")));
+  await p.evaluate(() => { showTab("fit"); renderFit(); }); await p.waitForTimeout(100);
+  await p.selectOption("#pfRob", "huber"); await p.waitForTimeout(50);
+  await p.evaluate(() => { const d = ensurePeakDraft(); d.boot = { on: true, kind: "resid", B: 300, seed: 7 }; runPeakFit(); });
+  await p.waitForFunction(() => activeFit() && activeFit().boot, null, { timeout: 30000 });
+  const r = await p.evaluate(() => { const f = activeFit(); return { k: f.kind, rob: f.robust, B: f.boot.B, kind: f.boot.kind, se: f.boot.se, e: f.errors }; });
+  check("a robust peak fit, its bootstrap of the residuals worked out after the fit", r.k === "composite" && r.rob && r.rob.kind === "huber" && r.B === 300 && r.kind === "resid" && r.se.every((v, i) => !r.e[i] || Math.abs(v / r.e[i] - 1) < 0.6), JSON.stringify(r));
+}, { name: "a robust peak fit and its bootstrap" });
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

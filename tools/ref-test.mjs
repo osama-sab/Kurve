@@ -417,6 +417,17 @@ const nistRead = (name) => { const txt = readFileSync(join(here, "ref", "nist", 
   }
 }
 
+/* ---- Robust fits (FIT2_SPEC 4.8): robustFit (through robustPoly) on lines and polynomials against statsmodels' RLM at its fixed point: the
+   parameters, their H1 errors, the scale and each point's weight ---- */
+{
+  for (const c of fixtures.robust.cases) {
+    const [X, Y, k, kind] = c.args, w = c.want, R = get("robustPoly")(X, Y, k, kind);
+    if (R.error) { note("robust", Infinity, c.name + ": " + R.error); continue; }
+    w.params.forEach((v, j) => { note("robust", relErr(R.params[j], v, 1e-12 * Math.max(...w.params.map(Math.abs))), `${c.name} p${j}`); note("robust.se", relErr(R.errors[j], w.bse[j]), `${c.name} se${j}`); });
+    note("robust", relErr(R.scale, w.scale), c.name + " scale"); note("robust", Math.max(...w.w.map((v, i) => Math.abs(R.w[i] - v))), c.name + " weights");
+  }
+}
+
 /* ---- NIST's nonlinear sets: lmFit from both of NIST's starts, with the tolerance at 1e-15 (as Fit control can set it) ----
    Each parameter and its standard deviation against the certified values. From the first start four sets go to another
    minimum or none (as many fitters do): they are named, and a fifth would fail. Lanczos1's data are its function to 13

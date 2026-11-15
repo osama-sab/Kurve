@@ -829,6 +829,30 @@ def bs_post(c, out):
     return e, f"residual sums {e:.2e}"
 POST["bestSubsets"] = bs_post
 
+# Robust fits (FIT2_SPEC 4.8): a polynomial with outliers planted, against statsmodels' RLM run to its fixed point from least
+# squares, as Kurve's reweighting is: the parameters (over their largest), the scale, each point's weight, the H1 errors.
+@gen("robustPoly", 1e-9, 0.3)
+def _():
+    import statsmodels.api as sm
+    k, n = int(rng.integers(1, 4)), int(rng.integers(15, 80)); kind = str(rng.choice(["huber", "bisquare"]))
+    X = sorted(set(float(v) for v in rng.uniform(-5, 5, n))); n = len(X); c = [float(v) for v in rng.normal(0, 2, k + 1)]
+    Y = [float(sum(c[j] * x ** j for j in range(k + 1)) + rng.normal(0, 0.3)) for x in X]
+    for i in rng.choice(n, int(rng.integers(0, max(1, n // 8))), replace=False): Y[int(i)] += float(rng.choice([-1, 1]) * rng.uniform(2, 8))
+    D = np.column_stack([np.asarray(X) ** j for j in range(k + 1)]); M = sm.robust.norms.HuberT(t=1.345) if kind == "huber" else sm.robust.norms.TukeyBiweight(c=4.685)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore"); r = sm.RLM(np.asarray(Y), D, M=M).fit(maxiter=5000, tol=1e-14, conv="coefs")
+    if not np.all(np.isfinite(r.bse)): raise ValueError("no errors")
+    return [X, Y, k, kind], {"params": [float(v) for v in r.params], "bse": [float(v) for v in r.bse], "scale": float(r.scale), "w": [float(v) for v in r.weights]}
+def robust_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or "params" not in out: return float("inf"), f"no fit: {str(out)[:120]}"
+    big = max(abs(v) for v in w["params"]) or 1.0
+    e = max(abs(a - b) / big for a, b in zip(out["params"], w["params"]))
+    e = max(e, abs(out["scale"] - w["scale"]) / max(w["scale"], 1e-300), max(abs(a - b) for a, b in zip(out["w"], w["w"])))
+    es = max(abs(a - b) / max(abs(b), 1e-300) for a, b in zip(out["errors"], w["bse"]))
+    return max(e, es), f"parameters, scale and weights {e:.2e}, errors {es:.2e}"
+POST["robustPoly"] = robust_post
+
 cases = []
 ONLY = os.environ.get("ONLY")  # ONLY=name,name: those generators alone
 for name, (f, tol) in GEN.items():

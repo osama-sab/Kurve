@@ -854,6 +854,35 @@ await page(async p => {
   check("after a reload the three are there", JSON.stringify(r) === JSON.stringify([["cmpmod", true], ["cmpdata", true], ["cmpdata", true]]), JSON.stringify(r));
 }, { name: "4.3" });
 
+// FIT2_SPEC 4.8: a linear model's bootstrap, through its dialog.
+console.log("4.8: honest intervals");
+await page(async p => {
+  await p.evaluate(() => { const n = 40, x = [], y = []; let s = 21; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; };
+    for (let i = 0; i < n; i++) { x.push(i / 4); y.push(+(2 - 0.7 * i / 4 + r()).toFixed(4)); }
+    const col = (role, nm, d) => Object.assign(makeCol(role, nm, ""), { data: d }, role === "y" ? { pipe: [], mask: [] } : {});
+    save({ cols: [col("x", "X", x), col("y", "Y", y)], activeY: null }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  await p.evaluate(ids => { anaDlg("lm", { cols: ids }); }, ids); await p.waitForSelector("#aLy");
+  await p.selectOption("#aLy", ids[1]); await p.waitForTimeout(80);
+  let r = await p.evaluate(() => ({ opts: [...document.querySelectorAll("#aLb option")].map(o => o.value).join(), B: $("#aLbB").value, seed: $("#aLbS").value }));
+  check("the linear model's dialog offers a bootstrap: none, cases, residuals, the resamples and a seed", r.opts === ",cases,resid" && r.B === "1000" && r.seed === "1", JSON.stringify(r));
+  await p.selectOption("#aLb", "resid"); await p.fill("#aLbB", "500"); await p.fill("#aLbS", "3"); await p.click("#formOk");
+  await p.waitForFunction(() => { const a = anaList().find(x => x.kind === "lm"); return a && a.res && (a.res.report || a.res.err); }, null, { timeout: 60000 });
+  r = await p.evaluate(ids => { const a = anaList().find(x => x.kind === "lm"), o = {}; P().cols.filter(c => c.ana === a.id).forEach(c => { o[c.ak] = c.data.slice(); });
+    const c = ids.map(colById), rows = c[0].data.map((_, i) => i), want = anaRunKind("lm", [{ id: ids[1], name: "Y", rows, vals: c[1].data }, { id: ids[0], name: "X", rows, vals: c[0].data }], a.p), wc = (k) => (want.tables[0].cols.find(q => q.k === k) || {}).vals;
+    return { boot: a.p.boot, o, w: { bse: wc("bse"), blo: wc("blo"), bhi: wc("bhi"), se: wc("se"), b: wc("b") }, secs: a.res.report.sections.map(s => s.title), method: a.res.report.method }; }, ids);
+  check("…kept with the analysis: residuals, 500 resamples, seed 3", r.boot && r.boot.kind === "resid" && r.boot.B === 500 && r.boot.seed === 3, JSON.stringify(r.boot));
+  check("…each coefficient's bootstrap error and percentile interval on the sheet, as the kind gives them with that seed", r.o.bse && r.o.bse.every((v, i) => v === r.w.bse[i]) && r.o.blo.every((v, i) => v === r.w.blo[i] && v < r.o.b[i]) && r.o.bhi.every((v, i) => v === r.w.bhi[i] && v > r.o.b[i]), JSON.stringify([r.o.bse, r.w.bse]));
+  check("…near the model's own errors, a report section and the method's line", r.o.bse.every((v, i) => Math.abs(v / r.o.se[i] - 1) < 0.3) && r.secs.includes("Bootstrap, 95% percentile interval") && /Bootstrap: 500 resamples of the residuals, seed 3, each fitted again; percentile intervals \(not BCa\)\./.test(r.method), JSON.stringify([r.secs, r.method]));
+  // Followed: a value typed, worked out again with the same seed.
+  await p.evaluate(ids => { const c = colById(ids[1]); setCell(c, 5, 9); save({ cols: P().cols }, "typed"); renderAll(); }, ids); await p.waitForTimeout(800);
+  r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "lm"); return { seed: a.p.boot.seed, bse: P().cols.find(c => c.ana === a.id && c.ak === "bse").data.slice() }; });
+  check("…worked out again when a value changes, with its seed", r.seed === 3 && r.bse.every(Number.isFinite), JSON.stringify(r));
+  await p.reload(); await ready(p); await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "lm"); return a && a.p.boot && a.p.boot.B; });
+  check("…and after a reload", r === 500, r);
+}, { name: "4.8" });
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

@@ -1024,6 +1024,22 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 4, slice 4.8: honest intervals (2026-11-15)
+
+- **Robust fits**: *Robust* in the Fit window's options (curve and peak fits), Huber's or the bisquare's weights, by iteratively
+  reweighted least squares from the least-squares fit, the scale the residuals' median absolute deviation; the residuals under
+  the graph drawn as large as their points count, Results' *Robust weights* section (the scale, the rounds, the points that
+  count least), a note with the count, the statistics, the report and the CSV; the prediction band with the robust scale; a fit
+  of every column and a fit that follows its data robust too.
+- **Bootstrap intervals**: ticked in the Fit window's options, each fit's parameters resampled (cases or residuals, 200 to
+  10 000 times, a seed) in the compute worker, with a progress line and *Stop*; Results' *Bootstrap* section sets each
+  parameter's bootstrap error and percentile interval beside the curvature's, *Another seed* runs it again; the report, the
+  copied table and the CSV carry it. The linear model's dialog takes a bootstrap of its coefficients too.
+- **Checked**: statsmodels' RLM (HuberT, TukeyBiweight, the H1 covariance) on six fixtures to 2e-12 and on random polynomials
+  with outliers by the fuzzer to 1.6e-11, the errors included (a polynomial's derivatives exact); a robust line not pulled by
+  planted outliers, Huber's efficiency near 0.95, its H1 error against its spread; the bootstrap interval's coverage of a known
+  slope over 400 data sets, the same seed giving the same numbers.
+
 ## Closing the gap with Origin, wave 4, slice 4.3: comparing fits (2026-11-14)
 
 - **Analyze › Fit › Compare models…**: two to five fit settings (the fit on screen, saved settings, your functions, any built-in

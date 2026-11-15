@@ -753,5 +753,17 @@
  "cmp.data.F": {
   "tol": 1e-06,
   "why": "the F test from two iterative sums that nearly cancel"
+ },
+ "robust": {
+  "tol": 1e-10,
+  "why": "the parameters, the scale and the weights at the fixed point of the reweighting, against statsmodels' RLM run to 1e-14 (Kurve settles at 1e-12)"
+ },
+ "robust.se": {
+  "tol": 1e-10,
+  "why": "RLM's H1 errors, from the exact derivatives of a polynomial"
+ },
+ "robustPoly": {
+  "tol": 1e-10,
+  "why": "random polynomials with outliers against RLM: the parameters over their largest, the scale, the weights and the H1 errors (worst seen 1.6e-11)"
  }
 }

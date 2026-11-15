@@ -847,6 +847,8 @@ details.grp>.gb{padding:var(--sp-1) var(--sp-4) var(--sp-4)}
 /* Fit control and the iterations of a curve fit */
 details.fctl,details.flog{margin:var(--sp-5) 0}
 .fctl .frow{grid-template-columns:128px minmax(0,1fr);margin-bottom:var(--sp-4)}
+.fboot select{justify-self:start}.fbootc{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-4)}.fbootc input{width:5.5em;font-family:var(--mono)}.fbootc input.seed{width:7em}.fbootc>label{color:var(--ink-2)}
+.bootrun{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap}.bootbar{flex:1 1 120px;min-width:80px;height:6px;border-radius:var(--r-s);background:var(--panel-3);border:1px solid var(--rule);overflow:hidden}.bootbar>span{display:block;height:100%;background:var(--ctl-on)}
 .fctl .frow>input[type=text]{max-width:160px;font-family:var(--mono);text-align:right}
 .fctl .fcm{color:var(--ink)}
 .flnote{font-size:var(--fs-tab);margin:0 0 var(--sp-3)}
@@ -934,6 +936,7 @@ table.rtab{border-collapse:collapse;font-size:var(--fs-tab);width:100%}
 .rtab th .unit{display:block;font-size:var(--fs-cap)}
 .rtab th.l,.rtab td.l{text-align:left}
 .rtab td{padding:var(--sp-2) var(--sp-4);border-bottom:1px solid var(--rule-2);text-align:right;white-space:nowrap}
+.rtab.rbt td.l{min-width:0}.rtab.rbt td.bci{white-space:normal}
 .rtab tbody tr{cursor:default}
 .rtab tbody tr[data-prow]{cursor:pointer}
 .rtab tbody tr:hover td{background:var(--panel-2)}
@@ -7624,7 +7627,9 @@ function polyLsq(X,Y,W,k,o){ o=o||{}; const n=X.length, m=k+1, fixed=o.fixed||[]
   if(fixed.some((f,j)=>f&&!Number.isFinite(p0[j]))) return {error:"A fixed coefficient needs a value."};
   if(n<=mf) return {error:`Need more than ${mf} points to fit ${mf} free parameters (have ${n}).`};
   let lo=Infinity, hi=-Infinity; for(let i=0;i<n;i++){ const v=X[i]; if(!Number.isFinite(v)||!Number.isFinite(Y[i])) return {error:"A point's X or Y is not a number."}; if(v<lo) lo=v; if(v>hi) hi=v; }
-  const weighted=!!W&&Array.prototype.some.call(W,w=>w!==1); if(weighted&&Array.prototype.some.call(W,w=>!(w>0)||!Number.isFinite(w))) return {error:"A point's weight is not above zero."};
+  // a weight of 0 leaves its point out (a robust fit's bisquare gives one); below 0, or not a number, is refused
+  const weighted=!!W&&Array.prototype.some.call(W,w=>w!==1); if(weighted&&Array.prototype.some.call(W,w=>!(w>=0)||!Number.isFinite(w))) return {error:"A point's weight is below zero."};
+  if(weighted&&Array.prototype.filter.call(W,w=>w>0).length<=mf) return {error:`Fewer than ${mf+1} points have a weight above zero.`};
   const c=lo/2+hi/2, half=hi/2-lo/2, s=half>0?2**Math.ceil(Math.log2(half)):1, dd=!o.stream&&n*mf<=POLY_DD;   // o.stream: the streamed path at any size (the bench)
   const Wv=weighted?Float64Array.from(W):null, cent=mf===m, w=i=>Wv?Wv[i]:1;
   let bd, chi, Vu, r;   // the free coefficients in double-double, χ², (XᵀWX)⁻¹ and the residuals, unweighted
@@ -7662,6 +7667,7 @@ function polyLsq(X,Y,W,k,o){ o=o||{}; const n=X.length, m=k+1, fixed=o.fixed||[]
     const Ti=[]; for(let q=0;q<m;q++){ const row=[]; for(let j=0;j<m;j++) row.push(j<q?zero:ddMul([nChoose(j,q)*s**q,0],cq[j-q])); Ti.push(row); }
     b=Ti.map(row=>{ let t=[0,0]; row.forEach((e,j)=>{ if(e[0]!==0) t=ddAdd(t,ddMul(e,ad[j])); }); return t[0]+t[1]; });
     Vb=ddSandwich(Ti,C); }
+  if(Wv) for(let i=0;i<n;i++) if(Wv[i]===0) r[i]=Y[i]-polyEval({c,s,b},X[i]);   // a point left out by its weight: its own residual
   const ssRes=neuSum(Array.from(r,v=>v*v)), my=neuSum(Y)/n, ssTot=neuSum(Array.from(Y,v=>(v-my)*(v-my)));
   const errs=a.map((_,j)=>fixed[j]?0:Math.sqrt(Math.max(C[j][j],0)));
   // a coefficient's dependency, as lmFit gives it: 1 − 1/(C_jj · Σ (w x^j)²), C unscaled
@@ -7798,10 +7804,10 @@ function fitDescModel(s){ if(!s||typeof s!=="object") return null;
   if(s.fn&&typeof s.fn.expr==="string"){ let c; try{ c=compileExpr(s.fn.expr); }catch(e){ return null; }
     return {name:s.fn.name||"Your function",params:c.params,f:c.f,user:true,lo:c.params.map(()=>-Infinity),hi:c.params.map(()=>Infinity),guess:(X,Y)=>guessUserParams(c.params,X,Y)}; }
   const m=MODELS[s.model]; return m?Object.assign({id:s.model},m):null; }
-function fitByDesc(s,X,Y,E,wk){ const m=fitDescModel(s); if(!m) return {fail:"its model is not known"}; const n=m.params.length;
+function fitByDesc(s,X,Y,E,wk){ const m=fitDescModel(s); if(!m) return {fail:"its model is not known"}; const n=m.params.length;   // wk a kind, or {W (each point's factor), scale}
   if(X.length<=n) return {fail:`${X.length} points for ${n} parameters`};
   const xb=modelXBad(m,X); if(xb) return {fail:`${m.name} needs X ${xb.strict?"above 0":"of 0 or more"}, and X reaches ${fmt(xb.x,6)}`};
-  const WT=wk&&wk!=="none"?fitWeights(wk,Y,E):{W:Y.map(()=>1),scale:true}; if(WT.fail) return {fail:WT.fail==="noerr"?"a point has no error to weight by":WT.fail==="nocount"?"a count is not above zero":"a point cannot be weighted"};
+  const WT=wk&&typeof wk==="object"?{W:wk.W,scale:wk.scale!==false}:wk&&wk!=="none"?fitWeights(wk,Y,E):{W:Y.map(()=>1),scale:true}; if(WT.fail) return {fail:WT.fail==="noerr"?"a point has no error to weight by":WT.fail==="nocount"?"a count is not above zero":"a point cannot be weighted"};
   const ok=a=>Array.isArray(a)&&a.length===n, p0=ok(s.init)&&s.init.every(Number.isFinite)?s.init.slice():m.guess(X,Y), fixed=ok(s.fixed)?s.fixed.map(Boolean):p0.map(()=>false), L=s.lim&&typeof s.lim==="object"?s.lim:{};
   const B=fitBounds(n,{lo:ok(L.lo)?L.lo:undefined,hi:ok(L.hi)?L.hi:undefined,slo:ok(L.slo)?L.slo:undefined,shi:ok(L.shi)?L.shi:undefined,mlo:m.lo,mhi:m.hi,p0,fixed,names:m.params}); if(B.fail) return {fail:B.fail};
   const C=s.cons?parseCons(s.cons,m.params):null; if(C&&C.err) return {fail:"its constraints: "+C.err.msg};
@@ -7828,6 +7834,85 @@ function nestedOf(a,b){ if(!a||!b) return false; const sameM=a.fn||b.fn?!!(a.fn&
   if(sameM){ const fa=fx(a), fb=fx(b), n=Math.max(fa.length,fb.length); let more=0; for(let i=0;i<n;i++){ if(fa[i]&&!fb[i]) return false; if(fa[i]&&fb[i]&&a.init&&b.init&&a.init[i]!==b.init[i]) return false; if(fb[i]&&!fa[i]) more++; } return more>0; }
   if(a.fn||b.fn||fx(a).some(Boolean)||fx(b).some(Boolean)||a.cons||b.cons) return false;
   return NEST_CHAIN.some(ch=>{ const i=ch.indexOf(a.model), j=ch.indexOf(b.model); return i>=0&&j>=0&&j<i; }); }
+/* ---- Honest intervals (FIT2_SPEC 4.8) ---------------------------------------
+   A robust fit by iteratively reweighted least squares, as statsmodels' RLM: from the least-squares fit, the scale s the
+   median of |r| over 0.6745 (about 0, r the residuals in the base weights' terms), each point's weight ψ(u)/u at u = r/s
+   (Huber's, k 1.345: min(1, k/|u|); the bisquare's, c 4.685: (1 − (u/c)²)² inside c, 0 beyond), the fit made again with
+   them, s again, until the parameters and s settle. solve(W, p0) is the least-squares solver (lmFit's, polyLsq's), W each
+   point's factor. The covariance is RLM's H1: k² · Σψ(u)²/(n − p) · s² / (Σψ′(u)/n)² · (JᵀJ)⁻¹, k = 1 + p/n · var(ψ′)/mean(ψ′)²,
+   J the Jacobian (the design, for a model linear in its parameters). o.res0 the least-squares fit when already made, o.tol
+   the change in the parameters and s, relative, that counts as settled (1e-12; an iterative solver's own is looser), o.jac(x, p)
+   the model's derivatives by its parameters when known (a polynomial's powers of x; else central differences), o.noCov
+   no covariance (a bootstrap's replicate). {res (lmFit's fields), robust {kind, k, s, iter, conv, w (each point's final
+   weight)}} or {error}. */
+const ROBUST_K={huber:1.345,bisquare:4.685};
+function robustPsi(kind,c){ return kind==="bisquare"?{w:u=>Math.abs(u)<c?(1-(u/c)**2)**2:0,psi:u=>Math.abs(u)<c?u*(1-(u/c)**2)**2:0,dpsi:u=>{ if(!(Math.abs(u)<c)) return 0; const t=(u/c)**2; return (1-t)*(1-5*t); }}
+  :{w:u=>Math.abs(u)<=c?1:c/Math.abs(u),psi:u=>Math.abs(u)<=c?u:c*Math.sign(u),dpsi:u=>Math.abs(u)<=c?1:0}; }
+function robustFit(f,X,Y,W0,p0,fixed,solve,o){ o=o||{}; const kind=o.kind==="bisquare"?"bisquare":"huber", c=Number.isFinite(o.k)&&o.k>0?o.k:ROBUST_K[kind], R=robustPsi(kind,c), n=X.length, B=W0||X.map(()=>1);
+  const resid=p=>X.map((x,i)=>(Y[i]-f(x,p))*B[i]), mad=r=>{ const a=r.map(Math.abs).sort((x,y)=>x-y), m=n%2?a[(n-1)/2]:(a[n/2-1]+a[n/2])/2; return m/0.6744897501960817; };
+  let res=o.res0&&!o.res0.error?o.res0:solve(B,p0); if(res.error) return res; let p=res.params.slice(), r=resid(p), s=mad(r), it=0, conv=false, w=new Array(n).fill(1);
+  let prev=0; const maxIter=o.maxIter||1000, tol=o.tol>0?o.tol:1e-12;   // near a kink of the median the rounds close the gap slowly: 245 of them were seen
+  while(it<maxIter){ if(!(s>0)){ conv=true; break; } w=r.map(v=>R.w(v/s)); const Wn=B.map((b,i)=>b*Math.sqrt(w[i]));
+    const nr=solve(Wn,p); if(nr.error) return nr; it++;
+    let dp=0; nr.params.forEach((v,i)=>{ const d=Math.abs(v-p[i])/(Math.abs(p[i])||1e-300); if(!(d<=dp)) dp=d; }); p=nr.params.slice(); res=nr; r=resid(p); const s2=mad(r), ds=Math.abs(s2-s)/(s||1); s=s2;
+    // settled when what is left to go is below tol: a round's change over (1 − the rate it shrinks at), as slow rounds leave more
+    const ch=Math.max(dp,ds), rho=prev>0?Math.min(0.99,ch/prev):0; prev=ch;
+    if(ch/(1-rho)<tol){ conv=true; break; } }
+  if(!(s>0)) w=r.map(v=>v===0?1:0);   // more than half the points on the curve: only they count
+  if(o.noCov) return {res:Object.assign({},res,{params:p}),robust:{kind,k:c,s,iter:it,conv,w}};
+  // RLM's H1 covariance, from the Jacobian over the free parameters, unweighted but for the base weights
+  const free=p.map((_,i)=>!fixed[i]), idx=free.map((v,i)=>v?i:-1).filter(i=>i>=0), m=idx.length, u=r.map(v=>s>0?v/s:0);
+  const J=X.map((x,i)=>{ const g=o.jac?o.jac(x,p):gradient(f,x,p,fixed); return idx.map(j=>g[j]*B[i]); }), A=idx.map(()=>new Array(m).fill(0));
+  J.forEach(row=>{ for(let a=0;a<m;a++) for(let b=0;b<m;b++) A[a][b]+=row[a]*row[b]; });
+  const inv=inverse(A), dps=u.map(R.dpsi), mp=dps.reduce((a,v)=>a+v,0)/n, vp=dps.reduce((a,v)=>a+(v-mp)**2,0)/n, k=1+m/n*vp/(mp*mp);
+  const sp2=u.reduce((a,v)=>a+R.psi(v)**2,0), sc=k*k*(sp2/(n-m))*s*s/(mp*mp);
+  const cov=p.map(()=>p.map(()=>0)); if(inv) idx.forEach((a,ia)=>idx.forEach((b,ib)=>{ cov[a][b]=inv[ia][ib]*sc; }));
+  const errs=p.map((_,i)=>fixed[i]?0:inv?Math.sqrt(Math.max(cov[i][i],0)):null), dof=n-m, tval=p.map((v,i)=>fixed[i]||!errs[i]?NaN:v/errs[i]), tc=tQuantile975(dof);
+  return {res:Object.assign({},res,{params:p,errors:errs,cov,tval,pval:tval.map(t=>tPvalue(t,dof)),ci:p.map((v,i)=>fixed[i]||!errs[i]?[NaN,NaN]:[v-tc*errs[i],v+tc*errs[i]]),poly:undefined}),
+    robust:{kind,k:c,s,iter:it,conv,w}}; }
+// A polynomial's derivatives by its coefficients: the powers of x.
+const polyJac=k=>x=>{ const r=[1]; for(let j=1;j<=k;j++) r.push(r[j-1]*x); return r; };
+// A robust polynomial of order k (the bench's door to robustFit, whose model and solver are functions): {params, errors, scale,
+// w, iter, conv} or {error}.
+function robustPoly(X,Y,k,kind){ const f=(x,p)=>{ let v=p[k]; for(let j=k-1;j>=0;j--) v=v*x+p[j]; return v; };
+  const R=robustFit(f,X,Y,null,new Array(k+1).fill(0),new Array(k+1).fill(false),W=>polyLsq(X,Y,W,k,{}),{kind,jac:polyJac(k)});
+  return R.error?R:{params:R.res.params,errors:R.res.errors,scale:R.robust.s,w:R.robust.w,iter:R.robust.iter,conv:R.robust.conv}; }
+/* The finite-difference scale of a peak fit's parameters, from what each means: a centre the span of X, an area the span of Y
+   times X's, a width a twentieth of X's span, the rest their own size. */
+function peakPscale(m,p,X,Y){ let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity; X.forEach(v=>{ if(v<x0) x0=v; if(v>x1) x1=v; }); Y.forEach(v=>{ if(v<y0) y0=v; if(v>y1) y1=v; });
+  const span=Math.abs(x1-x0)||1, yspan=Math.abs(y1-y0)||1, ps=p.map(v=>Math.abs(v)||1);
+  m.slots.forEach((q,i)=>{ if(q.kind==="peak"){ if(q.name==="xc") ps[i]=span; else if(q.name==="A") ps[i]=yspan*span; else if(/^w/.test(q.name)) ps[i]=span/20; } }); return ps; }
+/* A bootstrap of a fit's parameters (FIT2_SPEC 4.8), for the worker. q {set, X, Y, W, scale, kind, B, seed, conf, p, robust}:
+   set a curve fit's setting (fitByDesc's: model or fn, fixed, lim, cons, ctl) or a peak fit's {spec, x0, fixed (the tied
+   ones too)}; X, Y the points as fitted, W each one's factor (1/σ; null for none) and scale whether the errors are relative;
+   p the fit's parameters. Cases: each resample n points (with their weights) drawn with replacement; residuals: the fitted
+   values plus residuals drawn with replacement, each standardised by its point's factor and given back by the factor of the
+   point it lands on. Each resample is fitted from p, robustly when robust {kind, k} is given; each parameter's standard error
+   is the replicates' SD and its interval their percentiles at conf (not the BCa: said where it is shown). Draws from
+   mulberry32(seed), so a seed gives the same intervals. {se, ci, B, fails, kind, seed, conf} or {fail} in words. */
+function bootFit(q){ const s=q.set||{}, X=q.X, Y=q.Y, n=X.length, B=Math.max(20,Math.min(10000,q.B|0||1000)), seed=(q.seed>>>0)||1, rnd=mulberry32(seed), p=q.p;
+  if(!Array.isArray(X)||!Array.isArray(Y)||n<3||Y.length!==n||!Array.isArray(p)) return {fail:"there are too few points"};
+  const W0=Array.isArray(q.W)&&q.W.length===n?q.W:null, sc=q.scale!==false, rob=q.robust&&ROBUST_K[q.robust.kind]?q.robust:null;
+  let f, solveOn;   // solveOn(X, Y) gives the least-squares solver (W, p0) on those points
+  if(s.spec){ let m; try{ m=compileModel(s.spec,s.x0); }catch(e){ return {fail:"its peaks are not known"}; } if(m.n!==p.length) return {fail:"its peaks and parameters do not match"};
+    const L=peakLinks(s.spec.peaks,m), fixed=Array.isArray(s.fixed)&&s.fixed.length===m.n?s.fixed.map(Boolean):p.map(()=>false), {lo,hi}=modelBounds(s.spec,m,p), ps=peakPscale(m,p,X,Y);
+    L.forEach(l=>{ fixed[l.gi]=true; }); f=L.length?(x,v)=>m.f(x,applyPeakLinks(v.slice(),L)):m.f;
+    solveOn=(Xb,Yb)=>(Wb,p0)=>{ const r=lmFit(f,Xb,Yb,Wb,p0.slice(),fixed.slice(),{lo,hi,pscale:ps,scale:sc}); return r.error?r:r.params.every(Number.isFinite)?Object.assign(r,{params:applyPeakLinks(r.params.slice(),L)}):{error:"the fit diverged"}; }; }
+  else { const m=fitDescModel(s); if(!m) return {fail:"its model is not known"}; if(m.params.length!==p.length) return {fail:"its model and parameters do not match"}; f=m.f;
+    solveOn=(Xb,Yb)=>(Wb,p0)=>{ const F=fitByDesc(Object.assign({},s,{init:p0.slice()}),Xb,Yb,null,{W:Wb||Xb.map(()=>1),scale:sc}); return F.fail?{error:F.fail}:F.res; }; }
+  const fixedR=p.map((_,i)=>!!(s.fixed&&s.fixed[i])), fit=X.map(x=>f(x,p)), w=i=>W0?W0[i]:1, e=Y.map((y,i)=>(y-fit[i])*w(i)), reps=[];
+  let fails=0;
+  for(let b=0;b<B;b++){ let Xb=X, Yb, Wb=W0;
+    if(q.kind==="resid") Yb=fit.map((v,i)=>v+e[Math.floor(rnd()*n)]/w(i));
+    else { const ix=new Array(n); for(let i=0;i<n;i++) ix[i]=Math.floor(rnd()*n); Xb=ix.map(i=>X[i]); Yb=ix.map(i=>Y[i]); Wb=W0?ix.map(i=>W0[i]):null; }
+    const solve=solveOn(Xb,Yb), Wf=Wb||Xb.map(()=>1);
+    const r=rob?robustFit(f,Xb,Yb,Wf,p,fixedR,solve,{kind:rob.kind,k:rob.k,tol:1e-9,noCov:true}):solve(Wf,p);
+    const pr=r&&!r.error?(r.res||r).params:null; if(pr&&pr.every(Number.isFinite)) reps.push(pr); else fails++;
+    if(typeof self!=="undefined"&&self.progress&&!(b%20)) self.progress(b/B); }
+  if(reps.length<Math.max(10,B/2)) return {fail:`${fails} of ${B} resamples could not be fitted`};
+  const conf=q.conf>0&&q.conf<1?q.conf:0.95, lo=(1-conf)/2, se=[], ci=[];
+  for(let j=0;j<p.length;j++){ const v=reps.map(r=>r[j]).sort((a,b)=>a-b), mu=neuSum(v)/v.length; se.push(Math.sqrt(neuSum(v.map(x=>(x-mu)**2))/(v.length-1))); ci.push([quantileSorted(v,lo),quantileSorted(v,1-lo)]); }
+  return {se,ci,B,fails,kind:q.kind==="resid"?"resid":"cases",seed,conf}; }
 /* Predictions (FIT2_SPEC 4.2): for each new row (codes as lmCell takes them: a number column's value, a factor's level), the
    fitted value, its standard error, and the confidence (of the mean) and prediction (of one new value, of weight w, 1 unless
    given) limits at the model's level; null for a row the data cannot estimate */
@@ -7887,11 +7972,14 @@ function lmCompare(pairs,k,df,kind,conf){ const al=1-conf, m=pairs.length, out=p
 // categorical columns, and numbers ticked as factors), with their interactions and powers; the model's fit, the coefficients,
 // the analysis of variance by type I, II or III sums of squares, and contrasts typed. Over the rows complete in every column.
 const LM_INTER=[["none","None"],["pairs","Every pair"],["all","Every combination"]], LM_SS=[[1,"Type I (sequential)"],[2,"Type II"],[3,"Type III"]];
+// A linear model's bootstrap (FIT2_SPEC 4.8): cases or residuals, 200 to 10 000 resamples, a seed; null for none.
+const lmBootOf=p=>{ const b=p&&p.boot; if(!b||(b.kind!=="cases"&&b.kind!=="resid")) return null; const B=Math.round(+b.B), sd=+b.seed;
+  return {kind:b.kind,B:B>=200&&B<=10000?B:1000,seed:Number.isInteger(sd)&&sd>0&&sd<4294967296?sd:1}; };
 function lmSpecOf(p){ return {inter:LM_INTER.some(e=>e[0]===p.inter)?p.inter:"none",pow:Math.max(1,Math.min(LM_MAXV,(p.pow|0)||1)),coding:p.coding==="effect"?"effect":"treat",icpt:p.icpt!==false,ss:[1,2,3].includes(+p.ss)?+p.ss:3,conf:anaConf(p)}; }
 ANA_KINDS.lm={label:"Linear model", base:"Model", cats:true, xs:true,
   help:"A response modelled by numbers and factors, with interactions and powers, weighted or not: the coefficients with t, p, intervals and variance inflation factors, R², the analysis of variance by type I, II or III sums of squares, contrasts; each row's influence and predictions on the sheet.",
   heavy(p,ins){ const n=ins.reduce((a,q)=>Math.max(a,(q.rows||[]).length),0), sp=lmSpecOf(p||{}), d=ins.slice(1).map(q=>q.cats?Math.max(1,new Set(q.cats.keys).size-1):sp.pow);
-    let m=1+d.reduce((a,b)=>a+b,0); if(sp.inter!=="none") for(let i=0;i<d.length;i++) for(let j=i+1;j<d.length;j++) m+=d[i]*d[j]; return n*m*m*(d.length+3)>4e7; },
+    let m=1+d.reduce((a,b)=>a+b,0); if(sp.inter!=="none") for(let i=0;i<d.length;i++) for(let j=i+1;j<d.length;j++) m+=d[i]*d[j]; return n*m*m*(d.length+3+(p&&p.boot?2*lmBootOf(p).B:0))>4e7; },
   run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[], sp=lmSpecOf(p);
     if(ins.some(q=>q.groups)) return {fail:"The linear model reads columns: the factors are columns of their own."};
     const yi=Math.max(0,ins.findIndex(q=>q.id&&q.id===p.y)), yq=ins[yi]; if(!yq) return {fail:"No column chosen."};
@@ -7922,12 +8010,27 @@ ANA_KINDS.lm={label:"Linear model", base:"Model", cats:true, xs:true,
     const y=rows.map(r=>maps[yi].get(r)), M=linModel(vars,y,Object.assign({},sp,{w:wts,diag:per})); if(M.fail) return M;
     const al=M.alias.map(a=>M.names[a.j]); if(al.length) notes.push(`No coefficient for ${al.join(", ")}: ${al.length===1?"a combination":"combinations"} of other columns.`);
     const coef=M.names.map((nm,j)=>({term:nm,b:M.b[j],se:M.se[j],t:M.t[j],p:M.p[j],lo:M.lo[j],hi:M.hi[j],vif:M.vif[j]})), pc=anaPct(sp.conf);
-    anaTab("",[["term","Term"],["b","Estimate"],["se","Standard error"],["t","t"],["p","p"],["lo",`${pc} interval, from`],["hi","to"],["vif","VIF"]],coef,cols,[]);
+    /* a bootstrap of the coefficients (FIT2_SPEC 4.8): the rows resampled (cases) or the fitted values plus residuals resampled,
+       each standardised by its weight; each resample fitted again (type I sums, the cheapest), its standard error the
+       replicates' SD and its interval their percentiles; a resample that loses a coefficient (a factor's level gone) left out */
+    let bt=null; if(p.boot){ const BO=lmBootOf(p), n=y.length, rnd=mulberry32(BO.seed), sw=wts?wts.map(Math.sqrt):null, e=M.fit.rh.map((v,i)=>v+(M.fit.rl?M.fit.rl[i]:0)), fv=y.map((v,i)=>v-e[i]/(sw?sw[i]:1)), reps=[], spB=Object.assign({},sp,{ss:1,diag:false});
+      let fails=0;
+      for(let b=0;b<BO.B;b++){ let vb=vars, yb, wb=wts;
+        if(BO.kind==="resid") yb=fv.map((v,i)=>v+e[Math.floor(rnd()*n)]/(sw?sw[i]:1));
+        else { const ix=new Array(n); for(let i=0;i<n;i++) ix[i]=Math.floor(rnd()*n); vb=vars.map(v=>v.num?{name:v.name,num:true,x:ix.map(i=>v.x[i])}:{name:v.name,num:false,levels:v.levels,code:ix.map(i=>v.code[i])}); yb=ix.map(i=>y[i]); wb=wts?ix.map(i=>wts[i]):null; }
+        const Mb=linModel(vb,yb,Object.assign({},spB,{w:wb})); if(Mb.fail||Mb.b.length!==M.b.length||M.b.some((v,j)=>v!=null&&!Number.isFinite(Mb.b[j]))) fails++; else reps.push(Mb.b);
+        if(typeof self!=="undefined"&&self.progress&&!(b%50)) self.progress(b/BO.B); }
+      if(reps.length<Math.max(10,BO.B/2)) notes.push(`No bootstrap: ${fails} of ${BO.B} resamples could not be fitted.`);
+      else { const lo=(1-sp.conf)/2; coef.forEach((o,j)=>{ if(M.b[j]==null) return; const v=reps.map(r=>r[j]).sort((a,c)=>a-c), mu=neuSum(v)/v.length;
+          o.bse=Math.sqrt(neuSum(v.map(x=>(x-mu)**2))/(v.length-1)); o.blo=quantileSorted(v,lo); o.bhi=quantileSorted(v,1-lo); });
+        bt=Object.assign({},BO,{fails}); if(fails) notes.push(`${fails} of ${BO.B} resamples lost a coefficient and are left out of the bootstrap.`); } }
+    anaTab("",[["term","Term"],["b","Estimate"],["se","Standard error"],["t","t"],["p","p"],["lo",`${pc} interval, from`],["hi","to"],["vif","VIF"]].concat(bt?[["bse","Bootstrap error"],["blo",`${pc} bootstrap, from`],["bhi","to"]]:[]),coef,cols,[]);
     secs.push({title:"Model",tables:[{head:["N","R²","Adjusted R²","Root MSE","F","df","df (error)","p"],rows:[[M.n,anaNum(M.r2),anaNum(M.ar2),anaNum(M.s),anaNum(M.F),M.df1,M.dfr,anaNum(M.pF)]]}]});
     /* the report as narrow as a docked window allows: t (the estimate over its error) and the mean squares (over df) on the sheet and in the copy alone */
     anaTab("Coefficients",[["term","Term"],["b","Estimate"],["se","Standard error"],["p","p"]],coef,[],secs);
     anaTab(`Coefficients, ${pc} interval`,[["term","Term"],["lo","Lower"],["hi","Upper"]],coef,[],secs);
     const av=M.anova.rows.map(o=>Object.assign({},o)).concat([{term:"Error",df:M.dfr,ss:M.rss,ms:M.s2},{term:sp.icpt?"Total (about the mean)":"Total",df:M.n-(sp.icpt?1:0),ss:M.sst}]);
+    if(bt) anaTab(`Bootstrap, ${pc} percentile interval`,[["term","Term"],["bse","Bootstrap error"],["blo","Lower"],["bhi","Upper"]],coef.filter(o=>o.bse!=null),[],secs);
     if(M.anova.rows.length) anaTab(`Analysis of variance, type ${["I","II","III"][M.anova.type-1]}`,[["term","Source"],["df","df"],["ss","Sum of squares"],["F","F"],["p","p"]],av,[],secs);
     // collinearity (FIT2_SPEC 4.2): each coefficient's variance inflation factor, the scaled design's condition number
     { const vr=coef.filter(o=>o.vif!=null); if(vr.length) secs.push({title:"Collinearity",tables:[{head:["Term","VIF"],rows:vr.map(o=>[o.term,anaNum(o.vif)])},{head:["Condition number"],rows:[[anaNum(M.cond)]]}]}); }
@@ -7952,7 +8055,8 @@ ANA_KINDS.lm={label:"Linear model", base:"Model", cats:true, xs:true,
         const xs=vars[v].x, share=i=>neuSum(js.map(j=>{ const d=M.termList[M.tc[j]].reduce((a,[,dd])=>a+dd,0); return M.b[j]*xs[i]**d; })), sh=xs.map((_,i)=>share(i)), mu=neuSum(sh)/sh.length;
         cols.push({k:`prx${v}`,name:vars[v].name,role:"x",vals:xs.slice()},{k:`pry${v}`,name:`Partial residual, ${vars[v].name}`,vals:sh.map((h,i)=>anaNum(D.res[i]+h-mu))},{k:`prl${v}`,name:`Its terms, ${vars[v].name}`,vals:sh.map(h=>anaNum(h-mu))}); }); }
     const method=[`${wi>=0?"Weighted least squares":"Least squares"} by Householder QR, refined in double-double, over the ${M.n} rows complete in every column${wi>=0?`, each weighted by its value of ${ins[wi].name} (as 1/σ²)`:""}.`,vars.some(v=>!v.num)?(sp.coding==="effect"?"Factors coded by effect: each level against the mean of the levels, the last left out.":"Factors coded by treatment: each level against the first."):"",
-      M.anova.rows.length?`Type ${["I","II","III"][M.anova.type-1]} sums of squares${M.anova.type===3&&vars.some(v=>!v.num)?" (with effect coding)":""}.`:"",sp.icpt?"":"No intercept: R² is about zero, not the mean."].filter(Boolean).join(" ");
+      M.anova.rows.length?`Type ${["I","II","III"][M.anova.type-1]} sums of squares${M.anova.type===3&&vars.some(v=>!v.num)?" (with effect coding)":""}.`:"",sp.icpt?"":"No intercept: R² is about zero, not the mean.",
+      bt?`Bootstrap: ${bt.B} resamples of the ${bt.kind==="resid"?"residuals":"rows"}, seed ${bt.seed}, each fitted again; percentile intervals (not BCa).`:""].filter(Boolean).join(" ");
     return {tables:[{cols}],report:{sections:secs,method,nums:vq.filter(o=>o.num).length},notes}; }};
 /* Compare models (FIT2_SPEC 4.3): two to five fit settings (p.fits, each with its name) fitted to the same points of one
    column, in p.x0 to p.x1 when given, weighted alike (p.weight); each one's numbers, and the F test of each pair where one is a
@@ -8774,6 +8878,10 @@ function fitWarnings(f){
   if(f.app) add("info","app",`An apparent fit: fitted as ${appText(f.app)}, as the points look on the graph's logarithmic ${f.app.x&&f.app.y?"axes":"axis"}, so the parameters, R², χ² and the residuals are in those terms.`,`Apparent fit: ${appText(f.app)}.`);
   if(f.xerr&&f.odr&&f.odr.s!=null) add("info","xerr",`Fitted with the X errors by orthogonal distance regression. With no Y errors, the scatter in Y was taken to be the same for every point and found from the fit: s = ${fmt(f.odr.s,4)}.`,
     `s = ${fmt(f.odr.s,4)}: the scatter in Y, found with the X errors.`);
+  if(robOf(f)){ const RW=robWeights(f), r=f.robust, nm=r.kind==="huber"?"Huber's weights":"bisquare weights";
+    if(RW) add("info","robust",`A robust fit (${nm}, ${r.kind==="huber"?"k":"c"} = ${fmt(r.k,4)}): the points are weighted by how far each residual lies, in units of the scale s = ${r.s!=null?fmt(r.s,4):"0"} from their median absolute deviation. ${RW.low} of ${RW.n} point${RW.n===1?"":"s"} count less than half${RW.zero?`, ${RW.zero} not at all`:""}; the residuals under the graph are drawn as large as their points count.`,
+      `Robust: ${RW.low} of ${RW.n} point${RW.n===1?"":"s"} count less than half${RW.zero?`, ${RW.zero} not at all`:""}.`,residOn(GP(),f)?[]:[["Show residuals","resid"]]);
+    if(!r.conv) add("warn","robconv",`The robust fit's weights had not settled after ${r.iter} rounds of reweighting, so its numbers are where the rounds stopped.`,`Robust weights not settled after ${r.iter} rounds.`,[["Fit again","fitagain"]]); }
   if(st.converged===false){ const lim=f.ctl&&st.iter>=fitCtl(f.ctl).maxIter;
     add("bad","conv",lim?`This fit stopped at its limit of ${st.iter} iterations without converging, so the numbers are wherever it had got to, not a result. Fit again to carry on from here, or raise the limit in Fit control.`
       :`This fit did not converge. It stopped after ${st.iter} iterations still moving, so the numbers are wherever it had got to, not a result. Try ${pk?"Reset to estimates":"Guess initial values"}, fix a parameter, or narrow the range.`,
@@ -11097,12 +11205,23 @@ function limText(f,ascii){ const FM=fitModel(f); if(!FM||FM.composite||!Array.is
     return a!=null&&b!=null?`${fmt(a,6)} ${B.sl[i]?"<":le} ${nm(i)} ${B.sh[i]?"<":le} ${fmt(b,6)}`:a!=null?`${nm(i)} ${B.sl[i]?">":ge} ${fmt(a,6)}`:`${nm(i)} ${B.sh[i]?"<":le} ${fmt(b,6)}`; }).filter(Boolean).join("; "); }
 function fitCtl(c){ c=c||{}; const n=Math.floor(+c.maxIter), t=+c.tol;
   return {maxIter:n>=1&&n<=100000?n:FIT_CTL.maxIter, tol:Number.isFinite(t)&&t>=0&&t<1?t:FIT_CTL.tol}; }
-function ctlText(f,ascii){ if(f&&f.ctl&&f.ctl.method==="qr") return "least squares (QR), solved directly";
+function ctlText(f,ascii){ const rw=robOf(f)?", then iteratively reweighted":"";
+  if(f&&f.ctl&&f.ctl.method==="qr") return "least squares (QR), solved directly"+rw;
   const odr=!!(f&&(f.xerr||(f.ctl&&f.ctl.method==="odr"))), c=f&&f.ctl?fitCtl(f.ctl):{maxIter:odr?300:FIT_CTL.maxIter,tol:FIT_CTL.tol};
-  return (odr?"orthogonal distance regression":ascii?"Levenberg-Marquardt":"Levenberg–Marquardt")+`, at most ${c.maxIter} iterations, tolerance ${c.tol}`; }
+  return (odr?"orthogonal distance regression":ascii?"Levenberg-Marquardt":"Levenberg–Marquardt")+`, at most ${c.maxIter} iterations, tolerance ${c.tol}`+rw; }
 // The same, short, for Results' statistics: its pieces kept whole where the column wraps.
 function ctlShort(f){ const t=ctlText(f).split(", "); return [capFirst(t[0])].concat(t.slice(1).map(s=>s.replace(/^at most /,"≤ "))).join(" · "); }
 function odrNote(res){ const o=res&&res.odr; return o?{s:o.s!=null&&Number.isFinite(o.s)?o.s:null,iter:o.iter,conv:!!o.conv}:null; }
+/* Robust fits (FIT2_SPEC 4.8): the draft's choice (d.robust, "huber" or "bisquare", or none) and what a fit keeps of it (robust
+   {kind, k, s, iter, conv}); its points' weights are worked out again from its residuals (robWeights), not stored. */
+const robOf=o=>{ const r=o&&o.robust, k=typeof r==="string"?r:r&&r.kind; return k==="huber"||k==="bisquare"?k:null; };
+const robRec=R=>({kind:R.kind,k:R.k,s:Number.isFinite(R.s)?R.s:null,iter:R.iter,conv:!!R.conv});
+function robText(f,ascii){ const r=f&&f.robust; if(!robOf(f)) return "";
+  return `${r.kind==="huber"?"Huber's weights, k":"bisquare weights, c"} = ${fmt(r.k,4)}; scale ${r.s!=null?fmt(r.s,4):"0"}; reweighted ${r.iter} time${r.iter===1?"":"s"}${r.conv?"":", not settled"}`; }
+const ROB_ODR="A robust fit does not take the X errors yet: untick Include the X errors, or choose None under Robust.";
+const ROB_CONS="A robust fit does not take constraints between parameters yet: take them away, or choose None under Robust.";
+// The bootstrap's settings in a draft (d.boot), checked: on, cases or residuals, 200 to 10 000 resamples, a seed.
+const bootOf=d=>{ const b=d&&d.boot||{}, B=Math.round(+b.B), sd=+b.seed; return {on:!!b.on,kind:b.kind==="resid"?"resid":"cases",B:B>=200&&B<=10000?B:1000,seed:Number.isInteger(sd)&&sd>0&&sd<4294967296?sd:1}; };
 // The apparent fit: the graph's logarithmic axes (null when neither is one), said in words, refused in words.
 const APP_KINDS=["log10","ln","log2"], APP_NM={log10:["log₁₀","log10"],ln:["ln","ln"],log2:["log₂","log2"]};
 function appOf(cfg){ if(!P()||!GID()) return null; cfg=cfg||plotCfg(); const k=a=>{ const s=scaleKind(cfg,a); return APP_KINDS.includes(s)?s:null; }, x=k("x"), y=k("y"); return x||y?{x,y}:null; }
@@ -13338,6 +13457,8 @@ function buildPlot(W,H,pal,colEx,opt){
         rp=rp.filter(q=>at.has(q.i)&&Number.isFinite(vals[at.get(q.i)])).map(q=>({i:q.i,x:q.x,y:q.y,e:q.e,r:vals[at.get(q.i)]}));
         rpK={kind:rk,lim:rk==="del"&&Number.isFinite(D.out.lim)?D.out.lim:null}; } }
   }
+  // A robust fit's residuals each as large as its point counts (FIT2_SPEC 4.8): a point left out an open ring.
+  const rpW=rp.length&&fit&&robOf(fit)?((robWeights(fit)||{}).by||null):null;
   // Too small a graph has no room for residuals worth reading; it shows the fit alone.
   const showRes=rp.length>0&&H>=280, resH=showRes?Math.max(64,Math.round(H*0.2)):0, rpMax=showRes?resAbsMax(rp):0;
   /* Margins fit what lies outside the plot: the numbers, measured in their own
@@ -13589,12 +13710,13 @@ function buildPlot(W,H,pal,colEx,opt){
          for an unweighted fit, the nearest point's sigma squared for a
          weighted one. */
       let s2=()=>0;
-      const wk=weightOf(fit);
+      const wk=weightOf(fit), rs2=robOf(fit)&&Number.isFinite(fit.robust.s)?fit.robust.s**2:null;   // a robust fit's scale, squared, for the scatter
       if(showP){ if(wk==="yerr"||wk==="col"){ const wc=wk==="col"?colById(fit.wcol):null, rc=fit.stats&&fit.stats.redChi2;
-          const fp=fitPts(fit).map(q=>({x:q.x,v:wk==="yerr"?(q.e>0?q.e*q.e:NaN):(wc&&wc.data[q.i]>0&&Number.isFinite(rc)?rc/wc.data[q.i]:NaN)})).filter(q=>Number.isFinite(q.v)).sort((p1,p2)=>p1.x-p2.x);
+          const fp=fitPts(fit).map(q=>({x:q.x,v:wk==="yerr"?(q.e>0?q.e*q.e*(rs2!=null?rs2:1):NaN):(wc&&wc.data[q.i]>0&&Number.isFinite(rs2!=null?rs2:rc)?(rs2!=null?rs2:rc)/wc.data[q.i]:NaN)})).filter(q=>Number.isFinite(q.v)).sort((p1,p2)=>p1.x-p2.x);
           s2=x=>{ if(!fp.length) return 0; let lo2=0, hi2=fp.length-1; while(hi2-lo2>1){ const m=(lo2+hi2)>>1; if(fp[m].x<x) lo2=m; else hi2=m; } const q=Math.abs(fp[lo2].x-x)<=Math.abs(fp[hi2].x-x)?fp[lo2]:fp[hi2]; return q.v; }; }
-        else if(wk==="counts") s2=x=>{ const v=FM.f(x,fit.params); return Number.isFinite(v)&&v>0?v:0; };
+        else if(wk==="counts") s2=x=>{ const v=FM.f(x,fit.params); return Number.isFinite(v)&&v>0?v*(rs2!=null?rs2:1):0; };
         else if(fit.odr&&fit.odr.s!=null){ const v=fit.odr.s*fit.odr.s; s2=()=>v; }
+        else if(rs2!=null) s2=()=>rs2;
         else { const r=fit.stats&&fit.stats.redChi2; s2=()=>Number.isFinite(r)?r:0; } }
       // An apparent fit's band is the one in the axes' terms, where its covariance is, carried back.
       const atx=FM.app&&APP_TF[FM.app.x], aty=FM.app&&APP_TF[FM.app.y], fr0=atx||aty?FM.raw:FM.f, TI=aty?aty.ti:(v=>v);
@@ -13827,8 +13949,11 @@ function buildPlot(W,H,pal,colEx,opt){
       cl.forEach(c=>{ st[c[3]]+=`M${f1(c[0])},${f1(Math.min(y0,c[1]))}V${f1(Math.max(y0,c[2]))}`; });
       [["u",actSt.color],["m",pal.masked]].forEach(([m,c])=>{ if(st[m]) s+=`<path d="${st[m]}" stroke="${c}" stroke-width="1" opacity="0.6" fill="none"/>`;
         if(dt[m]) s+=`<path d="${dt[m]}" stroke="${c}" stroke-width="${(2*Math.min(r,2.6)).toFixed(1)}" stroke-linecap="round" fill="none"/>`; });
-      if(ring) s+=`<path d="${ring}" fill="none" stroke="${fitSt.color}" stroke-width="1.4" data-rout="1"/>`; }
-    else rp.forEach(q=>{ const x=X(q.x), y=RY(q.r), c=isMasked(q.i)?pal.masked:actSt.color; s+=`<line x1="${x}" x2="${x}" y1="${RY(0)}" y2="${y}" stroke="${c}" stroke-width="1" opacity="0.6"/><circle cx="${x}" cy="${y}" r="${Math.min(r,2.6)}" fill="${isMasked(q.i)?pal.bg:c}" stroke="${c}" stroke-width="1"/>`;
+      if(ring) s+=`<path d="${ring}" fill="none" stroke="${fitSt.color}" stroke-width="1.4" data-rout="1"/>`;
+      if(rpW){ let lw=""; rp.forEach(q=>{ const w=rpW.get(q.i); if(w==null||w>=0.5) return; const x=X(q.x), y=RY(q.r); if(Number.isFinite(x)&&Number.isFinite(y)) lw+=`M${f1(x+3.5)},${f1(y)}a3.5,3.5 0 1,0 -7,0a3.5,3.5 0 1,0 7,0`; });
+        if(lw) s+=`<path d="${lw}" fill="${pal.bg}" stroke="${actSt.color}" stroke-width="1" data-rwlow="1"/>`; } }
+    else rp.forEach(q=>{ const x=X(q.x), y=RY(q.r), c=isMasked(q.i)?pal.masked:actSt.color, w=rpW?rpW.get(q.i):null, rr=Math.min(r,2.6), rw=w==null?rr:w>0?Math.max(1,rr*Math.sqrt(w)):rr+0.6;
+      s+=`<line x1="${x}" x2="${x}" y1="${RY(0)}" y2="${y}" stroke="${c}" stroke-width="1" opacity="0.6"/><circle cx="${x}" cy="${y}" r="${f1(rw)}" fill="${isMasked(q.i)||w===0?pal.bg:c}" stroke="${c}" stroke-width="1"${w!=null?` data-rw="${+w.toFixed(3)}"`:""}/>`;
       if(rpOut.has(q.i)) s+=`<circle cx="${x}" cy="${y}" r="5" fill="none" stroke="${fitSt.color}" stroke-width="1.4" data-rout="1"/>`; });
     s+=`</g>`;
     s+=drawFrame(top,resH,{ticks:rt.ticks.map(t=>({v:t,lab:tickLabel(t,rt.step)})),minor:[]},RY,xpMain==="bottom",true,null,false);
@@ -18572,12 +18697,13 @@ const ANA_FORMS={
       <span></span><label class="chk"><input type="checkbox" id="aLr"${p.resid?" checked":""}> Fitted values and residuals</label>
       <span></span><label class="chk tipd" title="Each row's standardized, studentized and studentized deleted residuals, leverage, Cook's distance and DFFITS, on the sheet"><input type="checkbox" id="aLd"${p.diag?" checked":""}> Influence of each row</label>
       <span></span><label class="chk tipd" title="The rows with every X and no Y predicted, and every row's confidence and prediction limits, on the sheet"><input type="checkbox" id="aLpr"${p.pred?" checked":""}> Predictions</label>
+      ${(b=>`<label for="aLb" class="tipd" title="Each coefficient's standard error and percentile interval from the model fitted again on resampled data: the rows drawn again with replacement (cases), or the fitted values plus their residuals drawn again">Bootstrap</label><span class="fbootc"><select id="aLb"><option value="">None</option><option value="cases"${b&&b.kind==="cases"?" selected":""}>Cases</option><option value="resid"${b&&b.kind==="resid"?" selected":""}>Residuals</option></select><input type="text" inputmode="numeric" id="aLbB" value="${b?b.B:1000}" aria-label="Resamples" title="How many resampled data sets, 200 to 10 000"><span class="lab">times, seed</span><input type="text" inputmode="numeric" id="aLbS" value="${b?b.seed:1}" aria-label="Seed" title="The random numbers' seed: the same seed gives the same intervals"></span>`)(lmBootOf(p))}
       <label for="aLct" class="tipd" title="One a line: coefficients by their names in the table, each with a number before it if needed; = a value to test against">Contrasts</label><textarea id="aLct" rows="2" placeholder="A[b] − A[c]">${esc(p.contrasts||"")}</textarea></div>`; },
     wire(box){ const fb=box.querySelector("#aLfac"); if(!fb) return; const fac0=new Set((fb.dataset.fac||"").split(",").filter(Boolean)), wsel=box.querySelector("#aLw");
       anaRespWire(box,(ids,y)=>{ if(wsel){ const cur=wsel.value||wsel.dataset.w||""; wsel.innerHTML=`<option value="">None</option>`+ids.filter(id=>id!==y).map(id=>{ const c=colById(id); return c&&!isCatCol(c)&&!textCount(c)?`<option value="${id}"${id===cur?" selected":""}>${esc(colLetter(c)+" "+(c.name||""))}</option>`:""; }).join(""); }
         const wv=wsel?wsel.value:""; const keep=new Map([...fb.querySelectorAll('input[id^="aLf_"]')].map(x=>[x.id.slice(4),x.checked]));
         fb.innerHTML=ids.filter(id=>id!==y&&id!==wv).map(id=>{ const c=colById(id), txt=isCatCol(c)||textCount(c)>0, on=txt||(keep.has(id)?keep.get(id):fac0.has(id)); return `<label class="chk"><input type="checkbox" id="aLf_${id}"${on?" checked":""}${txt?" disabled":""}> ${esc(colLetter(c)+" "+(c.name||""))}</label>`; }).join("")||`<span class="muted">The other columns ticked</span>`; }); },
-    read(v){ return {y:v.aLy||null,fac:Object.keys(v).filter(k=>k.startsWith("aLf_")&&v[k]).map(k=>k.slice(4)),inter:v.aLi,pow:+v.aLp||1,coding:v.aLc==="effect"?"effect":"treat",ss:+v.aLs||3,conf:+v.aCf||0.95,icpt:!!v.aLn,resid:!!v.aLr,diag:!!v.aLd,pred:!!v.aLpr,w:v.aLw||null,contrasts:String(v.aLct||"").trim()}; },
+    read(v){ return {y:v.aLy||null,fac:Object.keys(v).filter(k=>k.startsWith("aLf_")&&v[k]).map(k=>k.slice(4)),inter:v.aLi,pow:+v.aLp||1,coding:v.aLc==="effect"?"effect":"treat",ss:+v.aLs||3,conf:+v.aCf||0.95,icpt:!!v.aLn,resid:!!v.aLr,diag:!!v.aLd,pred:!!v.aLpr,w:v.aLw||null,contrasts:String(v.aLct||"").trim(),boot:v.aLb?lmBootOf({boot:{kind:v.aLb,B:parseNum(String(v.aLbB||"")),seed:parseNum(String(v.aLbS||""))}}):null}; },
     valid(v){ return !!v.aLy; }},
   cmpmod:{noGroup:true, html(p){ const C=cmpCands(), keys=(Array.isArray(p.fits)?p.fits:[]).map(s=>s.key), def=[C.find(c=>c.key==="screen")?"screen":"m:linear","m:poly2"], opts=sel=>C.map(c=>c.group?`<optgroup label="${esc(c.group)}">`:c.end?"</optgroup>":`<option value="${esc(c.key)}"${c.key===sel?" selected":""}>${esc(c.name)}</option>`).join("");
       return `<div class="grid2">${[0,1,2,3,4].map(i=>`<label for="aMm${i}">${i<2?`Setting ${i+1}`:`Setting ${i+1}, if any`}</label><select id="aMm${i}">${i>=2?`<option value="">—</option>`:""}${opts(keys[i]||(i<2?def[i]:""))}</select>`).join("")}
@@ -22027,11 +22153,10 @@ const resVals=(D,k)=>({raw:D.r,std:D.std,stud:D.stud,del:D.del})[resKindOf(k)];
 function resKind(){ return resKindOf(GP().residKind||S.resKind); }
 function resView(){ if(S.resView==null){ try{ S.resView=localStorage.getItem("kurve.resview")||"x"; }catch(e){ S.resView="x"; } } return resViewOf(S.resView); }
 const DIAG=new Map(), DSKIP=new Set();
-function fitDiag(f,opt){
-  opt=opt||{}; if(!f||f.xerr) return null; const FM=fitModel(f); if(!FM||!Array.isArray(f.params)) return null;
-  const c=colById(f.onCol)||activeYCol(); if(!c) return null;
-  const key=[f.at,f.onCol,pipeSig(c),maskSig(c),GP().logY?1:0,confOf(f),weightOf(f)+(f.wcol||""),f.app?appText(f.app,true):"",f.params.join(",")].join("|");
-  if(DIAG.has(key)) return DIAG.get(key); if(opt.auto&&DSKIP.has(key)) return null;
+/* A fit's points as it was fitted: in its range, weighted as it was (those it could not weight left out), in the axes' terms for
+   an apparent fit; fT the curve as a function of the parameters pv (a polynomial's centred ones), free those fitted; null when
+   the points cannot be had. The residual analysis, the robust weights and the bootstrap all read it. */
+function fitData(f){ const FM=fitModel(f); if(!FM||!Array.isArray(f.params)) return null; const c=colById(f.onCol)||activeYCol(); if(!c) return null;
   const rg=f.range||[-Infinity,Infinity];
   const pts0=fitPts(f).filter(q=>q.x>=rg[0]&&q.x<=rg[1]&&Number.isFinite(q.x)&&Number.isFinite(q.y)).sort((a,b)=>a.x-b.x), wk=weightOf(f), wc=wk==="col"?colById(f.wcol):null;
   const tx=FM.app&&APP_TF[FM.app.x], ty=FM.app&&APP_TF[FM.app.y], pts=(wk==="none"?pts0:pts0.filter(q=>wk==="yerr"?q.e>0:wk==="counts"?q.y>0:!!wc&&wc.data[q.i]>0)).filter(q=>(!tx||q.x>0)&&(!ty||q.y>0));
@@ -22042,6 +22167,21 @@ function fitDiag(f,opt){
   if(FM.composite){ const L=peakLinks(f.spec.peaks,FM.model); L.forEach(l=>{ free[l.gi]=false; }); if(L.length) fT=(x,p)=>FM.f(x,applyPeakLinks(p.slice(),L)); }
   const Yd=pts.map(q=>q.y), WT=wk==="none"?null:fitWeights(wk,Yd,pts.map(q=>q.e),wc?pts.map(q=>wc.data[q.i]):null); if(WT&&WT.fail) return null;
   const X=pts.map(q=>tx?tx.tf(q.x):q.x), Y=ty?Yd.map(v=>ty.tf(v)):Yd, W=WT?(ty?WT.W.map((w,i)=>w/ty.dv(Yd[i])):WT.W):null;
+  return {FM,c,pts,X,Y,W,scale:WT?!!WT.scale:true,pv,free,fT}; }
+// A robust fit's weight of each of its points, from its residuals and its scale ({w, by (a point's row → its weight), low (below
+// one half), zero, n}), kept per fit and data.
+const ROBW=new Map();
+function robWeights(f){ const k=robOf(f); if(!k) return null; const D=fitData(f); if(!D) return null;
+  const key=[f.at,f.onCol,pipeSig(D.c),maskSig(D.c),GP().logY?1:0,f.params.join(",")].join("|"); if(ROBW.has(key)) return ROBW.get(key);
+  const R=robustPsi(k,f.robust.k>0?f.robust.k:ROBUST_K[k]), sc=f.robust.s, by=new Map(); let low=0, zero=0;
+  const w=D.X.map((x,i)=>{ const e=(D.Y[i]-D.fT(x,D.pv))*(D.W?D.W[i]:1), v=sc>0?R.w(e/sc):(e===0?1:0); by.set(D.pts[i].i,v); if(v<0.5) low++; if(v===0) zero++; return v; });
+  const out={w,by,low,zero,n:w.length,D}; if(ROBW.size>16) ROBW.clear(); ROBW.set(key,out); return out; }
+function fitDiag(f,opt){
+  opt=opt||{}; if(!f||f.xerr) return null; const FM=fitModel(f); if(!FM||!Array.isArray(f.params)) return null;
+  const c=colById(f.onCol)||activeYCol(); if(!c) return null;
+  const key=[f.at,f.onCol,pipeSig(c),maskSig(c),GP().logY?1:0,confOf(f),weightOf(f)+(f.wcol||""),f.app?appText(f.app,true):"",f.params.join(",")].join("|");
+  if(DIAG.has(key)) return DIAG.get(key); if(opt.auto&&DSKIP.has(key)) return null;
+  const FD=fitData(f); if(!FD) return null; const {pts,X,Y,W,pv,free,fT}=FD;
   // Unasked, the analysis may cost what a glance should: the Jacobian is 2m sweeps of the model, timed on one.
   if(opt.auto){ const m=free.filter(Boolean).length, t0=performance.now(), pp=pv.slice(); for(let i=0;i<X.length;i++) fT(X[i],pp); if((performance.now()-t0)*2*m>120){ if(DSKIP.size>32) DSKIP.clear(); DSKIP.add(key); return null; } }
   const rs=residualStats(fT,X,Y,W,pv,free);
@@ -22267,7 +22407,7 @@ function saveProjFitSets(list,log){ const p=P(); if(!p||S.readOnly) return; push
 function fitSetOf(d,c){ const r=c?fitRngOf(c):null, k=weightOf(d);
   return {model:d.model, fn:d.fn?clone(d.fn):d.model&&d.model.startsWith("u:")?clone(((P().userFns||[]).find(q=>"u:"+q.id===d.model))||null):null,
     init:(d.init||[]).slice(), initFx:Array.isArray(d.initFx)?d.initFx.slice():null, fixed:(d.fixed||[]).slice(), lim:d.lim?clone(d.lim):null, dig:Array.isArray(d.dig)?d.dig.slice():null,
-    weight:k==="col"?"none":k, app:!!d.app, cons:d.cons||"", ctl:d.ctl?fitCtl(d.ctl):null, conf:d.conf??null, xerr:!!d.xerr, follow:!!d.follow, range:r?{x0:r[0],x1:r[1],xu:(finalOf(c).xu||"")}:null}; }
+    weight:k==="col"?"none":k, app:!!d.app, cons:d.cons||"", ctl:d.ctl?fitCtl(d.ctl):null, conf:d.conf??null, xerr:!!d.xerr, follow:!!d.follow, robust:robOf(d), range:r?{x0:r[0],x1:r[1],xu:(finalOf(c).xu||"")}:null}; }
 // What a saved setting says, for its tooltip.
 function fitSetText(s){ const m=s.fn?(()=>{ try{ return userModel(s.fn); }catch(e){ return null; } })():getModel(s.model), bits=[m?m.name:"a model that is gone"];
   if(Array.isArray(s.initFx)&&s.initFx.some(Boolean)&&m) bits.push("starts "+s.initFx.map((x,i)=>x?`${m.params[i]} = ${x}`:null).filter(Boolean).join(", "));
@@ -22308,7 +22448,7 @@ function useFitSet(s){
   if(model.startsWith("u:")&&!(p.userFns||[]).some(q=>"u:"+q.id===model)) adoptLibFn(s.fn);
   Object.assign(d,{model, fn:model.startsWith("u:")?clone(s.fn):null, init:(s.init||[]).slice(), initFx:Array.isArray(s.initFx)?s.initFx.slice():null, fixed:(s.fixed||[]).slice(),
     lim:s.lim?clone(s.lim):null, dig:Array.isArray(s.dig)?s.dig.slice():null, weight:s.weight==="yerr"&&!hasErr()?"none":s.weight||"none", wcol:null, app:!!s.app, cons:s.cons||"",
-    ctl:s.ctl?fitCtl(s.ctl):fitCtl(), conf:s.conf??null, xerr:!!s.xerr&&hasXErr(), follow:!!s.follow}); d.weighted=d.weight!=="none";
+    ctl:s.ctl?fitCtl(s.ctl):fitCtl(), conf:s.conf??null, xerr:!!s.xerr&&hasXErr(), follow:!!s.follow, robust:robOf(s)}); d.weighted=d.weight!=="none";
   const m=draftModel(d); if(!Array.isArray(d.init)||d.init.length!==m.params.length||!d.init.every(Number.isFinite)) guessDraft();
   if(!Array.isArray(d.fixed)||d.fixed.length!==m.params.length) d.fixed=m.params.map(()=>false);
   const c=activeYCol(), xu=c?(finalOf(c).xu||""):""; let note="";
@@ -22391,6 +22531,90 @@ function weightSel(id,d){ const c=activeYCol(), e=c&&errColFor(c.id), he=hasErr(
     +(cols.length?`<optgroup label="A column's values">${cols.map(o=>op("col:"+o.id,`Column ${esc(colLetter(o))}${o.name?`: ${esc(o.name)}`:""}`,"Each point counts as its value in this column, in its row; only their ratios matter, so the errors are scaled by √(reduced χ²)")).join("")}</optgroup>`:"")
     +(k==="col"&&!cols.some(o=>o.id===d.wcol)?op(cur,"A column that is gone","",true):"")
     +`</select></div>`; }
+/* Robust and Bootstrap intervals in the Fit window (FIT2_SPEC 4.8). Robust takes effect at the next fit; the bootstrap is
+   worked out after each fit while it is on, and at once for the fit on screen when it is switched on. */
+function robSel(id,d){ const k=robOf(d)||"none", op=(v,l,t)=>`<option value="${v}"${v===k?" selected":""} title="${esc(t)}">${l}</option>`;
+  return `<div class="frow frob"><label for="${id}" class="tipd" title="Points far from the curve count less: each is weighted by how far its residual lies, in units of a scale from the residuals' median absolute deviation, and the fit made again until the weights settle">Robust</label><select id="${id}"${S.readOnly?" disabled":""}>`
+    +op("none","None","Least squares: every point counts as its weight says")
+    +op("huber","Huber","Points beyond 1.345 times the scale count less, the further out the less")
+    +op("bisquare","Bisquare","Points count less the further out they are, and not at all beyond 4.685 times the scale")+`</select></div>`; }
+function wireRob(box,id,d){ const el=box.querySelector("#"+id); if(el) el.onchange=()=>{ pushUndo(el.value==="none"?"a least-squares fit":"a robust fit"); d.robust=el.value==="none"?null:el.value; S.fitError=""; }; }
+function bootHtml(pre,d){ const b=bootOf(d), ro=S.readOnly?" disabled":"";
+  return `<label class="chk"><input type="checkbox" id="${pre}Boot"${b.on?" checked":""}${ro}> <span class="tipd" title="Each parameter's standard error and percentile interval from the fit made again on resampled data, worked out after each fit, beside the ones from the fit's curvature">Bootstrap intervals</span></label>`
+    +(b.on?`<div class="frow fboot"><label for="${pre}BootK" class="tipd" title="Cases: the points drawn again with replacement. Residuals: the fitted curve plus its residuals drawn again">Resample</label><select id="${pre}BootK"${ro}><option value="cases"${b.kind==="cases"?" selected":""}>Cases</option><option value="resid"${b.kind==="resid"?" selected":""}>Residuals</option></select>`
+      +`<label for="${pre}BootB" class="tipd" title="How many resampled data sets, 200 to 10 000">Resamples</label><span class="fbootc"><input type="text" inputmode="numeric" id="${pre}BootB" value="${b.B}"${ro}><label for="${pre}BootS" class="tipd" title="The random numbers' seed: the same seed gives the same intervals">Seed</label><input type="text" inputmode="numeric" id="${pre}BootS" value="${b.seed}" class="seed"${ro}></span></div>`:""); }
+function wireBoot(box,pre,d,peaks){ const on=box.querySelector("#"+pre+"Boot"); if(!on) return;
+  on.onchange=()=>{ pushUndo(on.checked?"bootstrap intervals":"no bootstrap intervals"); d.boot=Object.assign(bootOf(d),{on:on.checked}); const f=activeFit(), p=P();
+    const mine=f&&p&&p.fit&&p.fit.at===f.at&&(f.kind==="composite")===!!peaks;
+    if(on.checked&&mine&&!f.boot) runBoot(f,bootOf(d));
+    if(!on.checked){ if(S.bootRun) S.bootRun.stop=true; if(mine&&f.boot){ const g=Object.assign({},p.fit); delete g.boot; save({fit:g},"took the bootstrap intervals off the fit"); } }
+    renderFit(); renderResults(); };
+  const k=box.querySelector("#"+pre+"BootK"); if(k) k.onchange=()=>{ d.boot=Object.assign(bootOf(d),{kind:k.value}); };
+  [["BootB","B",200,10000,"Resamples are 200 to 10 000."],["BootS","seed",1,4294967295,"A seed is a whole number from 1 up."]].forEach(([id,key,lo,hi,msg])=>{ const el=box.querySelector("#"+pre+id); if(!el) return;
+    el.onkeydown=ev=>{ if(ev.key==="Enter"){ ev.preventDefault(); el.blur(); } };
+    el.onchange=()=>{ const v=parseNum(el.value); if(v==null||!Number.isInteger(v)||v<lo||v>hi){ toast(msg); el.value=bootOf(d)[key]; return; } d.boot=Object.assign(bootOf(d),{[key]:v}); }; }); }
+/* The bootstrap of the fit on screen (FIT2_SPEC 4.8): its points as fitted, its setting and parameters sent to the compute
+   worker (bootFit), a progress line and Stop in Results (S.bootRun {at, pid, stop, v, B}); the result kept on the fit as boot
+   {se, ci, B, fails, kind, seed, conf, at}, one undo step. Not for a fit with the X errors, a global fit or a batch's row. */
+function bootJobOf(f,b){ if(f.xerr) return {fail:"a fit with the X errors has none yet"}; if(f.global) return {fail:"a global fit has none"};
+  const D=fitData(f); if(!D) return {fail:"its points are not to be had"};
+  const set=D.FM.composite?{spec:clone(f.spec),x0:f.x0,fixed:(f.fixed||[]).slice()}:{model:f.model,fn:f.fn?{name:f.fn.name,expr:f.fn.expr}:null,fixed:(f.fixed||[]).slice(),lim:f.lim?clone(f.lim):null,cons:f.cons||"",ctl:f.ctl?fitCtl(f.ctl):null};
+  return {set,X:D.X,Y:D.Y,W:D.W,scale:D.scale,kind:b.kind,B:b.B,seed:b.seed,conf:confOf(f),p:f.params.slice(),robust:robOf(f)?{kind:f.robust.kind,k:f.robust.k}:null}; }
+async function runBoot(f,b){ const p=P(); if(!p||S.readOnly||!f) return;
+  if(!p.fit||p.fit.at!==f.at){ toast("Bootstrap intervals are worked out for the fit on screen, not a row of a fit of every column."); return; }
+  const q=bootJobOf(f,b); if(q.fail){ toast(`No bootstrap: ${q.fail}.`); return; }
+  if(S.bootRun) S.bootRun.stop=true;
+  const run={at:f.at,pid:S.pid,stop:false,v:0,B:q.B}; S.bootRun=run; renderResults();
+  let r=await computeRun({kind:"call",fn:"bootFit",args:[q]},()=>run.stop||S.bootRun!==run,v=>{ run.v=v; bootProgress(); });
+  if(r===null&&!run.stop) r=bootFit(q);   // no worker: worked out on the page
+  if(S.bootRun===run) S.bootRun=null;
+  const P1=P();
+  if(run.stop||(r&&r.stopped)){ if(P1&&S.pid===run.pid) renderResults(); return; }
+  if(!r||r.error){ toast(`The bootstrap could not be worked out${r&&r.error?": "+r.error:""}.`); logError("Bootstrap: "+(r&&r.error||"no result"),"fit"); renderResults(); return; }
+  if(r.fail){ toast(`No bootstrap: ${r.fail}.`); renderResults(); return; }
+  if(!P1||S.pid!==run.pid||!P1.fit||P1.fit.at!==run.at){ renderResults(); return; }   // the fit changed while it was worked out
+  pushUndo("the bootstrap intervals");
+  save({fit:Object.assign({},P1.fit,{boot:{se:finOrNull(r.se),ci:finOrNull(r.ci),B:r.B,fails:r.fails,kind:r.kind,seed:r.seed,conf:r.conf,at:Date.now()}})},
+    `worked out bootstrap intervals for the fit (${r.B} resamples of the ${r.kind==="resid"?"residuals":"points"}, seed ${r.seed}${r.fails?`; ${r.fails} could not be fitted`:""})`);
+  renderResults(); }
+// The progress line written in place (a redraw per message would take Results' focus).
+function bootProgress(){ const r=S.bootRun, el=document.getElementById("rBootPct"), bar=document.getElementById("rBootBar"); if(!r) return;
+  if(el) el.textContent=Math.round(100*r.v)+"%"; if(bar) bar.style.width=(100*r.v).toFixed(1)+"%"; }
+/* Results' sections of a robust fit (its scale and the points that count least) and of its bootstrap (each parameter's
+   bootstrap standard error and percentile interval beside the curvature's), shown with the fit they belong to. */
+function honestHtml(f){ let h=""; const ro=S.readOnly?" disabled":"";
+  if(robOf(f)){ const RW=robWeights(f), r=f.robust;
+    h+=`<section class="rsec" data-rd="rob"><h4>Robust weights</h4><p class="lab">${esc(capFirst(robText(f)))}.${RW?` ${RW.low} of ${RW.n} point${RW.n===1?"":"s"} count less than half${RW.zero?`, ${RW.zero} not at all`:""}.`:""}</p>`;
+    if(RW&&RW.low){ const ix=RW.w.map((w,i)=>i).filter(i=>RW.w[i]<0.5).sort((a,b)=>RW.w[a]-RW.w[b]).slice(0,12), D=RW.D;
+      h+=`<div class="rscroll"><table class="rtab"><thead><tr><th>x</th><th>y</th><th>Residual</th><th>Weight</th></tr></thead><tbody>${ix.map(i=>`<tr><td>${esc(fmt(D.X[i],6))}</td><td>${esc(fmt(D.Y[i],6))}</td><td>${esc(fmtOr(D.Y[i]-D.fT(D.X[i],D.pv),4))}</td><td>${esc(fmt(RW.w[i],3))}</td></tr>`).join("")}</tbody></table></div>`
+        +(RW.low>12?`<p class="lab">The 12 that count least of ${RW.low}.</p>`:""); }
+    h+=`</section>`; }
+  const run=S.bootRun&&S.bootRun.at===f.at&&S.bootRun.pid===S.pid?S.bootRun:null, B=f.boot;
+  if(run) h+=`<section class="rsec" data-rd="boot"><h4>Bootstrap</h4><div class="bootrun" role="status"><span class="lab">${run.B} resamples:</span> <span id="rBootPct">${Math.round(100*run.v)}%</span><span class="bootbar"><span id="rBootBar" style="width:${(100*run.v).toFixed(1)}%"></span></span><button type="button" class="btn sm" id="rBootStop">${ICON("stop","sm")}Stop</button></div></section>`;
+  else if(B&&Array.isArray(B.se)){ const rows=paramRows(f), pc=confPct(B.conf||confOf(f));
+    // Four columns, so it fits the dock: the value is in the table above, the interval's ends in one cell.
+    h+=`<section class="rsec" data-rd="boot"><h4>Bootstrap</h4><div class="rscroll"><table class="rtab rbt"><thead><tr><th class="l">Parameter</th><th title="The standard error from the fit's curvature (the delta method)">Error</th><th title="The bootstrap's standard error: the replicates' standard deviation">Bootstrap</th><th title="The replicates' percentiles">${pc}% interval</th></tr></thead><tbody>${
+      rows.map(r=>{ const se=B.se[r.i], ci=(B.ci||[])[r.i]||[], hold=r.hold; return `<tr><td class="l">${r.html?`<span class="pn">${r.html}</span>`:esc(r.label)}</td><td>${hold?`<span class="lab">${r.fixed?"fixed":r.tied?"tied":"at its limit"}</span>`:esc(fmtOr(r.e,4))}</td><td>${r.fixed?"":esc(fmtOr(se,4))}</td><td class="bci">${r.fixed?"":`${esc(fmtOr(ci[0],5))} to ${esc(fmtOr(ci[1],5))}`}</td></tr>`; }).join("")}</tbody></table></div>`
+      +`<p class="lab">${B.B} resamples of the ${B.kind==="resid"?"residuals":"points"}, seed ${B.seed}${B.fails?`; ${B.fails} could not be fitted and are left out`:""}${robOf(f)?"; each fitted robustly":""}. Percentile intervals (not BCa).</p>`
+      +`<div class="actions"><button type="button" class="btn sm" id="rBootAgain"${ro} title="The same resampling with the next seed">Another seed</button></div></section>`; }
+  return h; }
+function wireHonest(box,f){ const st=box.querySelector("#rBootStop"); if(st) st.onclick=()=>{ if(S.bootRun){ S.bootRun.stop=true; S.bootRun=null; toast("Bootstrap stopped."); renderResults(); } };
+  const ag=box.querySelector("#rBootAgain"); if(ag) ag.onclick=()=>{ const B=f.boot||{}; runBoot(f,{on:true,kind:B.kind==="resid"?"resid":"cases",B:B.B||1000,seed:((B.seed>>>0)%4294967295)+1}); }; }
+// The same as text (the copied table, the CSV) and for the report.
+function honestText(f,sep,pre){ pre=pre||""; const out=[];
+  if(robOf(f)){ out.push(pre+["Robust",robText(f,true)].join(sep)); const RW=robWeights(f); if(RW) out.push(pre+["Points counting less than half",RW.low,"not at all",RW.zero,"of",RW.n].join(sep)); }
+  const B=f.boot; if(B&&Array.isArray(B.se)){ const pc=confPct(B.conf||confOf(f));
+    out.push(pre+["Bootstrap",`${B.B} resamples of the ${B.kind==="resid"?"residuals":"points"}`,"seed",B.seed,"failed",B.fails||0,"percentile intervals"].join(sep));
+    out.push(pre+["Parameter","Bootstrap standard error",pc+"% low (percentile)",pc+"% high (percentile)"].join(sep));
+    paramRows(f).forEach(r=>{ if(r.fixed) return; const ci=(B.ci||[])[r.i]||[]; out.push(pre+[r.label,fmtOr(B.se[r.i],6,""),fmtOr(ci[0],8,""),fmtOr(ci[1],8,"")].join(sep)); }); }
+  return out; }
+function reportHonestHtml(f){ if(!f) return ""; let h=""; const e2=t=>esc(String(t));
+  if(robOf(f)){ const RW=robWeights(f); h+="<h2>Robust fit</h2><p>"+e2(capFirst(robText(f)))+"."+(RW?" "+RW.low+" of "+RW.n+" points count less than half"+(RW.zero?", "+RW.zero+" not at all":"")+".":"")+"</p>"; }
+  const B=f.boot; if(B&&Array.isArray(B.se)){ const pc=confPct(B.conf||confOf(f));
+    h+="<h2>Bootstrap intervals</h2><table><thead><tr><th class=\"l\">Parameter</th><th>Value</th><th>Standard error</th><th>Bootstrap error</th><th>"+pc+"% low</th><th>"+pc+"% high</th></tr></thead><tbody>"+
+      paramRows(f).filter(r=>!r.fixed).map(r=>{ const ci=(B.ci||[])[r.i]||[]; return "<tr><td class=\"l\">"+e2(r.label)+"</td><td>"+e2(fmt(r.v,6))+"</td><td>"+(r.hold?"—":e2(fmtOr(r.e,4)))+"</td><td>"+e2(fmtOr(B.se[r.i],4))+"</td><td>"+e2(fmtOr(ci[0],6))+"</td><td>"+e2(fmtOr(ci[1],6))+"</td></tr>"; }).join("")+
+      "</tbody></table><p class=\"meta\">"+B.B+" resamples of the "+(B.kind==="resid"?"residuals":"points")+", seed "+B.seed+(B.fails?"; "+B.fails+" could not be fitted and are left out":"")+(robOf(f)?"; each fitted robustly":"")+". Percentile intervals (not BCa).</p>"; }
+  return h; }
 function setWeight(d,v){ if(String(v).startsWith("col:")){ d.weight="col"; d.wcol=String(v).slice(4); } else { d.weight=v==="yerr"||v==="counts"?v:"none"; d.wcol=null; } d.weighted=d.weight!=="none"; }
 // What the fit puts on the graph, set where it is made (the user had found no way to turn the shading off).
 function fitResidHtml(peaks){ const p=P(), on=!!p&&residOn(GP(),activeFit()||residHint()), cfg=p?plotCfg():{}, dis=S.readOnly||!p?" disabled":"", lv=confPct(confOf(activeFit()||{}));
@@ -22494,11 +22718,13 @@ function renderFit(){
   { const C=consOf(d,m); h+=`<div class="fcons"><label for="fitCons" class="tipd" title="One a line: a = a formula of the other parameters (a follows them), or a < b, a ≤ b (b stays above a). # begins a note.">Constraints</label><textarea id="fitCons" rows="2" spellcheck="false" autocomplete="off" placeholder="b = 2*a + 1&#10;w1 &lt; w2"${ro}>${esc(d.cons||"")}</textarea><div class="lab" id="fitConsHint" role="status">${C?C.err?`<span class="rbad">${esc(consErr(C))}</span>`:esc(consHint(C,m.params)):""}</div></div>`; }
   h+=`<div class="gh">Options</div>`;
   h+=weightSel("wt",d);
+  h+=robSel("fitRob",d);
   h+=followSw("fitFollow",d);
   { const A=appOf(); if(A||d.app) h+=`<label class="chk"><input type="checkbox" id="fitApp"${d.app&&A?" checked":""}${S.readOnly||!A?" disabled":""}> <span class="tipd" title="${esc(A?`Fit ${appText(A)}, as the points look on this graph's logarithmic ${A.x&&A.y?"axes":"axis"}: a straight line then fits a straight line on the graph. The parameters, R² and χ² are in those terms.`:"The graph has no logarithmic axis now")}">Apparent fit</span></label>`; }
   if(hasXErr()) h+=`<label class="chk"><input type="checkbox" id="wtx"${d.xerr?" checked":""}${S.readOnly?" disabled":""}> <span class="tipd" title="Orthogonal distance regression: each point's true X is fitted too, within its X error, so the curve is not pulled flat by errors in X, and the parameters' errors include them. Without Y errors, the scatter in Y is found from the fit.">Include the X errors</span></label>`;
   h+=fitResidHtml();
   h+=confHtml(d);
+  h+=bootHtml("fit",d);
   h+=rShowHtml(false);
   h+=`<div class="range" id="fitRange"></div>`;
   h+=fitCtlHtml(d);
@@ -22529,6 +22755,7 @@ function renderFit(){
   });
   box.querySelectorAll("input[data-fx]").forEach(inp=>inp.onchange=()=>{ d.fixed[+inp.dataset.fx]=inp.checked; pgMarks(box,d,m); });
   const wt=$("#wt"); if(wt) wt.onchange=()=>setWeight(d,wt.value);
+  wireRob(box,"fitRob",d); wireBoot(box,"fit",d,false);
   { const fw=$("#fitFollow"); if(fw) fw.onchange=()=>setFollow(d,fw.checked); const fs=$("#fitSets"); if(fs) fs.onclick=()=>toggleMenu(fs,fitSetMenuItems,{label:"Saved fit settings"}); }
   { const ct=$("#fitCons"), hn=$("#fitConsHint"); if(ct){ const say=()=>{ const C=consOf({cons:ct.value},m); hn.innerHTML=C?C.err?`<span class="rbad">${esc(consErr(C))}</span>`:esc(consHint(C,m.params)):""; };
     ct.oninput=say; ct.onchange=()=>{ if((d.cons||"")===ct.value) return; pushUndo("the constraints"); d.cons=ct.value; S.fitError=""; setTimeout(()=>renderFit(),0); }; } }
@@ -23301,10 +23528,11 @@ function renderPeakFit(box,p,top){
   }
   h+=`</section>`;
   // 3 Fit
-  h+=`<section class="stepsec"><h3 class="gh"><span class="sn">3</span>Fit</h3>${weightSel("pwt",d)}${followSw("pfFollow",d)}`;
+  h+=`<section class="stepsec"><h3 class="gh"><span class="sn">3</span>Fit</h3>${weightSel("pwt",d)}${robSel("pfRob",d)}${followSw("pfFollow",d)}`;
   if(hasXErr()) h+=`<label class="chk"><input type="checkbox" id="pwtx"${d.xerr?" checked":""}${S.readOnly?" disabled":""}> <span class="tipd" title="Orthogonal distance regression: each point's true X is fitted too, within its X error, so the curve is not pulled flat by errors in X, and the parameters' errors include them. Without Y errors, the scatter in Y is found from the fit.">Include the X errors</span></label>`;
   h+=fitResidHtml(true);
   h+=confHtml(d);
+  h+=bootHtml("pf",d);
   h+=rShowHtml(true);
   h+=`<div class="range" id="fitRange"></div>`;
   if(S.fitError) h+=noteHtml("bad",S.fitError);
@@ -23380,6 +23608,7 @@ function renderPeakFit(box,p,top){
     const k=+c.dataset.peak; S.selPeak=S.selPeak===k?null:k; renderFit(); renderPlot();
   });
   const pw=$("#pwt"); if(pw) pw.onchange=()=>setWeight(d,pw.value);
+  wireRob(box,"pfRob",d); wireBoot(box,"pf",d,true);
   { const fw=$("#pfFollow"); if(fw) fw.onchange=()=>setFollow(d,fw.checked); }
   const pwx=$("#pwtx"); if(pwx) pwx.onchange=()=>d.xerr=pwx.checked;
   wireConf(box,d);
@@ -23391,8 +23620,10 @@ function renderPeakFit(box,p,top){
 // anyway, so they are written as null from the start.
 const finOrNull=a=>(a||[]).map(v=>Array.isArray(v)?v.map(w=>Number.isFinite(w)?w:null):(Number.isFinite(v)?v:null));
 function afterFit(fit){
+  { const d=fit.kind==="composite"?S.pdraft:S.draft, b=bootOf(d); if(b.on&&!fit.xerr) setTimeout(()=>runBoot(fit,b),0); }
   const st=fit.stats, w=fitWarnings(fit).filter(x=>x.kind!=="stale");
-  const conv=st.converged?`Converged in ${st.iter} iteration${st.iter===1?"":"s"}`:`Stopped after ${st.iter} iterations without converging`;
+  const rw=robOf(fit)?`, then reweighted ${fit.robust.iter} time${fit.robust.iter===1?"":"s"}`:"";
+  const conv=(fit.ctl&&fit.ctl.method==="qr"?"Solved directly":st.converged?`Converged in ${st.iter} iteration${st.iter===1?"":"s"}`:`Stopped after ${st.iter} iterations without converging`)+rw;
   showDrawer("res");
   toast(`${conv}. R² = ${fmt(st.R2,5)}, reduced χ² = ${fmt(st.redChi2,4)}.${w.length?` ${w.length} note${w.length===1?"":"s"} in Results.`:""}`,{action:"Undo",run:undo});
 }
@@ -23413,9 +23644,13 @@ function runPeakFit(){
   const pscale=d.init.map((v,i)=>Math.abs(v)||1);
   m.slots.forEach((s,i)=>{ if(s.kind==="peak"){ if(s.name==="xc") pscale[i]=span; else if(s.name==="A") pscale[i]=yspan*span; else if(/^w/.test(s.name)) pscale[i]=span/20; } });
   const fT=L.length?(x,p)=>m.f(x,applyPeakLinks(p,L)):m.f;
-  const SX=d.xerr?xErrsOf(activeYCol(),pts):null;
-  const res0=SX?odrFit(fT,X,Y,useW?W.map(w=>1/w):null,SX,applyPeakLinks(d.init.slice(),L),fixedT,{lo,hi,pscale}):lmFit(fT,X,Y,W,applyPeakLinks(d.init.slice(),L),fixedT,{lo,hi,pscale,scale:WT.scale});
+  const SX=d.xerr?xErrsOf(activeYCol(),pts):null, rk=robOf(d);
+  if(rk&&SX){ S.fitError=ROB_ODR; renderFit(); return; }
+  let res0=SX?odrFit(fT,X,Y,useW?W.map(w=>1/w):null,SX,applyPeakLinks(d.init.slice(),L),fixedT,{lo,hi,pscale}):lmFit(fT,X,Y,W,applyPeakLinks(d.init.slice(),L),fixedT,{lo,hi,pscale,scale:WT.scale});
   if(res0.error){ S.fitError=res0.error; logError("Peak fit: "+res0.error,"fit"); renderFit(); return; }
+  // Robust (FIT2_SPEC 4.8): reweighted from the least-squares fit until the weights settle.
+  let rob=null; if(rk){ const R=robustFit(fT,X,Y,W,res0.params,fixedT,(Wn,p0)=>lmFit(fT,X,Y,Wn,p0.slice(),fixedT.slice(),{lo,hi,pscale,scale:WT.scale}),{kind:rk,res0,tol:1e-9});
+    if(R.error){ S.fitError="The robust fit: "+R.error; logError("Peak fit, robust: "+R.error,"fit"); renderFit(); return; } res0=R.res; rob=robRec(R.robust); }
   const res=linkResult(res0,L);
   if(!res.params.every(Number.isFinite)){ S.fitError="The fit diverged. Try Reset to estimates, or fix a parameter."; logError("Peak fit diverged","fit"); renderFit(); return; }
   const [a,b]=fitRange();
@@ -23425,7 +23660,7 @@ function runPeakFit(){
     maskSig:maskSig(activeYCol()), pipeSig:pipeSig(activeYCol()), rawFp:rawFp(),
     hadErrCol:hasErr(),
     fixed:d.fixed.slice(), dep:finOrNull(res.dep), pval:finOrNull(res.pval), tval:finOrNull(res.tval), ci:finOrNull(res.ci), atBound:res.atBound, stats:res.stats,
-    range:[Math.max(a,amin(X)),Math.min(b,amax(X))], ...weightRec(WT), ...(SX?{xerr:true,odr:odrNote(res)}:{}), ...(confKeep(confOf(d))?{conf:confOf(d)}:{}), ...(d.follow?{follow:true}:{}), by:who(), at:Date.now()};
+    range:[Math.max(a,amin(X)),Math.min(b,amax(X))], ...weightRec(WT), ...(SX?{xerr:true,odr:odrNote(res)}:{}), ...(rob?{robust:rob}:{}), ...(confKeep(confOf(d))?{conf:confOf(d)}:{}), ...(d.follow?{follow:true}:{}), by:who(), at:Date.now()};
   d.init=res.params.slice(); d.x0=m.x0; d.fitAt=fit.at;
   save(Object.assign({fit,fits:fitHistory(fit)},batchWith(fit)),`fitted ${describeSpec(spec)} to ${specName(activeYCol())} (R² = ${fmt(res.stats.R2,5)}, ${res.stats.n} points)`);
   renderFit(); renderPlot(); afterFit(fit);
@@ -23453,12 +23688,18 @@ function runFit(){
   if(SX&&WT.kind==="col"){ S.fitError=WCOL_ODR; renderFit(); return; }
   if(SX&&A){ S.fitError=APP_ODR; renderFit(); return; }
   if(C){ if(SX){ S.fitError=CONS_ODR; renderFit(); return; } const hf=C.ineqs.find(r=>B.fixed[r.hi]); if(hf){ S.fitError=consFixed(m,hf); renderFit(); return; } }
+  const rk=robOf(d); if(rk&&SX){ S.fitError=ROB_ODR; renderFit(); return; } if(rk&&C){ S.fitError=ROB_CONS; renderFit(); return; }
+  // Robust (FIT2_SPEC 4.8): from the least-squares result, reweighted until the weights settle; solve is the same solver.
+  const robust=(res0,f0,solve,tol,jac)=>{ const R=robustFit(f0,Xf,Yf,W,res0.params,B.fixed,solve,{kind:rk,res0,tol,jac}); if(R.error) return {error:"The robust fit: "+R.error}; return Object.assign(R.res,{robRec:robRec(R.robust)}); };
   /* A straight line or a polynomial is solved, not iterated (FIT2_SPEC 4.1), unless a constraint or the X errors ask for the
      iterative fit; a limit the solution breaks sends it there too, started from the solution held within its limits. */
   if(!C&&!SX){ const pd=polyDirect(d.model,Xf,Yf,W,B,WT.scale);
     if(pd&&pd.res){ if(pd.res.error){ S.fitError=pd.res.error; renderFit(); return; }
       const L=fitLogFor(d,m,c,Xf,Yf,W,WT.key+(A?"|"+appText(A,true):"")); L.direct=true; L.state=""; L.byStep=false;
       L.note="Solved directly: a polynomial is linear in its coefficients, so least squares gives them in one step, with no iterations."; L.last=pd.res.params.slice();
+      if(rk){ const ko=polyOrderOf(d.model), rr=robust(pd.res,m.f,(Wn,p0)=>polyLsq(Xf,Yf,Wn,ko,{fixed:B.fixed,p0:B.p0,scale:WT.scale}),1e-12,polyJac(ko));
+        if(!rr.error){ L.note=`Solved directly, then reweighted ${rr.robRec.iter} time${rr.robRec.iter===1?"":"s"} for a robust fit.`; L.last=rr.params.slice(); }
+        saveCurveFit(rr,{d,m,X,SX:null,WT,ctl,fixed:B.fixed,A,C:null,method:"qr",rob:rr.robRec}); return; }
       saveCurveFit(pd.res,{d,m,X,SX:null,WT,ctl,fixed:B.fixed,A,C:null,method:"qr"}); return; }
     if(pd&&pd.start) B.p0=pd.start; }
   const pr=C?consProblem(C,m.f,B.p0,B.fixed,B.lo,B.hi):null, back=pr?(q=>consBack(C,q)):(q=>q);
@@ -23480,6 +23721,9 @@ function runFit(){
     if(res.stats.paused&&run.done<ctl.maxIter){ if(run.shown) renderFitLog(); else { run.shown=true; renderFit(); } setTimeout(tick,0); return; }
     S.fitRun=null; delete res.stats.paused; res.stats.iter=run.done; L.state="";
     L.note=res.stats.converged?`Converged after ${run.done} iteration${run.done===1?"":"s"}.`:`Stopped at the limit of ${ctl.maxIter} iterations without converging. Fit again to carry on from here, or raise the limit in Fit control.`;
+    if(rk){ const rr=robust(res,m.f,(Wn,p0)=>lmFit(m.f,Xf,Yf,Wn,p0.slice(),B.fixed.slice(),Object.assign({},opt,{pscale:PS})),1e-9);
+      if(!rr.error){ L.note+=` Then reweighted ${rr.robRec.iter} time${rr.robRec.iter===1?"":"s"} for a robust fit.`; L.last=rr.params.slice(); }
+      saveCurveFit(rr,{d,m,X,SX:null,WT,ctl,fixed:B.fixed,A,C,rob:rr.robRec}); return; }
     saveCurveFit(pr?consResult(res,C):res,{d,m,X,SX:null,WT,ctl,fixed:B.fixed,A,C});
   };
   tick();
@@ -23538,7 +23782,7 @@ function saveCurveFit(res,o){
     onCol:(activeYCol()||{}).id, onColName:(activeYCol()||{}).name||"",
     maskSig:maskSig(activeYCol()), pipeSig:pipeSig(activeYCol()), rawFp:rawFp(), hadErrCol:hasErr(),
     range:[Math.max(a,amin(X)),Math.min(b,amax(X))], ...weightRec(WT), ...(SX?{xerr:true,odr:odrNote(res)}:{}), ...(o.A?{app:{x:o.A.x,y:o.A.y}}:{}), ...(o.C?{cons:String(d.cons).trim()}:{}), ...(Array.isArray(d.initFx)&&d.initFx.some(Boolean)?{initFx:d.initFx.slice()}:{}), ...(d.follow?{follow:true}:{}),
-    ctl:{maxIter:ctl.maxIter,tol:ctl.tol,method:o.method||(SX?"odr":"lm")}, ...(res.poly?{poly:res.poly}:{}), by:who(), at:Date.now()};
+    ctl:{maxIter:ctl.maxIter,tol:ctl.tol,method:o.method||(SX?"odr":"lm")}, ...(res.poly&&!o.rob?{poly:res.poly}:{}), ...(o.rob?{robust:o.rob}:{}), by:who(), at:Date.now()};
   d.init=res.params.slice(); if(S.fitLog&&S.fitLog.pid===S.pid&&!SX) S.fitLog.last=d.init.slice();
   const P0=P(), carry=m.user&&!(P0.userFns||[]).some(q=>q.id===m.fnId)?{userFns:(P0.userFns||[]).concat([JSON.parse(JSON.stringify(m.def))])}:{};
   save(Object.assign({fit,fits:fitHistory(fit)},carry,batchWith(fit)),`fitted ${m.user?`the function "${m.name}"`:lcFirst(m.name)} to ${specName(activeYCol())} (R² = ${fmt(res.stats.R2,5)}, ${res.stats.n} points)`);
@@ -23611,6 +23855,7 @@ function statsList(f){
     ["Iterations",st.iter==null?"—":f.ctl&&f.ctl.method==="qr"?"none: a polynomial is linear in its coefficients":`${st.iter}${st.converged?"":" (not converged)"}`],["Fit control",capFirst(ctlText(f))],
     ["Weighting",weightText(f)]].concat((C=>C&&!C.err?[["Constraints",consSummary(C,FM0.model.params)]]:[])(FM0&&consOf(f,FM0.model)),f.app?[["Fitted as",capFirst(appText(f.app))+", an apparent fit"]]:[],[["Confidence level",confPct(confOf(f))+"%"]],f.odr&&f.odr.s!=null?[["Scatter in Y, s",fmt(f.odr.s,4)]]:[],limText(f)?[["Limits",limText(f)]]:[]);
   if(f.range) out.push(["Fitted over",`x ${fmt(f.range[0],6)} to ${fmt(f.range[1],6)}`]);
+  if(robOf(f)) out.push(["Robust",robText(f)]);
   { const P=fitModel(f); if(P&&P.poly) out.push(["Solved in",polyAbout(P.poly)]); }
   if(f.follow) out.push(["Fitted again","when its data change"]);
   return out.map(([k,v])=>[k,v==null||v===""?"—":String(v)]);
@@ -23675,13 +23920,14 @@ function renderResults0(){
   } else h+=paramTableHtml(f);
   h+=`</div><div class="rrest">`;
   if(rShow().find) h+=findHtml(f);
+  h+=honestHtml(f);
   h+=diagHtml(f);
   h+=`</div><div class="rside"><dl class="kv">${statsBrief(f).concat(diagStats(f)).map(([k,v])=>{ const t=k==="Fit control"?ctlShort(f):String(v); return `<dt>${esc(k)}</dt><dd${t.length>18?' class="w"':""}>${t.split(" · ").map(x=>`<span class="nw">${esc(x)}</span>`).join(" · ")}</dd>`; }).join("")}</dl></div></div>`;
   const fa=document.activeElement, keep=fa&&fa.id&&box.contains(fa)&&fa.tagName==="INPUT"?{id:fa.id,s:fa.selectionStart,e:fa.selectionEnd}:null;
   box.innerHTML=h;
   if(keep){ const el=document.getElementById(keep.id); if(el){ el.focus({preventScroll:true}); try{ el.setSelectionRange(keep.s,keep.e); }catch(e){} } }
 
-  $("#rCopy").onclick=copyResults; $("#rReport").onclick=exportReport; $("#rCsv").onclick=exportCsv; wireDiag(box,f); wireFind(box,f); { const tw=$("#rToWs"); if(tw) tw.onclick=()=>fitToSheet(f); }
+  $("#rCopy").onclick=copyResults; $("#rReport").onclick=exportReport; $("#rCsv").onclick=exportCsv; wireDiag(box,f); wireFind(box,f); wireHonest(box,f); { const tw=$("#rToWs"); if(tw) tw.onclick=()=>fitToSheet(f); }
   $("#discussFit").onclick=()=>{ S.anchor={type:"fit",model:FM.composite?"peaks":f.model}; showDrawer("disc"); renderAnchor(); $("#cText").focus(); };
   box.querySelectorAll("[data-prow]").forEach(tr=>tr.onclick=()=>{ const k=+tr.dataset.prow;
     S.selPeak=S.selPeak===k?null:k; if(S.fitMode!=="peaks") S.fitMode="peaks"; renderFit(); renderPlot();
@@ -24519,11 +24765,12 @@ function methodLines(){
     { const lt=limText(f); if(lt) out.push("Limits: "+lt); }
     if(f.range) out.push("Fitted over x = "+fmt(f.range[0],8)+" to "+fmt(f.range[1],8));
     out.push("Weighting: "+weightText(f));
+    if(robOf(f)) out.push("Robust: "+robText(f)+" (iteratively reweighted least squares from the least-squares fit, the scale the residuals' median absolute deviation over 0.6745, the covariance as statsmodels' RLM's H1)");
     { const C=!FM.composite&&consOf(f,FM.model); if(C&&!C.err) out.push("Constraints: "+consSummary(C,FM.model.params)+" (a follower fitted through what it follows; an inequality as a difference that cannot go below 0)"); }
     { const t=!FM.composite&&fxStartsText(f,FM.model); if(t) out.push("Starting values as formulas of the data in range: "+t); }
     if(f.app) out.push("Apparent fit: fitted as "+appText(f.app)+", as the points look on the graph's logarithmic axes; the parameters and statistics are in those terms");
     { const PM=fitModel(f); if(PM&&PM.poly) out.push(`Solved by least squares (Householder QR, refined in double-double) in ${polyAbout(PM.poly)}; the coefficients in powers of x carried from those in t, and the curve, its bands and the values read from it worked out in t`); }
-    if(f.ctl&&f.ctl.method==="qr") out.push("Algorithm: least squares (QR), solved directly: no iterations");
+    if(f.ctl&&f.ctl.method==="qr") out.push("Algorithm: least squares (QR), solved directly"+(robOf(f)?", then iteratively reweighted":": no iterations"));
     else out.push("Algorithm: "+capFirst(ctlText(f))+(f.stats&&f.stats.converged?"; converged in "+f.stats.iter+" iterations":"; DID NOT CONVERGE"+(f.stats&&f.stats.iter!=null?" (stopped after "+f.stats.iter+" iterations)":"")));
   }
   return out;
@@ -24585,6 +24832,7 @@ async function exportReport(){
   if(f){
     html.push("<h2>"+(FM.composite?"All fitted parameters":"Fitted parameters")+"</h2>"+paramTableHtml(f,true));
     html.push("<h2>Fit statistics</h2><dl>"+statsList(f).map(([k,v])=>"<dt>"+esc2(k)+"</dt><dd>"+esc2(v)+"</dd>").join("")+"</dl>");
+    html.push(reportHonestHtml(f));
     html.push(reportDiagHtml(f));
   }
   html.push(reportPeaksHtml());
@@ -25132,6 +25380,7 @@ function resultsText(sep){
   derivedRows(f).forEach(x=>out.push([x.name+" (derived)",x.unit,fmt(x.v,10),fmtOr(x.e,4,""),"","","","","",""].join(sep)));
   out.push("");
   statsList(f).forEach(([k,v])=>out.push(k+sep+v));
+  { const ht=honestText(f,sep).filter(l=>!l.startsWith("Robust"+sep)); if(ht.length){ out.push(""); ht.forEach(l=>out.push(l)); } }   // the statistics above say Robust
   { const dt=diagText(f,sep); if(dt.length){ out.push(""); dt.forEach(l=>out.push(l)); } }
   const w=fitWarnings(f); if(w.length){ out.push(""); w.forEach(x=>out.push("Note"+sep+x.text)); }
   return out.join(NL);
@@ -25237,7 +25486,7 @@ async function exportCsv(){
       comp.slots.forEach((s,i)=>lines.push(`# ${s.kind==="peak"?`peak ${s.peak+1} ${s.name}`:`baseline ${s.name}`},${f.params[i]},${f.errors[i]},${f.dep?f.dep[i]:""}`));
     } else { const m=FM.model; m.params.forEach((nm,i)=>lines.push(`# ${nm},${f.params[i]},${f.errors[i]}`)); }
     lines.push(`# reduced chi2,${f.stats.redChi2}`); lines.push(`# R2,${f.stats.R2}`); lines.push(`# adjusted R2,${f.stats.adjR2}`);
-    lines.push(`# confidence level,${confPct(confOf(f))}%`); diagText(f,",","# ").forEach(l=>lines.push(l));
+    lines.push(`# confidence level,${confPct(confOf(f))}%`); honestText(f,",","# ").forEach(l=>lines.push(l)); diagText(f,",","# ").forEach(l=>lines.push(l));
   }
   const okc=await saveFile(safeName(p.name,".csv"),lines.join(String.fromCharCode(10)),"text/csv;charset=utf-8");
   if(okc) toast(okc==="dialog"?"Data saved.":`Sent ${safeName(p.name,".csv")} to your downloads.`);
@@ -28291,7 +28540,7 @@ ${DL([["t tests","Difference and SD (of the differences for paired): the noncent
 <h2 id="lm">Linear model</h2>
 <p>${MP("Analyze › Statistics › ANOVA › Linear model…")}, or ${MP("Analyze › Fit › Multiple regression…")}: a <em>Response</em> among the columns ticked, modelled by the others, over the rows with a value in every one. A column of numbers is a variable unless ticked under <em>Factors</em>; a column of text, or a categorical one, is a factor, each level an effect of its own.</p>
 ${DL([["Interactions","None; every pair of the columns; or every combination (A:B, A:C, B:C, A:B:C…). A factor in an interaction gives a column for each pair of its levels and the other's."],["Powers up to","Each number column's square, cube… as terms of their own (x^2, x^3), for a polynomial."],["Factor coding","Treatment: a coefficient for each level but the first, its difference from the first. Effect: a coefficient for each level but the last, its difference from the mean of the levels."],["Sums of squares","Type I: each term after those listed before it. Type II: each term after every other that does not contain it. Type III: each term after all the others, with effect coding (as SAS and Origin)."],["Contrasts","One a line, a sum of coefficients by the names the table gives them, each with a number before it if needed: <code>A[b] − A[c]</code>, <code>x + 2 x^2</code>, <code>A[b] = 1</code>. Its estimate, standard error, t, p and interval; refused where the data cannot separate it (a combination of aliased columns)."],["Weights","A column among those ticked whose values count each row, as 1/σ²: weighted least squares. A row with no weight, or none above zero, is left out and counted in the notes."],["Fitted values and residuals","Three columns on the result sheet: the row, the fitted value and the residual."],["Influence of each row","Beside them each row's standardized residual (over s), studentized (over s√(1 − h)) and studentized deleted residual (s from the fit without the row), its leverage h, Cook's distance and DFFITS; weighted, as the weighted fit sees them."],["Predictions","The rows with a value in every column but the response are predicted, and every row has its confidence limits (of the mean) and prediction limits (of one new value, of its own weight) at the level chosen."]])}
-<p>The report: the model (N, R², adjusted R², root MSE, F with its degrees of freedom and p), the coefficients with their standard errors, t, p and intervals, the analysis of variance, and the contrasts, then <em>Collinearity</em>: each coefficient's variance inflation factor (1/(1 − R²) of its column on the others; the sheet has it beside the coefficients) and the condition number of the design with its columns scaled to length 1. A column that is a combination of the columns before it (a factor's level missing from a cell, a column repeated) has no coefficient, and the notes name it. <em>Partial residual plots</em> under the report draws, for each column of numbers, the residuals plus that column's terms against it, with the line of those terms, a graph each in a figure (one undo step). The arithmetic is checked against exact rational arithmetic on NIST's Norris and Longley data, Wampler's polynomials and a polynomial of degree 10 as hard as NIST's Filip, and the weights, influence and predictions against statsmodels.</p>
+<p>The report: the model (N, R², adjusted R², root MSE, F with its degrees of freedom and p), the coefficients with their standard errors, t, p and intervals, the analysis of variance, and the contrasts, then <em>Collinearity</em>: each coefficient's variance inflation factor (1/(1 − R²) of its column on the others; the sheet has it beside the coefficients) and the condition number of the design with its columns scaled to length 1. <em>Bootstrap</em> (cases or residuals, 200 to 10 000 resamples and a seed) adds each coefficient's bootstrap error and percentile interval, from the model fitted again on the rows drawn again with replacement or on the fitted values plus their residuals drawn again; a resample that loses a coefficient (a level of a factor gone) is left out and counted. A column that is a combination of the columns before it (a factor's level missing from a cell, a column repeated) has no coefficient, and the notes name it. <em>Partial residual plots</em> under the report draws, for each column of numbers, the residuals plus that column's terms against it, with the line of those terms, a graph each in a figure (one undo step). The arithmetic is checked against exact rational arithmetic on NIST's Norris and Longley data, Wampler's polynomials and a polynomial of degree 10 as hard as NIST's Filip, and the weights, influence and predictions against statsmodels.</p>
 <h2 id="cmpmod">Compare models</h2>
 <p>${MP("Analyze › Fit › Compare models…")}: two to five fit settings (the fit on screen, saved fit settings, your functions, any built-in model from its own guess) fitted to the same points of one column, over the range typed or all of it, weighted alike. Each one's residual sum (χ² when weighted), reduced χ², R², AIC, AICc, BIC, ΔAICc from the smallest and Akaike's weight (from AICc); for each pair where one is a special case of the other (the same model with parameters fixed, a polynomial of a lower order, fewer exponential terms) the F test of the parameters the larger has beyond it; and each model's parameters. A setting that cannot be fitted to these points is named in the notes and left out. The numbers are Kurve's; which model to keep is yours.</p>
 <h2 id="cmpdata">Compare data sets</h2>
@@ -28334,7 +28583,7 @@ ${DL([["Noise σ","From second differences, so a band's slope does not count as 
 <h2>After fitting</h2>
 <p>The curve is drawn over the data, and the residuals under the graph after a peak fit. The Fit window's <em>On the graph</em> switches choose what else is drawn: the residuals under the graph, the confidence band (shaded), the prediction band (dashed) and, for a peak fit, each fitted peak shaded; the Graph menu has them too. The <em>In the results</em> switches below them choose, before the fit, what the Results window reports: the confidence intervals, the analysis of variance, the correlation and the covariance matrices, the residual analysis and, for a peak fit, every parameter. The report and the copied table carry all of it whatever is chosen. The ${DA("results","Results")} window gives every parameter with its uncertainty and anything that makes it less certain. Each fit is kept in the fit history; a fit whose data or processing changed since is marked out of date.</p>
 ${TIP("A fit belongs to its column. It is drawn only over the column it was fitted to.")}`},
-{id:"curvefit", g:"Fitting", t:"Curve fit", kw:"curve fit confidence level 90 95 99 percent model models list picker search sketch suggested suggestion linear straight line polynomial order quadratic cubic least squares qr solved directly no iterations centred centered far from zero exponential decay biexponential growth plateau association sigmoid boltzmann logistic dose response ec50 hill gompertz michaelis menten enzyme gaussian lorentzian voigt pseudo-voigt pearson log-normal lognormal extreme gumbel power law allometric logarithm arrhenius activation energy sine damped wave period frequency derived guess initial fixed weights control iteration iterations tolerance step stop lambda damping estimate starting values limits bounds lowest highest strict digits significant meaning confidence interval dependency",
+{id:"curvefit", g:"Fitting", t:"Curve fit", kw:"curve fit confidence level 90 95 99 percent model models list picker search sketch suggested suggestion linear straight line polynomial order quadratic cubic least squares qr solved directly no iterations centred centered far from zero exponential decay biexponential growth plateau association sigmoid boltzmann logistic dose response ec50 hill gompertz michaelis menten enzyme gaussian lorentzian voigt pseudo-voigt pearson log-normal lognormal extreme gumbel power law allometric logarithm arrhenius activation energy sine damped wave period frequency derived guess initial fixed weights control iteration iterations tolerance step stop lambda damping estimate starting values limits bounds lowest highest strict digits significant meaning confidence interval dependency robust huber bisquare tukey biweight outliers irls reweighted mad median absolute deviation bootstrap resample resamples cases residuals seed percentile interval",
  lead:"One model, fitted to the points in the fit's range.",
  body:`<h2>Fitting</h2>
 <ol class="dsteps"><li>Choose a model. The model's button opens the list of every model by kind, each with a sketch of its shape and its formula; type to find one by its name, by a word of what it is for or of what its parameters mean, or by its name in Origin (${K("↑")} ${K("↓")} and ${K("Enter")} choose). A polynomial's order, 1 to 10, is chosen beside the button. The Fit window starts from the model that suits the shape of the points (a straight line for a steady rise or fall, an exponential for a quick change that levels off, a sigmoid for a rise from one level to another, a Gaussian for one clear peak) and, while another is chosen, names it under the button (<em>Suggested:</em>), its button choosing it; the reason is the button's tooltip. Its formula is shown under the button.</li>
@@ -28365,6 +28614,12 @@ ${DL([["<code>b = 2*a + 1</code>","b follows the others: it is not fitted on its
 <h2 id="poly">Straight lines and polynomials</h2>
 <p>A straight line or a polynomial is linear in its coefficients, so it is not iterated: least squares gives the coefficients in one step (<em>Least squares (QR)</em>, with no iterations), the same for a fit of every column and a fit that follows its data. It is solved in X centred on its middle and scaled to between −1 and 1, and the coefficients are carried back to powers of x, which is how Results gives them; the curve, its bands, Find X/Y and the residual analysis are worked out from the centred coefficients, so a narrow range far from zero (times in seconds since 1970, a window of wavenumbers) keeps its digits where the powers of x as written would not. The report says about which X it was solved. A coefficient fixed is honoured by the same solve. A limit the solution breaks, a constraint between coefficients, or the X errors send the fit to Levenberg–Marquardt (or orthogonal distance), started from the solution. Checked against NIST's certified polynomials, Filip's of order 10 among them, to 13 digits or more.</p>
 <p>While the Fit window is open, the curve at the starting values is drawn dashed over the data (<em>estimate</em> in the legend). <em>1 iteration</em> takes one step from them and makes the result the new starting values, so the dashed curve moves towards the data a step at a time; <em>Iterations</em> lists every step (reduced χ², the damping λ and the parameters), the starting values as row 0. Steps taken one at a time follow the same path as <em>Fit</em>, which carries on the list. A long fit lists its steps as they come, and <em>Stop</em> stops it: its last values become the starting values.</p>
+<h2 id="robust">Robust fits</h2>
+<p><em>Robust</em>, in the Fit window's options (for a curve fit and a peak fit), makes points far from the curve count less, so a few outliers do not pull it. From the least-squares fit, each point's residual is measured in units of a scale, the residuals' median absolute deviation over 0.6745, and given a weight: <em>Huber</em> counts a point beyond 1.345 times the scale the less the further out it is; <em>Bisquare</em> (Tukey's biweight) counts it less from the start and not at all beyond 4.685 times the scale. The fit is made again with those weights, the scale measured again, until neither moves: iteratively reweighted least squares, as statsmodels' RLM does, whose numbers it gives to about eleven digits. The errors are RLM's H1. A straight line or a polynomial is solved directly each round.</p>
+<p>The residuals under the graph are then drawn as large as their points count, a point that counts not at all an open ring; Results' <em>Robust weights</em> section gives the scale, the rounds and the points that count least, a note says how many count less than half, and the statistics, the report and the CSV say it was robust. The prediction band uses the robust scale. A robust fit does not take the X errors or constraints between parameters yet; a fit of every column made from it is robust too.</p>
+<h2 id="boot">Bootstrap intervals</h2>
+<p><em>Bootstrap intervals</em>, in the Fit window's options, works out each parameter's standard error and interval from the fit made again on resampled data, after each fit and at once for the fit on screen when it is ticked: <em>Cases</em> draws the points again with replacement; <em>Residuals</em> adds the fitted curve's residuals, drawn again, to the curve (each scaled by its point's weight). 200 to 10 000 resamples, each fitted from the fit's own values (robustly, for a robust fit); a <em>seed</em> makes the random numbers, so the same seed gives the same intervals. It runs in the background with a progress line and <em>Stop</em> in Results.</p>
+<p>Results' <em>Bootstrap</em> section sets each parameter's bootstrap error (the replicates' standard deviation) and its percentile interval at the fit's confidence level beside the error from the fit's curvature; <em>Another seed</em> runs it again with the next seed. The interval is the percentile one (not BCa), which runs a little short with few points. The report, the copied table and the CSV carry it. A fit with the X errors, a global fit and a row of a fit of every column have none.</p>
 <h2 id="models">Models</h2>
 <p>Each model's parameters have a meaning and a unit, and its starting values are measured from the data: a straight line through the logarithms for a power law, a logarithm and Arrhenius; the two levels and the width from 10 to 90% of the way for a step; the best of a grid of decay times for two or three decays; the strongest period for a wave. Many give values derived from the parameters, with their errors (a half-life, a FWHM and an area, the dose halfway, an activation energy in kJ/mol and in eV, a frequency), which Results lists under the parameters.</p>
 <p>The logistic, the power law, the logarithm and Arrhenius take the logarithm of <i>x</i> or a power of it, so they need X above 0; Hill and Michaelis–Menten need X of 0 or more. A fit over other X says so instead of fitting: set the ${DA("fit","range")} to the X they can take. Arrhenius reads X as the temperature in kelvins.</p>
@@ -28430,7 +28685,7 @@ ${DL([["Category","Where the model list files it, among your functions: <em>Your
 <p>A function belongs to the project and, if you choose, to this browser's library for later projects. A fit keeps a copy of the function it used, so editing the function never changes a result already made; the report and the CSV state the formula and its limits.</p>
 <h2 id="org">Your functions</h2>
 <p>${MP("Analyze › Fit › Your functions…")}, or <em>Your functions…</em> at the foot of the model list, lists every function of the project and of this browser's library, by category. Type a name or a category in place to rename or file it (one undo step for the project's), <em>Edit…</em> opens the editor, <em>To project</em> and <em>To browser</em> copy it between the two, and <em>Delete</em> takes it out (Undo brings it back); fits made with it keep their own copy.</p>`},
-{id:"results", g:"Fitting", t:"Reading the results", win:"res", kw:"results parameters value standard error derived in the results sections t p value confidence interval level dependency chi square r2 aic bic residuals warnings notes history anova analysis of variance f test sum of squares mean square covariance correlation matrix standardised studentised standardized studentized deleted leverage hat outlier outliers mask probability paper normal histogram lag find x find y inverse prediction calibration curve read off value at to worksheet fitted values residual columns put the fit in the worksheet",
+{id:"results", g:"Fitting", t:"Reading the results", win:"res", kw:"results parameters value standard error derived in the results sections t p value confidence interval level dependency chi square r2 aic bic residuals warnings notes history anova analysis of variance f test sum of squares mean square covariance correlation matrix standardised studentised standardized studentized deleted leverage hat outlier outliers mask probability paper normal histogram lag find x find y inverse prediction calibration curve read off value at to worksheet fitted values residual columns put the fit in the worksheet robust weights bootstrap another seed",
  lead:"Every parameter with its uncertainty, the few statistics that judge the fit, and plain notes on anything that makes the numbers less trustworthy. The rest is there when you ask for it, and always in the report.",
  body:`<h2>Parameters</h2>
 <p>The table has three columns: the parameter (its meaning in its tooltip), its value and its standard error. The other columns are switches under the Fit window's <em>In the results</em>, off until chosen: <em>t and p values</em>, <em>Confidence intervals</em>, <em>Dependency</em>. The exported report and the copied table have every column whatever is shown.</p>
@@ -29308,7 +29563,7 @@ function batchWith(fit){ const p=P(), b=p&&p.batch; if(!b||b.glob) return {}; co
     :fit.kind!=="composite"&&fit.model===t.model;
   if(!same) return {};
   return {batch:Object.assign({},b,{rows:b.rows.map(q=>q===r?{col:q.col,fit:Object.assign({},fit,{batch:true,byHand:true}),fail:null}:q)})}; }
-function batchTemplate(f){ if(!f) return null; const c=colById(f.onCol)||activeYCol(), xu=finalOf(c).xu||"", common={params:f.params.slice(),fixed:(f.fixed||f.params.map(()=>false)).slice(),weighted:!!f.weighted,weight:weightOf(f)==="col"?"none":weightOf(f),app:f.app?{x:f.app.x,y:f.app.y}:null,cons:f.cons||"",xerr:!!f.xerr,range:f.range?f.range.slice():null,logY:!!GP().logY,xu,from:c?c.id:null,ctl:f.ctl?fitCtl(f.ctl):null,lim:f.lim?clone(f.lim):null,dig:Array.isArray(f.dig)?f.dig.slice():null,conf:confKeep(confOf(f))};
+function batchTemplate(f){ if(!f) return null; const c=colById(f.onCol)||activeYCol(), xu=finalOf(c).xu||"", common={params:f.params.slice(),fixed:(f.fixed||f.params.map(()=>false)).slice(),weighted:!!f.weighted,weight:weightOf(f)==="col"?"none":weightOf(f),app:f.app?{x:f.app.x,y:f.app.y}:null,cons:f.cons||"",xerr:!!f.xerr,range:f.range?f.range.slice():null,logY:!!GP().logY,xu,from:c?c.id:null,ctl:f.ctl?fitCtl(f.ctl):null,lim:f.lim?clone(f.lim):null,dig:Array.isArray(f.dig)?f.dig.slice():null,conf:confKeep(confOf(f)),robust:robOf(f)?{kind:f.robust.kind,k:f.robust.k}:null};
   if(f.kind==="composite") return Object.assign({kind:"composite",spec:clone(f.spec),x0:f.x0,name:describeSpec(f.spec)},common);
   return Object.assign({kind:"model",model:f.model,fn:f.fn?clone(f.fn):null,name:(fitModel(f)||{}).name||"the model"},common); }
 function batchPts(c,t){ const d=finalOf(c), mk=new Set(maskOf(c)), r=t.range, lo=r?Math.min(r[0],r[1]):-Infinity, hi=r?Math.max(r[0],r[1]):Infinity;
@@ -29329,9 +29584,10 @@ function fitOne(c,t,seed,spec){
     const span=(x1-x0)||1, yspan=(y1-y0)||1, pscale=seed.map(v=>Math.abs(v)||1);
     m.slots.forEach((s,i)=>{ if(s.kind==="peak"){ if(s.name==="xc") pscale[i]=span; else if(s.name==="A") pscale[i]=yspan*span; else if(/^w/.test(s.name)) pscale[i]=span/20; } });
     const fT=L.length?(x,p)=>m.f(x,applyPeakLinks(p,L)):m.f;
-    const r0=SX?odrFit(fT,X,Y,SY,SX,applyPeakLinks(seed.slice(),L),fixedT,{lo,hi,pscale}):lmFit(fT,X,Y,W,applyPeakLinks(seed.slice(),L),fixedT,{lo,hi,pscale}); if(r0.error) return {fail:r0.error};
+    let r0=SX?odrFit(fT,X,Y,SY,SX,applyPeakLinks(seed.slice(),L),fixedT,{lo,hi,pscale}):lmFit(fT,X,Y,W,applyPeakLinks(seed.slice(),L),fixedT,{lo,hi,pscale}); if(r0.error) return {fail:r0.error};
+    let rob=null; if(robOf(t)&&!SX){ const R=robustFit(fT,X,Y,W,r0.params,fixedT,(Wn,p0)=>lmFit(fT,X,Y,Wn,p0.slice(),fixedT.slice(),{lo,hi,pscale}),{kind:t.robust.kind,k:t.robust.k,res0:r0,tol:1e-9}); if(R.error) return {fail:"the robust fit: "+R.error}; r0=R.res; rob=robRec(R.robust); }
     const res=linkResult(r0,L); if(!res.params.every(Number.isFinite)) return {fail:"the fit diverged"};
-    return {fit:out(res,{kind:"composite",spec:clone(sp),x0:m.x0,fixed})};
+    return {fit:out(res,Object.assign({kind:"composite",spec:clone(sp),x0:m.x0,fixed},rob?{robust:rob}:{}))};
   }
   let m=null; try{ m=t.fn?userModel(t.fn):getModel(t.model); }catch(e){ m=null; } if(!m) return {fail:"its model is no longer available"};
   let Xm=X, Ym=Y, Wm=W;
@@ -29341,14 +29597,18 @@ function fitOne(c,t,seed,spec){
   const Ct=consOf(t,m); if(Ct&&Ct.err) return {fail:"its constraints: "+lcFirst(consErr(Ct))}; if(Ct&&SX) return {fail:"constraints are not taken with the X errors"};
   if(Ct&&Ct.ineqs.some(r=>Bt.fixed[r.hi])) return {fail:"a fixed parameter is kept above another by a constraint"};
   const keep=Object.assign({model:t.model,fixed:Bt.fixed.slice()},t.app?{app:clone(t.app)}:{},Ct?{cons:t.cons}:{},t.fn?{fn:clone(t.fn)}:{},t.lim?{lim:clone(t.lim)}:{},t.dig?{dig:t.dig.slice()}:{});
+  const rk=robOf(t)&&!SX&&!Ct?t.robust:null, robOn=(r0,solve,tol,jac)=>{ const R=robustFit(m.f,Xm,Ym,Wm,r0.params,Bt.fixed,solve,{kind:rk.kind,k:rk.k,res0:r0,tol,jac}); return R.error?{error:"the robust fit: "+R.error}:Object.assign(R.res,{robRec:robRec(R.robust)}); };
   if(!SX&&!Ct){ const pd=polyDirect(t.model,Xm,Ym,Wm,Bt,WT.scale);
     if(pd&&pd.res){ if(pd.res.error) return {fail:pd.res.error}; if(!pd.res.params.every(Number.isFinite)) return {fail:"the fit diverged"};
+      if(rk){ const ko=polyOrderOf(t.model), rr=robOn(pd.res,(Wn,p0)=>polyLsq(Xm,Ym,Wn,ko,{fixed:Bt.fixed,p0:Bt.p0,scale:WT.scale}),1e-12,polyJac(ko)); if(rr.error) return {fail:rr.error};
+        return {fit:out(rr,Object.assign(keep,{robust:rr.robRec,ctl:Object.assign({},t.ctl||{},{method:"qr"})}))}; }
       return {fit:out(pd.res,Object.assign(keep,{poly:pd.res.poly,ctl:Object.assign({},t.ctl||{},{method:"qr"})}))}; }
     if(pd&&pd.start) Bt.p0=pd.start; }
   const fo=Object.assign({lo:Bt.lo,hi:Bt.hi,scale:WT.scale},t.ctl?{maxIter:t.ctl.maxIter,tol:t.ctl.tol}:{});
-  const res=SX?odrFit(m.f,X,Y,SY,SX,Bt.p0.slice(),Bt.fixed.slice(),fo):consFit(m.f,Xm,Ym,Wm,Bt.p0.slice(),Bt.fixed.slice(),fo,Ct); if(res.error) return {fail:res.error};
+  let res=SX?odrFit(m.f,X,Y,SY,SX,Bt.p0.slice(),Bt.fixed.slice(),fo):consFit(m.f,Xm,Ym,Wm,Bt.p0.slice(),Bt.fixed.slice(),fo,Ct); if(res.error) return {fail:res.error};
   if(!res.params.every(Number.isFinite)) return {fail:"the fit diverged"};
-  return {fit:out(res,Object.assign(keep,t.ctl?{ctl:Object.assign({},t.ctl,{method:SX?"odr":"lm"})}:{}))};
+  if(rk){ res=robOn(res,(Wn,p0)=>lmFit(m.f,Xm,Ym,Wn,p0.slice(),Bt.fixed.slice(),fo),1e-9); if(res.error) return {fail:res.error}; if(!res.params.every(Number.isFinite)) return {fail:"the fit diverged"}; }
+  return {fit:out(res,Object.assign(keep,rk?{robust:res.robRec}:{},t.ctl?{ctl:Object.assign({},t.ctl,{method:SX?"odr":"lm"})}:{}))};
 }
 // Peaks from the peak finder in this spectrum, each of the template's first shape, on its baseline.
 function batchFoundSeed(c,t){

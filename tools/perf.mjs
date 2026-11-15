@@ -69,6 +69,8 @@ const BUDGET = {
   "Regression: 100 000 × 20, each row": [3000, "a response by twenty columns of numbers, 100 000 rows, with each row's leverage, residuals, Cook's distance and DFFITS (FIT2_SPEC 4.2; in the worker in the app)"],
   "Best subsets: 20 columns": [3000, "every subset of twenty columns on 500 rows, the best three of each size"],
   "Compare models: 3 on 10 000 points": [2000, "a Gaussian, a Lorentzian and a Voigt fitted to the same 10 000 points, their criteria (FIT2_SPEC 4.3)"],
+  "Robust fit: a peak on 10 000 points": [500, "a Gaussian on 10 000 points with outliers, reweighted by the bisquare until it settles (FIT2_SPEC 4.8)"],
+  "Bootstrap: 1000 resamples of a peak": [1500, "a Gaussian on 300 points fitted again on 1000 resamples (in the worker in the app; FIT2_SPEC 4.8)"],
   "ANOVA: Tukey, 10 groups": [1100, "Tukey–Kramer's 45 pairs and its quantile (worked out in the worker in the app)"],
 };
 const got = {};
@@ -188,6 +190,11 @@ await withPage(async (p) => {
     const a = performance.now(), r = bestSubsets(X, y, { best: 3 }); if (r.fail) throw new Error(r.fail); return performance.now() - a; }));
   got["Compare models: 3 on 10 000 points"] = await best(() => p.evaluate(() => { const mb = mulberry32(8), n = 10000, x = Array.from({ length: n }, (_, i) => i / 1000), y = x.map(v => 0.2 + 2 * Math.exp(-(((v - 5) / 1.2) ** 2)) + 0.02 * (mb() - 0.5));
     const a = performance.now(), r = anaRunKind("cmpmod", [{ name: "P", pts: { x, y, e: x.map(() => null), rows: x.map((_, i) => i) } }], { fits: [{ model: "gauss", name: "G" }, { model: "lorentz", name: "L" }, { model: "voigt", name: "V" }] }); if (r.fail) throw new Error(r.fail); return performance.now() - a; }));
+  got["Robust fit: a peak on 10 000 points"] = await best(() => p.evaluate(() => { const mb = mulberry32(12), n = 10000, X = Array.from({ length: n }, (_, i) => i / 1000), f = (x, q) => q[0] + q[1] * Math.exp(-0.5 * ((x - q[2]) / q[3]) ** 2);
+    const Y = X.map(v => f(v, [0.2, 2, 5, 1.2]) + 0.02 * (mb() - 0.5)); for (let i = 0; i < n; i += 97) Y[i] += 1; const W = X.map(() => 1), fx = [false, false, false, false];
+    const a = performance.now(), R = robustFit(f, X, Y, W, [0.1, 1.8, 4.9, 1], fx, (Wn, p0) => lmFit(f, X, Y, Wn, p0.slice(), fx.slice(), {}), { kind: "bisquare", tol: 1e-9 }); if (R.error || !R.robust.conv) throw new Error(R.error || "not settled"); return performance.now() - a; }));
+  got["Bootstrap: 1000 resamples of a peak"] = await best(() => p.evaluate(() => { const mb = mulberry32(13), n = 300, X = Array.from({ length: n }, (_, i) => i / 30), Y = X.map(v => 0.2 + 2 * Math.exp(-0.5 * ((v - 5) / 1.2) ** 2) + 0.05 * (mb() - 0.5));
+    const F = fitByDesc({ model: "gauss" }, X, Y, null, "none"); const a = performance.now(), r = bootFit({ set: { model: "gauss" }, X, Y, kind: "cases", B: 1000, seed: 1, p: F.res.params }); if (r.fail) throw new Error(r.fail); return performance.now() - a; }));
   got["Correlation: 1M pairs"] = await best(() => p.evaluate(() => { const mb = mulberry32(10), n = 1000000, x = Array.from({ length: n }, () => mb()), rows = x.map((_, i) => i);
     const ins = [{ name: "A", vals: x, rows }, { name: "B", vals: x.map((v) => v + mb()), rows }];
     const a = performance.now(); anaRunKind("corr", ins, { methods: ["pearson", "spearman", "kendall"] }); return performance.now() - a; }));

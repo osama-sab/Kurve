@@ -898,6 +898,17 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-15: honest intervals (FIT2_SPEC 4.8)
+
+- **Robust is a way of fitting, chosen before the fit**, beside the weights, so it changes the next fit and not the one on
+  screen; the bootstrap is a question about the fit on screen, so ticking it answers at once and each later fit answers again.
+- **Weights seen where the residuals are.** A robust fit's weights are drawn as the size of each residual under the graph (a
+  point left out an open ring), not as another chart: the residual panel is where a person already looks for outliers.
+- **Two errors side by side, no verdict.** The bootstrap error and percentile interval sit beside the curvature's, and the
+  method is said (percentile, not BCa; the seed); which to trust is the person's call, as everywhere else in Kurve.
+- **Long work in the background.** A bootstrap of a thousand refits runs in the compute worker with a progress line and Stop
+  in Results, so the window stays usable; stopped, nothing changes.
+
 ### 2026-11-14: comparing fits (FIT2_SPEC 4.3)
 
 - **A comparison is an analysis**, so it follows the data, sits in the History and is reported, as every other result does; a

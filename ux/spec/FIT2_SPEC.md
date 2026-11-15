@@ -411,6 +411,13 @@ background; maximum entropy deconvolution.
 
 ## 4.8 Honest intervals
 
+Done 15.11, as below, with these changes of plan: the weights are worked out again from a fit's residuals and its scale when
+shown, not stored with it; a robust fit is refused with the X errors or constraints between parameters; the bootstrap is of
+the fit on screen only (not a row of a fit of every column), its resamples fitted robustly for a robust fit; checked against
+RLM also by the fuzzer, with a polynomial's derivatives exact so its errors agree to 1e-11 (a numerical Jacobian gave 1e-7);
+the coverage check is 400 data sets of 30 points (2 000 took a minute), within 92 to 97.5 %, the percentile interval running a
+little short at that size.
+
 **What.** In the Fit window's options (curve and peak fits): *Robust* (none, Huber, bisquare), each
 fitted by iteratively reweighted least squares with the scale from the median absolute deviation,
 its weights shown under the graph as the points' size and in Results; *Bootstrap intervals* (cases or

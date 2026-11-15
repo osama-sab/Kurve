@@ -1459,6 +1459,19 @@ for test, share in (("all", [True, True, True]), ("t", [False, False, True])):
                   "want": {"chiSep": chiSep, "chiSh": chiSh, "kSep": kSep, "kSh": kSh, "F": F, "p": float(stats.f.sf(F, df1, df2))}})
 out["cmp"] = cases
 
+# ---- Robust fits (FIT2_SPEC 4.8): statsmodels' RLM (HuberT 1.345, TukeyBiweight 4.685, the scale by MAD about 0, the H1
+# covariance), run to its fixed point (tol 1e-14), on lines and polynomials with outliers planted ----------
+cases = []; rng = np.random.default_rng(48)
+for t, (k, n, nout, kind) in enumerate([(1, 40, 3, "huber"), (1, 40, 3, "bisquare"), (2, 60, 5, "huber"), (2, 60, 5, "bisquare"), (3, 80, 4, "huber"), (1, 25, 0, "huber")]):
+    X = sorted(float(v) for v in rng.uniform(0, 10, n)); Y = [float(1 + 0.5 * x - (0.03 * x * x if k >= 2 else 0) + 0.002 * x ** 3 * (k >= 3) + 0.2 * rng.normal()) for x in X]
+    for i in rng.choice(n, nout, replace=False): Y[int(i)] += float(rng.choice([-1, 1]) * rng.uniform(3, 6))
+    D = np.column_stack([np.asarray(X) ** j for j in range(k + 1)])
+    M = sm.robust.norms.HuberT(t=1.345) if kind == "huber" else sm.robust.norms.TukeyBiweight(c=4.685)
+    r = sm.RLM(np.asarray(Y), D, M=M).fit(maxiter=5000, tol=1e-14, conv="coefs")
+    cases.append({"fn": "robustFit", "name": f"order {k}, {nout} outliers, {kind}", "args": [X, Y, k, kind],
+                  "want": {"params": [float(v) for v in r.params], "bse": [float(v) for v in r.bse], "scale": float(r.scale), "w": [float(v) for v in r.weights]}})
+out["robust"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

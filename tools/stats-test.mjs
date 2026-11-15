@@ -637,5 +637,39 @@ check("binomial with p = 0 or 1", D.binom.cdf(0, 10, 0) === 1 && D.binom.sf(9, 1
   check("comparisons refuse in words: one column, constraints in a setting", /two columns or more/.test(one || "") && /Constraints between parameters/.test(cons || ""), [one, cons].join(" | "));
 }
 
+/* ---- honest intervals (FIT2_SPEC 4.8): robust fits and the bootstrap, by simulation ---- */
+{
+  const rf = get("robustFit"), pl = get("polyLsq"), bf = get("bootFit"), mc = get("mulberry32")(48), gs = () => { let u = 0; for (let k = 0; k < 12; k++) u += mc(); return u - 6; };
+  const fl = (x, p) => p[0] + p[1] * x, X = Array.from({ length: 30 }, (_, i) => i / 3), rob = (Y, kind) => rf(fl, X, Y, null, [0, 0], [false, false], (W, p0) => pl(X, Y, W, 1, {}), { kind });
+  // Three planted outliers pull least squares off the line; the bisquare's and Huber's lines stay on it.
+  let near = { ls: 0, huber: 0, bisquare: 0 }; const K = 200;
+  for (let t = 0; t < K; t++) { const Y = X.map((x) => 1 + 2 * x + 0.3 * gs()); for (let k = 0; k < 3; k++) { const i = Math.floor(mc() * 30); Y[i] += (mc() < 0.5 ? -1 : 1) * (8 + 4 * mc()); }
+    const ls = pl(X, Y, null, 1, {}).params[1]; if (Math.abs(ls - 2) < 0.06) near.ls++;
+    for (const kind of ["huber", "bisquare"]) if (Math.abs(rob(Y, kind).res.params[1] - 2) < 0.06) near[kind]++; }
+  check("robust: with three planted outliers the bisquare's slope is within 0.06 (three of its clean errors) of the truth nearly always, Huber's mostly, least squares' far less (200 data sets)", near.bisquare / K > 0.97 && near.huber / K > 0.9 && near.ls / K < 0.75, JSON.stringify(near));
+  // On clean normal data Huber's line loses little: its slope's variance about 1/0.95 of least squares'.
+  let s1 = 0, s2 = 0; const K2 = 400;
+  for (let t = 0; t < K2; t++) { const Y = X.map((x) => 1 + 2 * x + 0.3 * gs()); s1 += (pl(X, Y, null, 1, {}).params[1] - 2) ** 2; s2 += (rob(Y, "huber").res.params[1] - 2) ** 2; }
+  check("robust: on clean normal data Huber's slope varies about 1/0.95 as much as least squares' (its efficiency, 400 data sets)", s2 / s1 > 0.98 && s2 / s1 < 1.15, s2 / s1);
+  // The H1 errors: the robust slope's standard error matches its spread over the data sets.
+  let se = 0, sp = 0; for (let t = 0; t < K2; t++) { const Y = X.map((x) => 1 + 2 * x + 0.3 * gs()), R = rob(Y, "huber"); se += R.res.errors[1]; sp += (R.res.params[1] - 2) ** 2; }
+  check("robust: Huber's standard error (RLM's H1) matches the slope's spread over 400 data sets", Math.abs(se / K2 / Math.sqrt(sp / K2) - 1) < 0.1, se / K2 / Math.sqrt(sp / K2));
+  // The bootstrap's 95 % percentile interval of a known slope covers it about 95 % of the time.
+  let hit = 0; const K3 = 400;
+  for (let t = 0; t < K3; t++) { const Y = X.map((x) => 1 + 2 * x + 0.3 * gs()), ls = pl(X, Y, null, 1, {}), b = bf({ set: { model: "linear" }, X, Y, kind: "cases", B: 200, seed: t + 1, p: ls.params }); if (b.ci[1][0] <= 2 && 2 <= b.ci[1][1]) hit++; }
+  check("bootstrap: the 95 % percentile interval of the slope covers it 92 to 97 % of the time (400 data sets of 30 points; the percentile interval runs a little short at small n)", hit / K3 >= 0.92 && hit / K3 <= 0.975, hit / K3);
+  const Y = X.map((x) => 1 + 2 * x + 0.3 * gs()), p = pl(X, Y, null, 1, {}).params, j = (o) => JSON.stringify([o.se, o.ci]);
+  const b1 = bf({ set: { model: "linear" }, X, Y, kind: "resid", B: 300, seed: 5, p }), b2 = bf({ set: { model: "linear" }, X, Y, kind: "resid", B: 300, seed: 5, p }), b3 = bf({ set: { model: "linear" }, X, Y, kind: "resid", B: 300, seed: 6, p });
+  check("bootstrap: the same seed gives the same intervals, another seed others", j(b1) === j(b2) && j(b1) !== j(b3));
+  // The bootstrap's error of the slope is near the curvature's for a straight line (cases and residuals).
+  const b4 = bf({ set: { model: "linear" }, X, Y, kind: "cases", B: 2000, seed: 9, p }), e = pl(X, Y, null, 1, {}).errors[1];
+  check("bootstrap: its error of a straight line's slope is near the fit's own (2000 resamples, cases and residuals)", Math.abs(b4.se[1] / e - 1) < 0.3 && Math.abs(b1.se[1] / e - 1) < 0.3, [b4.se[1], b1.se[1], e]);
+  // A linear model's bootstrap of its coefficients.
+  const n = 40, x1 = Array.from({ length: n }, () => mc() * 10), yv = x1.map((v) => 3 - 0.4 * v + 0.5 * gs()), rows = yv.map((_, i) => i);
+  const r = get("anaRunKind")("lm", [{ id: "y", name: "Y", rows, vals: yv }, { id: "x", name: "X", rows, vals: x1 }], { y: "y", boot: { kind: "cases", B: 1000, seed: 2 } }), cl = (k) => (r.tables[0].cols.find((q) => q.k === k) || {}).vals;
+  check("bootstrap: a linear model's coefficients, their bootstrap errors near the model's and their intervals about the estimates", cl("bse") && cl("bse").every((v, i) => Math.abs(v / cl("se")[i] - 1) < 0.3) && cl("blo").every((v, i) => v < cl("b")[i] && cl("bhi")[i] > cl("b")[i]), JSON.stringify([cl("se"), cl("bse")]));
+  check("bootstrap and robust fits refuse in words: too few points, a model that is not known", /too few points/.test(bf({ set: { model: "linear" }, X: [1, 2], Y: [1, 2], p: [0, 1] }).fail || "") && /not known/.test(bf({ set: { model: "nope" }, X, Y, p }).fail || ""));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

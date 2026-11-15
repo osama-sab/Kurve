@@ -520,6 +520,23 @@ graph first, with the taskbar kept at the bottom of the screen.
   none is fixed) is what `findCtx` and `fitDiag` work from; `ctlText` names *least squares (QR), solved directly*;
   `polyAbout(P)` (t = (x − c)/s) in `statsList`'s *Solved in* (not `statsBrief`'s), the report's Method and the CSV;
   `polyGuess(k)` the models' guess (`polyfit` where the ANA block is not loaded). `poly10`, `#polyOrder` to 10.
+  **Robust fits and bootstrap intervals** (FIT2_SPEC 4.8): the drafts' `robust` ("huber", "bisquare" or null; `robOf(o)` reads a
+  draft's, a fit's or a template's) and `boot` (`bootOf(d)`: `{on, kind, B, seed}`), the Fit window's *Robust* (`robSel`,
+  `#fitRob`, `#pfRob`, `wireRob`: the next fit) and *Bootstrap intervals* (`bootHtml`, `#fitBoot`/`#pfBoot` with `…BootK`,
+  `…BootB`, `…BootS`, `wireBoot`: ticked, the fit on screen at once; off, its bootstrap taken away, one undo step). `runFit`
+  (both roads: polyLsq each round with `polyJac`, or Levenberg–Marquardt at a tolerance of 1e-9), `runPeakFit` and `fitOne` run
+  `robustFit` after least squares; refused with the X errors (`ROB_ODR`) or constraints (`ROB_CONS`); a fit keeps `robust`
+  (`robRec`: kind, k, s, iter, conv; no `poly`), `ctlText` adds *then iteratively reweighted*, `statsList` *Robust* (`robText`),
+  `fitWarnings` `robust` and `robconv`, the prediction band the scale squared, `batchTemplate` and saved fit settings carry it.
+  `fitData(f)` (the points as fitted, `fitDiag`'s first half, shared), `robWeights(f)` (each point's weight again from its
+  residual and s, memoised in `ROBW`; `{w, by, low, zero, n, D}`), drawn in the residual panel (`circle[data-rw]`, a point at 0 an
+  open ring; past 1500 points `path[data-rwlow]`). `afterFit` starts the bootstrap while ticked; `bootJobOf(f, b)` (the set, X,
+  Y, W, scale, p, robust; refusals in words), `runBoot(f, b)` (`computeRun` of `bootFit`, on the page with no worker; `S.bootRun
+  {at, pid, stop, v, B}`; the result saved on `p.fit` as `boot {se, ci, B, fails, kind, seed, conf, at}`, one undo step, a log
+  line; dropped when the fit changed meanwhile), `bootProgress` (`#rBootPct`, `#rBootBar` in place). Results' `honestHtml(f)`/
+  `wireHonest` (`section[data-rd="rob"]`: the scale and the 12 points that count least; `section[data-rd="boot"]`: running, a
+  progress line and `#rBootStop`; done, the table and `#rBootAgain`, the next seed), `honestText` (the copied table, the CSV under
+  `# `), `reportHonestHtml` (the report), the Method's *Robust:* line.
   **Fit control** (`ux/spec/FIT_SPEC.md` slice 1; curve fits): the draft's `ctl`
   (`{maxIter, tol}`, `FIT_CTL` 400 and 1e-12, read through `fitCtl`), the Fit window's *Fit
   control* group (`fitCtlHtml`, `wireFitCtl`: the method named, *Iterations, at most*,
@@ -1273,6 +1290,21 @@ graph first, with the taskbar kept at the bottom of the screen.
   `cmpCands()` (the fit on screen `screen`, saved settings `p:`/`b:`, your functions `u:`, every built-in model `m:<id>`, with
   group headings), `#aMm0`…`#aMm4`, `#aDs`, `#aDt` (filled with the chosen model's parameters), `cmpCommonHtml`/`cmpCommonRead`
   (`#aMw`, `#aMx0`, `#aMx1`). Analyze › Fit › Compare models… and Compare data sets….
+  **Honest intervals** (FIT2_SPEC 4.8; after `nestedOf`): `ROBUST_K` (huber 1.345, bisquare 4.685), `robustPsi(kind, c)` (`{w,
+  psi, dpsi}`), `robustFit(f, X, Y, W0, p0, fixed, solve, {kind, k, res0, tol, jac, noCov, maxIter (1000)})` (statsmodels' RLM: from the
+  least-squares fit `res0` (else `solve(W0, p0)`), the scale the median of |r|·W0 over 0.6745, each point's weight ψ(u)/u, `solve(W,
+  p)` the least-squares solver with W each point's factor (base times √weight), again until the parameters and the scale move by
+  less than `tol` (1e-12; 1e-9 for an iterative solver); the H1 covariance from `jac(x, p)` (a polynomial's `polyJac(k)`, exact) or
+  central differences; `{res, robust {kind, k, s, iter, conv, w}}` or `{error}`; more than half the points on the curve: s 0 and
+  only they count), `robustPoly(X, Y, k, kind)` (the bench's door), `peakPscale(m, p, X, Y)`, `bootFit(q)` (`{set (a curve
+  setting as `fitByDesc` takes, or a peak fit's `{spec, x0, fixed}`), X, Y, W (factors), scale, kind "cases"|"resid", B (20 to
+  10 000), seed, conf, p, robust}`: resamples from `mulberry32(seed)`, the residuals standardised by their factors, each fitted from
+  p by `fitByDesc` (weights `{W, scale}` as its fifth argument) or `lmFit` on `compileModel`'s with ties, robustly when asked;
+  `self.progress`; `{se, ci (percentiles), B, fails, kind, seed, conf}` or `{fail}` in words). `polyLsq` takes a weight of 0 (its
+  point left out, its residual its own). The linear model's `p.boot` (`lmBootOf`: cases or residuals, B, seed): each resample
+  fitted again with type I sums, a resample losing a coefficient left out and counted; `bse`, `blo`, `bhi` on the sheet beside the
+  coefficients, a section *Bootstrap, 95 % percentile interval*, the method's line; `heavy` counts it; form `#aLb`, `#aLbB`,
+  `#aLbS`.
   **Polynomials by QR** (FIT2_SPEC 4.1; after `lsqAlias`): `polyLsq(X, Y, W, k, {fixed, p0, scale, stream})` (order 1 to
   `POLY_MAX`, 10; lmFit's fields with `iter: 0` and `poly {c, s, b, V}`): in t = (x − c)/s, c the middle of X and s the power
   of two at or above half its range (t exact in double-double), the columns t^j in double-double and weighted, `lsqFit` and
@@ -3364,7 +3396,11 @@ deleted and back; following set at once, a mask change refitted with a log line,
 both back, a refit that cannot be made said in the notes. Slice 10: the editor's refusals (a start,
 a derived value), a function saved with its category, formula start, meaning, constraints and
 derived values, the Fit window starting with them, the derived value and its error in Results,
-the model list's category, the organizer (renamed and filed in place, undone, deleted).
+the model list's category, the organizer (renamed and filed in place, undone, deleted). Wave 4: 4.1 (polynomials solved
+directly, far from zero, with limits) and 4.8 (Robust offered and chosen, a bisquare line against robustFit, the outliers'
+weights drawn as the residuals' size, Results' section and note, the statistics and the Method; Bootstrap intervals ticked,
+worked out in the worker as bootFit gives them, Results' section, Another seed with Stop, undo, a fit of every column robust,
+a reload, a refusal, Huber on a decay; a robust peak fit and its bootstrap of the residuals).
 **The bench** (PARITY_SPEC wave 0; `tools/ref/README.md`): `node tools/ref-test.mjs [path]` checks
 Kurve's numerics against `tools/ref/fixtures/*.json` (40-digit mpmath for special functions and
 tails, SciPy, NumPy and statsmodels for procedures) and NIST's certified data (`tools/ref/nist/`: the
@@ -3415,7 +3451,8 @@ row predicted against linModel and lmPredict, the planted outlier's Cook's dista
 best subsets ordered by BIC against bestSubsets, Fit one of them…, 21 columns refused, a reload), and 4.3 (the doors, every
 model offered by kind, four models' χ², AICc and weights against fitByDesc and fitCompare, the nested pair's F test, no
 verdict, the fit on screen offered first, followed after a value typed, data sets with every parameter and the centre alone
-shared, refusals, a reload); `ONLY=2.11` runs one section.
+shared, refusals, a reload), and 4.8 (the linear model's bootstrap through its dialog, its errors and intervals on the sheet
+as the kind gives them with that seed, the report's section and method, followed, a reload); `ONLY=2.11` runs one section.
 `node tools/stats-test.mjs [path]` checks the distributions' properties (the tails adding up to
 1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
 up to 1 and their tails being their sums, Cauchy's t, closed forms), and the descriptive statistics'
@@ -3442,7 +3479,9 @@ duplicates, refusals), and multiple regression's (leverages adding up to the coe
 without the row, Cook's distance's definition, a VIF as 1/(1 − R²), weights doubled changing nothing, the 95 % prediction
 interval's coverage, best subsets against every subset fitted, a column forced in, refusals), and comparing fits' (the nested F
 test's size over 2 000 data sets, Akaike's weights adding up to 1, nesting by a fixed parameter, two columns from one model told
-apart about 5 % of the time, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
+apart about 5 % of the time, refusals), and honest intervals' (a robust line not pulled by planted outliers, Huber's efficiency,
+its H1 error against its spread, the bootstrap interval's coverage of a known slope, a seed's numbers again, a linear model's
+bootstrap, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
 ANA block.
 `node tools/sheet-drive.mjs [path]` (Playwright; `ONLY=3.1` runs one section) checks the worksheet as a table
 (`ux/spec/SHEET_SPEC.md`, wave 3): 3.1, formulas typed into the F(x)= row (an aggregate, rows of other rows, a running
@@ -4489,6 +4528,10 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   intercept): the fuzzer's seed 3 found 6e-11 where the target is 1e-14. Inverting the block and summing a form that cancels
   is what loses them; a refit's residuals in double-double do not. The form is kept where its condition and cancellation say
   it is safe (a refit of every term made a model of pairs six times slower), and refitted otherwise.
+- **A fixed point can be slow as well as right.** The robust fit's reweighting stopped at 200 rounds on a case the fuzzer
+  found, 5e-9 from statsmodels: near a kink of the median (the middle residual changing places) each round closed only 9 % of
+  the gap, and it needed 245. The limit is 1000 rounds, and a fit that reaches it says it did not settle. A limit on rounds is
+  set from the slowest case measured, not from the typical one.
 - **A variable taken out is grepped for.** Removing the Explorer's files took `fids` out of
   `autoImport`, and three `return {fids}` further down threw on every dropped file; the syntax
   check passes a reference to a name that does not exist. `review-drive`'s drop caught it. After
@@ -5085,7 +5128,10 @@ Next, in order:
    limits, partial residual plots, best subsets of up to 20 columns; statsmodels and every subset enumerated agreeing to
    1e-12), done 14.11; slice 4.3, comparing fits (Compare models: two to five fit settings on one column's points, their
    criteria and Akaike's weights, the F test of nested pairs; Compare data sets: one setting on several columns, alone and
-   shared; SciPy's curve_fit and statsmodels' compare_f_test agreeing to 1e-13, the tests' size by simulation), done 14.11
+   shared; SciPy's curve_fit and statsmodels' compare_f_test agreeing to 1e-13, the tests' size by simulation), done 14.11;
+   slice 4.8, honest intervals (robust curve and peak fits by Huber's or the bisquare's weights, their weights drawn as the
+   residuals' size; bootstrap intervals of cases or residuals in the worker, beside the curvature's, and of a linear model's
+   coefficients; statsmodels' RLM agreeing to 1e-11, the bootstrap's coverage by simulation), done 15.11
 
 ## Known gaps
 
@@ -5176,6 +5222,12 @@ Next, in order:
   a time (no joint F of several); the residual plots are the result sheet's columns plotted as any (partial residual plots
   apart); weights are a column's values only (no weights from the errors of a column); predictions are for the rows of the
   sheet with no response (not a sheet of new X); best subsets of numbers only (no factors), no stepwise selection
+- Robust fits: Huber's and the bisquare's weights only (no least trimmed squares, no MM-estimator), started from least squares
+  (so the bisquare can settle where least squares points it, with many outliers on one side); not with the X errors or
+  constraints between parameters; the residual analysis and the outlier limit are worked out with the base weights, not the
+  robust ones. Bootstrap intervals: percentile ones only (no BCa, no studentized bootstrap), of the fit on screen only (not a
+  row of a fit of every column, not a global fit, not with the X errors); after a reload of a fit with Bootstrap ticked the
+  bootstrap is not worked out again until the next fit or Another seed
 - Comparing fits: curve-fit settings only (a peak fit is compared once written as a function); every setting fitted with the
   same weights over the same points (a setting's own range and weights are not used); nesting is found for the same model with
   parameters fixed, polynomials and the exponential decays (other special cases are not tested by F); Compare data sets shares
