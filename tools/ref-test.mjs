@@ -417,6 +417,18 @@ const nistRead = (name) => { const txt = readFileSync(join(here, "ref", "nist", 
   }
 }
 
+/* ---- More curve-fit models (FIT2_SPEC 4.6): each new model's function against the same formula in 30-digit mpmath, at five
+   points across its typical range for two sets of values. A value near a zero of the function is compared with a thousandth
+   of the largest the model takes in its cases. ---- */
+{
+  const M = get("MODELS"), by = {};
+  fixtures.models.cases.forEach((c) => { const nm = c.fn.split(".")[1]; (by[nm] = by[nm] || []).push(c); });
+  for (const [nm, cs] of Object.entries(by)) { const big = Math.max(...cs.map((c) => Math.abs(c.want)));
+    let worst = 0, at = "";
+    cs.forEach((c) => { const [x, p] = c.args, g = M[nm].f(x, p), e = Math.abs(g - c.want) / Math.max(Math.abs(c.want), 1e-3 * big, 1e-300); if (!(e <= worst)) { worst = e; at = `${nm} at x = ${x}`; } });
+    note("models", worst, at); }
+}
+
 /* ---- Robust fits (FIT2_SPEC 4.8): robustFit (through robustPoly) on lines and polynomials against statsmodels' RLM at its fixed point: the
    parameters, their H1 errors, the scale and each point's weight ---- */
 {

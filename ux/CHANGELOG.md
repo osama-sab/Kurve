@@ -1024,6 +1024,24 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 4, slice 4.6: more models (2026-11-15)
+
+- **From 25 models to 105**, in eight kinds (Physics and Distributions new): a line through the origin, two segments with
+  their break, the reciprocal, a hyperbola, four rational functions; the stretched exponential, two-phase association, the
+  monomolecular, von Bertalanffy, Chapman–Richards, Weibull, Richards and logistic growth, A → B → C and parent–daughter
+  decay; the five-parameter logistic, two-site and biphasic dose–response, Hill with a start, the Langmuir, Freundlich, Sips
+  and BET isotherms, error-function, tanh and arctangent steps; Pearson IV, the exponentially modified Gaussian, split
+  Gaussian and Lorentzian, Gram–Charlier, Edgeworth, Doniach–Šunjić, Fano, the asymmetric double sigmoid, logistic, sech and
+  Student's t peaks, a Gaussian on a line, two Gaussians, two Lorentzians; a power law and a logarithm with offsets, a power
+  onset, Vogel–Fulcher–Tammann, Eyring, Nernst; Debye's and Einstein's heat capacities, Bloch–Grüneisen, Curie–Weiss,
+  Planck's law in wavelength and frequency, Wien, Drude, two Arrhenius terms, Tauc's direct and indirect edges, the Urbach
+  tail; a sine squared, two sines, a sine on a line, the sine of a square root, a smooth sawtooth, Fourier series of one to four
+  terms; the normal, log-normal, gamma, Weibull, beta and Cauchy densities and three cumulative curves. Each with its
+  parameters' meanings and units, a guess from the data, a sketch, derived values and Origin's names among its search words.
+- **Checked**: each recovered from its own guess at 0.01 % and 2 % noise; each function against its formula in 30-digit
+  mpmath (800 values, worst 4e-14); peaks integrating to their areas, Debye's limits, Planck's peak at Wien's; sixteen of
+  Origin's names found by the search; Debye's heat capacity and a gamma distribution fitted in the browser.
+
 ## Closing the gap with Origin, wave 4, slice 4.8: honest intervals (2026-11-15)
 
 - **Robust fits**: *Robust* in the Fit window's options (curve and peak fits), Huber's or the bisquare's weights, by iteratively

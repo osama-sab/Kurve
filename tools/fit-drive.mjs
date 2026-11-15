@@ -563,6 +563,42 @@ await page(async p => {
   const r = await p.evaluate(() => { const f = activeFit(); return { k: f.kind, rob: f.robust, B: f.boot.B, kind: f.boot.kind, se: f.boot.se, e: f.errors }; });
   check("a robust peak fit, its bootstrap of the residuals worked out after the fit", r.k === "composite" && r.rob && r.rob.kind === "huber" && r.B === 300 && r.kind === "resid" && r.se.every((v, i) => !r.e[i] || Math.abs(v / r.e[i] - 1) < 0.6), JSON.stringify(r));
 }, { name: "a robust peak fit and its bootstrap" });
+console.log("Wave 4, slice 4.6: more models");
+await page(async p => {
+  // A heat capacity measured from 5 to 400 K: Debye's with A = 24.9 J/(mol K) and a Debye temperature of 343 K.
+  await p.evaluate(async () => { const x = [], y = []; let s = 7; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; };
+    for (let i = 0; i < 80; i++) { const T = 5 + i * 5; x.push(T); y.push(MODELS.debye.f(T, [24.9, 343]) * (1 + 0.004 * r())); }
+    const xc = makeCol("x", "Temperature", "K", x), yc = Object.assign(makeCol("y", "Heat capacity", "J/(mol K)", y), { pipe: [], mask: [] });
+    const pr = Object.assign(blankProject("Copper"), { cols: [xc, yc], activeY: yc.id }); pr.graphs = [{ id: newGid(), name: "Graph 1", cols: [yc.id], plot: { style: "auto" } }];
+    await createProject(pr, "test"); await new Promise(r => setTimeout(r, 80)); renderAll(); });
+  await p.waitForTimeout(300);
+  await p.evaluate(() => { S.fitMode = "curve"; showTab("fit"); renderFit(); }); await p.waitForTimeout(150);
+  await p.click("#model"); await p.waitForSelector(".mpick");
+  let r = await p.evaluate(() => ({ n: document.querySelectorAll(".mpick .mp-i").length, g: [...document.querySelectorAll(".mpick .fp-g")].map(e => e.textContent) }));
+  check("the model list: 105 in eight kinds, Physics and Distributions among them", r.n >= 105 && r.g.slice(0, 8).join() === "Lines and polynomials,Growth and decay,Steps and saturation,Peaks,Powers and logarithms,Physics,Waves,Distributions", JSON.stringify(r));
+  // Origin's names find their models, never shown.
+  const names = { GaussMod: "emg", Asym2Sig: "asymds", Logistpk: "logpeak", Richards1: "richards", BiDoseResp: "biphasic", SineSqr: "sine2", PearsonIV: "pearson4", ExpAssoc2: "assoc2", Hyperbl: "hyperbola", Logistic5: "logistic5", Hill1: "hilloff", Allometric2: "allom2", GCAS: "gramch", MnMolecular: "monomol", TwoSiteComp: "dose2", Asym: null };
+  const miss = [];
+  for (const [nm, id] of Object.entries(names)) { if (!id) continue; await p.fill(".mpick input[type=search]", nm); await p.waitForTimeout(20);
+    const vis = await p.evaluate(() => [...document.querySelectorAll(".mpick .mp-i:not([hidden])")].map(b => b.dataset.mid)); if (!vis.includes(id)) miss.push(nm + "→" + vis.join("/")); }
+  check("Origin's names find the new models in the search (sixteen of them)", !miss.length, miss.join("; "));
+  await p.fill(".mpick input[type=search]", "debye heat"); await p.waitForTimeout(30);
+  await p.click('.mpick .mp-i[data-mid="debye"]'); await p.waitForTimeout(200);
+  await p.evaluate(() => runFit()); await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const f = activeFit(), rows = paramRows(f); return { m: f.model, p: f.params, e: f.errors, conv: f.stats.converged, units: rows.map(q => q.unit) }; });
+  check("Debye's heat capacity picked, guessed and fitted: A and the Debye temperature recovered, in J/(mol K) and K", r.m === "debye" && r.conv && Math.abs(r.p[1] - 343) < 3 * r.e[1] + 1 && Math.abs(r.p[0] - 24.9) < 3 * r.e[0] + 0.05 && r.units.join() === "J/(mol K),K", JSON.stringify(r));
+  // A gamma distribution over counts in bins, its mean derived.
+  await p.evaluate(() => { const c = activeYCol(), xc = xColFor(c), x = [], y = []; for (let i = 0; i < 60; i++) { const v = 0.25 + i * 0.25; x.push(v); y.push(+(MODELS.gammapdf.f(v, [0, 500, 3, 1.2])).toFixed(3)); }
+    xc.data = x; c.data = y; xc.name = "Diameter"; xc.unit = "µm"; c.name = "Count"; c.unit = ""; save({ cols: P().cols }, "typed"); renderAll(); chooseModel("gammapdf"); runFit(); }); await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const f = activeFit(), d = derivedRows(f); return { m: f.model, p: f.params, d: d.map(q => [q.name, q.v, q.unit]) }; });
+  check("a gamma distribution fitted to binned counts, its mean kθ derived in µm", r.m === "gammapdf" && Math.abs(r.p[2] - 3) < 0.01 && Math.abs(r.p[3] - 1.2) < 0.01 && r.d[0][0] === "Mean" && Math.abs(r.d[0][1] - 3.6) < 0.02 && r.d[0][2] === "µm", JSON.stringify(r));
+  // X a model cannot take, in words: a beta cumulative over X past 1.
+  r = await p.evaluate(() => { chooseModel("betacdf"); S.fitError = ""; runFit(); return S.fitError; });
+  check("X past 1 for a beta cumulative is refused in words", /needs X from 0 to 1, and the fit's range reaches x = /.test(r) && /Fit a range of X from 0 to 1/.test(r), r);
+  // A unit of 1/x²: a rational function's second denominator term.
+  r = await p.evaluate(() => { chooseModel("rat12"); return paramRows(Object.assign({}, activeFit(), { model: "rat12", params: [0, 0, 0, 0], errors: [0, 0, 0, 0], fixed: [] })).map(q => q.unit); });
+  check("units of 1/x² for a rational function's x² term", r[3] === "µm⁻²" && r[2] === "µm⁻¹", JSON.stringify(r));
+}, { name: "more models" });
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

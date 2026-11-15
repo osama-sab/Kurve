@@ -346,6 +346,14 @@ model, the plotted curve, a formula, a refusal, a reload).
 
 ## 4.6 More models
 
+Done 15.11, as below, with these changes of plan: 80 added (105 in all, polynomials counted once); the normal, Weibull and
+Cauchy cumulative curves are the error-function step, Weibull growth and the arctangent step, which carry those names in their
+search words, rather than copies; the double logarithm is left out (a power law on log–log axes, or the apparent fit), a
+logarithm with an offset in its place; Planck's laws take X in nm or THz and Nernst's y in volts at 25 °C; the Tauc edges fit
+the absorption coefficient itself, not its Tauc plot; the Urbach tail is y = exp((x − E1)/Eu); the mpmath fixtures are at
+30 digits (each function written again from its formula; the integrals by mpmath's quadrature, Pearson IV's gamma complex);
+`gammaInc` is STATS' `igamPQ` and `debyeInt` is `phononInt` (Debye's and Bloch–Grüneisen's integrals).
+
 **What.** From 25 models to about 100, in the Fit window's picker and its kinds, each with the bar
 of decision 6. The list, by kind (Origin's names in the search words):
 - *Lines and polynomials*: rational functions (1/1, 2/1, 1/2, 2/2), a line through the origin,

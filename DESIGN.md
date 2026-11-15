@@ -898,6 +898,18 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-15: more models (FIT2_SPEC 4.6)
+
+- **A long list is still one list.** 105 models are found the way 25 were: by kind, by a word of the name, the purpose or a
+  parameter, or by Origin's name, which is searched but never shown. Two kinds were added (Physics, Distributions) rather
+  than one long *Other*, because a person looking for Debye's law thinks of physics, not of powers.
+- **A model says what its X must be in.** Planck's law takes X in nanometres or terahertz and Nernst's y in volts at 25 °C,
+  in the formula shown beside the model; a model whose X must lie between 0 and 1 refuses other X in words, as one that needs
+  X above 0 does.
+- **No duplicates under new names.** Where a requested model is one already there (the normal cumulative is the error-function
+  step, the Cauchy cumulative the arctangent step, the Weibull cumulative Weibull growth), the existing one carries the name in
+  its search words instead of a second copy whose results would differ only in their labels.
+
 ### 2026-11-15: honest intervals (FIT2_SPEC 4.8)
 
 - **Robust is a way of fitting, chosen before the fit**, beside the weights, so it changes the next fit and not the one on

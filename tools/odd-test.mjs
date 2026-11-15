@@ -517,7 +517,7 @@ await page(async p => {
     const q=document.querySelector(".mpick input[type=search]"); let err2=""; try{ q.value="(["; q.dispatchEvent(new Event("input")); }catch(e){ err2=e.message; }
     const shown=[...document.querySelectorAll(".mpick .mp-i")].filter(b=>!b.hidden).length; closeFontPicker();
     return { err, err2, mine:rows.includes("u:ok"), broken:rows.includes("u:bad"), n:rows.length, shown }; });
-  check("a function that does not compile is left out of the list, the others shown", !r.err && r.mine && !r.broken && r.n === 26, JSON.stringify(r));
+  check("a function that does not compile is left out of the list, the others shown", !r.err && r.mine && !r.broken && r.n === 106, JSON.stringify(r));
   check("a search of brackets finds nothing and throws nothing", !r.err2 && r.shown === 0, JSON.stringify(r));
 }, { name: "models" });
 

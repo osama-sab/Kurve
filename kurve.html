@@ -5543,6 +5543,7 @@ function unitFor(dim,xu,yu){
   if(dim==="x") return xu;
   if(dim==="y") return yu;
   if(dim==="1/x"){ if(!xu) return ""; if(/\u207b\u00b9$/.test(xu)) return xu.slice(0,-2); return /^[\p{L}°]+$/u.test(xu)?xu+"\u207b\u00b9":"1/("+xu+")"; }
+  { const m=/^1\/x([2-9])$/.exec(dim||""); if(m){ if(!xu) return ""; return /^[\p{L}°]+$/u.test(xu)?xu+"\u207b"+SUPN[+m[1]]:"1/("+xu+")"+SUPN[+m[1]]; } }
   if(!xu||!yu) return "";
   if(dim==="yx") return yu+"\u00b7"+xu;
   if(dim==="y/x") return yu+"/"+xu;
@@ -5556,8 +5557,8 @@ function fitUnits(f){ const c=f&&f.onCol&&colById(f.onCol); if(!c) return dataUn
 function phPlain(s){ s=String(s||"").replace(/<[^>]+>/g,""); if(!/&/.test(s)) return s; const d=document.createElement("textarea"); d.innerHTML=s; return d.value; }
 /* ==MODELS:START== */
 /* ============================================================
-   The curve fit's models (ux/spec/FIT_SPEC.md, slice 3). Pure, after NUMERICS
-   and PEAKS, which tools/fit-test.mjs loads with it. Each model has a name,
+   The curve fit's models (ux/spec/FIT_SPEC.md, slice 3; eighty more in FIT2_SPEC 4.6, after
+   the literal). Pure, after NUMERICS and PEAKS, which tools/fit-test.mjs loads with it. Each model has a name,
    params, ph (each parameter's label, HTML), mean (what it means), dim (its
    unit: x, y, yx, y/x, y/xN, 1/x, "=J/mol" a unit of its own, "" none),
    formula (HTML), f(x, p), guess(X, Y) measured from the data, optionally lo
@@ -5830,14 +5831,553 @@ const MODELS={
     derived:[{name:"Frequency", dim:"1/x", fn:p=>1/Math.abs(p[3])}],
     sketch:{x:[0,6],p:[0,1,0,1,2]}, kw:"damped sine ringing oscillation decay oscillator SineDamp"}
 };
+/* ---- More models (FIT2_SPEC 4.6) ---------------------------------------------
+   About eighty more, by the curve fit's bar (decision 6): each parameter's meaning and unit, a guess from the data, a sketch,
+   derived values, search words. Their helpers first. */
+// Least squares for coefficients a model is linear in: the rows of the design and y; null when singular.
+function lsqRows(R,y){ const m=R[0].length, A=Array.from({length:m},()=>new Array(m).fill(0)), b=new Array(m).fill(0);
+  for(let i=0;i<R.length;i++){ const r=R[i]; if(!r.every(Number.isFinite)||!Number.isFinite(y[i])) continue; for(let a=0;a<m;a++){ b[a]+=r[a]*y[i]; for(let c=0;c<m;c++) A[a][c]+=r[a]*r[c]; } }
+  const c=solve(A,b); return c&&c.every(Number.isFinite)?c:null; }
+/* A rational function's start: the linearised fit y·D(x) = N(x), reweighted a few times by 1/D(x) from the fit before
+   (Sanathanan and Koerner), so it nears the least-squares fit and keeps away from a pole among the points. nn and nd the
+   numerator's and denominator's orders; [the numerator's coefficients, then the denominator's from x¹]. */
+function ratGuess(X,Y,nn,nd){ const {x,y}=thinXY(X,Y,400), pw=(v,k)=>Array.from({length:k},(_,j)=>Math.pow(v,j)); let c=null, D=x.map(()=>1);
+  for(let it=0;it<8;it++){ const R=x.map((v,i)=>pw(v,nn+1).concat(Array.from({length:nd},(_,j)=>-Math.pow(v,j+1)*y[i])).map(q=>q/D[i])), yy=y.map((v,i)=>v/D[i]), c2=lsqRows(R,yy); if(!c2) break;
+    const Dn=x.map(v=>{ let d=1; for(let j=0;j<nd;j++) d+=c2[nn+1+j]*Math.pow(v,j+1); return d; }); if(Dn.some(d=>!(Math.abs(d)>1e-9))) break; c=c2; D=Dn.map(Math.abs); }
+  return c; }
+// The points sorted by X and thinned to at most n (a guess need not read a million).
+function thinXY(X,Y,n){ const s=sortXY(X,Y), k=s.x.length, st=Math.max(1,Math.ceil(k/(n||400))), x=[], y=[]; for(let i=0;i<k;i+=st){ x.push(s.x[i]); y.push(s.y[i]); } return {x,y}; }
+// The candidate of a grid whose fit leaves the least: fit(c) gives {ss, …} or null.
+function gridBest(cands,fit){ let best=null; for(const c of cands){ const r=fit(c); if(r&&Number.isFinite(r.ss)&&(!best||r.ss<best.ss)) best=Object.assign({c},r); } return best; }
+const ssOf=(x,y,f)=>{ let s=0; for(let i=0;i<x.length;i++){ const v=y[i]-f(x[i]); s+=v*v; } return s; };
+const logGrid=(a,b,n)=>Array.from({length:n},(_,i)=>a*Math.pow(b/a,i/(n-1)));
+// exp(y²) erfc(y), Cody's rational forms (as erfcFn's), without the overflow of exp(y²) for a large y.
+function erfcx(y){ if(Number.isNaN(y)) return NaN; if(y<0) return 2*Math.exp(y*y)-erfcx(-y); if(y<=0.46875) return Math.exp(y*y)*(1-codyErfSmall(y));
+  if(y<=4){ const {C,D}=CODY; let n=C[8]*y, d=y; for(let i=0;i<7;i++){ n=(n+C[i])*y; d=(d+D[i])*y; } return (n+C[7])/(d+D[7]); }
+  const {P,Q}=CODY, z=1/(y*y); let n=P[5]*z, d=z; for(let i=0;i<4;i++){ n=(n+P[i])*z; d=(d+Q[i])*z; } return (0.56418958354775628695-z*(n+P[4])/(d+Q[4]))/y; }
+// Re ln Γ(x + iy), x > 0: the recurrence up to 12, then Stirling's series (Pearson IV's normalisation).
+function lgammaRe(x,y){ let s=0; while(x<12){ s-=0.5*Math.log(x*x+y*y); x+=1; }
+  const r2=x*x+y*y, th=Math.atan2(y,x), c=[1/12,-1/360,1/1260,-1/1680,1/1188,-691/360360,1/156];
+  let v=(x-0.5)*0.5*Math.log(r2)-y*th-x+0.5*Math.log(2*Math.PI); c.forEach((ck,k)=>{ const q=2*k+1; v+=ck*Math.pow(r2,-q/2)*Math.cos(q*th); }); return v+s; }
+/* ∫₀^z tⁿ eᵗ/(eᵗ − 1)² dt (Debye's heat capacity with n = 4, Bloch and Grüneisen's resistivity with n = 5): 20-point
+   Gauss–Legendre on panels of width at most 2 up to min(z, 50), the integrand tⁿ/(4 sinh²(t/2)); past 50 the rest is below 1e-15
+   of the whole. */
+let GLM=null;
+function phononInt(n,z){ if(!(z>0)) return 0; if(!GLM) GLM=glNodes(20); const top=Math.min(z,50), k=Math.max(1,Math.ceil(top/2)), h=top/k; let s=0;
+  for(let j=0;j<k;j++){ const a=j*h; for(let i=0;i<20;i++){ const t=a+h*(GLM.xs[i]+1)/2, sh=Math.sinh(t/2); s+=GLM.ws[i]*h/2*Math.pow(t,n)/(4*sh*sh); } } return s; }
+// The words for X a model cannot take (modelXBad's {x, strict, max}).
+const xNeed=b=>b.max!=null?`from 0 to ${b.max}`:b.strict?"above 0":"of 0 or more";
+// Where the smoothed points first cross each fraction of the way from A1 to A2 (by interpolation); null where they do not.
+function fracXs(X,Y,A1,A2,frs){ const s=sortXY(X,Y), x=s.x, y=smoothY(s.y), d=A2-A1; if(!d) return frs.map(()=>null);
+  return frs.map(fr=>{ for(let j=0;j<x.length-1;j++){ const a=(y[j]-A1)/d, b=(y[j+1]-A1)/d; if((a-fr)*(b-fr)<=0&&a!==b) return x[j]+(fr-a)/(b-a)*(x[j+1]-x[j]); } return null; }); }
+const ENDS=(X,Y)=>{ const s=sortXY(X,Y), n=s.y.length, k=Math.max(1,Math.floor(n*0.1)); return [meanOf(s.y.slice(0,k)),meanOf(s.y.slice(-k)),s]; };
+// The rate-limited term of A → B → C and of a daughter's growth: (e^(−k1 x) − e^(−k2 x))/(k2 − k1), without the cancellation when k2 ≈ k1.
+const kdiff=(k1,k2,x)=>{ const d=k2-k1; return d===0?x*Math.exp(-k1*x):-Math.exp(-k1*x)*Math.expm1(-d*x)/d; };
+Object.assign(MODELS,{
+  origin:{name:"Line through the origin", params:["b"], mean:["slope"], ph:["<i>b</i>"], dim:["y/x"],
+    formula:"<i>y</i> = <i>b</i><i>x</i>", f:(x,p)=>p[0]*x,
+    guess:(X,Y)=>{ let sxy=0, sxx=0; X.forEach((x,i)=>{ if(Number.isFinite(x)&&Number.isFinite(Y[i])){ sxy+=x*Y[i]; sxx+=x*x; } }); return [sxx>0?sxy/sxx:1]; },
+    sketch:{x:[0,1],p:[1]}, kw:"line through the origin proportional zero intercept slope only Line0"},
+  seg2:{name:"Two straight segments", params:["yb","b1","b2","xb"], mean:["value at the break","slope before the break","slope after the break","the break point"],
+    ph:["<i>y</i><sub>b</sub>","<i>b</i><sub>1</sub>","<i>b</i><sub>2</sub>","<i>x</i><sub>b</sub>"], dim:["y","y/x","y/x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>b</sub> + <i>b</i><sub>1</sub>(<i>x</i> &minus; <i>x</i><sub>b</sub>) before <i>x</i><sub>b</sub>, <i>y</i><sub>b</sub> + <i>b</i><sub>2</sub>(<i>x</i> &minus; <i>x</i><sub>b</sub>) after",
+    f:(x,p)=>p[0]+(x<p[3]?p[1]:p[2])*(x-p[3]),
+    guess:(X,Y)=>{ const {x,y}=thinXY(X,Y,300), n=x.length, cands=[]; for(let k=2;k<n-2;k+=Math.max(1,Math.floor(n/80))) cands.push(x[k]);
+      const b=gridBest(cands,xb=>{ const c=lsqRows(x.map(v=>[1,Math.min(v-xb,0),Math.max(v-xb,0)]),y); return c?{ss:ssOf(x,y,v=>c[0]+c[1]*Math.min(v-xb,0)+c[2]*Math.max(v-xb,0)),p:[c[0],c[1],c[2],xb]}:null; });
+      return b?b.p:[meanOf(y),0,0,(x[0]+x[n-1])/2]; },
+    derived:[{name:"Change of slope", dim:"y/x", fn:p=>p[2]-p[1]}],
+    sketch:{x:[0,10],p:[3,0.2,1.2,5]}, kw:"segmented piecewise linear two lines broken stick break point change point bilinear hinge kink"},
+  recip:{name:"Reciprocal", params:["a","b"], mean:["level at large x","the size of the 1/x term"], ph:["<i>a</i>","<i>b</i>"], dim:["y","yx"],
+    formula:"<i>y</i> = <i>a</i> + <i>b</i>/<i>x</i>", f:(x,p)=>p[0]+p[1]/x,
+    guess:(X,Y)=>lsqRows(X.map(x=>[1,1/x]),Y)||[meanOf(Y),1],
+    sketch:{x:[0.2,5],p:[0.5,1]}, kw:"reciprocal inverse 1/x Reciprocal"},
+  hyperbola:{name:"Hyperbola", params:["y0","A","x0"], mean:["level it tends to","the size of the term","where it goes off to infinity"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>0</sub>"], dim:["y","yx","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i>/(<i>x</i> &minus; <i>x</i><sub>0</sub>)", f:(x,p)=>p[0]+p[1]/(x-p[2]),
+    guess:(X,Y)=>{ const {x,y}=thinXY(X,Y,300), a=x[0], b=x[x.length-1], sp=(b-a)||1, cands=logGrid(0.005,20,24).flatMap(g=>[a-g*sp,b+g*sp]);
+      const r=gridBest(cands,x0=>{ const c=lsqRows(x.map(v=>[1,1/(v-x0)]),y); return c?{ss:ssOf(x,y,v=>c[0]+c[1]/(v-x0)),p:[c[0],c[1],x0]}:null; });
+      return r?r.p:[meanOf(y),1,a-sp]; },
+    sketch:{x:[0,4],p:[0,1,-0.3]}, kw:"hyperbola rectangular hyperbolic asymptote shifted reciprocal Hyperbl"},
+  rat11:{name:"Rational, 1/1", params:["a","b","c"], mean:["value at x = 0","the numerator's slope","the denominator's slope"], ph:["<i>a</i>","<i>b</i>","<i>c</i>"], dim:["y","y/x","1/x"],
+    formula:"<i>y</i> = (<i>a</i> + <i>b</i><i>x</i>) / (1 + <i>c</i><i>x</i>)", f:(x,p)=>(p[0]+p[1]*x)/(1+p[2]*x),
+    guess:(X,Y)=>ratGuess(X,Y,1,1)||[meanOf(Y),0,0],
+    derived:[{name:"Level at large x", dim:"y", fn:p=>p[1]/p[2]}],
+    sketch:{x:[0,5],p:[0.1,1,0.6]}, kw:"rational function Pade ratio of polynomials Rational0"},
+  rat21:{name:"Rational, 2/1", params:["a","b","c","d"], mean:["value at x = 0","the numerator's x term","the numerator's x² term","the denominator's slope"], ph:["<i>a</i>","<i>b</i>","<i>c</i>","<i>d</i>"], dim:["y","y/x","y/x2","1/x"],
+    formula:"<i>y</i> = (<i>a</i> + <i>b</i><i>x</i> + <i>c</i><i>x</i><sup>2</sup>) / (1 + <i>d</i><i>x</i>)", f:(x,p)=>(p[0]+p[1]*x+p[2]*x*x)/(1+p[3]*x),
+    guess:(X,Y)=>ratGuess(X,Y,2,1)||[meanOf(Y),0,0,0],
+    sketch:{x:[0,5],p:[1,-0.5,0.4,0.5]}, kw:"rational function Pade ratio of polynomials"},
+  rat12:{name:"Rational, 1/2", params:["a","b","c","d"], mean:["value at x = 0","the numerator's slope","the denominator's x term","the denominator's x² term"], ph:["<i>a</i>","<i>b</i>","<i>c</i>","<i>d</i>"], dim:["y","y/x","1/x","1/x2"],
+    formula:"<i>y</i> = (<i>a</i> + <i>b</i><i>x</i>) / (1 + <i>c</i><i>x</i> + <i>d</i><i>x</i><sup>2</sup>)", f:(x,p)=>(p[0]+p[1]*x)/(1+p[2]*x+p[3]*x*x),
+    guess:(X,Y)=>ratGuess(X,Y,1,2)||[meanOf(Y),0,0,0],
+    sketch:{x:[0,5],p:[0.2,1,-0.3,0.3]}, kw:"rational function Pade ratio of polynomials"},
+  rat22:{name:"Rational, 2/2", params:["a","b","c","d","e"], mean:["value at x = 0","the numerator's x term","the numerator's x² term","the denominator's x term","the denominator's x² term"], ph:["<i>a</i>","<i>b</i>","<i>c</i>","<i>d</i>","<i>e</i>"], dim:["y","y/x","y/x2","1/x","1/x2"],
+    formula:"<i>y</i> = (<i>a</i> + <i>b</i><i>x</i> + <i>c</i><i>x</i><sup>2</sup>) / (1 + <i>d</i><i>x</i> + <i>e</i><i>x</i><sup>2</sup>)", f:(x,p)=>(p[0]+p[1]*x+p[2]*x*x)/(1+p[3]*x+p[4]*x*x),
+    guess:(X,Y)=>ratGuess(X,Y,2,2)||[meanOf(Y),0,0,0,0],
+    derived:[{name:"Level at large x", dim:"y", fn:p=>p[2]/p[4]}],
+    sketch:{x:[0,5],p:[0.2,0.5,1,0.2,0.8]}, kw:"rational function Pade ratio of polynomials"},
+  stretched:{name:"Stretched exponential", params:["y0","A","t","beta"], mean:["level it decays to","amplitude at x = 0","characteristic time","stretching exponent (1 a plain decay)"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>&tau;</i>","<i>&beta;</i>"], dim:["y","y","x",""],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> exp[&minus;(<i>x</i>/<i>&tau;</i>)<sup><i>&beta;</i></sup>]",
+    f:(x,p)=>p[0]+p[1]*Math.exp(-Math.pow(x/p[2],p[3])), lo:[-Infinity,-Infinity,0,0], xpos:"0",
+    guess:(X,Y)=>{ const g=decayGuess(X,Y); return [g[0],g[1],Math.abs(g[2]),1]; },
+    derived:[{name:"Mean relaxation time", dim:"x", fn:p=>p[2]*Math.exp(lgam(1+1/p[3]))}],
+    sketch:{x:[0,5],p:[0,1,1,0.5]}, kw:"stretched exponential Kohlrausch KWW Williams Watts relaxation dielectric glass"},
+  weibullgr:{name:"Weibull growth", params:["a","b","k","d"], mean:["level it rises to","value at x = 0","rate","shape: 1 a plain rise, more an S"],
+    ph:["<i>a</i>","<i>b</i>","<i>k</i>","<i>d</i>"], dim:["y","y","1/x",""],
+    formula:"<i>y</i> = <i>a</i> &minus; (<i>a</i> &minus; <i>b</i>) exp[&minus;(<i>k</i><i>x</i>)<sup><i>d</i></sup>]",
+    f:(x,p)=>p[0]-(p[0]-p[1])*Math.exp(-Math.pow(p[2]*x,p[3])), lo:[-Infinity,-Infinity,0,0], xpos:"0",
+    guess:(X,Y)=>{ const [b,a]=ENDS(X,Y), [x10,x63,x90]=fracXs(X,Y,b,a,[0.1,0.632,0.9]);
+      const d=x10>0&&x90>x10?Math.log(21.854)/Math.log(x90/x10):1.5, k=x63>0?1/x63:1/((amax(X)-amin(X))/3||1); return [a,b,k,Math.min(10,Math.max(0.3,d))]; },
+    sketch:{x:[0,5],p:[1,0,0.8,2.5]}, kw:"Weibull growth sigmoid cumulative Weibull"},
+  richards:{name:"Richards growth", params:["A","xc","k","nu"], mean:["level it rises to","x near the steepest rise","rate","shape: 1 logistic, towards 0 Gompertz"],
+    ph:["<i>A</i>","<i>x</i><sub>c</sub>","<i>k</i>","<i>&nu;</i>"], dim:["y","x","1/x",""],
+    formula:"<i>y</i> = <i>A</i> [1 + <i>&nu;</i> exp(&minus;<i>k</i>(<i>x</i> &minus; <i>x</i><sub>c</sub>))]<sup>&minus;1/<i>&nu;</i></sup>",
+    f:(x,p)=>p[0]*Math.pow(1+p[3]*Math.exp(-p[2]*(x-p[1])),-1/p[3]), lo:[-Infinity,-Infinity,-Infinity,0.01],
+    guess:(X,Y)=>{ const g=stepGuess(X,Y); if(!g) return [1,0,1,1]; const up=Math.abs(g.A2)>=Math.abs(g.A1); return [up?g.A2:g.A1,g.mid,(up?1:-1)*4.3944/g.w,1]; },
+    sketch:{x:[-4,6],p:[1,0,1.2,0.5]}, kw:"Richards generalised logistic growth curve asymmetric sigmoid Richards1"},
+  bertalanffy:{name:"Von Bertalanffy", params:["Linf","k","t0"], mean:["size it grows to","growth rate","x at which the size would be 0"],
+    ph:["<i>L</i><sub>&infin;</sub>","<i>k</i>","<i>t</i><sub>0</sub>"], dim:["y","1/x","x"],
+    formula:"<i>y</i> = <i>L</i><sub>&infin;</sub> [1 &minus; exp(&minus;<i>k</i>(<i>x</i> &minus; <i>t</i><sub>0</sub>))]",
+    f:(x,p)=>p[0]*(1-Math.exp(-p[1]*(x-p[2]))),
+    guess:(X,Y)=>{ const g=decayGuess(X,Y), k=1/g[2], r=-g[1]/g[0]; return [g[0],k,r>0?Math.log(r)/k:0]; },
+    sketch:{x:[0,10],p:[1,0.4,-0.5]}, kw:"von Bertalanffy growth fish length age monomolecular"},
+  chapman:{name:"Chapman–Richards", params:["a","b","c"], mean:["level it rises to","rate","shape: 1 a plain rise, more an S"], ph:["<i>a</i>","<i>b</i>","<i>c</i>"], dim:["y","1/x",""],
+    formula:"<i>y</i> = <i>a</i> [1 &minus; exp(&minus;<i>b</i><i>x</i>)]<sup><i>c</i></sup>",
+    f:(x,p)=>p[0]*Math.pow(1-Math.exp(-p[1]*x),p[2]), lo:[-Infinity,0,0], xpos:"0",
+    guess:(X,Y)=>{ const {x,y}=thinXY(X,Y,300), a=meanOf(y.slice(-Math.max(1,Math.floor(y.length/10))))*1.02;
+      const r=gridBest(logGrid(0.3,6,14),c=>{ let sxz=0, sxx=0; x.forEach((v,i)=>{ const z=Math.pow(Math.max(1e-9,Math.min(1-1e-9,y[i]/a)),1/c); if(v>0){ sxz+=v*(-Math.log(1-z)); sxx+=v*v; } });
+        const b=sxx>0?sxz/sxx:0; return b>0?{ss:ssOf(x,y,v=>a*Math.pow(1-Math.exp(-b*v),c)),p:[a,b,c]}:null; });
+      return r?r.p:[a,1,1]; },
+    sketch:{x:[0,6],p:[1,0.8,2.5]}, kw:"Chapman Richards growth forestry tree height sigmoid"},
+  logisticgr:{name:"Logistic growth", params:["y0","A","xc","k"], mean:["level before the rise","the rise","x of the steepest rise","rate"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>k</i>"], dim:["y","y","x","1/x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> / [1 + exp(&minus;<i>k</i>(<i>x</i> &minus; <i>x</i><sub>c</sub>))]",
+    f:(x,p)=>p[0]+p[1]/(1+Math.exp(-p[3]*(x-p[2]))),
+    guess:(X,Y)=>{ const g=stepGuess(X,Y); return g?[g.A1,g.A2-g.A1,g.mid,4.3944/g.w]:[0,1,0,1]; },
+    derived:[{name:"Steepest slope", dim:"y/x", fn:p=>p[1]*p[3]/4}],
+    sketch:{x:[-5,5],p:[0,1,0,1.2]}, kw:"logistic growth population carrying capacity Verhulst sigmoid offset SLogistic"},
+  monomol:{name:"Monomolecular", params:["A","B","k"], mean:["level it rises to","the part of A still to come at x = 0","rate"], ph:["<i>A</i>","<i>B</i>","<i>k</i>"], dim:["y","","1/x"],
+    formula:"<i>y</i> = <i>A</i> [1 &minus; <i>B</i> exp(&minus;<i>k</i><i>x</i>)]",
+    f:(x,p)=>p[0]*(1-p[1]*Math.exp(-p[2]*x)),
+    guess:(X,Y)=>{ const g=decayGuess(X,Y); return [g[0],g[0]?-g[1]/g[0]:1,1/g[2]]; },
+    sketch:{x:[0,6],p:[1,0.9,0.7]}, kw:"monomolecular growth Mitscherlich diminishing returns MnMolecular"},
+  assoc2:{name:"Two-phase association", params:["y0","A1","t1","A2","t2"], mean:["value at x = 0","rise of the fast phase","its time constant","rise of the slow phase","its time constant"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i><sub>1</sub>","<i>&tau;</i><sub>1</sub>","<i>A</i><sub>2</sub>","<i>&tau;</i><sub>2</sub>"], dim:["y","y","x","y","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i><sub>1</sub>[1 &minus; exp(&minus;<i>x</i>/<i>&tau;</i><sub>1</sub>)] + <i>A</i><sub>2</sub>[1 &minus; exp(&minus;<i>x</i>/<i>&tau;</i><sub>2</sub>)]",
+    f:(x,p)=>p[0]+p[1]*(1-Math.exp(-x/p[2]))+p[3]*(1-Math.exp(-x/p[4])),
+    guess:(X,Y)=>{ const g=expGrid(X,Y,2); return [g[0]+g[1]+g[3],-g[1],g[2],-g[3],g[4]]; },
+    derived:[{name:"Plateau", dim:"y", fn:p=>p[0]+p[1]+p[3]}],
+    sketch:{x:[0,10],p:[0,0.6,0.4,0.4,3]}, kw:"two phase association biexponential rise binding kinetics ExpAssoc2"},
+  abc:{name:"Intermediate, A → B → C", params:["y0","A","k1","k2"], mean:["baseline","what A starts at","rate of A → B","rate of B → C"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i><sub>0</sub>","<i>k</i><sub>1</sub>","<i>k</i><sub>2</sub>"], dim:["y","y","1/x","1/x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i><sub>0</sub> <i>k</i><sub>1</sub> [exp(&minus;<i>k</i><sub>1</sub><i>x</i>) &minus; exp(&minus;<i>k</i><sub>2</sub><i>x</i>)] / (<i>k</i><sub>2</sub> &minus; <i>k</i><sub>1</sub>)",
+    f:(x,p)=>p[0]+p[1]*p[2]*kdiff(p[2],p[3],x), lo:[-Infinity,-Infinity,0,0], xpos:"0",
+    guess:(X,Y)=>{ const [,y0,s]=ENDS(X,Y), ys=smoothY(s.y); let im=0; ys.forEach((v,i)=>{ if(Math.abs(v-y0)>Math.abs(ys[im]-y0)) im=i; });
+      const tm=Math.max(s.x[im],((s.x[s.x.length-1]-s.x[0])||1)/50), k1=Math.log(3)/(2*tm); return [y0,(ys[im]-y0)/0.19245,k1,3*k1]; },
+    derived:[{name:"Time of the most B", dim:"x", fn:p=>p[3]===p[2]?1/p[2]:Math.log(p[3]/p[2])/(p[3]-p[2])}],
+    sketch:{x:[0,8],p:[0,1,0.5,1.5]}, kw:"consecutive first order reactions intermediate A B C kinetics Bateman pharmacokinetics absorption elimination"},
+  bateman:{name:"Parent and daughter decay (Bateman)", params:["y0","A","t1","t2"], mean:["background","the parent's activity at x = 0","the parent's half-life","the daughter's half-life"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>t</i><sub>1</sub>","<i>t</i><sub>2</sub>"], dim:["y","y","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> {e<sup>&minus;<i>&lambda;</i><sub>1</sub><i>x</i></sup> + <i>&lambda;</i><sub>2</sub>[e<sup>&minus;<i>&lambda;</i><sub>1</sub><i>x</i></sup> &minus; e<sup>&minus;<i>&lambda;</i><sub>2</sub><i>x</i></sup>]/(<i>&lambda;</i><sub>2</sub> &minus; <i>&lambda;</i><sub>1</sub>)}, <i>&lambda;</i> = ln 2/<i>t</i>",
+    f:(x,p)=>{ const l1=Math.LN2/p[2], l2=Math.LN2/p[3]; return p[0]+p[1]*(Math.exp(-l1*x)+l2*kdiff(l1,l2,x)); }, lo:[-Infinity,-Infinity,0,0], xpos:"0",
+    guess:(X,Y)=>{ const g=expGrid(X,Y,2), l1=1/g[4], l2=1/g[2]; return [g[0],Math.abs(-g[1]*(l2-l1)/l2)||Math.abs(g[3]),g[4]*Math.LN2,g[2]*Math.LN2]; },
+    sketch:{x:[0,30],p:[0,1,10,2]}, kw:"Bateman equation radioactive decay chain parent daughter ingrowth secular transient equilibrium activity"},
+  logistic5:{name:"Five-parameter logistic", params:["A1","A2","x0","p","s"], mean:["level at small x","level at large x","x near halfway","steepness: the power of x","asymmetry (1 the four-parameter logistic)"],
+    ph:["<i>A</i><sub>1</sub>","<i>A</i><sub>2</sub>","<i>x</i><sub>0</sub>","<i>p</i>","<i>s</i>"], dim:["y","y","x","",""],
+    formula:"<i>y</i> = <i>A</i><sub>2</sub> + (<i>A</i><sub>1</sub> &minus; <i>A</i><sub>2</sub>) / [1 + (<i>x</i>/<i>x</i><sub>0</sub>)<sup><i>p</i></sup>]<sup><i>s</i></sup>",
+    f:(x,p)=>p[1]+(p[0]-p[1])/Math.pow(1+Math.pow(x/p[2],p[3]),p[4]), lo:[-Infinity,-Infinity,0,-Infinity,0], xpos:true,
+    guess:(X,Y)=>MODELS.logistic.guess(X,Y).concat([1]),
+    sketch:{x:[0.05,4],p:[0,1,1,3,0.5]}, kw:"five parameter logistic 5PL asymmetric sigmoid immunoassay ELISA Logistic5"},
+  dose2:{name:"Dose–response, two sites", params:["A1","A2","lx1","lx2","f"], mean:["level at low doses","level at high doses","log₁₀ of the first site's dose halfway","log₁₀ of the second site's","the share of the first site"],
+    ph:["<i>A</i><sub>1</sub>","<i>A</i><sub>2</sub>","log<i>x</i><sub>01</sub>","log<i>x</i><sub>02</sub>","<i>f</i>"], dim:["y","y","x","x",""],
+    formula:"<i>y</i> = <i>A</i><sub>1</sub> + (<i>A</i><sub>2</sub> &minus; <i>A</i><sub>1</sub>)[<i>f</i>/(1 + 10<sup>log<i>x</i><sub>01</sub> &minus; <i>x</i></sup>) + (1 &minus; <i>f</i>)/(1 + 10<sup>log<i>x</i><sub>02</sub> &minus; <i>x</i></sup>)], <i>x</i> the log₁₀ of the dose",
+    f:(x,p)=>p[0]+(p[1]-p[0])*(p[4]/(1+Math.pow(10,p[2]-x))+(1-p[4])/(1+Math.pow(10,p[3]-x))), lo:[-Infinity,-Infinity,-Infinity,-Infinity,0], hi:[Infinity,Infinity,Infinity,Infinity,1],
+    guess:(X,Y)=>{ const g=stepGuess(X,Y); if(!g) return [0,1,-1,1,0.5]; const [a,,b]=fracXs(X,Y,g.A1,g.A2,[0.25,0.5,0.75]); return [g.A1,g.A2,a!=null?a:g.mid-1,b!=null?b:g.mid+1,0.5]; },
+    sketch:{x:[-4,2],p:[0,1,-2.5,0,0.4]}, kw:"two site binding competition dose response receptor high low affinity TwoSiteComp"},
+  biphasic:{name:"Dose–response, biphasic", params:["A1","A2","lx1","lx2","h1","h2","f"], mean:["level at low doses","level at high doses","log₁₀ of the first phase's dose halfway","log₁₀ of the second phase's","the first phase's slope","the second phase's slope","the share of the first phase"],
+    ph:["<i>A</i><sub>1</sub>","<i>A</i><sub>2</sub>","log<i>x</i><sub>01</sub>","log<i>x</i><sub>02</sub>","<i>h</i><sub>1</sub>","<i>h</i><sub>2</sub>","<i>f</i>"], dim:["y","y","x","x","","",""],
+    formula:"<i>y</i> = <i>A</i><sub>1</sub> + (<i>A</i><sub>2</sub> &minus; <i>A</i><sub>1</sub>)[<i>f</i>/(1 + 10<sup>(log<i>x</i><sub>01</sub> &minus; <i>x</i>)<i>h</i><sub>1</sub></sup>) + (1 &minus; <i>f</i>)/(1 + 10<sup>(log<i>x</i><sub>02</sub> &minus; <i>x</i>)<i>h</i><sub>2</sub></sup>)]",
+    f:(x,p)=>p[0]+(p[1]-p[0])*(p[6]/(1+Math.pow(10,(p[2]-x)*p[4]))+(1-p[6])/(1+Math.pow(10,(p[3]-x)*p[5]))), lo:[-Infinity,-Infinity,-Infinity,-Infinity,-Infinity,-Infinity,0], hi:[Infinity,Infinity,Infinity,Infinity,Infinity,Infinity,1],
+    guess:(X,Y)=>{ const g=MODELS.dose2.guess(X,Y); return [g[0],g[1],g[2],g[3],1,1,g[4]]; },
+    sketch:{x:[-5,2],p:[0,1,-3,-0.5,1.5,1,0.4]}, kw:"biphasic dose response two phases BiDoseResp"},
+  langmuir:{name:"Langmuir isotherm", params:["qm","K"], mean:["capacity: the most it takes up","affinity: 1/x at half capacity"], ph:["<i>q</i><sub>m</sub>","<i>K</i>"], dim:["y","1/x"],
+    formula:"<i>y</i> = <i>q</i><sub>m</sub><i>K</i><i>x</i> / (1 + <i>K</i><i>x</i>)", f:(x,p)=>p[0]*p[1]*x/(1+p[1]*x), lo:[-Infinity,0], xpos:"0",
+    guess:(X,Y)=>{ const g=MODELS.mm.guess(X,Y); return [g[0],1/g[1]]; },
+    sketch:{x:[0,10],p:[1,0.7]}, kw:"Langmuir adsorption isotherm monolayer capacity surface coverage"},
+  freundlich:{name:"Freundlich isotherm", params:["K","n"], mean:["value at x = 1","the intensity: the power is 1/n"], ph:["<i>K</i>","<i>n</i>"], dim:["",""],
+    formula:"<i>y</i> = <i>K</i><i>x</i><sup>1/<i>n</i></sup>", f:(x,p)=>p[0]*Math.pow(x,1/p[1]), xpos:"0",
+    guess:(X,Y)=>{ const g=MODELS.power.guess(X,Y); return [g[0],g[1]?1/g[1]:1]; },
+    sketch:{x:[0,10],p:[1,2.2]}, kw:"Freundlich adsorption isotherm heterogeneous surface"},
+  bet:{name:"BET isotherm", params:["vm","c"], mean:["the monolayer's amount","the BET constant"], ph:["<i>v</i><sub>m</sub>","<i>c</i>"], dim:["y",""],
+    formula:"<i>y</i> = <i>v</i><sub>m</sub><i>c</i><i>x</i> / [(1 &minus; <i>x</i>)(1 &minus; <i>x</i> + <i>c</i><i>x</i>)], <i>x</i> the relative pressure <i>p</i>/<i>p</i><sub>0</sub>",
+    f:(x,p)=>p[0]*p[1]*x/((1-x)*(1-x+p[1]*x)), lo:[0,0], xpos:true, xmax:1,
+    guess:(X,Y)=>{ const lx=[], ly=[]; X.forEach((x,i)=>{ if(x>0&&x<1&&Y[i]>0){ lx.push(x); ly.push(x/(Y[i]*(1-x))); } }); const L=lx.length>=2?linFitXY(lx,ly):null;
+      if(L&&L[0]>0&&L[1]>0){ return [1/(L[0]+L[1]),L[1]/L[0]+1]; } return [meanOf(Y),10]; },
+    sketch:{x:[0.02,0.6],p:[1,50]}, kw:"BET Brunauer Emmett Teller multilayer adsorption isotherm surface area nitrogen"},
+  sips:{name:"Sips isotherm", params:["qm","K","n"], mean:["capacity: the most it takes up","affinity: 1/x at half capacity","heterogeneity (1 Langmuir's)"], ph:["<i>q</i><sub>m</sub>","<i>K</i>","<i>n</i>"], dim:["y","1/x",""],
+    formula:"<i>y</i> = <i>q</i><sub>m</sub>(<i>K</i><i>x</i>)<sup><i>n</i></sup> / [1 + (<i>K</i><i>x</i>)<sup><i>n</i></sup>]",
+    f:(x,p)=>{ const u=Math.pow(p[1]*x,p[2]); return p[0]*u/(1+u); }, lo:[-Infinity,0,0], xpos:"0",
+    guess:(X,Y)=>{ const g=MODELS.hill.guess(X,Y); return [g[0],1/g[1],g[2]]; },
+    sketch:{x:[0,10],p:[1,0.5,1.8]}, kw:"Sips Langmuir Freundlich isotherm heterogeneous adsorption"},
+  hilloff:{name:"Hill, with a start", params:["y0","y1","k","n"], mean:["level at x = 0","level it saturates at","x halfway","Hill's coefficient: the steepness"],
+    ph:["<i>y</i><sub>0</sub>","<i>y</i><sub>1</sub>","<i>k</i>","<i>n</i>"], dim:["y","y","x",""],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + (<i>y</i><sub>1</sub> &minus; <i>y</i><sub>0</sub>) <i>x</i><sup><i>n</i></sup> / (<i>k</i><sup><i>n</i></sup> + <i>x</i><sup><i>n</i></sup>)",
+    f:(x,p)=>p[0]+(p[1]-p[0])/(1+Math.pow(p[2]/x,p[3])), lo:[-Infinity,-Infinity,0,-Infinity], xpos:"0",
+    guess:(X,Y)=>{ const [a,b]=ENDS(X,Y), h=MODELS.hill.guess(X,Y.map(v=>v-a)); return [a,a+h[0],h[1],h[2]]; },
+    sketch:{x:[0,4],p:[0.2,1,1,3]}, kw:"Hill offset start end cooperativity binding Hill1"},
+  erfstep:{name:"Step, error function", params:["y0","A","x0","w"], mean:["level before the step","height of the step","middle of the step","width (the standard deviation of its slope)"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>0</sub>","<i>w</i>"], dim:["y","y","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + (<i>A</i>/2)[1 + erf((<i>x</i> &minus; <i>x</i><sub>0</sub>)/(&radic;2 <i>w</i>))]",
+    f:(x,p)=>p[0]+p[1]/2*erfcFn(-(x-p[2])/(Math.SQRT2*p[3])),
+    guess:(X,Y)=>{ const g=stepGuess(X,Y); return g?[g.A1,g.A2-g.A1,g.mid,g.w/2.5631]:[0,1,0,1]; },
+    derived:[{name:"Width, 10 to 90%", dim:"x", fn:p=>2.5631031310892007*Math.abs(p[3])}],
+    sketch:{x:[-4,4],p:[0,1,0,0.8]}, kw:"error function step erf knife edge cumulative Gaussian edge resolution"},
+  tanhstep:{name:"Step, hyperbolic tangent", params:["y0","A","x0","w"], mean:["level before the step","height of the step","middle of the step","width"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>0</sub>","<i>w</i>"], dim:["y","y","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + (<i>A</i>/2)[1 + tanh((<i>x</i> &minus; <i>x</i><sub>0</sub>)/<i>w</i>)]",
+    f:(x,p)=>p[0]+p[1]/2*(1+Math.tanh((x-p[2])/p[3])),
+    guess:(X,Y)=>{ const g=stepGuess(X,Y); return g?[g.A1,g.A2-g.A1,g.mid,g.w/2.1972]:[0,1,0,1]; },
+    derived:[{name:"Width, 10 to 90%", dim:"x", fn:p=>2.1972245773362196*Math.abs(p[3])}],
+    sketch:{x:[-4,4],p:[0,1,0,0.8]}, kw:"hyperbolic tangent tanh step interface profile domain wall"},
+  atanstep:{name:"Step, arctangent", params:["y0","A","x0","w"], mean:["level well before the step","height of the step","middle of the step","half-width"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>0</sub>","<i>w</i>"], dim:["y","y","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i>[1/2 + arctan((<i>x</i> &minus; <i>x</i><sub>0</sub>)/<i>w</i>)/&pi;]",
+    f:(x,p)=>p[0]+p[1]*(0.5+Math.atan((x-p[2])/p[3])/Math.PI),
+    guess:(X,Y)=>{ const g=stepGuess(X,Y); return g?[g.A1,g.A2-g.A1,g.mid,g.w/6.1554]:[0,1,0,1]; },
+    sketch:{x:[-6,6],p:[0,1,0,0.6]}, kw:"arctangent step atan Cauchy cumulative Lorentzian edge"}
+});
+// The exponentially modified Gaussian, its exponent kept from overflowing: erfcx where erfc would underflow.
+function emgF(x,y0,A,xc,w,t){ if(!(w>0)||!(t>0)) return NaN; const u=(x-xc)/w, r=w/t, q=(r-u)/Math.SQRT2;
+  return y0+A/(2*t)*(q>0?Math.exp(-u*u/2)*erfcx(q):Math.exp(r*r/2-u*r)*erfcFn(q)); }
+// Pearson IV's normalisation, ln k: |Γ(m + iν/2)/Γ(m)|² / (a B(m − ½, ½)).
+const p4lnk=(a,m,v)=>2*(lgammaRe(m,v/2)-lgam(m))-(lgam(m-0.5)+0.5*Math.log(Math.PI)-lgam(m))-Math.log(a);
+// A Gaussian of height H, centre xc and width w (the standard deviation), and a Lorentzian of height H and FWHM w.
+const gH=(x,H,xc,w)=>H*Math.exp(-((x-xc)**2)/(2*w*w)), lH=(x,H,xc,w)=>H/(1+4*((x-xc)/w)**2);
+// A peak's guess on what is left after a first peak is taken off (two peaks in one model).
+function twoPeaks(X,Y,shape){ const g=peakGuess(X,Y), w1=shape==="g"?g.fwhm/FW:g.fwhm, f1=x=>shape==="g"?gH(x,g.H,g.xc,w1):lH(x,g.H,g.xc,w1);
+  const R=Y.map((y,i)=>y-g.base-f1(X[i])), h=peakGuess(X,R), w2=shape==="g"?h.fwhm/FW:h.fwhm; return [g.base,g.H,g.xc,w1,h.H,h.xc,w2]; }
+const C2NM=1.438776877e7, H_KB_THZ=47.99243073, KB_H=2.083661912e10;
+// Debye's and Einstein's heat capacities, Bloch and Grüneisen's resistivity: each a shape times a scale, the temperature on a grid.
+const scaleGrid=(x,y,shape,cands)=>gridBest(cands,th=>{ const s=x.map(v=>shape(v,th)); let sy=0, ss=0; s.forEach((v,i)=>{ sy+=v*y[i]; ss+=v*v; }); if(!(ss>0)) return null; const A=sy/ss; return {ss:ssOf(x,y,v=>A*shape(v,th)),A}; });
+const debyeS=(T,th)=>3*Math.pow(T/th,3)*phononInt(4,th/T), einS=(T,th)=>{ const u=th/T, sh=Math.sinh(u/2); return u*u/(4*sh*sh); };
+const bgS=(T,th)=>Math.pow(T/th,5)*phononInt(5,th/T);
+// The Fourier series of n terms: a0 + Σ ak cos(2πkx/T) + bk sin(2πkx/T); its guess the period from waveGuess, the rest linear.
+function fourierModel(n){ const nm=["a0"], ph=["<i>a</i><sub>0</sub>"], mean=["mean level"], dim=["y"];
+  for(let k=1;k<=n;k++){ nm.push("a"+k,"b"+k); ph.push(`<i>a</i><sub>${k}</sub>`,`<i>b</i><sub>${k}</sub>`); mean.push(`cosine amplitude of harmonic ${k}`,`sine amplitude of harmonic ${k}`); dim.push("y","y"); }
+  nm.push("T"); ph.push("<i>T</i>"); mean.push("period"); dim.push("x");
+  const row=(x,T)=>{ const r=[1], w=2*Math.PI/T; for(let k=1;k<=n;k++){ r.push(Math.cos(k*w*x),Math.sin(k*w*x)); } return r; };
+  return {name:n===1?"Fourier series, one term":`Fourier series, ${n} terms`, params:nm, mean, ph, dim,
+    formula:`<i>y</i> = <i>a</i><sub>0</sub> + &Sigma;<sub><i>k</i>=1&hellip;${n}</sub> [<i>a</i><sub><i>k</i></sub> cos(2&pi;<i>k</i><i>x</i>/<i>T</i>) + <i>b</i><sub><i>k</i></sub> sin(2&pi;<i>k</i><i>x</i>/<i>T</i>)]`,
+    f:(x,p)=>{ const T=p[2*n+1], w=2*Math.PI/T; let v=p[0]; for(let k=1;k<=n;k++) v+=p[2*k-1]*Math.cos(k*w*x)+p[2*k]*Math.sin(k*w*x); return v; },
+    guess:(X,Y)=>{ const g=waveGuess(X,Y), {x,y}=thinXY(X,Y,600), c=lsqRows(x.map(v=>row(v,g.T)),y); return (c||[g.y0].concat(new Array(2*n).fill(0))).concat([g.T]); },
+    derived:[{name:"Frequency", dim:"1/x", fn:p=>1/Math.abs(p[2*n+1])}],
+    sketch:{x:[0,2],p:[0].concat(Array.from({length:2*n},(_,j)=>j%2?0.8/Math.ceil((j+1)/2):0.3/Math.ceil((j+1)/2))).concat([1])}, kw:`Fourier series harmonics periodic ${n} terms Fourier${n}`}; }
+Object.assign(MODELS,{
+  emg:{name:"Exponentially modified Gaussian", params:["y0","A","xc","w","t"], mean:["baseline","area above the baseline","the Gaussian's centre","the Gaussian's width (standard deviation)","the tail's time constant"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>w</i>","<i>t</i><sub>0</sub>"], dim:["y","yx","x","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + (<i>A</i>/2<i>t</i><sub>0</sub>) exp[<i>w</i><sup>2</sup>/2<i>t</i><sub>0</sub><sup>2</sup> &minus; (<i>x</i> &minus; <i>x</i><sub>c</sub>)/<i>t</i><sub>0</sub>] erfc[(<i>w</i>/<i>t</i><sub>0</sub> &minus; (<i>x</i> &minus; <i>x</i><sub>c</sub>)/<i>w</i>)/&radic;2]",
+    f:(x,p)=>emgF(x,p[0],p[1],p[2],p[3],p[4]), lo:[-Infinity,-Infinity,-Infinity,0,0],
+    guess:(X,Y)=>{ const g=peakGuess(X,Y), t=Math.max(g.fwhm/8,(g.rw-g.lw)*0.8), w=Math.max(g.fwhm/10,(g.lw*2)/FW); return [g.base,g.H*(w*SQ2PI+t),g.xc-t*0.5,w,t]; },
+    derived:[{name:"Mean (centroid)", dim:"x", fn:p=>p[2]+p[4]},{name:"Standard deviation", dim:"x", fn:p=>Math.hypot(p[3],p[4])},{name:"Skewness", dim:"", fn:p=>2*p[4]**3/Math.pow(p[3]*p[3]+p[4]*p[4],1.5)}],
+    sketch:{x:[-3,6],p:[0,1,0,0.6,1]}, kw:"exponentially modified Gaussian EMG tailing chromatography peak skewed ExGauss GaussMod"},
+  gausssplit:{name:"Split Gaussian", params:["y0","A","xc","w1","w2"], mean:["baseline","area above the baseline","centre (the top)","width on the left (standard deviation)","width on the right"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>w</i><sub>1</sub>","<i>w</i><sub>2</sub>"], dim:["y","yx","x","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>H</i> exp[&minus;(<i>x</i> &minus; <i>x</i><sub>c</sub>)<sup>2</sup>/2<i>w</i><sup>2</sup>], <i>w</i> = <i>w</i><sub>1</sub> left of <i>x</i><sub>c</sub>, <i>w</i><sub>2</sub> right, <i>H</i> = <i>A</i>&radic;(2/&pi;)/(<i>w</i><sub>1</sub> + <i>w</i><sub>2</sub>)",
+    f:(x,p)=>{ const w=x<p[2]?p[3]:p[4]; return p[0]+p[1]*Math.sqrt(2/Math.PI)/(p[3]+p[4])*Math.exp(-((x-p[2])**2)/(2*w*w)); }, lo:[-Infinity,-Infinity,-Infinity,0,0],
+    guess:(X,Y)=>{ const g=peakGuess(X,Y), w1=Math.max(g.lw,g.fwhm/20)/1.1774, w2=Math.max(g.rw,g.fwhm/20)/1.1774; return [g.base,g.H*Math.sqrt(Math.PI/2)*(w1+w2),g.xc,w1,w2]; },
+    derived:[{name:"Height", dim:"y", fn:p=>p[1]*Math.sqrt(2/Math.PI)/(p[3]+p[4])},{name:"FWHM", dim:"x", fn:p=>1.1774100225154747*(Math.abs(p[3])+Math.abs(p[4]))}],
+    sketch:{x:[-3,5],p:[0,1,0,0.5,1.4]}, kw:"split Gaussian asymmetric bi-Gaussian two widths peak BiGauss"},
+  lorsplit:{name:"Split Lorentzian", params:["y0","A","xc","w1","w2"], mean:["baseline","area above the baseline","centre (the top)","half-width on the left","half-width on the right"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>w</i><sub>1</sub>","<i>w</i><sub>2</sub>"], dim:["y","yx","x","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>H</i> / [1 + ((<i>x</i> &minus; <i>x</i><sub>c</sub>)/<i>w</i>)<sup>2</sup>], <i>w</i> = <i>w</i><sub>1</sub> left of <i>x</i><sub>c</sub>, <i>w</i><sub>2</sub> right, <i>H</i> = 2<i>A</i>/&pi;(<i>w</i><sub>1</sub> + <i>w</i><sub>2</sub>)",
+    f:(x,p)=>{ const w=x<p[2]?p[3]:p[4]; return p[0]+2*p[1]/(Math.PI*(p[3]+p[4]))/(1+((x-p[2])/w)**2); }, lo:[-Infinity,-Infinity,-Infinity,0,0],
+    guess:(X,Y)=>{ const g=peakGuess(X,Y), w1=Math.max(g.lw,g.fwhm/20), w2=Math.max(g.rw,g.fwhm/20); return [g.base,g.H*Math.PI*(w1+w2)/2,g.xc,w1,w2]; },
+    derived:[{name:"Height", dim:"y", fn:p=>2*p[1]/(Math.PI*(p[3]+p[4]))},{name:"FWHM", dim:"x", fn:p=>Math.abs(p[3])+Math.abs(p[4])}],
+    sketch:{x:[-4,6],p:[0,1,0,0.5,1.4]}, kw:"split Lorentzian asymmetric Cauchy two widths peak"},
+  pearson4:{name:"Pearson IV peak", params:["y0","A","xc","a","m","v"], mean:["baseline","area above the baseline","location (the top is at xc − av/2m)","width","shape: larger towards Gaussian","skew: negative leans right"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>a</i>","<i>m</i>","<i>&nu;</i>"], dim:["y","yx","x","x","",""],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i><i>k</i> [1 + <i>z</i><sup>2</sup>]<sup>&minus;<i>m</i></sup> exp(&minus;<i>&nu;</i> arctan <i>z</i>), <i>z</i> = (<i>x</i> &minus; <i>x</i><sub>c</sub>)/<i>a</i>, <i>k</i> making its area 1",
+    f:(x,p)=>{ const z=(x-p[2])/p[3]; return p[0]+p[1]*Math.exp(p4lnk(p[3],p[4],p[5])-p[4]*Math.log1p(z*z)-p[5]*Math.atan(z)); }, lo:[-Infinity,-Infinity,-Infinity,0,0.51,-Infinity], hi:[Infinity,Infinity,Infinity,Infinity,100,Infinity],
+    guess:(X,Y)=>{ const g=peakGuess(X,Y), m=2, a=g.fwhm/2/Math.sqrt(Math.pow(2,1/m)-1), v=-2*(g.rw-g.lw)/(g.rw+g.lw||1), xc=g.xc+a*v/(2*m), z=(g.xc-xc)/a;
+      return [g.base,g.H/Math.exp(p4lnk(a,m,v)-m*Math.log1p(z*z)-v*Math.atan(z)),xc,a,m,v]; },
+    derived:[{name:"Top (mode)", dim:"x", fn:p=>p[2]-p[3]*p[5]/(2*p[4])}],
+    sketch:{x:[-4,6],p:[0,1,0,1,2,-1.5]}, kw:"Pearson IV type 4 asymmetric skewed heavy tail peak PearsonIV"},
+  gramch:{name:"Gram–Charlier peak", params:["y0","A","xc","w","a3","a4"], mean:["baseline","area above the baseline","centre","width (standard deviation)","skewness term","kurtosis term"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>w</i>","<i>a</i><sub>3</sub>","<i>a</i><sub>4</sub>"], dim:["y","yx","x","x","",""],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i>/(<i>w</i>&radic;2&pi;) e<sup>&minus;<i>z</i><sup>2</sup>/2</sup>[1 + (<i>a</i><sub>3</sub>/6)He<sub>3</sub>(<i>z</i>) + (<i>a</i><sub>4</sub>/24)He<sub>4</sub>(<i>z</i>)], <i>z</i> = (<i>x</i> &minus; <i>x</i><sub>c</sub>)/<i>w</i>",
+    f:(x,p)=>{ const z=(x-p[2])/p[3], z2=z*z; return p[0]+p[1]/(p[3]*SQ2PI)*Math.exp(-z2/2)*(1+p[4]/6*(z2*z-3*z)+p[5]/24*(z2*z2-6*z2+3)); }, lo:[-Infinity,-Infinity,-Infinity,0,-Infinity,-Infinity],
+    guess:(X,Y)=>{ const g=peakGuess(X,Y), w=g.fwhm/FW; return [g.base,g.H*w*SQ2PI,g.xc,w,0,0]; },
+    sketch:{x:[-4,4],p:[0,1,0,1,0.6,0.4]}, kw:"Gram Charlier series peak skewness kurtosis chromatography GCAS"},
+  edgeworth:{name:"Edgeworth peak", params:["y0","A","xc","w","a3","a4"], mean:["baseline","area above the baseline","centre","width (standard deviation)","skewness term","kurtosis term"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>w</i>","<i>a</i><sub>3</sub>","<i>a</i><sub>4</sub>"], dim:["y","yx","x","x","",""],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i>/(<i>w</i>&radic;2&pi;) e<sup>&minus;<i>z</i><sup>2</sup>/2</sup>[1 + (<i>a</i><sub>3</sub>/6)He<sub>3</sub> + (<i>a</i><sub>4</sub>/24)He<sub>4</sub> + (<i>a</i><sub>3</sub><sup>2</sup>/72)He<sub>6</sub>], <i>z</i> = (<i>x</i> &minus; <i>x</i><sub>c</sub>)/<i>w</i>",
+    f:(x,p)=>{ const z=(x-p[2])/p[3], z2=z*z, he6=z2*z2*z2-15*z2*z2+45*z2-15; return p[0]+p[1]/(p[3]*SQ2PI)*Math.exp(-z2/2)*(1+p[4]/6*(z2*z-3*z)+p[5]/24*(z2*z2-6*z2+3)+p[4]*p[4]/72*he6); }, lo:[-Infinity,-Infinity,-Infinity,0,-Infinity,-Infinity],
+    guess:(X,Y)=>MODELS.gramch.guess(X,Y),
+    sketch:{x:[-4,4],p:[0,1,0,1,0.6,0.4]}, kw:"Edgeworth Cramer series peak skewness kurtosis Edgeworth"},
+  doniach:{name:"Doniach–Šunjić peak", params:["y0","A","xc","g","al"], mean:["baseline","area of its Lorentzian limit","centre","half-width of the Lorentzian","asymmetry (0 a Lorentzian)"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>&gamma;</i>","<i>&alpha;</i>"], dim:["y","yx","x","x",""],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + (<i>A</i>/&pi;) &Gamma;(1 &minus; <i>&alpha;</i>) cos[&pi;<i>&alpha;</i>/2 + (1 &minus; <i>&alpha;</i>) arctan((<i>x</i> &minus; <i>x</i><sub>c</sub>)/<i>&gamma;</i>)] / [(<i>x</i> &minus; <i>x</i><sub>c</sub>)<sup>2</sup> + <i>&gamma;</i><sup>2</sup>]<sup>(1 &minus; <i>&alpha;</i>)/2</sup>",
+    f:(x,p)=>{ const d=x-p[2], g=p[3], a=p[4]; return p[0]+p[1]/Math.PI*Math.exp(lgam(1-a))*Math.cos(Math.PI*a/2+(1-a)*Math.atan(d/g))/Math.pow(d*d+g*g,(1-a)/2); }, lo:[-Infinity,-Infinity,-Infinity,0,0], hi:[Infinity,Infinity,Infinity,Infinity,0.9],
+    guess:(X,Y)=>{ const g=peakGuess(X,Y), a=g.rw>g.lw*1.2?0.15:0.02, gam=g.fwhm/2; return [g.base,g.H*Math.PI*gam,g.xc,gam,a]; },
+    sketch:{x:[-3,6],p:[0,1,0,0.5,0.25]}, kw:"Doniach Sunjic XPS photoemission metal asymmetric core level line shape"},
+  asymds:{name:"Asymmetric double sigmoid", params:["y0","A","xc","w1","w2","w3"], mean:["baseline","height above the baseline","centre","width of the top","width of the rising side","width of the falling side"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>w</i><sub>1</sub>","<i>w</i><sub>2</sub>","<i>w</i><sub>3</sub>"], dim:["y","y","x","x","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> &middot; 1/[1 + e<sup>&minus;(<i>x</i> &minus; <i>x</i><sub>c</sub> + <i>w</i><sub>1</sub>/2)/<i>w</i><sub>2</sub></sup>] &middot; {1 &minus; 1/[1 + e<sup>&minus;(<i>x</i> &minus; <i>x</i><sub>c</sub> &minus; <i>w</i><sub>1</sub>/2)/<i>w</i><sub>3</sub></sup>]}",
+    f:(x,p)=>p[0]+p[1]/(1+Math.exp(-(x-p[2]+p[3]/2)/p[4]))*(1-1/(1+Math.exp(-(x-p[2]-p[3]/2)/p[5]))), lo:[-Infinity,-Infinity,-Infinity,-Infinity,0,0],
+    guess:(X,Y)=>{ const g=peakGuess(X,Y); return [g.base,g.H*1.2,g.xc,g.fwhm*0.6,Math.max(g.lw,g.fwhm/20)/3,Math.max(g.rw,g.fwhm/20)/3]; },
+    sketch:{x:[-4,6],p:[0,1,0,2,0.3,0.8]}, kw:"asymmetric double sigmoid plateau top hat peak Asym2Sig"},
+  logpeak:{name:"Logistic peak", params:["y0","A","xc","w"], mean:["baseline","area above the baseline","centre","width"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>w</i>"], dim:["y","yx","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + (<i>A</i>/4<i>w</i>) sech<sup>2</sup>[(<i>x</i> &minus; <i>x</i><sub>c</sub>)/2<i>w</i>]",
+    f:(x,p)=>{ const c=Math.cosh((x-p[2])/(2*p[3])); return p[0]+p[1]/(4*p[3]*c*c); }, lo:[-Infinity,-Infinity,-Infinity,0],
+    guess:(X,Y)=>{ const g=peakGuess(X,Y), w=g.fwhm/3.5254943; return [g.base,4*w*g.H,g.xc,w]; },
+    derived:[{name:"Height", dim:"y", fn:p=>p[1]/(4*p[3])},{name:"FWHM", dim:"x", fn:p=>3.525494348078172*Math.abs(p[3])}],
+    sketch:{x:[-5,5],p:[0,1,0,0.6]}, kw:"logistic peak sech squared derivative of logistic Logistpk"},
+  sech:{name:"Hyperbolic secant peak", params:["y0","A","xc","w"], mean:["baseline","area above the baseline","centre","width"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>w</i>"], dim:["y","yx","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + (<i>A</i>/&pi;<i>w</i>) sech[(<i>x</i> &minus; <i>x</i><sub>c</sub>)/<i>w</i>]",
+    f:(x,p)=>p[0]+p[1]/(Math.PI*p[3]*Math.cosh((x-p[2])/p[3])), lo:[-Infinity,-Infinity,-Infinity,0],
+    guess:(X,Y)=>{ const g=peakGuess(X,Y), w=g.fwhm/2.6339157938; return [g.base,Math.PI*w*g.H,g.xc,w]; },
+    derived:[{name:"Height", dim:"y", fn:p=>p[1]/(Math.PI*p[3])},{name:"FWHM", dim:"x", fn:p=>2.6339157938496336*Math.abs(p[3])}],
+    sketch:{x:[-5,5],p:[0,1,0,0.7]}, kw:"hyperbolic secant sech soliton pulse peak"},
+  tpeak:{name:"Student's t peak", params:["y0","A","xc","w","nu"], mean:["baseline","area above the baseline","centre","width (scale)","degrees of freedom: 1 a Lorentzian, large a Gaussian"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>w</i>","<i>&nu;</i>"], dim:["y","yx","x","x",""],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> &Gamma;((<i>&nu;</i>+1)/2) / [<i>w</i>&radic;(<i>&nu;</i>&pi;) &Gamma;(<i>&nu;</i>/2)] &middot; [1 + <i>z</i><sup>2</sup>/<i>&nu;</i>]<sup>&minus;(<i>&nu;</i>+1)/2</sup>, <i>z</i> = (<i>x</i> &minus; <i>x</i><sub>c</sub>)/<i>w</i>",
+    f:(x,p)=>{ const z=(x-p[2])/p[3], v=p[4]; return p[0]+p[1]*Math.exp(lgam((v+1)/2)-lgam(v/2)-0.5*Math.log(v*Math.PI)-Math.log(p[3])-(v+1)/2*Math.log1p(z*z/v)); }, lo:[-Infinity,-Infinity,-Infinity,0,0.2], hi:[Infinity,Infinity,Infinity,Infinity,1000],
+    guess:(X,Y)=>{ const g=peakGuess(X,Y), v=3, w=g.fwhm/(2*Math.sqrt(v*(Math.pow(2,2/(v+1))-1))); return [g.base,g.H*w*Math.sqrt(v*Math.PI)*Math.exp(lgam(v/2)-lgam((v+1)/2)),g.xc,w,v]; },
+    derived:[{name:"Height", dim:"y", fn:p=>p[1]*Math.exp(lgam((p[4]+1)/2)-lgam(p[4]/2)-0.5*Math.log(p[4]*Math.PI)-Math.log(p[3]))}],
+    sketch:{x:[-5,5],p:[0,1,0,0.7,2]}, kw:"Student t distribution peak heavy tails Pearson VII"},
+  fano:{name:"Fano peak (Breit–Wigner–Fano)", params:["y0","A","xc","w","iq"], mean:["baseline","area of its Lorentzian limit","resonance position","width Γ","asymmetry 1/q (0 a Lorentzian)"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","&Gamma;","1/<i>q</i>"], dim:["y","yx","x","x",""],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + (2<i>A</i>/&pi;&Gamma;)(1 + <i>&epsilon;</i>/<i>q</i>)<sup>2</sup>/(1 + <i>&epsilon;</i><sup>2</sup>), <i>&epsilon;</i> = 2(<i>x</i> &minus; <i>x</i><sub>c</sub>)/&Gamma;",
+    f:(x,p)=>p[0]+PEAKS.fano.f(x,vgp(p)), lo:[-Infinity,-Infinity,-Infinity,0,-0.9], hi:[Infinity,Infinity,Infinity,Infinity,0.9],
+    guess:(X,Y)=>{ const g=peakGuess(X,Y), iq=g.rw>g.lw*1.2?0.15:g.lw>g.rw*1.2?-0.15:0; return [g.base,g.H*Math.PI*g.fwhm/2/(1+iq*iq),g.xc,g.fwhm,iq]; },
+    derived:[{name:"Height", dim:"y", fn:p=>PEAKS.fano.height(vgp(p))},{name:"Top", dim:"x", fn:p=>PEAKS.fano.top(vgp(p))},{name:"FWHM", dim:"x", fn:p=>PEAKS.fano.fwhm(vgp(p))}],
+    sketch:{x:[-4,6],p:[0,1,0,1.2,0.3]}, kw:"Fano Breit Wigner BWF asymmetric resonance interference Raman graphene"},
+  gausslin:{name:"Gaussian on a line", params:["y0","b","A","xc","w"], mean:["baseline at x = 0","slope of the baseline","height above the baseline","centre","width (standard deviation)"],
+    ph:["<i>y</i><sub>0</sub>","<i>b</i>","<i>A</i>","<i>x</i><sub>c</sub>","<i>w</i>"], dim:["y","y/x","y","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>b</i><i>x</i> + <i>A</i> exp[&minus;(<i>x</i> &minus; <i>x</i><sub>c</sub>)<sup>2</sup>/2<i>w</i><sup>2</sup>]",
+    f:(x,p)=>p[0]+p[1]*x+gH(x,p[2],p[3],p[4]), lo:[-Infinity,-Infinity,-Infinity,-Infinity,0],
+    guess:(X,Y)=>{ const s=sortXY(X,Y), n=s.x.length, k=Math.max(2,Math.floor(n*0.1)), xa=meanOf(s.x.slice(0,k)), xb=meanOf(s.x.slice(-k)), ya=meanOf(s.y.slice(0,k)), yb=meanOf(s.y.slice(-k)), b=xb>xa?(yb-ya)/(xb-xa):0, a=ya-b*xa;
+      const g=peakGuess(s.x,s.y.map((y,i)=>y-a-b*s.x[i])); return [a,b,g.H,g.xc,g.fwhm/FW]; },
+    derived:[{name:"FWHM", dim:"x", fn:p=>FW*Math.abs(p[4])},{name:"Area", dim:"yx", fn:p=>p[2]*Math.abs(p[4])*SQ2PI}],
+    sketch:{x:[-4,4],p:[0.2,0.08,1,0,0.7]}, kw:"Gaussian with linear background sloping baseline peak GaussLin"},
+  gauss2:{name:"Two Gaussians", params:["y0","A1","xc1","w1","A2","xc2","w2"], mean:["baseline","height of the first","centre of the first","width of the first (standard deviation)","height of the second","centre of the second","width of the second"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i><sub>1</sub>","<i>x</i><sub>c1</sub>","<i>w</i><sub>1</sub>","<i>A</i><sub>2</sub>","<i>x</i><sub>c2</sub>","<i>w</i><sub>2</sub>"], dim:["y","y","x","x","y","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + &Sigma;<sub><i>i</i>=1,2</sub> <i>A</i><sub><i>i</i></sub> exp[&minus;(<i>x</i> &minus; <i>x</i><sub>c<i>i</i></sub>)<sup>2</sup>/2<i>w</i><sub><i>i</i></sub><sup>2</sup>]",
+    f:(x,p)=>p[0]+gH(x,p[1],p[2],p[3])+gH(x,p[4],p[5],p[6]), lo:[-Infinity,-Infinity,-Infinity,0,-Infinity,-Infinity,0],
+    guess:(X,Y)=>twoPeaks(X,Y,"g"),
+    derived:[{name:"Area of the first", dim:"yx", fn:p=>p[1]*Math.abs(p[3])*SQ2PI},{name:"Area of the second", dim:"yx", fn:p=>p[4]*Math.abs(p[6])*SQ2PI}],
+    sketch:{x:[-4,6],p:[0,1,0,0.6,0.6,2.5,0.8]}, kw:"two Gaussians double Gaussian doublet bimodal Gauss2 GaussAmp2"},
+  lor2:{name:"Two Lorentzians", params:["y0","H1","xc1","w1","H2","xc2","w2"], mean:["baseline","height of the first","centre of the first","FWHM of the first","height of the second","centre of the second","FWHM of the second"],
+    ph:["<i>y</i><sub>0</sub>","<i>H</i><sub>1</sub>","<i>x</i><sub>c1</sub>","<i>w</i><sub>1</sub>","<i>H</i><sub>2</sub>","<i>x</i><sub>c2</sub>","<i>w</i><sub>2</sub>"], dim:["y","y","x","x","y","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + &Sigma;<sub><i>i</i>=1,2</sub> <i>H</i><sub><i>i</i></sub> / [1 + 4(<i>x</i> &minus; <i>x</i><sub>c<i>i</i></sub>)<sup>2</sup>/<i>w</i><sub><i>i</i></sub><sup>2</sup>]",
+    f:(x,p)=>p[0]+lH(x,p[1],p[2],p[3])+lH(x,p[4],p[5],p[6]), lo:[-Infinity,-Infinity,-Infinity,0,-Infinity,-Infinity,0],
+    guess:(X,Y)=>twoPeaks(X,Y,"l"),
+    derived:[{name:"Area of the first", dim:"yx", fn:p=>p[1]*Math.PI*Math.abs(p[3])/2},{name:"Area of the second", dim:"yx", fn:p=>p[4]*Math.PI*Math.abs(p[6])/2}],
+    sketch:{x:[-4,6],p:[0,1,0,0.8,0.6,2.5,1]}, kw:"two Lorentzians double Lorentzian doublet Lorentz2"},
+  allom2:{name:"Power law with an offset", params:["a","b","c"], mean:["value at x = 0","the size of the power term","exponent"], ph:["<i>a</i>","<i>b</i>","<i>c</i>"], dim:["y","",""],
+    formula:"<i>y</i> = <i>a</i> + <i>b</i><i>x</i><sup><i>c</i></sup>", f:(x,p)=>p[0]+p[1]*Math.pow(x,p[2]), xpos:true,
+    guess:(X,Y)=>{ const {x,y}=thinXY(X.filter(v=>v>0),Y.filter((_,i)=>X[i]>0),300), cands=[-3,-2,-1.5,-1,-0.75,-0.5,-0.25,0.25,0.5,0.75,1.25,1.5,2,2.5,3];
+      const r=gridBest(cands,c=>{ const q=lsqRows(x.map(v=>[1,Math.pow(v,c)]),y); return q?{ss:ssOf(x,y,v=>q[0]+q[1]*Math.pow(v,c)),p:[q[0],q[1],c]}:null; }); return r?r.p:[0,1,1]; },
+    sketch:{x:[0.05,4],p:[0.3,1,0.6]}, kw:"power law offset allometric Allometric2 Freundlich"},
+  logoff:{name:"Logarithm with an offset", params:["a","b","c"], mean:["value at x = 1 − c","rise for each factor of e in x + c","offset in x"], ph:["<i>a</i>","<i>b</i>","<i>c</i>"], dim:["y","y","x"],
+    formula:"<i>y</i> = <i>a</i> + <i>b</i> ln(<i>x</i> + <i>c</i>)", f:(x,p)=>p[0]+p[1]*Math.log(x+p[2]),
+    guess:(X,Y)=>{ const {x,y}=thinXY(X,Y,300), a=x[0], sp=(x[x.length-1]-a)||1;
+      const r=gridBest(logGrid(0.002,20,30).map(g=>g*sp-a),c=>{ const q=lsqRows(x.map(v=>[1,Math.log(v+c)]),y); return q?{ss:ssOf(x,y,v=>q[0]+q[1]*Math.log(v+c)),p:[q[0],q[1],c]}:null; }); return r?r.p:[meanOf(y),1,sp-a]; },
+    sketch:{x:[0,5],p:[0,1,0.2]}, kw:"logarithm offset shifted log Logarithm Log3P1"},
+  heavipow:{name:"Power onset (threshold)", params:["y0","A","xc","p"], mean:["level below the threshold","the size of the rise","the threshold","exponent of the rise"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>p</i>"], dim:["y","","x",""],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i>(<i>x</i> &minus; <i>x</i><sub>c</sub>)<sup><i>p</i></sup> above <i>x</i><sub>c</sub>, <i>y</i><sub>0</sub> below",
+    f:(x,p)=>p[0]+(x>p[2]?p[1]*Math.pow(x-p[2],p[3]):0), lo:[-Infinity,-Infinity,-Infinity,0.05],
+    guess:(X,Y)=>{ const {x,y}=thinXY(X,Y,250), n=x.length, cands=[]; for(let k=1;k<n-3;k+=Math.max(1,Math.floor(n/50))) [0.5,1,1.5,2,3].forEach(pw=>cands.push([x[k],pw]));
+      const r=gridBest(cands,([xc,pw])=>{ const q=lsqRows(x.map(v=>[1,v>xc?Math.pow(v-xc,pw):0]),y); return q?{ss:ssOf(x,y,v=>q[0]+(v>xc?q[1]*Math.pow(v-xc,pw):0)),p:[q[0],q[1],xc,pw]}:null; }); return r?r.p:[meanOf(y),1,x[0],1]; },
+    sketch:{x:[0,4],p:[0.2,0.5,1,1.5]}, kw:"threshold onset Heaviside power law kink critical exponent turn on"},
+  vft:{name:"Vogel–Fulcher–Tammann", params:["A","B","T0"], mean:["the value at very high temperature","pseudo-activation (in the units of x)","the temperature where it diverges"], ph:["<i>A</i>","<i>B</i>","<i>T</i><sub>0</sub>"], dim:["y","x","x"],
+    formula:"<i>y</i> = <i>A</i> exp[<i>B</i>/(<i>x</i> &minus; <i>T</i><sub>0</sub>)]", f:(x,p)=>p[0]*Math.exp(p[1]/(x-p[2])),
+    guess:(X,Y)=>{ const sg=Y.filter(v=>v>0).length>=Y.length/2?1:-1, idx=X.map((_,i)=>i).filter(i=>Y[i]*sg>0), x=idx.map(i=>X[i]), ly=idx.map(i=>Math.log(Y[i]*sg)), a=amin(x), sp=(amax(x)-a)||1;
+      const at=T0=>{ const L=linFitXY(x.map(v=>1/(v-T0)),ly); return L?{ss:ssOf(x,ly,v=>L[0]+L[1]/(v-T0)),p:[sg*Math.exp(L[0]),L[1],T0]}:null; }, G=logGrid(0.005,20,40), r=gridBest(G.map(g=>a-g*sp),at);
+      if(!r) return [1,1,a-sp];
+      // then golden sections on T0 between the grid's neighbours: the fit in logarithms is one-dimensional in it
+      const j=G.findIndex(g=>a-g*sp===r.c); let lo=a-G[Math.min(G.length-1,j+1)]*sp, hi=a-G[Math.max(0,j-1)]*sp; const ph=(Math.sqrt(5)-1)/2;
+      for(let it=0;it<60;it++){ const c=hi-ph*(hi-lo), d=lo+ph*(hi-lo), fc=at(c), fd=at(d); if(!fc||!fd) break; if(fc.ss<fd.ss) hi=d; else lo=c; }
+      const best=at((lo+hi)/2); return best&&best.ss<=r.ss?best.p:r.p; },
+    derived:[{name:"Strength, B/T0", dim:"", fn:p=>p[1]/p[2]}],
+    sketch:{x:[200,400],p:[1e-4,1500,150]}, kw:"Vogel Fulcher Tammann VFT viscosity glass relaxation time fragility"},
+  eyring:{name:"Eyring", params:["dH","dS"], mean:["enthalpy of activation; x is the temperature in kelvins and y the rate constant in 1/s","entropy of activation"], ph:["&Delta;<i>H</i><sup>&Dagger;</sup>","&Delta;<i>S</i><sup>&Dagger;</sup>"], dim:["=J/mol","=J/(mol K)"],
+    formula:"<i>y</i> = (<i>k</i><sub>B</sub><i>x</i>/<i>h</i>) exp(&Delta;<i>S</i><sup>&Dagger;</sup>/<i>R</i>) exp(&minus;&Delta;<i>H</i><sup>&Dagger;</sup>/<i>R</i><i>x</i>), <i>x</i> in K, <i>y</i> in 1/s",
+    f:(x,p)=>KB_H*x*Math.exp(p[1]/R_GAS-p[0]/(R_GAS*x)), xpos:true,
+    guess:(X,Y)=>{ const lx=[], ly=[]; X.forEach((x,i)=>{ if(x>0&&Y[i]>0){ lx.push(1/x); ly.push(Math.log(Y[i]/x)); } }); const L=lx.length>=2?linFitXY(lx,ly):null;
+      return L?[-L[1]*R_GAS,R_GAS*(L[0]-Math.log(KB_H))]:[5e4,0]; },
+    derived:[{name:"Enthalpy of activation", dim:"=kJ/mol", fn:p=>p[0]/1000},{name:"Free energy of activation at 298.15 K", dim:"=kJ/mol", fn:p=>(p[0]-298.15*p[1])/1000}],
+    sketch:{x:[280,380],p:[6e4,-20]}, kw:"Eyring Polanyi transition state theory enthalpy entropy activation rate constant"},
+  nernst:{name:"Nernst", params:["E0","n"], mean:["the potential where x is 1 (the standard potential)","electrons transferred"], ph:["<i>E</i><sup>0</sup>","<i>n</i>"], dim:["y",""],
+    formula:"<i>y</i> = <i>E</i><sup>0</sup> + (<i>R</i><i>T</i>/<i>n</i><i>F</i>) ln <i>x</i>, <i>T</i> = 298.15 K, <i>y</i> in volts, <i>x</i> the ratio of activities",
+    f:(x,p)=>p[0]+0.025692579/p[1]*Math.log(x), xpos:true,
+    guess:(X,Y)=>{ const lx=[], ly=[]; X.forEach((x,i)=>{ if(x>0){ lx.push(Math.log(x)); ly.push(Y[i]); } }); const L=lx.length>=2?linFitXY(lx,ly):null; return L&&L[1]?[L[0],0.025692579/L[1]]:[meanOf(Y),1]; },
+    derived:[{name:"Slope per decade", dim:"y", fn:p=>0.025692579*Math.LN10/p[1]}],
+    sketch:{x:[0.01,100],p:[0.2,1]}, kw:"Nernst equation electrode potential redox electrochemistry slope per decade"},
+  debye:{name:"Debye heat capacity", params:["A","theta"], mean:["the value at high temperature (3R per mole of atoms)","the Debye temperature"], ph:["<i>A</i>","&Theta;<sub>D</sub>"], dim:["y","x"],
+    formula:"<i>y</i> = 3<i>A</i>(<i>x</i>/&Theta;<sub>D</sub>)<sup>3</sup> &int;<sub>0</sub><sup>&Theta;<sub>D</sub>/<i>x</i></sup> <i>t</i><sup>4</sup>e<sup><i>t</i></sup>/(e<sup><i>t</i></sup> &minus; 1)<sup>2</sup> d<i>t</i>, <i>x</i> the temperature",
+    f:(x,p)=>p[0]*debyeS(x,p[1]), lo:[-Infinity,0], xpos:true,
+    guess:(X,Y)=>{ const {x,y}=thinXY(X,Y,200), r=scaleGrid(x,y,debyeS,logGrid(amin(x)/2,amax(x)*20,40)); return r?[r.A,r.c]:[amax(Y),300]; },
+    sketch:{x:[5,600],p:[1,300]}, kw:"Debye heat capacity specific heat phonons Debye temperature solid"},
+  einstein:{name:"Einstein heat capacity", params:["A","theta"], mean:["the value at high temperature (3R per mole of atoms)","the Einstein temperature"], ph:["<i>A</i>","&Theta;<sub>E</sub>"], dim:["y","x"],
+    formula:"<i>y</i> = <i>A</i> (&Theta;<sub>E</sub>/<i>x</i>)<sup>2</sup> e<sup>&Theta;<sub>E</sub>/<i>x</i></sup>/(e<sup>&Theta;<sub>E</sub>/<i>x</i></sup> &minus; 1)<sup>2</sup>, <i>x</i> the temperature",
+    f:(x,p)=>p[0]*einS(x,p[1]), lo:[-Infinity,0], xpos:true,
+    guess:(X,Y)=>{ const {x,y}=thinXY(X,Y,200), r=scaleGrid(x,y,einS,logGrid(amin(x)/2,amax(x)*20,40)); return r?[r.A,r.c]:[amax(Y),300]; },
+    sketch:{x:[5,600],p:[1,250]}, kw:"Einstein heat capacity specific heat oscillator optical phonon"},
+  planckl:{name:"Planck's law, wavelength", params:["A","T"], mean:["scale (emissivity and geometry)","temperature; x is the wavelength in nm"], ph:["<i>A</i>","<i>T</i>"], dim:["","=K"],
+    formula:"<i>y</i> = <i>A</i> <i>x</i><sup>&minus;5</sup> / [exp(<i>c</i><sub>2</sub>/<i>x</i><i>T</i>) &minus; 1], <i>c</i><sub>2</sub> = <i>hc</i>/<i>k</i><sub>B</sub> = 1.4388 &times; 10<sup>7</sup> nm K, <i>x</i> in nm",
+    f:(x,p)=>p[0]*Math.pow(x,-5)/Math.expm1(C2NM/(x*p[1])), lo:[-Infinity,0], xpos:true,
+    guess:(X,Y)=>{ const {x,y}=thinXY(X,Y,200), r=scaleGrid(x,y,(v,T)=>Math.pow(v,-5)/Math.expm1(C2NM/(v*T)),logGrid(200,50000,60)); return r?[r.A,r.c]:[1,3000]; },
+    derived:[{name:"Peak wavelength (Wien)", dim:"=nm", fn:p=>2.897771955e6/p[1]}],
+    sketch:{x:[200,3000],p:[1e15,3000]}, kw:"Planck black body radiation spectrum thermal emission temperature pyrometry wavelength"},
+  planckf:{name:"Planck's law, frequency", params:["A","T"], mean:["scale (emissivity and geometry)","temperature; x is the frequency in THz"], ph:["<i>A</i>","<i>T</i>"], dim:["","=K"],
+    formula:"<i>y</i> = <i>A</i> <i>x</i><sup>3</sup> / [exp(<i>h</i><i>x</i>/<i>k</i><sub>B</sub><i>T</i>) &minus; 1], <i>h</i>/<i>k</i><sub>B</sub> = 47.99 K/THz, <i>x</i> in THz",
+    f:(x,p)=>p[0]*x*x*x/Math.expm1(H_KB_THZ*x/p[1]), lo:[-Infinity,0], xpos:true,
+    guess:(X,Y)=>{ const {x,y}=thinXY(X,Y,200), r=scaleGrid(x,y,(v,T)=>v*v*v/Math.expm1(H_KB_THZ*v/T),logGrid(1,50000,60)); return r?[r.A,r.c]:[1,3000]; },
+    derived:[{name:"Peak frequency (Wien)", dim:"=THz", fn:p=>0.058789257757*p[1]}],
+    sketch:{x:[0.5,400],p:[1,3000]}, kw:"Planck black body radiation spectrum frequency cosmic microwave background thermal emission"},
+  curiew:{name:"Curie–Weiss", params:["chi0","C","theta"], mean:["the part that does not depend on temperature","the Curie constant","the Weiss temperature"], ph:["&chi;<sub>0</sub>","<i>C</i>","&theta;"], dim:["y","yx","x"],
+    formula:"<i>y</i> = &chi;<sub>0</sub> + <i>C</i>/(<i>x</i> &minus; &theta;), <i>x</i> the temperature", f:(x,p)=>p[0]+p[1]/(x-p[2]),
+    guess:(X,Y)=>MODELS.hyperbola.guess(X,Y),
+    sketch:{x:[20,300],p:[0.001,0.5,-10]}, kw:"Curie Weiss law magnetic susceptibility paramagnet ferromagnet antiferromagnet Weiss temperature"},
+  wien:{name:"Wien's approximation", params:["A","T"], mean:["scale","temperature; x is the wavelength in nm"], ph:["<i>A</i>","<i>T</i>"], dim:["","=K"],
+    formula:"<i>y</i> = <i>A</i> <i>x</i><sup>&minus;5</sup> exp(&minus;<i>c</i><sub>2</sub>/<i>x</i><i>T</i>), <i>c</i><sub>2</sub> = 1.4388 &times; 10<sup>7</sup> nm K, <i>x</i> in nm",
+    f:(x,p)=>p[0]*Math.pow(x,-5)*Math.exp(-C2NM/(x*p[1])), lo:[-Infinity,0], xpos:true,
+    guess:(X,Y)=>{ const lx=[], ly=[]; X.forEach((x,i)=>{ if(x>0&&Y[i]>0){ lx.push(1/x); ly.push(Math.log(Y[i]*Math.pow(x,5))); } }); const L=lx.length>=2?linFitXY(lx,ly):null; return L&&L[1]<0?[Math.exp(L[0]),-C2NM/L[1]]:[1,3000]; },
+    sketch:{x:[200,2000],p:[1e15,3000]}, kw:"Wien approximation black body short wavelength pyrometry"},
+  drude:{name:"Drude conductivity", params:["s0","tau"], mean:["the conductivity at zero frequency","the scattering time; x the angular frequency"], ph:["&sigma;<sub>0</sub>","&tau;"], dim:["y","1/x"],
+    formula:"<i>y</i> = &sigma;<sub>0</sub> / (1 + <i>x</i><sup>2</sup>&tau;<sup>2</sup>)", f:(x,p)=>p[0]/(1+(x*p[1])**2),
+    guess:(X,Y)=>{ const s=sortXY(X,Y), s0=s.y[0]; let xh=s.x[s.x.length-1]; for(let i=0;i<s.x.length;i++) if(s.y[i]<=s0/2){ xh=s.x[i]; break; } return [s0,xh?1/Math.abs(xh):1]; },
+    sketch:{x:[0,5],p:[1,1.2]}, kw:"Drude conductivity free electrons optical frequency dependent scattering time"},
+  blochg:{name:"Bloch–Grüneisen resistivity", params:["rho0","A","theta"], mean:["the residual resistivity","the strength of electron–phonon scattering","the Debye temperature"], ph:["&rho;<sub>0</sub>","<i>A</i>","&Theta;<sub>R</sub>"], dim:["y","y","x"],
+    formula:"<i>y</i> = &rho;<sub>0</sub> + <i>A</i>(<i>x</i>/&Theta;<sub>R</sub>)<sup>5</sup> &int;<sub>0</sub><sup>&Theta;<sub>R</sub>/<i>x</i></sup> <i>t</i><sup>5</sup>/[(e<sup><i>t</i></sup> &minus; 1)(1 &minus; e<sup>&minus;<i>t</i></sup>)] d<i>t</i>, <i>x</i> the temperature",
+    f:(x,p)=>p[0]+p[1]*bgS(x,p[2]), lo:[-Infinity,-Infinity,0], xpos:true,
+    guess:(X,Y)=>{ const {x,y}=thinXY(X,Y,200), r=gridBest(logGrid(amin(x)/2,amax(x)*20,40),th=>{ const q=lsqRows(x.map(v=>[1,bgS(v,th)]),y); return q?{ss:ssOf(x,y,v=>q[0]+q[1]*bgS(v,th)),p:[q[0],q[1],th]}:null; }); return r?r.p:[amin(Y),1,300]; },
+    sketch:{x:[2,400],p:[0.1,10,250]}, kw:"Bloch Gruneisen resistivity metal electron phonon temperature"},
+  arrh2:{name:"Arrhenius, two terms", params:["A1","Ea1","A2","Ea2"], mean:["the first term's prefactor","its activation energy; x the temperature in kelvins","the second term's prefactor","its activation energy"],
+    ph:["<i>A</i><sub>1</sub>","<i>E</i><sub>a1</sub>","<i>A</i><sub>2</sub>","<i>E</i><sub>a2</sub>"], dim:["y","=J/mol","y","=J/mol"],
+    formula:"<i>y</i> = <i>A</i><sub>1</sub> exp(&minus;<i>E</i><sub>a1</sub>/<i>R</i><i>x</i>) + <i>A</i><sub>2</sub> exp(&minus;<i>E</i><sub>a2</sub>/<i>R</i><i>x</i>), <i>x</i> in K",
+    f:(x,p)=>p[0]*Math.exp(-p[1]/(R_GAS*x))+p[2]*Math.exp(-p[3]/(R_GAS*x)), xpos:true,
+    guess:(X,Y)=>{ const s=sortXY(X,Y), n=s.x.length, k=Math.max(3,Math.floor(n/3)), lf=(a,b)=>{ const lx=[], ly=[]; for(let i=a;i<b;i++) if(s.x[i]>0&&s.y[i]>0){ lx.push(1/s.x[i]); ly.push(Math.log(s.y[i])); } return lx.length>=2?linFitXY(lx,ly):null; };
+      const L1=lf(0,k), L2=lf(n-k,n); if(!L1||!L2) return [1,1e4,1,5e4]; return [Math.exp(L1[0]),-L1[1]*R_GAS,Math.exp(L2[0]),-L2[1]*R_GAS]; },
+    derived:[{name:"Activation energy 1", dim:"=kJ/mol", fn:p=>p[1]/1000},{name:"Activation energy 2", dim:"=kJ/mol", fn:p=>p[3]/1000}],
+    sketch:{x:[200,500],p:[1e3,2e4,1e9,8e4]}, kw:"Arrhenius two processes double activation energy conductivity diffusion"},
+  taucd:{name:"Absorption edge, direct gap", params:["A","Eg"], mean:["scale","the band gap; x the photon energy"], ph:["<i>A</i>","<i>E</i><sub>g</sub>"], dim:["","x"],
+    formula:"<i>y</i> = <i>A</i>(<i>x</i> &minus; <i>E</i><sub>g</sub>)<sup>1/2</sup>/<i>x</i> above <i>E</i><sub>g</sub>, 0 below: the line of a Tauc plot of (<i>y</i><i>x</i>)<sup>2</sup>",
+    f:(x,p)=>x>p[1]?p[0]*Math.sqrt(x-p[1])/x:0, xpos:true,
+    guess:(X,Y)=>{ const tx=[], ty=[], v=X.map((x,i)=>(Y[i]*x)**2), top=amax(v); X.forEach((x,i)=>{ if(v[i]>0.2*top){ tx.push(x); ty.push(v[i]); } }); const L=tx.length>=2?linFitXY(tx,ty):null;
+      return L&&L[1]>0?[Math.sqrt(L[1]),-L[0]/L[1]]:[1,amin(X)]; },
+    sketch:{x:[1,3],p:[1,1.5]}, kw:"Tauc plot direct band gap optical absorption semiconductor edge"},
+  taucind:{name:"Absorption edge, indirect gap", params:["A","Eg"], mean:["scale","the band gap; x the photon energy"], ph:["<i>A</i>","<i>E</i><sub>g</sub>"], dim:["","x"],
+    formula:"<i>y</i> = <i>A</i>(<i>x</i> &minus; <i>E</i><sub>g</sub>)<sup>2</sup>/<i>x</i> above <i>E</i><sub>g</sub>, 0 below: the line of a Tauc plot of (<i>y</i><i>x</i>)<sup>1/2</sup>",
+    f:(x,p)=>x>p[1]?p[0]*(x-p[1])**2/x:0, xpos:true,
+    guess:(X,Y)=>{ const tx=[], ty=[], v=X.map((x,i)=>Math.sqrt(Math.max(0,Y[i]*x))), top=amax(v); X.forEach((x,i)=>{ if(v[i]>0.2*top){ tx.push(x); ty.push(v[i]); } }); const L=tx.length>=2?linFitXY(tx,ty):null;
+      return L&&L[1]>0?[L[1]*L[1],-L[0]/L[1]]:[1,amin(X)]; },
+    sketch:{x:[1,3],p:[1,1.5]}, kw:"Tauc plot indirect band gap optical absorption semiconductor edge phonon assisted"},
+  urbach:{name:"Urbach tail", params:["E1","Eu"], mean:["x at which y is 1","the Urbach energy: y grows e-fold over it"], ph:["<i>E</i><sub>1</sub>","<i>E</i><sub>U</sub>"], dim:["x","x"],
+    formula:"<i>y</i> = exp[(<i>x</i> &minus; <i>E</i><sub>1</sub>)/<i>E</i><sub>U</sub>]", f:(x,p)=>Math.exp((x-p[0])/p[1]),
+    guess:(X,Y)=>{ const lx=[], ly=[]; X.forEach((x,i)=>{ if(Y[i]>0){ lx.push(x); ly.push(Math.log(Y[i])); } }); const L=lx.length>=2?linFitXY(lx,ly):null; return L&&L[1]?[-L[0]/L[1],1/L[1]]:[meanOf(X),1]; },
+    sketch:{x:[1.5,2],p:[1.7,0.06]}, kw:"Urbach tail exponential absorption edge disorder band tail"},
+  sine2:{name:"Sine squared", params:["y0","A","xc","T"], mean:["the lowest level","the rise to the top","x of a lowest point","period"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>T</i>"], dim:["y","y","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> sin<sup>2</sup>[&pi;(<i>x</i> &minus; <i>x</i><sub>c</sub>)/<i>T</i>]", f:(x,p)=>{ const s=Math.sin(Math.PI*(x-p[2])/p[3]); return p[0]+p[1]*s*s; },
+    guess:(X,Y)=>{ const g=waveGuess(X,Y); return [g.y0-g.A,2*g.A,g.xc-g.T/4,g.T]; },
+    sketch:{x:[0,2],p:[0,1,0,1]}, kw:"sine squared Malus law interference fringes cos squared polariser SineSqr"},
+  twosine:{name:"Two sine waves", params:["y0","A1","xc1","T1","A2","xc2","T2"], mean:["middle level","amplitude of the first","x where the first rises through the middle","its period","amplitude of the second","x where the second rises through the middle","its period"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i><sub>1</sub>","<i>x</i><sub>c1</sub>","<i>T</i><sub>1</sub>","<i>A</i><sub>2</sub>","<i>x</i><sub>c2</sub>","<i>T</i><sub>2</sub>"], dim:["y","y","x","x","y","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + &Sigma;<sub><i>i</i>=1,2</sub> <i>A</i><sub><i>i</i></sub> sin[2&pi;(<i>x</i> &minus; <i>x</i><sub>c<i>i</i></sub>)/<i>T</i><sub><i>i</i></sub>]",
+    f:(x,p)=>p[0]+p[1]*Math.sin(2*Math.PI*(x-p[2])/p[3])+p[4]*Math.sin(2*Math.PI*(x-p[5])/p[6]),
+    guess:(X,Y)=>{ const g=waveGuess(X,Y), R=Y.map((y,i)=>y-g.y0-g.A*Math.sin(2*Math.PI*(X[i]-g.xc)/g.T)), h=waveGuess(X,R); return [g.y0+h.y0,g.A,g.xc,g.T,h.A,h.xc,h.T]; },
+    sketch:{x:[0,4],p:[0,1,0,1,0.5,0.2,0.37]}, kw:"two sines sum of sinusoids beats two frequencies Sine2"},
+  sinedrift:{name:"Sine wave on a line", params:["y0","b","A","xc","T"], mean:["level at x = 0","slope of the drift","amplitude","x where it rises through the line","period"],
+    ph:["<i>y</i><sub>0</sub>","<i>b</i>","<i>A</i>","<i>x</i><sub>c</sub>","<i>T</i>"], dim:["y","y/x","y","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>b</i><i>x</i> + <i>A</i> sin[2&pi;(<i>x</i> &minus; <i>x</i><sub>c</sub>)/<i>T</i>]", f:(x,p)=>p[0]+p[1]*x+p[2]*Math.sin(2*Math.PI*(x-p[3])/p[4]),
+    guess:(X,Y)=>{ const L=linFitXY(X,Y)||[meanOf(Y),0], g=waveGuess(X,Y.map((y,i)=>y-L[0]-L[1]*X[i])); return [L[0]+g.y0,L[1],g.A,g.xc,g.T]; },
+    sketch:{x:[0,4],p:[0,0.3,0.6,0,1]}, kw:"sine with linear drift trend baseline oscillation"},
+  chirp:{name:"Sine of the square root", params:["y0","A","xc","w"], mean:["middle level","amplitude","x where it starts","x-scale: a half cycle per w² of x at first"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>w</i>"], dim:["y","y","x",""],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> sin[&pi;&radic;(<i>x</i> &minus; <i>x</i><sub>c</sub>)/<i>w</i>]", f:(x,p)=>p[0]+p[1]*Math.sin(Math.PI*Math.sqrt(Math.max(0,x-p[2]))/p[3]),
+    guess:(X,Y)=>{ const {x,y}=thinXY(X,Y,400), a=x[0], sp=(x[x.length-1]-a)||1;
+      const r=gridBest([0].concat(logGrid(0.001,0.5,12)).map(g=>a-g*sp).concat([0.01,0.02,0.035,0.05,0.075,0.1,0.15,0.2].map(g=>a+g*sp)),xc=>{ const s=x.map(v=>Math.sqrt(Math.max(0,v-xc))), g=waveGuess(s,y), w=g.T/2, A=g.A, ph=g.xc; if(!(w>0)) return null;
+        const c=lsqRows(s.map(v=>[1,Math.sin(Math.PI*v/w)]),y); return c?{ss:ssOf(s,y,v=>c[0]+c[1]*Math.sin(Math.PI*v/w)),p:[c[0],c[1],xc,w]}:null; }); return r?r.p:[meanOf(y),1,a,1]; },
+    sketch:{x:[0,30],p:[0,1,0,1]}, kw:"chirp square root sine SineSqrt Newton rings"},
+  sawtooth:{name:"Sawtooth, smooth", params:["y0","A","xc","T","r"], mean:["middle level","amplitude","x where a tooth rises through the middle","period","sharpness: towards 1 a sharp sawtooth"],
+    ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>c</sub>","<i>T</i>","<i>r</i>"], dim:["y","y","x","x",""],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + (2<i>A</i>/&pi;) arctan[<i>r</i> sin <i>&phi;</i> / (1 &minus; <i>r</i> cos <i>&phi;</i>)], <i>&phi;</i> = 2&pi;(<i>x</i> &minus; <i>x</i><sub>c</sub>)/<i>T</i>: &Sigma; <i>r</i><sup><i>k</i></sup> sin(<i>k&phi;</i>)/<i>k</i>",
+    f:(x,p)=>{ const ph=2*Math.PI*(x-p[2])/p[3]; return p[0]+2*p[1]/Math.PI*Math.atan2(p[4]*Math.sin(ph),1-p[4]*Math.cos(ph)); }, lo:[-Infinity,-Infinity,-Infinity,-Infinity,0], hi:[Infinity,Infinity,Infinity,Infinity,0.99],
+    guess:(X,Y)=>{ const g=waveGuess(X,Y), r=0.6; return [g.y0,Math.PI*g.A/(2*r),g.xc,g.T,r]; },
+    sketch:{x:[0,3],p:[0,1,0,1,0.85]}, kw:"sawtooth ramp triangle smooth periodic relaxation oscillation"},
+  fourier1:fourierModel(1), fourier2:fourierModel(2), fourier3:fourierModel(3), fourier4:fourierModel(4),
+  normpdf:{name:"Normal distribution", params:["y0","A","mu","s"], mean:["baseline","area (the count or total)","mean","standard deviation"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>&mu;</i>","<i>&sigma;</i>"], dim:["y","yx","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i>/(<i>&sigma;</i>&radic;2&pi;) exp[&minus;(<i>x</i> &minus; <i>&mu;</i>)<sup>2</sup>/2<i>&sigma;</i><sup>2</sup>]",
+    f:(x,p)=>p[0]+p[1]/(p[3]*SQ2PI)*Math.exp(-((x-p[2])**2)/(2*p[3]*p[3])), lo:[-Infinity,-Infinity,-Infinity,0],
+    guess:(X,Y)=>{ const g=peakGuess(X,Y), s=g.fwhm/FW; return [g.base,g.H*s*SQ2PI,g.xc,s]; },
+    sketch:{x:[-3,3],p:[0,1,0,0.7]}, kw:"normal distribution density Gaussian probability bell histogram Normal"},
+  lognpdf:{name:"Log-normal distribution", params:["y0","A","mu","s"], mean:["baseline","area (the count or total)","mean of ln x","standard deviation of ln x"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>&mu;</i>","<i>&sigma;</i>"], dim:["y","yx","",""],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i>/(<i>x</i><i>&sigma;</i>&radic;2&pi;) exp[&minus;(ln <i>x</i> &minus; <i>&mu;</i>)<sup>2</sup>/2<i>&sigma;</i><sup>2</sup>]",
+    f:(x,p)=>x>0?p[0]+p[1]/(x*p[3]*SQ2PI)*Math.exp(-((Math.log(x)-p[2])**2)/(2*p[3]*p[3])):p[0], lo:[-Infinity,-Infinity,-Infinity,0], xpos:true,
+    guess:(X,Y)=>{ const g=MODELS.lognormal.guess(X,Y); return [g[0],g[1],Math.log(g[2]),g[3]]; },
+    derived:[{name:"Median", dim:"x", fn:p=>Math.exp(p[2])},{name:"Mean", dim:"x", fn:p=>Math.exp(p[2]+p[3]*p[3]/2)},{name:"Mode", dim:"x", fn:p=>Math.exp(p[2]-p[3]*p[3])}],
+    sketch:{x:[0.02,5],p:[0,1,0,0.5]}, kw:"log normal distribution density particle size LogNormal lognorm"},
+  gammapdf:{name:"Gamma distribution", params:["y0","A","k","theta"], mean:["baseline","area (the count or total)","shape","scale"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>k</i>","<i>&theta;</i>"], dim:["y","yx","","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> <i>x</i><sup><i>k</i>&minus;1</sup>e<sup>&minus;<i>x</i>/<i>&theta;</i></sup> / [&Gamma;(<i>k</i>)<i>&theta;</i><sup><i>k</i></sup>]",
+    f:(x,p)=>{ const k=p[2], t=p[3]; if(!(x>0)) return p[0]+(x===0&&k===1?p[1]/t:0); return p[0]+p[1]*Math.exp((k-1)*Math.log(x)-x/t-lgam(k)-k*Math.log(t)); }, lo:[-Infinity,-Infinity,0,0], xpos:"0",
+    guess:(X,Y)=>{ const g=peakGuess(X,Y), m=Math.max(g.xc,0), s=g.fwhm/FW, t=(-m+Math.sqrt(m*m+4*s*s))/2, k=m/t+1, top=Math.exp((k-1)*Math.log(Math.max(m,1e-300))-m/t-lgam(k)-k*Math.log(t)); return [g.base,top>0&&Number.isFinite(top)?g.H/top:g.H*s*SQ2PI,k,t]; },
+    derived:[{name:"Mean", dim:"x", fn:p=>p[2]*p[3]},{name:"Mode", dim:"x", fn:p=>Math.max(0,(p[2]-1)*p[3])}],
+    sketch:{x:[0,10],p:[0,1,3,1]}, kw:"gamma distribution density Erlang chi squared waiting time"},
+  weibpdf:{name:"Weibull distribution", params:["y0","A","k","lambda"], mean:["baseline","area (the count or total)","shape","scale"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>k</i>","<i>&lambda;</i>"], dim:["y","yx","","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i>(<i>k</i>/<i>&lambda;</i>)(<i>x</i>/<i>&lambda;</i>)<sup><i>k</i>&minus;1</sup> exp[&minus;(<i>x</i>/<i>&lambda;</i>)<sup><i>k</i></sup>]",
+    f:(x,p)=>{ const k=p[2], l=p[3]; if(!(x>0)) return p[0]+(x===0&&k===1?p[1]/l:0); const u=x/l; return p[0]+p[1]*k/l*Math.pow(u,k-1)*Math.exp(-Math.pow(u,k)); }, lo:[-Infinity,-Infinity,0,0], xpos:"0",
+    guess:(X,Y)=>{ const g=peakGuess(X,Y), {x,y}=thinXY(X,Y,300), m=Math.max(g.xc,1e-9);
+      const r=gridBest(logGrid(1.1,10,16),k=>{ const l=m/Math.pow((k-1)/k,1/k), sh=x.map(v=>v>0?k/l*Math.pow(v/l,k-1)*Math.exp(-Math.pow(v/l,k)):0), q=lsqRows(sh.map(s=>[1,s]),y); return q?{ss:ssOf(sh,y,s=>q[0]+q[1]*s),p:[q[0],q[1],k,l]}:null; });
+      return r?r.p:[g.base,g.H,2,m*1.4]; },
+    derived:[{name:"Mean", dim:"x", fn:p=>p[3]*Math.exp(lgam(1+1/p[2]))}],
+    sketch:{x:[0,4],p:[0,1,2.5,1.5]}, kw:"Weibull distribution density failure lifetime wind speed"},
+  betapdf:{name:"Beta distribution", params:["y0","A","a","b"], mean:["baseline","area (the count or total)","first shape","second shape"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>&alpha;</i>","<i>&beta;</i>"], dim:["y","yx","",""],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> <i>x</i><sup><i>&alpha;</i>&minus;1</sup>(1 &minus; <i>x</i>)<sup><i>&beta;</i>&minus;1</sup> / B(<i>&alpha;</i>, <i>&beta;</i>), <i>x</i> from 0 to 1",
+    f:(x,p)=>{ const a=p[2], b=p[3]; if(!(x>0&&x<1)) return p[0]; return p[0]+p[1]*Math.exp((a-1)*Math.log(x)+(b-1)*Math.log1p(-x)-lgam(a)-lgam(b)+lgam(a+b)); }, lo:[-Infinity,-Infinity,0,0], xpos:true, xmax:1,
+    guess:(X,Y)=>{ const {x,y}=thinXY(X,Y,300), g=logGrid(1.2,12,10), cands=g.flatMap(a=>g.map(b=>[a,b]));
+      const r=gridBest(cands,([a,b])=>{ const sh=x.map(v=>v>0&&v<1?Math.exp((a-1)*Math.log(v)+(b-1)*Math.log1p(-v)-lgam(a)-lgam(b)+lgam(a+b)):0), q=lsqRows(sh.map(s=>[1,s]),y); return q?{ss:ssOf(sh,y,s=>q[0]+q[1]*s),p:[q[0],q[1],a,b]}:null; });
+      return r?r.p:[0,1,2,2]; },
+    derived:[{name:"Mean", dim:"", fn:p=>p[2]/(p[2]+p[3])}],
+    sketch:{x:[0.01,0.99],p:[0,1,2,5]}, kw:"beta distribution density proportion fraction"},
+  cauchypdf:{name:"Cauchy distribution", params:["y0","A","x0","g"], mean:["baseline","area (the count or total)","location (median)","half-width at half maximum"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>x</i><sub>0</sub>","<i>&gamma;</i>"], dim:["y","yx","x","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> / {&pi;<i>&gamma;</i>[1 + ((<i>x</i> &minus; <i>x</i><sub>0</sub>)/<i>&gamma;</i>)<sup>2</sup>]}",
+    f:(x,p)=>p[0]+p[1]/(Math.PI*p[3]*(1+((x-p[2])/p[3])**2)), lo:[-Infinity,-Infinity,-Infinity,0],
+    guess:(X,Y)=>{ const g=peakGuess(X,Y), gm=g.fwhm/2; return [g.base,g.H*Math.PI*gm,g.xc,gm]; },
+    sketch:{x:[-5,5],p:[0,1,0,0.6]}, kw:"Cauchy distribution density Lorentz heavy tails"},
+  logncdf:{name:"Log-normal cumulative", params:["y0","A","mu","s"], mean:["level at small x","total rise","mean of ln x (the median's log)","standard deviation of ln x"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>&mu;</i>","<i>&sigma;</i>"], dim:["y","y","",""],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> &Phi;[(ln <i>x</i> &minus; <i>&mu;</i>)/<i>&sigma;</i>], &Phi; the normal distribution's",
+    f:(x,p)=>p[0]+p[1]*(x>0?0.5*erfcFn(-(Math.log(x)-p[2])/(Math.SQRT2*p[3])):0), lo:[-Infinity,-Infinity,-Infinity,0], xpos:true,
+    guess:(X,Y)=>{ const lx=[], ly=[]; X.forEach((x,i)=>{ if(x>0){ lx.push(Math.log(x)); ly.push(Y[i]); } }); const g=stepGuess(lx,ly); return g?[g.A1,g.A2-g.A1,g.mid,g.w/2.5631]:[0,1,0,1]; },
+    derived:[{name:"Median", dim:"x", fn:p=>Math.exp(p[2])}],
+    sketch:{x:[0.02,8],p:[0,1,0,0.6]}, kw:"log normal cumulative distribution CDF particle size sieve passing"},
+  gammacdf:{name:"Gamma cumulative", params:["y0","A","k","theta"], mean:["level at x = 0","total rise","shape","scale"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>k</i>","<i>&theta;</i>"], dim:["y","y","","x"],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> P(<i>k</i>, <i>x</i>/<i>&theta;</i>), P the regularised lower incomplete gamma function",
+    f:(x,p)=>p[0]+p[1]*(x>0?igamPQ(p[2],x/p[3])[0]:0), lo:[-Infinity,-Infinity,0,0], xpos:"0",
+    guess:(X,Y)=>{ const g=stepGuess(X,Y); if(!g) return [0,1,2,1]; const med=Math.max(g.mid,1e-9), s=g.w/2.5631, k=Math.max(0.3,(med/s)**2), t=s*s/med; return [g.A1,g.A2-g.A1,k,t]; },
+    derived:[{name:"Mean", dim:"x", fn:p=>p[2]*p[3]}],
+    sketch:{x:[0,10],p:[0,1,3,1]}, kw:"gamma cumulative distribution CDF incomplete gamma"},
+  betacdf:{name:"Beta cumulative", params:["y0","A","a","b"], mean:["level at x = 0","total rise","first shape","second shape"], ph:["<i>y</i><sub>0</sub>","<i>A</i>","<i>&alpha;</i>","<i>&beta;</i>"], dim:["y","y","",""],
+    formula:"<i>y</i> = <i>y</i><sub>0</sub> + <i>A</i> I<sub><i>x</i></sub>(<i>&alpha;</i>, <i>&beta;</i>), I the regularised incomplete beta function, <i>x</i> from 0 to 1",
+    f:(x,p)=>p[0]+p[1]*ibeta(p[2],p[3],x), lo:[-Infinity,-Infinity,0,0], xpos:"0", xmax:1,
+    guess:(X,Y)=>{ const {x,y}=thinXY(X,Y,300), g=logGrid(0.5,12,10), cands=g.flatMap(a=>g.map(b=>[a,b]));
+      const r=gridBest(cands,([a,b])=>{ const sh=x.map(v=>ibeta(a,b,v)), q=lsqRows(sh.map(s=>[1,s]),y); return q?{ss:ssOf(sh,y,s=>q[0]+q[1]*s),p:[q[0],q[1],a,b]}:null; });
+      return r?r.p:[0,1,2,2]; },
+    sketch:{x:[0,1],p:[0,1,2,5]}, kw:"beta cumulative distribution CDF incomplete beta"}
+});
 // The model list, by kind; a polynomial is listed once, its order chosen beside the list.
-const MODEL_GROUPS=[["Lines and polynomials",["linear","poly2"]],["Growth and decay",["expdec","expdec2","expdec3","expgrow","riseplat"]],
-  ["Steps and saturation",["boltz","logistic","doseresp","hill","gompertz","mm"]],["Peaks",["gauss","lorentz","voigt","pvoigt","pearson7","lognormal","extreme"]],
-  ["Powers and logarithms",["power","logarithm","arrhenius"]],["Waves",["sine","dsine"]]];
+const MODEL_GROUPS=[["Lines and polynomials",["linear","poly2","origin","seg2","recip","hyperbola","rat11","rat21","rat12","rat22"]],
+  ["Growth and decay",["expdec","expdec2","expdec3","expgrow","riseplat","stretched","assoc2","monomol","bertalanffy","chapman","weibullgr","richards","logisticgr","abc","bateman"]],
+  ["Steps and saturation",["boltz","logistic","logistic5","doseresp","dose2","biphasic","hill","hilloff","gompertz","mm","langmuir","freundlich","sips","bet","erfstep","tanhstep","atanstep"]],
+  ["Peaks",["gauss","lorentz","voigt","pvoigt","pearson7","pearson4","lognormal","extreme","emg","gausssplit","lorsplit","gramch","edgeworth","doniach","fano","asymds","logpeak","sech","tpeak","gausslin","gauss2","lor2"]],
+  ["Powers and logarithms",["power","allom2","logarithm","logoff","heavipow","arrhenius","vft","eyring","nernst"]],
+  ["Physics",["debye","einstein","blochg","curiew","planckl","planckf","wien","drude","arrh2","taucd","taucind","urbach"]],
+  ["Waves",["sine","dsine","sine2","twosine","sinedrift","chirp","sawtooth","fourier1","fourier2","fourier3","fourier4"]],
+  ["Distributions",["normpdf","lognpdf","gammapdf","weibpdf","betapdf","cauchypdf","logncdf","gammacdf","betacdf"]]];
 const polyOrderOf=id=>id==="linear"?1:/^poly([2-9]|10)$/.test(id)?+id.slice(4):0;
 const polyIdOf=k=>k===1?"linear":"poly"+k;
 // The first X a model cannot take (it takes the log of x, or a power of it), and whether 0 will do; null when every X will.
-function modelXBad(m,X){ if(!m||!m.xpos) return null; const strict=m.xpos!=="0", bad=X.find(v=>strict?!(v>0):!(v>=0)); return bad===undefined?null:{x:bad,strict}; }
+function modelXBad(m,X){ if(!m||!m.xpos) return null; const strict=m.xpos!=="0", mx=m.xmax;
+  // xmax: X below it (a fraction, a relative pressure), strictly when the function is infinite there
+  const bad=X.find(v=>(strict?!(v>0):!(v>=0))||(mx!=null&&(strict?!(v<mx):!(v<=mx)))); return bad===undefined?null:mx!=null?{x:bad,strict,max:mx}:{x:bad,strict}; }
 function gradient(f,x,p,fixed){
   return p.map((v,i)=>{ if(fixed&&fixed[i]) return 0; const h=Math.max(Math.abs(v)*1e-6,1e-10); const a=p.slice(), b=p.slice(); a[i]+=h; b[i]-=h; return (f(x,a)-f(x,b))/(2*h); });
 }
@@ -7806,7 +8346,7 @@ function fitDescModel(s){ if(!s||typeof s!=="object") return null;
   const m=MODELS[s.model]; return m?Object.assign({id:s.model},m):null; }
 function fitByDesc(s,X,Y,E,wk){ const m=fitDescModel(s); if(!m) return {fail:"its model is not known"}; const n=m.params.length;   // wk a kind, or {W (each point's factor), scale}
   if(X.length<=n) return {fail:`${X.length} points for ${n} parameters`};
-  const xb=modelXBad(m,X); if(xb) return {fail:`${m.name} needs X ${xb.strict?"above 0":"of 0 or more"}, and X reaches ${fmt(xb.x,6)}`};
+  const xb=modelXBad(m,X); if(xb) return {fail:`${m.name} needs X ${xNeed(xb)}, and X reaches ${fmt(xb.x,6)}`};
   const WT=wk&&typeof wk==="object"?{W:wk.W,scale:wk.scale!==false}:wk&&wk!=="none"?fitWeights(wk,Y,E):{W:Y.map(()=>1),scale:true}; if(WT.fail) return {fail:WT.fail==="noerr"?"a point has no error to weight by":WT.fail==="nocount"?"a count is not above zero":"a point cannot be weighted"};
   const ok=a=>Array.isArray(a)&&a.length===n, p0=ok(s.init)&&s.init.every(Number.isFinite)?s.init.slice():m.guess(X,Y), fixed=ok(s.fixed)?s.fixed.map(Boolean):p0.map(()=>false), L=s.lim&&typeof s.lim==="object"?s.lim:{};
   const B=fitBounds(n,{lo:ok(L.lo)?L.lo:undefined,hi:ok(L.hi)?L.hi:undefined,slo:ok(L.slo)?L.slo:undefined,shi:ok(L.shi)?L.shi:undefined,mlo:m.lo,mhi:m.hi,p0,fixed,names:m.params}); if(B.fail) return {fail:B.fail};
@@ -22995,7 +23535,7 @@ function openModelPicker(btn,cur,pick,opt){
   const row=(id,m,note)=>{ const on=id===cur||(id==="poly2"&&poly), q=[m.listAs||"",m.cat||"",m.name,phPlain(m.formula||""),(m.mean||[]).join(" "),m.kw||"",m.user?m.expr||"":"",note||""].join(" ").toLowerCase();
     return `<button type="button" class="mp-i" role="option" aria-selected="${on}" tabindex="-1" data-mid="${esc(id)}" data-q="${esc(q)}">${modelSketch(m)}<span class="mp-t"><span class="mp-n">${esc(m.listAs||m.name)}${note?` <em>${esc(note)}</em>`:""}</span><span class="mp-f${m.user?" mono":""}">${m.user?esc(m.expr||""):m.formula}</span></span>${on?ICON("check","sm"):""}</button>`; };
   let h=`<div class="fp-s"><input type="search" placeholder="Find a model" aria-label="Find a model" autocomplete="off" spellcheck="false"></div><div class="fp-l mp-l" role="listbox" aria-label="Models">`;
-  MODEL_GROUPS.forEach(([g,ids])=>{ h+=`<div class="fp-g">${esc(g)}</div>`+ids.map(id=>row(id,MODELS[id],id==="poly2"?"order 2 to 9":"")).join(""); });
+  MODEL_GROUPS.forEach(([g,ids])=>{ h+=`<div class="fp-g">${esc(g)}</div>`+ids.map(id=>row(id,MODELS[id],id==="poly2"?"order 2 to 10":"")).join(""); });
   const mine=ufs.map(fn=>[fn,um(fn)]).filter(x=>x[1]), fl=lib.map(fn=>[fn,um(fn)]).filter(x=>x[1]), ff=opt.fromFit;
   // Your functions by category, those with none first.
   const byCat=(list,t)=>{ const cs=[...new Set(list.map(([fn])=>String(fn.cat||"").trim()))].sort((a,b)=>a===""?-1:b===""?1:a.localeCompare(b));
@@ -23769,7 +24309,7 @@ function polyDirect(model,X,Y,W,B,scale){ const k=polyOrderOf(model); if(!k||typ
 const CONS_ODR="Constraints between parameters are not taken by the orthogonal distance fit yet: untick Include the X errors, or take the constraints away.";
 const consFixed=(m,r)=>`${m.params[r.hi]} is fixed, and kept above ${m.params[r.lo]} by a constraint: unfix it, or take the constraint away.`;
 const WCOL_ODR="Weights from a column only say how the points compare, and the X errors need Y errors in the data's own units: choose Y error or counting weights, or untick the X errors.";
-const xbText=(m,b)=>`${m.name} needs X ${b.strict?"above 0":"of 0 or more"}, and the fit's range reaches x = ${fmt(b.x,6)}. Fit a range of X ${b.strict?"above 0":"from 0 up"}.`;
+const xbText=(m,b)=>`${m.name} needs X ${xNeed(b)}, and the fit's range reaches x = ${fmt(b.x,6)}. Fit a range of X ${b.max!=null?`from 0 to ${b.max}`:b.strict?"above 0":"from 0 up"}.`;
 function saveCurveFit(res,o){
   const {d,m,X,SX,WT,ctl}=o;
   if(res.error){ S.fitError=res.error; logError("Curve fit: "+res.error,"fit"); renderFit(); return; }
@@ -29592,7 +30132,7 @@ function fitOne(c,t,seed,spec){
   let m=null; try{ m=t.fn?userModel(t.fn):getModel(t.model); }catch(e){ m=null; } if(!m) return {fail:"its model is no longer available"};
   let Xm=X, Ym=Y, Wm=W;
   if(t.app){ if(SX) return {fail:"an apparent fit does not take the X errors"}; const ap=appPoints(t.app,X,Y,W,useW); if(ap.badX||ap.badY) return {fail:`an apparent fit takes logarithms, and ${ap.badX+ap.badY} value${ap.badX+ap.badY===1?" is":"s are"} 0 or below`}; Xm=ap.X; Ym=ap.Y; Wm=ap.W; }
-  { const xb=modelXBad(m,Xm); if(xb) return {fail:`its X reaches ${fmt(xb.x,6)}, and ${lcFirst(m.name)} needs X ${xb.strict?"above 0":"of 0 or more"}`}; }
+  { const xb=modelXBad(m,Xm); if(xb) return {fail:`its X reaches ${fmt(xb.x,6)}, and ${lcFirst(m.name)} needs X ${xNeed(xb)}`}; }
   const Bt=boundsOf(t.lim,m,seed,t.fixed); if(Bt.fail) return {fail:Bt.fail};
   const Ct=consOf(t,m); if(Ct&&Ct.err) return {fail:"its constraints: "+lcFirst(consErr(Ct))}; if(Ct&&SX) return {fail:"constraints are not taken with the X errors"};
   if(Ct&&Ct.ineqs.some(r=>Bt.fixed[r.hi])) return {fail:"a fixed parameter is kept above another by a constraint"};

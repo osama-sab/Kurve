@@ -394,7 +394,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   outside them, a parameter held by equal ones), and the curve fit's models (each recovered
   from its own guess at 0.01% and 2% noise within five errors, derived values against their
   definitions, a wave of 1.3 cycles, a peak leaning left, the X checks, the ids shipped
-  before), and the residual analysis (t against the tables, F's closed form, a straight line's
+  before; 4.6's eighty with them, an EMG's area and mean, peaks and densities integrating to their areas, Debye's integral's
+  whole and limits, Planck's peak at Wien's, the cumulative curves' ends, A → B → C at equal rates, X up to 1), and the residual analysis (t against the tables, F's closed form, a straight line's
   leverage, the deleted residual against refitting without each point, fixed parameters,
   weights, a curve's leverages, a planted outlier found and clean data rarely flagged, the
   ANOVA's sums, the correlation matrix). Run it after touching any of this.
@@ -414,15 +415,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   (`eff(E)`, %) × intensity, their χ² and spread (`ratio`); a peak another nuclide's line could also
   be is `shared`. `{sets, m, shift}`, present first.
 - **Models** (`==MODELS:START/END==`, pure, after PIPE; `tools/fit-test.mjs` loads it with
-  NUMERICS and PEAKS): the curve fit's 25 models (`ux/spec/FIT_SPEC.md` slice 3) in
-  `MODEL_GROUPS`, six kinds (lines and polynomials, growth and decay, steps and saturation,
-  peaks, powers and logarithms, waves). Each `MODELS[id]`: `name`, `params`, `ph` (labels,
-  HTML), `mean`, `dim` (units for `unitFor`: `x`, `y`, `yx`, `y/x`, `y/xN` to 9, `1/x`, `"=J/mol"`
+  NUMERICS, PEAKS and STATS): the curve fit's 105 models (`ux/spec/FIT_SPEC.md` slice 3, `FIT2_SPEC.md` 4.6) in
+  `MODEL_GROUPS`, eight kinds (lines and polynomials, growth and decay, steps and saturation,
+  peaks, powers and logarithms, physics, waves, distributions). Each `MODELS[id]`: `name`, `params`, `ph` (labels,
+  HTML), `mean`, `dim` (units for `unitFor`: `x`, `y`, `yx`, `y/x`, `y/xN` to 9, `1/x`, `1/xN` to 9, `"=J/mol"`
   a unit of its own, `""`), `formula` (HTML), `f(x, p)`, `guess(X, Y)`, optional `lo`/`hi` (the
   model's own limits, as a function's), `derived` (`{name, dim, fn, exact?}`: `fn` smooth for
   the delta method, `exact` the value shown, a Voigt's FWHM by bisection), `xpos` (true: X above
-  0; `"0"`: 0 and above; `modelXBad(m, X)` gives `{x, strict}` or null, checked by `runFit`,
-  `stepFit` and `fitOne`, said by `xbText`), `sketch {x:[a, b], p}` (typical values, drawn by
+  0; `"0"`: 0 and above; `xmax` (1: X up to 1, strictly below it when `xpos` is true); `modelXBad(m, X)` gives `{x,
+  strict, max?}` or null, checked by `runFit`, `stepFit`, `fitOne` and `fitByDesc`, said by `xbText` through `xNeed`), `sketch {x:[a, b], p}` (typical values, drawn by
   `modelSketch`), `kw` (search words, Origin's names among them, never shown), and for the
   polynomials `hide`, `listAs`, `order` (`polyModel(k)`: `poly2`…`poly9` with `a0`…`ak`, one
   list entry; `polyOrderOf(id)`, `polyIdOf(k)`, order 1 being `linear`). Guesses: `peakGuess`
@@ -434,7 +435,21 @@ graph first, with the taskbar kept at the bottom of the screen.
   The peaks use `PEAKS` (`vgp` reorders `[y0, A, xc, w…]`); `EXT_FW` is the extreme-value FWHM
   in units of w; `R_GAS`, `F_EV`. An id never changes once shipped: a stored fit names its
   model by it (`poly2` is the polynomial of order 2). `gradient`, `deltaVar` and
-  `derivedWithErr` live here too. **The detector's curves** (roadmap 3, slice 3): `effCurve(pts, deg)`
+  `derivedWithErr` live here too. **The 80 added in 4.6** (after the `MODELS` literal, by `Object.assign`): their helpers
+  `lsqRows(rows, y)` (a small linear least squares, null when singular), `thinXY(X, Y, n)`, `gridBest(cands, fit)`, `ssOf`,
+  `logGrid`, `ratGuess(X, Y, nn, nd)` (the linearised rational fit reweighted by 1/D, Sanathanan and Koerner), `fracXs` (where
+  the smoothed points cross fractions of the way), `ENDS`, `kdiff` (A → B → C's term without cancellation), `erfcx` (Cody's,
+  for `emgF`), `lgammaRe(x, y)` (Re ln Γ by Stirling's series, for Pearson IV's `p4lnk`), `phononInt(n, z)` (∫₀^z tⁿeᵗ/(eᵗ − 1)²,
+  Gauss–Legendre: Debye's `debyeS` and Bloch–Grüneisen's `bgS`), `einS`, `scaleGrid` (a temperature on a grid, the scale
+  linear), `twoPeaks`, `gH`, `lH`, `fourierModel(n)`, `C2NM`, `H_KB_THZ`, `KB_H`; the models `origin`, `seg2`, `recip`,
+  `hyperbola`, `rat11`, `rat21`, `rat12`, `rat22`; `stretched`, `assoc2`, `monomol`, `bertalanffy`, `chapman`, `weibullgr`,
+  `richards`, `logisticgr`, `abc`, `bateman`; `logistic5`, `dose2`, `biphasic`, `hilloff`, `langmuir`, `freundlich`, `sips`, `bet`,
+  `erfstep`, `tanhstep`, `atanstep`; `pearson4`, `emg`, `gausssplit`, `lorsplit`, `gramch`, `edgeworth`, `doniach`, `fano`,
+  `asymds`, `logpeak`, `sech`, `tpeak`, `gausslin`, `gauss2`, `lor2`; `allom2`, `logoff`, `heavipow`, `vft`, `eyring`, `nernst`
+  (y in volts at 25 °C); `debye`, `einstein`, `blochg`, `curiew`, `planckl` (x in nm), `planckf` (x in THz), `wien`, `drude`,
+  `arrh2`, `taucd`, `taucind`, `urbach`; `sine2`, `twosine`, `sinedrift`, `chirp`, `sawtooth`, `fourier1`…`fourier4`; `normpdf`,
+  `lognpdf`, `gammapdf`, `weibpdf`, `betapdf`, `cauchypdf`, `logncdf`, `gammacdf`, `betacdf` (`lgam`, `igamPQ` and `ibeta` from STATS,
+  read when called). **The detector's curves** (roadmap 3, slice 3): `effCurve(pts, deg)`
   (ln ε a polynomial of degree 1 to 4 in ln E about the points' mean, fitted to `{E, eff, err}` in %,
   weighted by the relative errors when every point has one, else equally with the covariance scaled
   by the scatter; `{co, x0, deg, n, cov, rel, E0, E1, wtd, redChi2}` or `{fail}` in words), `effAt(cv,
@@ -3396,7 +3411,9 @@ deleted and back; following set at once, a mask change refitted with a log line,
 both back, a refit that cannot be made said in the notes. Slice 10: the editor's refusals (a start,
 a derived value), a function saved with its category, formula start, meaning, constraints and
 derived values, the Fit window starting with them, the derived value and its error in Results,
-the model list's category, the organizer (renamed and filed in place, undone, deleted). Wave 4: 4.1 (polynomials solved
+the model list's category, the organizer (renamed and filed in place, undone, deleted). Wave 4: 4.6 (the list of 105 in eight
+kinds, sixteen Origin names found by the search, Debye's heat capacity picked, guessed and fitted with its units, a gamma
+distribution over binned counts with its mean, X past 1 refused in words, units of 1/x²), 4.1 (polynomials solved
 directly, far from zero, with limits) and 4.8 (Robust offered and chosen, a bisquare line against robustFit, the outliers'
 weights drawn as the residuals' size, Results' section and note, the statistics and the Method; Bootstrap intervals ticked,
 worked out in the worker as bootFit gives them, Results' section, Another seed with Stop, undo, a fit of every column robust,
@@ -5129,6 +5146,10 @@ Next, in order:
    1e-12), done 14.11; slice 4.3, comparing fits (Compare models: two to five fit settings on one column's points, their
    criteria and Akaike's weights, the F test of nested pairs; Compare data sets: one setting on several columns, alone and
    shared; SciPy's curve_fit and statsmodels' compare_f_test agreeing to 1e-13, the tests' size by simulation), done 14.11;
+   slice 4.6, more models (from 25 to 105 in eight kinds, Physics and Distributions new: rational functions, segments, growth
+   curves, isotherms, steps, fourteen more peaks, Debye's and Einstein's heat capacities, Planck's law, Curie–Weiss, Tauc's edges,
+   Fourier series, distributions and their cumulative curves; each recovered from its own guess, each function against mpmath
+   to 4e-14, found by Origin's names), done 15.11;
    slice 4.8, honest intervals (robust curve and peak fits by Huber's or the bisquare's weights, their weights drawn as the
    residuals' size; bootstrap intervals of cases or residuals in the worker, beside the curvature's, and of a linear model's
    coefficients; statsmodels' RLM agreeing to 1e-11, the bootstrap's coverage by simulation), done 15.11
@@ -5368,7 +5389,10 @@ Next, in order:
   6–11 digits with Fit control's tolerance at 1e-15 (5–10 at the default 1e-12); from NIST's first
   start MGH17, BoxBOD, MGH10 and Eckerle4 end in another minimum or none (right from the second);
   Lanczos1's standard deviations, whose residuals are the data's own rounding, cannot be had in doubles
-- Models: 25 built in (Origin has about 200), and polynomials of order 1 to 10; a polynomial is
+- Models: 105 built in (Origin has about 200; not its electrophysiology and chromatography lists in full, nor models of
+  several X or defined by a differential equation, nor a double logarithm), and polynomials of order 1 to 10; the normal and
+  Weibull cumulative curves are the error-function step and Weibull growth, and the Cauchy cumulative the arctangent step;
+  Planck's laws take X in nm or THz and Nernst's y in volts at 25 °C, as their formulas say; a polynomial is
   solved about the middle of its X (FIT2_SPEC 4.1), but with a coefficient fixed it is solved in
   powers of x, and far from x = 0 that is refused when the powers cannot be told apart; the
   guesses are measured heuristics (two or three decays from a grid of 16 decay times, a wave's

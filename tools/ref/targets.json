@@ -765,5 +765,9 @@
  "robustPoly": {
   "tol": 1e-10,
   "why": "random polynomials with outliers against RLM: the parameters over their largest, the scale, the weights and the H1 errors (worst seen 1.6e-11)"
+ },
+ "models": {
+  "tol": 1e-13,
+  "why": "each new curve-fit model's function against its formula in 30-digit mpmath (worst seen 3.7e-14: a sum of two sines near a zero); Debye's and Bloch–Grüneisen's integrals by Gauss–Legendre, Pearson IV's complex gamma by Stirling's series"
  }
 }

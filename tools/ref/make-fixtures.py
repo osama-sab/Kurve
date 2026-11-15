@@ -1472,6 +1472,141 @@ for t, (k, n, nout, kind) in enumerate([(1, 40, 3, "huber"), (1, 40, 3, "bisquar
                   "want": {"params": [float(v) for v in r.params], "bse": [float(v) for v in r.bse], "scale": float(r.scale), "w": [float(v) for v in r.weights]}})
 out["robust"] = cases
 
+# ---- More curve-fit models (FIT2_SPEC 4.6): each new model's function at points across its typical range, written again
+# from its formula in 30-digit mpmath (the integrals by quadrature, the gamma functions complex where Pearson IV needs them) ----
+mp = refs.mp
+def m46():
+    E, G, L, S, A = mp.exp, mp.gamma, mp.log, mp.sqrt, mp.atan
+    R, C2, HK, KH = mp.mpf("8.314462618"), mp.mpf("1.438776877e7"), mp.mpf("47.99243073"), mp.mpf("2.083661912e10")
+    pi = mp.pi
+    def kd(k1, k2, x): return x * E(-k1 * x) if k1 == k2 else (E(-k1 * x) - E(-k2 * x)) / (k2 - k1)
+    def gH(x, H, c, w): return H * E(-(x - c) ** 2 / (2 * w * w))
+    def lH(x, H, c, w): return H / (1 + 4 * ((x - c) / w) ** 2)
+    def phon(n, z): return mp.quad(lambda t: t ** n * E(t) / (E(t) - 1) ** 2, [0, z])
+    def four(x, p):
+        n = (len(p) - 2) // 2; T = p[-1]; v = p[0]
+        for k in range(1, n + 1): v += p[2 * k - 1] * mp.cos(2 * pi * k * x / T) + p[2 * k] * mp.sin(2 * pi * k * x / T)
+        return v
+    F = {
+      "origin": lambda x, p: p[0] * x,
+      "seg2": lambda x, p: p[0] + (p[1] if x < p[3] else p[2]) * (x - p[3]),
+      "recip": lambda x, p: p[0] + p[1] / x,
+      "hyperbola": lambda x, p: p[0] + p[1] / (x - p[2]),
+      "rat11": lambda x, p: (p[0] + p[1] * x) / (1 + p[2] * x),
+      "rat21": lambda x, p: (p[0] + p[1] * x + p[2] * x * x) / (1 + p[3] * x),
+      "rat12": lambda x, p: (p[0] + p[1] * x) / (1 + p[2] * x + p[3] * x * x),
+      "rat22": lambda x, p: (p[0] + p[1] * x + p[2] * x * x) / (1 + p[3] * x + p[4] * x * x),
+      "stretched": lambda x, p: p[0] + p[1] * E(-(x / p[2]) ** p[3]),
+      "weibullgr": lambda x, p: p[0] - (p[0] - p[1]) * E(-(p[2] * x) ** p[3]),
+      "richards": lambda x, p: p[0] * (1 + p[3] * E(-p[2] * (x - p[1]))) ** (-1 / p[3]),
+      "bertalanffy": lambda x, p: p[0] * (1 - E(-p[1] * (x - p[2]))),
+      "chapman": lambda x, p: p[0] * (1 - E(-p[1] * x)) ** p[2],
+      "logisticgr": lambda x, p: p[0] + p[1] / (1 + E(-p[3] * (x - p[2]))),
+      "monomol": lambda x, p: p[0] * (1 - p[1] * E(-p[2] * x)),
+      "assoc2": lambda x, p: p[0] + p[1] * (1 - E(-x / p[2])) + p[3] * (1 - E(-x / p[4])),
+      "abc": lambda x, p: p[0] + p[1] * p[2] * kd(p[2], p[3], x),
+      "bateman": lambda x, p: (lambda l1, l2: p[0] + p[1] * (E(-l1 * x) + l2 * kd(l1, l2, x)))(L(2) / p[2], L(2) / p[3]),
+      "logistic5": lambda x, p: p[1] + (p[0] - p[1]) / (1 + (x / p[2]) ** p[3]) ** p[4],
+      "dose2": lambda x, p: p[0] + (p[1] - p[0]) * (p[4] / (1 + mp.power(10, p[2] - x)) + (1 - p[4]) / (1 + mp.power(10, p[3] - x))),
+      "biphasic": lambda x, p: p[0] + (p[1] - p[0]) * (p[6] / (1 + mp.power(10, (p[2] - x) * p[4])) + (1 - p[6]) / (1 + mp.power(10, (p[3] - x) * p[5]))),
+      "langmuir": lambda x, p: p[0] * p[1] * x / (1 + p[1] * x),
+      "freundlich": lambda x, p: p[0] * x ** (1 / p[1]),
+      "bet": lambda x, p: p[0] * p[1] * x / ((1 - x) * (1 - x + p[1] * x)),
+      "sips": lambda x, p: p[0] * (p[1] * x) ** p[2] / (1 + (p[1] * x) ** p[2]),
+      "hilloff": lambda x, p: p[0] + (p[1] - p[0]) * x ** p[3] / (p[2] ** p[3] + x ** p[3]),
+      "erfstep": lambda x, p: p[0] + p[1] / 2 * (1 + mp.erf((x - p[2]) / (S(2) * p[3]))),
+      "tanhstep": lambda x, p: p[0] + p[1] / 2 * (1 + mp.tanh((x - p[2]) / p[3])),
+      "atanstep": lambda x, p: p[0] + p[1] * (mp.mpf(1) / 2 + A((x - p[2]) / p[3]) / pi),
+      "emg": lambda x, p: p[0] + p[1] / (2 * p[4]) * E(p[3] ** 2 / (2 * p[4] ** 2) - (x - p[2]) / p[4]) * mp.erfc((p[3] / p[4] - (x - p[2]) / p[3]) / S(2)),
+      "gausssplit": lambda x, p: p[0] + p[1] * S(2 / pi) / (p[3] + p[4]) * E(-(x - p[2]) ** 2 / (2 * (p[3] if x < p[2] else p[4]) ** 2)),
+      "lorsplit": lambda x, p: p[0] + 2 * p[1] / (pi * (p[3] + p[4])) / (1 + ((x - p[2]) / (p[3] if x < p[2] else p[4])) ** 2),
+      "pearson4": lambda x, p: (lambda z, a, m, v: p[0] + p[1] * abs(G(m + 1j * v / 2) / G(m)) ** 2 / (a * mp.beta(m - mp.mpf(1) / 2, mp.mpf(1) / 2)) * (1 + z * z) ** (-m) * E(-v * A(z)))((x - p[2]) / p[3], p[3], p[4], p[5]),
+      "gramch": lambda x, p: (lambda z: p[0] + p[1] / (p[3] * S(2 * pi)) * E(-z * z / 2) * (1 + p[4] / 6 * (z ** 3 - 3 * z) + p[5] / 24 * (z ** 4 - 6 * z * z + 3)))((x - p[2]) / p[3]),
+      "edgeworth": lambda x, p: (lambda z: p[0] + p[1] / (p[3] * S(2 * pi)) * E(-z * z / 2) * (1 + p[4] / 6 * (z ** 3 - 3 * z) + p[5] / 24 * (z ** 4 - 6 * z * z + 3) + p[4] ** 2 / 72 * (z ** 6 - 15 * z ** 4 + 45 * z * z - 15)))((x - p[2]) / p[3]),
+      "doniach": lambda x, p: p[0] + p[1] / pi * G(1 - p[4]) * mp.cos(pi * p[4] / 2 + (1 - p[4]) * A((x - p[2]) / p[3])) / ((x - p[2]) ** 2 + p[3] ** 2) ** ((1 - p[4]) / 2),
+      "asymds": lambda x, p: p[0] + p[1] / (1 + E(-(x - p[2] + p[3] / 2) / p[4])) * (1 - 1 / (1 + E(-(x - p[2] - p[3] / 2) / p[5]))),
+      "logpeak": lambda x, p: p[0] + p[1] / (4 * p[3] * mp.cosh((x - p[2]) / (2 * p[3])) ** 2),
+      "sech": lambda x, p: p[0] + p[1] / (pi * p[3] * mp.cosh((x - p[2]) / p[3])),
+      "tpeak": lambda x, p: p[0] + p[1] * G((p[4] + 1) / 2) / (S(p[4] * pi) * p[3] * G(p[4] / 2)) * (1 + ((x - p[2]) / p[3]) ** 2 / p[4]) ** (-(p[4] + 1) / 2),
+      "fano": lambda x, p: (lambda e: p[0] + 2 * p[1] / (pi * p[3]) * (1 + e * p[4]) ** 2 / (1 + e * e))(2 * (x - p[2]) / p[3]),
+      "gausslin": lambda x, p: p[0] + p[1] * x + gH(x, p[2], p[3], p[4]),
+      "gauss2": lambda x, p: p[0] + gH(x, p[1], p[2], p[3]) + gH(x, p[4], p[5], p[6]),
+      "lor2": lambda x, p: p[0] + lH(x, p[1], p[2], p[3]) + lH(x, p[4], p[5], p[6]),
+      "allom2": lambda x, p: p[0] + p[1] * x ** p[2],
+      "logoff": lambda x, p: p[0] + p[1] * L(x + p[2]),
+      "heavipow": lambda x, p: p[0] + (p[1] * (x - p[2]) ** p[3] if x > p[2] else 0),
+      "vft": lambda x, p: p[0] * E(p[1] / (x - p[2])),
+      "eyring": lambda x, p: KH * x * E(p[1] / R - p[0] / (R * x)),
+      "nernst": lambda x, p: p[0] + mp.mpf("0.025692579") / p[1] * L(x),
+      "debye": lambda x, p: p[0] * 3 * (x / p[1]) ** 3 * phon(4, p[1] / x),
+      "einstein": lambda x, p: (lambda u: p[0] * u * u * E(u) / (E(u) - 1) ** 2)(p[1] / x),
+      "planckl": lambda x, p: p[0] * x ** -5 / mp.expm1(C2 / (x * p[1])),
+      "planckf": lambda x, p: p[0] * x ** 3 / mp.expm1(HK * x / p[1]),
+      "curiew": lambda x, p: p[0] + p[1] / (x - p[2]),
+      "wien": lambda x, p: p[0] * x ** -5 * E(-C2 / (x * p[1])),
+      "drude": lambda x, p: p[0] / (1 + (x * p[1]) ** 2),
+      "blochg": lambda x, p: p[0] + p[1] * (x / p[2]) ** 5 * phon(5, p[2] / x),
+      "arrh2": lambda x, p: p[0] * E(-p[1] / (R * x)) + p[2] * E(-p[3] / (R * x)),
+      "taucd": lambda x, p: p[0] * S(x - p[1]) / x if x > p[1] else mp.mpf(0),
+      "taucind": lambda x, p: p[0] * (x - p[1]) ** 2 / x if x > p[1] else mp.mpf(0),
+      "urbach": lambda x, p: E((x - p[0]) / p[1]),
+      "sine2": lambda x, p: p[0] + p[1] * mp.sin(pi * (x - p[2]) / p[3]) ** 2,
+      "twosine": lambda x, p: p[0] + p[1] * mp.sin(2 * pi * (x - p[2]) / p[3]) + p[4] * mp.sin(2 * pi * (x - p[5]) / p[6]),
+      "sinedrift": lambda x, p: p[0] + p[1] * x + p[2] * mp.sin(2 * pi * (x - p[3]) / p[4]),
+      "chirp": lambda x, p: p[0] + p[1] * mp.sin(pi * S(max(0, x - p[2])) / p[3]),
+      "sawtooth": lambda x, p: (lambda ph: p[0] + 2 * p[1] / pi * mp.atan2(p[4] * mp.sin(ph), 1 - p[4] * mp.cos(ph)))(2 * pi * (x - p[2]) / p[3]),
+      "fourier1": four, "fourier2": four, "fourier3": four, "fourier4": four,
+      "normpdf": lambda x, p: p[0] + p[1] / (p[3] * S(2 * pi)) * E(-(x - p[2]) ** 2 / (2 * p[3] ** 2)),
+      "lognpdf": lambda x, p: p[0] + p[1] / (x * p[3] * S(2 * pi)) * E(-(L(x) - p[2]) ** 2 / (2 * p[3] ** 2)),
+      "gammapdf": lambda x, p: p[0] + p[1] * x ** (p[2] - 1) * E(-x / p[3]) / (G(p[2]) * p[3] ** p[2]),
+      "weibpdf": lambda x, p: p[0] + p[1] * p[2] / p[3] * (x / p[3]) ** (p[2] - 1) * E(-(x / p[3]) ** p[2]),
+      "betapdf": lambda x, p: p[0] + p[1] * x ** (p[2] - 1) * (1 - x) ** (p[3] - 1) / mp.beta(p[2], p[3]),
+      "cauchypdf": lambda x, p: p[0] + p[1] / (pi * p[3] * (1 + ((x - p[2]) / p[3]) ** 2)),
+      "logncdf": lambda x, p: p[0] + p[1] * mp.ncdf((L(x) - p[2]) / p[3]),
+      "gammacdf": lambda x, p: p[0] + p[1] * mp.gammainc(p[2], 0, x / p[3], regularized=True),
+      "betacdf": lambda x, p: p[0] + p[1] * mp.betainc(p[2], p[3], 0, x, regularized=True),
+    }
+    return F
+# The typical ranges and values (fit-test's recovery cases), five points across each and a second set of values further out
+M46CASES = {
+    "origin": ([0, 10], [2.5]), "seg2": ([0, 10], [3, 0.4, 1.5, 4.2]), "recip": ([0.3, 6], [1, 2.5]), "hyperbola": ([0, 6], [1, 2, -0.7]),
+    "rat11": ([0, 6], [0.5, 2, 0.4]), "rat21": ([0, 6], [1, -0.4, 0.3, 0.5]), "rat12": ([0, 6], [0.3, 1.2, -0.2, 0.15]), "rat22": ([0, 6], [2, -1, 0.3, -0.6, 0.15]),
+    "stretched": ([0, 10], [0.5, 4, 2, 0.6]), "weibullgr": ([0, 8], [5, 0.5, 0.6, 2.2]), "richards": ([-5, 10], [5, 1, 0.8, 0.5]), "bertalanffy": ([0, 15], [30, 0.3, -0.5]),
+    "chapman": ([0, 10], [5, 0.5, 2.5]), "logisticgr": ([-6, 8], [0.5, 4, 1, 1.3]), "monomol": ([0, 8], [5, 0.8, 0.6]), "assoc2": ([0, 20], [0.5, 2, 0.8, 3, 6]),
+    "abc": ([0, 12], [0.1, 5, 0.4, 1.5]), "bateman": ([0, 40], [0.2, 5, 12, 1.5]), "logistic5": ([0.05, 20], [0.2, 4, 2, 2.5, 0.6]), "dose2": ([-7, 2], [10, 90, -4.5, -1, 0.4]),
+    "biphasic": ([-8, 2], [5, 95, -5.5, -1.5, 1.5, 0.9, 0.35]), "langmuir": ([0, 20], [4, 0.4]), "freundlich": ([0.1, 20], [2, 2.5]), "bet": ([0.05, 0.35], [2, 80]),
+    "sips": ([0, 20], [4, 0.3, 1.6]), "hilloff": ([0, 10], [0.5, 4, 2, 2.5]), "erfstep": ([-5, 5], [1, 3, 0.4, 0.8]), "tanhstep": ([-5, 5], [1, 3, 0.4, 0.8]),
+    "atanstep": ([-10, 10], [1, 3, 0.4, 0.6]), "emg": ([-4, 10], [0.2, 5, 1, 0.5, 1.2]), "gausssplit": ([-5, 8], [0.2, 5, 1, 0.6, 1.5]), "lorsplit": ([-8, 10], [0.2, 5, 1, 0.6, 1.5]),
+    "pearson4": ([-8, 10], [0.2, 5, 1, 1, 2, -1.2]), "gramch": ([-5, 5], [0.1, 5, 0.3, 1.1, 0.5, 0.3]), "edgeworth": ([-5, 5], [0.1, 5, 0.3, 1.1, 0.5, 0.3]), "doniach": ([-6, 10], [0.1, 5, 1, 0.6, 0.2]),
+    "asymds": ([-6, 8], [0.2, 3, 1, 2, 0.4, 0.8]), "logpeak": ([-6, 8], [0.2, 5, 1, 0.6]), "sech": ([-6, 8], [0.2, 5, 1, 0.7]), "tpeak": ([-8, 10], [0.2, 5, 1, 0.7, 2.5]),
+    "fano": ([-6, 8], [0.2, 5, 1, 1.2, 0.3]), "gausslin": ([-5, 5], [0.5, 0.1, 3, 0.4, 0.8]), "gauss2": ([-5, 8], [0.2, 3, 0, 0.6, 2, 3, 0.8]), "lor2": ([-6, 10], [0.2, 3, 0, 0.8, 2, 4, 1]),
+    "allom2": ([0.1, 10], [0.5, 2, 0.6]), "logoff": ([0, 10], [1, 2, 0.5]), "heavipow": ([0, 10], [0.5, 0.8, 3.3, 1.6]), "vft": ([250, 400], [1, 500, 150]),
+    "eyring": ([280, 380], [65000.0, -15]), "nernst": ([0.01, 100], [0.2, 2]), "debye": ([5, 500], [24.9, 343]), "einstein": ([5, 500], [24.9, 250]),
+    "planckl": ([300, 3000], [2000000000000000.0, 2500]), "planckf": ([1, 300], [1, 2500]), "curiew": ([20, 300], [0.001, 0.5, -10]), "wien": ([300, 1500], [2000000000000000.0, 2500]),
+    "drude": ([0, 5], [3, 1.3]), "blochg": ([2, 400], [0.1, 10, 250]), "arrh2": ([200, 600], [1000.0, 20000.0, 1000000000.0, 80000.0]), "taucd": ([1.6, 3], [2, 1.5]),
+    "taucind": ([1.6, 3], [2, 1.5]), "urbach": ([1.5, 1.9], [1.7, 0.06]), "sine2": ([0, 10], [0.5, 3, 0.3, 2.5]), "twosine": ([0, 20], [0.5, 2, 0.3, 2.5, 1, 1.1, 7]),
+    "sinedrift": ([0, 10], [0.5, 0.4, 2, 0.3, 2.5]), "chirp": ([0, 40], [0.5, 2, 1, 1.2]), "sawtooth": ([0, 10], [0.5, 2, 0.3, 2.5, 0.8]), "fourier1": ([0, 10], [0.5, 1, 2, 2.5]),
+    "fourier2": ([0, 10], [0.5, 1, 2, 0.5, -0.4, 2.5]), "fourier3": ([0, 10], [0.5, 1, 2, 0.5, -0.4, 0.3, 0.2, 2.5]), "fourier4": ([0, 10], [0.5, 1, 2, 0.5, -0.4, 0.3, 0.2, -0.15, 0.1, 2.5]), "normpdf": ([-5, 5], [0.1, 5, 0.3, 1.1]),
+    "lognpdf": ([0.05, 10], [0.1, 5, 0.5, 0.4]), "gammapdf": ([0, 15], [0.1, 5, 3, 1.2]), "weibpdf": ([0, 6], [0.1, 5, 2.5, 2]), "betapdf": ([0.005, 0.995], [0.1, 5, 2.5, 5]),
+    "cauchypdf": ([-8, 8], [0.1, 5, 0.5, 0.7]), "logncdf": ([0.05, 15], [0.5, 4, 1, 0.5]), "gammacdf": ([0, 15], [0.5, 4, 3, 1.2]), "betacdf": ([0, 1], [0.5, 4, 2.5, 5]),
+}
+cases = []
+with mp.workdps(30):
+    F = m46()
+    for name, (rng, pt) in M46CASES.items():
+        a, b = rng; sets = [pt, [v * (1.3 if i % 2 else 0.8) for i, v in enumerate(pt)]]
+        for P in sets:
+            for k in range(5):
+                x = a + (b - a) * (k + 0.37) / 5.1
+                try:
+                    v = F[name](mp.mpf(x), [mp.mpf(q) for q in P])
+                    v = complex(v).real if isinstance(v, mp.mpc) else float(v)
+                except Exception:
+                    continue
+                if not math.isfinite(v): continue
+                cases.append({"fn": "MODELS." + name + ".f", "args": [x, P], "want": v, "kind": "model"})
+out["models"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

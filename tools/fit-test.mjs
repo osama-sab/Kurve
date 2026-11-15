@@ -16,7 +16,7 @@ const grab = (tag) => {
 // tools/pipe-test.mjs tests the rest of it. The curve fit's models are a block of
 // their own (MODELS), after the pipeline.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n${grab("MODELS")}\n${grab("STATS")}\n` +
-  `return {fxRun,solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,countBand,activityOf,effCurve,effAt,fwhmCurve,fwhmAt,distFit,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,nuclideSets,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,distGroups,delaunay,triContours,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF,dataMeasures,evalStart,parseCons,consBack,consFwd,consResult,consFit,parseDerived};`;
+  `return {fxRun,phononInt,erfcx,lgammaRe,ratGuess,solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,countBand,activityOf,effCurve,effAt,fwhmCurve,fwhmAt,distFit,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,nuclideSets,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,distGroups,delaunay,triContours,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF,dataMeasures,evalStart,parseCons,consBack,consFwd,consResult,consFit,parseDerived};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -966,7 +966,7 @@ check("tPvalue: large t is tiny", N.tPvalue(30, 50) < 1e-20, N.tPvalue(30, 50));
   const shipped = { linear: 2, poly2: 3, poly3: 4, gauss: 4, lorentz: 4, expdec: 3, boltz: 4 };
   check("models: the ids shipped before are there with their parameters", Object.entries(shipped).every(([k, n]) => M[k] && M[k].params.length === n));
   const listed = N.MODEL_GROUPS.flatMap(g => g[1]);
-  check("models: 25 in the list, each once, each a model", listed.length === 25 && new Set(listed).size === 25 && listed.every(k => M[k]), listed.length);
+  check("models: 105 in the list in eight kinds, each once, each a model", listed.length === 105 && new Set(listed).size === 105 && listed.every(k => M[k]) && N.MODEL_GROUPS.length === 8, listed.length);
   check("models: every model not hidden is in the list", ids.filter(k => !M[k].hide).every(k => listed.includes(k)), ids.filter(k => !M[k].hide && !listed.includes(k)).join(","));
   check("models: polynomials of order 1 to 10, the order and the id going both ways", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].every(k => M[N.polyIdOf(k)] && N.polyOrderOf(N.polyIdOf(k)) === k && M[N.polyIdOf(k)].params.length === k + 1) && N.polyOrderOf("gauss") === 0);
   const shape = ids.filter(k => { const m = M[k], n = m.params.length;
@@ -984,8 +984,31 @@ check("tPvalue: large t is tiny", N.tPvalue(30, 50) < 1e-20, N.tPvalue(30, 50));
     boltz: [[-10, 10], [1, 5, 0.5, 1.2]], logistic: [[0.05, 20], [0.2, 4, 2, 2.5]], doseresp: [[-4, 4], [10, 90, 0.3, 1.2]], hill: [[0, 10], [3, 2, 2.5]], gompertz: [[-2, 8], [5, 0.8, 1.5]], mm: [[0, 20], [4, 3]],
     gauss: [[-10, 10], [0.5, 3, 1, 1.5]], lorentz: [[-10, 10], [0.5, 3, 1, 2]], voigt: [[-10, 10], [0.2, 10, 0.5, 1.5, 1.0]], pvoigt: [[-10, 10], [0.2, 10, 0.5, 2, 0.4]], pearson7: [[-10, 10], [0.2, 10, 0.5, 2, 1.8]],
     lognormal: [[0.05, 10], [0.1, 5, 2, 0.4]], extreme: [[-5, 10], [0.3, 4, 1, 1.2]], power: [[0.1, 10], [2, 1.5]], logarithm: [[0.1, 10], [1, 2]], arrhenius: [[250, 400], [1e7, 5e4]],
-    sine: [[0, 10], [0.5, 2, 0.3, 2.5]], dsine: [[0, 10], [0.5, 3, 0.3, 1.7, 4]] };
+    sine: [[0, 10], [0.5, 2, 0.3, 2.5]], dsine: [[0, 10], [0.5, 3, 0.3, 1.7, 4]],
+    // FIT2_SPEC 4.6
+    origin: [[0, 10], [2.5]], seg2: [[0, 10], [3, 0.4, 1.5, 4.2]], recip: [[0.3, 6], [1, 2.5]], hyperbola: [[0, 6], [1, 2, -0.7]],
+      rat11: [[0, 6], [0.5, 2, 0.4]], rat21: [[0, 6], [1, -0.4, 0.3, 0.5]], rat12: [[0, 6], [0.3, 1.2, -0.2, 0.15]], rat22: [[0, 6], [2, -1, 0.3, -0.6, 0.15]],
+      stretched: [[0, 10], [0.5, 4, 2, 0.6]], weibullgr: [[0, 8], [5, 0.5, 0.6, 2.2]], richards: [[-5, 10], [5, 1, 0.8, 0.5]], bertalanffy: [[0, 15], [30, 0.3, -0.5]],
+      chapman: [[0, 10], [5, 0.5, 2.5]], logisticgr: [[-6, 8], [0.5, 4, 1, 1.3]], monomol: [[0, 8], [5, 0.8, 0.6]], assoc2: [[0, 20], [0.5, 2, 0.8, 3, 6]],
+      abc: [[0, 12], [0.1, 5, 0.4, 1.5]], bateman: [[0, 40], [0.2, 5, 12, 1.5]], logistic5: [[0.05, 20], [0.2, 4, 2, 2.5, 0.6]], dose2: [[-7, 2], [10, 90, -4.5, -1, 0.4]],
+      biphasic: [[-8, 2], [5, 95, -5.5, -1.5, 1.5, 0.9, 0.35]], langmuir: [[0, 20], [4, 0.4]], freundlich: [[0.1, 20], [2, 2.5]], bet: [[0.05, 0.35], [2, 80]],
+      sips: [[0, 20], [4, 0.3, 1.6]], hilloff: [[0, 10], [0.5, 4, 2, 2.5]], erfstep: [[-5, 5], [1, 3, 0.4, 0.8]], tanhstep: [[-5, 5], [1, 3, 0.4, 0.8]], atanstep: [[-10, 10], [1, 3, 0.4, 0.6]],
+      emg: [[-4, 10], [0.2, 5, 1, 0.5, 1.2]], gausssplit: [[-5, 8], [0.2, 5, 1, 0.6, 1.5]], lorsplit: [[-8, 10], [0.2, 5, 1, 0.6, 1.5]], pearson4: [[-8, 10], [0.2, 5, 1, 1, 2, -1.2]],
+      gramch: [[-5, 5], [0.1, 5, 0.3, 1.1, 0.5, 0.3]], edgeworth: [[-5, 5], [0.1, 5, 0.3, 1.1, 0.5, 0.3]], doniach: [[-6, 10], [0.1, 5, 1, 0.6, 0.2]], asymds: [[-6, 8], [0.2, 3, 1, 2, 0.4, 0.8]],
+      logpeak: [[-6, 8], [0.2, 5, 1, 0.6]], sech: [[-6, 8], [0.2, 5, 1, 0.7]], tpeak: [[-8, 10], [0.2, 5, 1, 0.7, 2.5]], fano: [[-6, 8], [0.2, 5, 1, 1.2, 0.3]],
+      gausslin: [[-5, 5], [0.5, 0.1, 3, 0.4, 0.8]], gauss2: [[-5, 8], [0.2, 3, 0, 0.6, 2, 3, 0.8]], lor2: [[-6, 10], [0.2, 3, 0, 0.8, 2, 4, 1]],
+      allom2: [[0.1, 10], [0.5, 2, 0.6]], logoff: [[0, 10], [1, 2, 0.5]], heavipow: [[0, 10], [0.5, 0.8, 3.3, 1.6]], vft: [[250, 400], [1, 500, 150]],
+      eyring: [[280, 380], [6.5e4, -15]], nernst: [[0.01, 100], [0.2, 2]],
+      debye: [[5, 500], [24.9, 343]], einstein: [[5, 500], [24.9, 250]], planckl: [[300, 3000], [2e15, 2500]], planckf: [[1, 300], [1, 2500]],
+      curiew: [[20, 300], [0.001, 0.5, -10]], wien: [[300, 1500], [2e15, 2500]], drude: [[0, 5], [3, 1.3]], blochg: [[2, 400], [0.1, 10, 250]],
+      arrh2: [[200, 600], [1e3, 2e4, 1e9, 8e4]], taucd: [[1.6, 3], [2, 1.5]], taucind: [[1.6, 3], [2, 1.5]], urbach: [[1.5, 1.9], [1.7, 0.06]],
+      sine2: [[0, 10], [0.5, 3, 0.3, 2.5]], twosine: [[0, 20], [0.5, 2, 0.3, 2.5, 1, 1.1, 7]], sinedrift: [[0, 10], [0.5, 0.4, 2, 0.3, 2.5]], chirp: [[0, 40], [0.5, 2, 1, 1.2]],
+      sawtooth: [[0, 10], [0.5, 2, 0.3, 2.5, 0.8]], fourier1: [[0, 10], [0.5, 1, 2, 2.5]], fourier2: [[0, 10], [0.5, 1, 2, 0.5, -0.4, 2.5]],
+      fourier3: [[0, 10], [0.5, 1, 2, 0.5, -0.4, 0.3, 0.2, 2.5]], fourier4: [[0, 10], [0.5, 1, 2, 0.5, -0.4, 0.3, 0.2, -0.15, 0.1, 2.5]],
+      normpdf: [[-5, 5], [0.1, 5, 0.3, 1.1]], lognpdf: [[0.05, 10], [0.1, 5, 0.5, 0.4]], gammapdf: [[0, 15], [0.1, 5, 3, 1.2]], weibpdf: [[0, 6], [0.1, 5, 2.5, 2]],
+      betapdf: [[0.005, 0.995], [0.1, 5, 2.5, 5]], cauchypdf: [[-8, 8], [0.1, 5, 0.5, 0.7]], logncdf: [[0.05, 15], [0.5, 4, 1, 0.5]], gammacdf: [[0, 15], [0.5, 4, 3, 1.2]], betacdf: [[0, 1], [0.5, 4, 2.5, 5]] };
   check("models: every model has a recovery case", ids.every(k => cases[k]), ids.filter(k => !cases[k]).join(","));
+  const NEWCASE = cases;
   const run = (k, r, pt, noise, seed) => { const m = M[k], rnd = N.mulberry32(seed), n = k.startsWith("expdec") ? 300 : 200, X = [];
     for (let i = 0; i < n; i++) X.push(r[0] + (r[1] - r[0]) * i / (n - 1));
     const top = Math.max(...X.map(x => Math.abs(m.f(x, pt)))), Y = X.map(x => m.f(x, pt) + top * noise * (2 * rnd() - 1));
@@ -1014,6 +1037,22 @@ check("tPvalue: large t is tiny", N.tPvalue(30, 50) < 1e-20, N.tPvalue(30, 50));
   { const d = N.derivedWithErr(M.doseresp, [10, 90, 0.3, 1.2], [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0.01, 0], [0, 0, 0, 0]]);
     check("models: the dose halfway is 10 to the power of log x0, with its error carried", rel(d[0].v, Math.pow(10, 0.3), 1e-12) && rel(d[0].e, Math.pow(10, 0.3) * Math.LN10 * 0.1, 1e-4), JSON.stringify(d)); }
   { const d = N.derivedWithErr(M.arrhenius, [1e7, 5e4], [[0, 0], [0, 0]]); check("models: an activation energy in kJ/mol and in eV", rel(d[0].v, 50, 1e-12) && rel(d[1].v, 0.5182, 1e-3), JSON.stringify(d)); }
+  // FIT2_SPEC 4.6: derived values and limits mean what they say.
+  { const p = [0, 5, 1, 0.5, 1.2], f = (x, q) => M.emg.f(x, q), area = numericArea(f, p, -10, 40), mean = numericArea((x, q) => x * M.emg.f(x, q), p, -10, 40) / area, d = N.derivedWithErr(M.emg, p, p.map(() => p.map(() => 0)));
+    check("models (4.6): an exponentially modified Gaussian's area is A and its mean xc + t0", rel(area, 5, 1e-6) && rel(mean, 2.2, 1e-6) && rel(d[0].v, 2.2, 1e-12), [area, mean]); }
+  { const far = M.emg.f(30, [0, 1, 0, 0.3, 0.01]), mid = M.emg.f(0.05, [0, 1, 0, 0.3, 1e-4]);
+    check("models (4.6): the exponentially modified Gaussian does not overflow with a short tail far out", Number.isFinite(far) && far >= 0 && Number.isFinite(mid) && rel(mid, Math.exp(-((0.05 / 0.3) ** 2) / 2) / (0.3 * Math.sqrt(2 * Math.PI)), 1e-3), [far, mid]); }
+  { const ok = ["gausssplit", "lorsplit", "pearson4", "gramch", "edgeworth", "logpeak", "sech", "tpeak", "normpdf", "cauchypdf"].filter(k => { const pt = NEWCASE[k][1].slice(), lo = k === "lorsplit" || k === "cauchypdf" || k === "tpeak" || k === "pearson4" ? -4000 : -60, hi = -lo; pt[0] = 0; return !rel(numericArea((x, q) => M[k].f(x, q), pt, lo, hi), pt[1], k === "lorsplit" || k === "cauchypdf" ? 2e-3 : 1e-5); });
+    check("models (4.6): each peak and density given by its area integrates to it", !ok.length, ok.join(",")); }
+  { const t = (n, z) => N.phononInt(n, z), ex = 4 * Math.PI ** 4 / 15;
+    check("models (4.6): Debye's integral: its whole is 4π⁴/15, small z as z³/3, and the heat capacity tends to A when hot, as T³ when cold", rel(t(4, 80), ex, 1e-13) && rel(t(4, 1e-3), 1e-9 / 3, 1e-6) && rel(M.debye.f(1e5, [24.9, 343]), 24.9, 1e-5) && rel(M.debye.f(3, [24.9, 343]) / M.debye.f(1.5, [24.9, 343]), 8, 1e-6)); }
+  { const p = [1e15, 2500], d = N.derivedWithErr(M.planckl, p, [[0, 0], [0, 0]]), xm = d[0].v, f = x => M.planckl.f(x, p);
+    check("models (4.6): Planck's law peaks at Wien's wavelength", f(xm) > f(xm * 1.001) && f(xm) > f(xm * 0.999), xm); }
+  { const ok = ["logncdf", "gammacdf", "betacdf"].every(k => { const [r, pt] = NEWCASE[k], top = M[k].f(r[1], pt), bot = M[k].f(r[0] + 1e-12, pt); return rel(top, pt[0] + pt[1], 2e-3) && rel(bot, pt[0], 2e-2); }) && rel(M.erfstep.f(1, [0, 1, 0, 1]), 0.8413447460685429, 1e-15);
+    check("models (4.6): each cumulative curve rises from y0 by A, the error-function step the normal distribution's", ok); }
+  { const a = M.abc.f(2, [0, 1, 0.5, 0.5 + 1e-12]), b = M.abc.f(2, [0, 1, 0.5, 0.5]); check("models (4.6): A → B → C at equal rates is the limit of nearby ones", rel(a, b, 1e-9) && rel(b, 0.5 * 2 * Math.exp(-1), 1e-15), [a, b]); }
+  { const xb = N.modelXBad(M.bet, [0.1, 0.5, 1]), xb2 = N.modelXBad(M.betacdf, [0, 0.5, 1]), xb3 = N.modelXBad(M.betacdf, [0, 1.2]);
+    check("models (4.6): X from 0 to 1 is asked of BET (below 1) and of a beta cumulative (up to 1)", xb && xb.x === 1 && xb.max === 1 && xb2 === null && xb3 && xb3.x === 1.2); }
   // X a model cannot take is said, not fitted.
   const xb = N.modelXBad(M.power, [0, 1, 2]), xh = N.modelXBad(M.hill, [0, 1, 2]), xh2 = N.modelXBad(M.hill, [-1, 1]);
   check("models: X a model cannot take is found (a power of x at 0; Hill below 0), and every X of the others will do", xb && xb.x === 0 && xb.strict && xh === null && xh2 && xh2.x === -1 && !xh2.strict && N.modelXBad(M.gauss, [-5, 0, 5]) === null);
