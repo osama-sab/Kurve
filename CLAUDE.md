@@ -3421,7 +3421,8 @@ graph first, with the taskbar kept at the bottom of the screen.
 
 Works fully as a single-user app, exports included. Only collaboration (shared projects,
 presence, names) depends on the claude.ai runtime and would need a real backend behind the
-`LocalStore` / `makeDbStore` interface.
+`LocalStore` / `makeDbStore` interface. Since 15.11 local is the target (PARITY_SPEC decision 10):
+review between people goes by `.kurve` files (wave 10), and the shared store is not built on.
 
 ## Checking a change
 
@@ -5276,7 +5277,12 @@ Next, in order:
    each point's exact distance to the curve; SciPy polished on the exact distances agreeing to 1.2e-7 of an error, distances to
    ellipses against 40 digits to 2e-15 near the long axis and a few parts in 10¹⁶ of the axis near the curve), done 15.11:
    wave 4's eight slices are done, and its end (the suite, two 40-minute lab days with Analyze › Fit's dialogs, screenshots at
-   three widths in both themes and styles; Origin's tutorials not reached, its site refused here)
+   three widths in both themes and styles; Origin's tutorials not reached, its site refused here). Added 15.11, at the user's
+   request, before wave 5: Kurve runs locally for now (PARITY_SPEC decision 10: people work together by passing `.kurve`
+   files, which carry the discussion and the review), and a wave 10, last, review as in Word (names locally, comments on
+   every kind of thing, tracked changes shown where they were made with Simple, All, No markup and Original, Accept and
+   Reject, the round trip of a reviewed file back into its project, Compare and Combine, Restrict and Inspect; a Review menu,
+   a Review tool window, the toolbar and the status bar), its eight slices in `ux/spec/PARITY_SPEC.md`
 
 ## Known gaps
 

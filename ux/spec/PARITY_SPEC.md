@@ -113,10 +113,12 @@ wave 1  foundations: project files · column types ·             │ every wave
           ├─ wave 6  multivariate          (result sheets; text groups; SVD)
           ├─ wave 7  plots                 (text columns; tests; dendrograms; matrices for 3D)
           ├─ wave 8  automation            (project files; analyses; templates)
-          └─ wave 9  more files            (matrices; text columns)
+          ├─ wave 9  more files            (matrices; text columns)
+          └─ wave 10 review, as in Word    (project files; the History; comments), last
 ```
 
-Waves 2 to 9 depend on wave 1, and wave 1 on wave 0. After wave 1, waves 2 and 3 can alternate
+Waves 2 to 10 depend on wave 1, and wave 1 on wave 0. Wave 10, added on 15.11, comes last, at
+the user's word. After wave 1, waves 2 and 3 can alternate
 slice by slice; the rest follow in order, because each uses what the one before made (the linear
 model engine of wave 2 is wave 4's, wave 3's matrices are wave 5's and 7's, wave 6's dendrograms
 are wave 7's).
@@ -505,6 +507,139 @@ on files made by the reference tools (`scipy.io`, `netCDF4`, `h5py`).
   points each (linear or log), points picked by clicks or traced along a colour, into a sheet;
   tested on pictures of known curves to within a pixel.
 
+## Wave 10, last: review, as in Word
+
+Added on 15.11, before wave 5 began, at the user's request: "instead of having the app running over
+the internet, I want it to run locally for now, however when exporting the project, the discussion
+and comments are saved within the project, such that a supervisor can follow the analysis steps and
+criticize the work of the peer. It needs to mimic the review functionality of Microsoft Word as well
+as possible, … like tracking changes and accepting/rejecting and compare functionalities, we already
+have history built-in … The changes must be easy to reach and easy to find and recognize, this must
+be at the end of the spec however." It comes after wave 9, and decision 10 (below) holds from now on.
+Its spec, `ux/spec/REVIEW_SPEC.md`, is written when it starts, as every wave's is.
+
+**What Kurve already has.** The History: every step of every column in a flow chart, each box
+with its settings, and the log of who changed what and when. The original data's record, each
+change with its check code. Undo that takes back this window's change and keeps another's.
+Comments on the History's boxes, a point, a place on the graph and the fit: threads, replies,
+Resolve, edit, delete with undo, mentions, unread marks; a *proposal* (a comment that suggests
+a step's settings, applied in one click, the nearest thing to Word's suggestion); the report with
+every thread; project files (1.1) that carry the threads. **What a supervisor reading a peer's
+file lacks.** Running locally nobody has a name: with no claude.ai runtime `S.uid` is empty, so
+comments and the log say no one. Comments cannot be put on a cell of the worksheet, a column, a
+graph's axis or annotation, a row of Results or an analysis's table. Nothing says what changed
+since the supervisor last looked, by whom, or lets a change be accepted or rejected. A file
+opens as a new project, so a reviewed copy cannot come back into the project it came from.
+Nothing compares two versions.
+
+**Word's review, which this wave follows** (from Microsoft's pages as search engines read them:
+[Track changes in Word](https://support.microsoft.com/word/training/track-changes-in-word),
+[Modern comments](https://support.microsoft.com/en-us/word/modern-comments-in-word),
+[Compare, the legal blackline](https://support.microsoft.com/en-US/Word/compare-document-differences-using-the-legal-blackline-option);
+the points to check in Word itself are marked *(to confirm)*):
+- **Track Changes** on and off (Review › Track Changes, Ctrl+Shift+E), for everyone or only one's
+  own edits *(to confirm: "For everyone / Just mine")*; **Lock Tracking** with a password that is
+  optional and, in Microsoft's words, not a security feature, only a way to stop tracking being
+  turned off by accident.
+- **Display for Review**: *Simple Markup*, the default (a red bar in the margin by each changed
+  line), *All Markup* (insertions underlined and deletions struck through, in each reviewer's
+  colour, with balloons in the margin), *No Markup* (the result, the changes still in the file) and
+  *Original* (as it was before them). **Show Markup** filters by kind (insertions and deletions,
+  formatting, comments) and by reviewer. Colours go by reviewer; the display settings belong to the
+  computer, not the file.
+- **The Reviewing Pane**: every change and comment in one list, counted by kind.
+- **Previous / Next** change and comment; **Accept** and **Reject**: this one, this one and move to
+  the next, all shown, all, all and stop tracking.
+- **Comments**: on a selection; reply, Resolve (out of the margin, kept in the Comments pane,
+  reopened), edit one's own, delete, @mention, post with Ctrl+Enter; a pane listing every comment
+  with the resolved ones.
+- **Compare** two versions: a new document of the differences, marked as changes by the later
+  version's author, the two documents untouched; settings for what is compared, at the level of a
+  character or a word, shown in a new document or in either one; the result beside the original and
+  the revised. **Combine** revisions from several reviewers into one document, two at a time.
+- **Restrict Editing**: a document that can only be changed with tracking on, or only commented.
+  **Inspect Document** takes comments, changes and names out of a copy before it leaves.
+
+**Its decisions** (written into the list below as decision 10, the rest when its spec starts):
+- Kurve runs locally (decision 10). A project leaves the computer as a `.kurve` file, and that
+  file carries everything a review needs: the threads, the changes and their decisions, the state
+  they are measured from, the reviewers, and the project's lineage. Nothing goes over a network.
+- **Where it is found**: a **Review** menu between Publish and Window, where Word has its Review
+  tab (Track changes, the display, Previous and Next, Accept, Reject, New comment, Compare,
+  Combine, Restrict, Inspect); a **Review** tool window in the dock (the Reviewing Pane: every
+  change and comment, counted by kind and by reviewer, each opening where it is, each with Accept,
+  Reject or Reply); on the toolbar, while tracking is on or a change waits, the Track changes
+  switch with its count, Previous, Next, Accept, Reject; in the status bar *Tracking · 12 changes
+  · 3 comments*, a click opening the Review window; a mark on a taskbar button of a window that
+  holds a change; Ctrl+Shift+E as Word's; Find a command finds them all.
+- **Where a change shows**: where it was made, in the reviewer's colour and initials (never the
+  colour alone; the colours checked against every surface by `contrast-test` in both themes and
+  styles): a cell of the original data (Simple: a bar by its row number; All: the new value with
+  the old struck through beside it, and its reviewer); a column added, deleted (a struck-through
+  ghost until decided), renamed or given a formula; a step in the History (outlined, *Added by*,
+  its changed settings as old → new; a removed step a struck-through ghost box; a step moved, its
+  old place dashed); a mask; a fit made, changed or removed; a peak set, a band; a graph made or
+  deleted, a curve added or taken off, its format changed (the Format pane's field with the old
+  value), an annotation added, moved (its old place dashed), edited or deleted; an analysis's
+  settings; a sheet, a matrix, a constant. What only changes the view (zoom, a sorted view, a
+  filter, a window's place) is never a change.
+- **What a change is**: one person's edit of one thing, edits in a row of the same thing by the
+  same person merged into one (as Word merges typing): `{id, by, t, kind, at (the thing by id: a
+  column and row, a step, a graph and key…), from, to, state, decidedBy, decidedAt}`. A result
+  worked out again because what it reads changed (a fit that follows its data, an analysis, a peak
+  set) is not a change of anyone's: it follows the decisions.
+- **Accept and Reject**: Reject puts the thing back as it was before that change, by id, whatever
+  came after; what was built on it is named first ("rejecting this also rejects the 3 changes
+  made to this step after it") and goes with it; results that read it follow. Accept makes the
+  change part of the state changes are measured from. Each decision is one undo step and stays
+  in the record: the Review window keeps decided changes (greyed, by whom and when), and the
+  report lists them, so the peer sees what the supervisor did with each suggestion and the
+  supervisor what the peer did with each comment. A proposal is a suggestion: Apply is Accept.
+- **The display**: Simple markup (the bars), All markup (the details), No markup (the project as
+  it is), Original (as it was before every open change, read only, every window drawing it, as
+  the History draws a stage); filtered by kind and by reviewer.
+- **Who is who**: Preferences › *Your name* and *Initials* (per browser, as Word's), asked the first
+  time a comment is posted or tracking is turned on; every reviewer of a project kept in it with
+  a colour of their own, so the names travel with the file.
+
+**Its slices**, in this order:
+- **10.1 Names.** Your name and initials locally; the log, the record, comments and proposals
+  signed with them; the project's reviewers and their colours, carried in the file.
+- **10.2 Comments everywhere.** On a cell or a range of cells (a corner mark, as a spreadsheet's), a
+  column, a sheet, a graph's curve, axis, legend or annotation, a row of Results, a cell of an
+  analysis's table, a matrix cell, a change; Previous and Next comment; the Review window's list of
+  comments (open, resolved, by reviewer); New comment from the Review menu and every right-click.
+- **10.3 Tracking.** The switch (for everyone, or only my edits); every kind of change recorded and
+  merged per thing; the Review window's list and counts; the status bar and the toolbar's group.
+- **10.4 Markup.** Simple, All, No markup and Original in every window; the reviewers' colours and
+  initials; the filters by kind and reviewer.
+- **10.5 Accept and Reject.** One, one and the next, all shown, all, all and stop tracking; what
+  depends on a change named before it goes; decisions kept, said in the log and the report;
+  proposals as suggestions.
+- **10.6 The round trip.** The file's lineage (the project's identity across files) and version;
+  a file of a project that is here offered as *Combine into this project* (its comments, changes
+  and decisions merged by id; the same thing changed by both shown as two changes to choose
+  between) or a project of its own; what came in said ("A. Supervisor: 7 comments, 4 changes; 2
+  of your changes rejected").
+- **10.7 Compare.** Two files, or a file and this project: a new project whose changes are every
+  difference (the original data cell by cell, the steps, the fits, the analyses, the graphs and
+  their format, the annotations, the comments), by the later version's author, the two left
+  as they were; settings for what is compared.
+- **10.8 Restrict and inspect.** Lock tracking (an optional passphrase, said not to be security);
+  a file for comments only, or only for tracked changes; a copy without comments, changes and
+  names (Publish › A copy for sharing…); the report with its markup or without.
+
+**Checked.** A drive of two browsers, a peer and a supervisor, passing files: comments both ways
+on every kind of thing, tracked edits of every kind, each accepted and rejected (a rejected change
+leaves the thing as it was, the original data's check code back to the state before it), the
+dependants of a rejected change named and gone with it, Original drawing the state before every
+open change, combining with a conflict, comparing two files with known differences, a reload,
+junk from storage; the lab day with review among its actions; `contrast-test` for the reviewers'
+colours; the glossary for the new words (change, reviewer, markup, accept, reject).
+
+**Leaves out.** Editing together over a network (decision 10); a passphrase that protects
+anything; Word's own file formats (a `.docx` of the report only if asked, as before).
+
 ## Left out, and why
 
 - **Code** (Python, LabTalk): the user removed Python; templates, recipes and perhaps macros (8.5)
@@ -541,11 +676,16 @@ them; changing one later is a decision of its own, written here with its date.
 9. **The NIST host**: allow `www.itl.nist.gov` in the environment's network settings when wave 2
    starts, for the certified values SciPy and statsmodels do not ship. Decided: asked for when
    wave 2 needs it, through the environment's settings.
+10. **Local, for now** (15.11, the user's): Kurve runs on one computer, from the file or a local
+    server, its projects in that browser; people work together by passing `.kurve` files, which
+    carry the discussion, the changes and their decisions (wave 10). The claude.ai shared store
+    stays in the code and is not built on; no wave depends on a network. The web fonts stay
+    optional, as now (offline the standard fonts stand in).
 
 ## Size, and how each wave ends
 
-About 72 slices: wave 0, 5; wave 1, 9; wave 2, 12; wave 3, 7; wave 4, 8; wave 5, 8; wave 6, 5;
-wave 7, 8; wave 8, 5; wave 9, 5. Each wave ends with: the full suite green; a 40-minute lab day
+About 80 slices: wave 0, 5; wave 1, 9; wave 2, 12; wave 3, 7; wave 4, 8; wave 5, 8; wave 6, 5;
+wave 7, 8; wave 8, 5; wave 9, 5; wave 10, 8. Each wave ends with: the full suite green; a 40-minute lab day
 with the wave's tools in it; Origin's tutorials for the wave worked to the same numbers; screenshots
 at three widths in both themes and styles, read by eye; `CLAUDE.md`, `DESIGN.md`,
 `ux/CHANGELOG.md`, the Help and `menus-after.txt` brought up to date; the wave's new known gaps
