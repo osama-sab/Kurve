@@ -309,6 +309,17 @@ comparing peak fits (their models are curve fits' only when written as a functio
 
 ## 4.4 Surface fits
 
+Done 15.11, as below, with these changes of plan: the fit is an analysis kind, `surf`, whose dialog has the data's source, the
+columns or the matrix, the model, the formula and a parameter grid (start, Fix, lowest, highest); the Gaussian and Lorentzian
+surfaces take their height (not a volume) and their FWHM along their own axes, with the turn in degrees, and are described one
+way only (the first axis the longer, the turn within ±90°), so two fits of one surface give the same numbers; a polynomial with a
+coefficient fixed or limited is fitted by Levenberg–Marquardt from its direct solution; the fitted surface as a matrix is a
+matrix computed by the surface's formula with its numbers written in (a polynomial about its centre), and from columns the
+residuals are a map of the points coloured by them rather than a matrix. The bench: five polynomial surfaces against exact
+rationals (worst 6e-16, each coefficient over its conditioning), six others against SciPy's `least_squares` (each parameter's
+difference over its standard error at most 1.5e-6, the errors 1.3e-7), and the fuzzer's random polynomial surfaces, whose
+residuals are 40-digit least squares rounded to doubles.
+
 **What.** Analyze › Fit › Surface fit…: the data from three columns (X, Y, Z) or a matrix sheet;
 the models plane, paraboloid, polynomial surface of order 2 to 5 (solved directly, decision 1),
 two-dimensional Gaussian (turned, its angle a parameter) and Lorentzian, and your formula in x and

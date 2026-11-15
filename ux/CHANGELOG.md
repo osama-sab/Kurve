@@ -1024,6 +1024,21 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 4, slice 4.4: surface fits (2026-11-15)
+
+- **Analyze › Fit › Surface fit…**: z as a function of x and y, from three columns or a matrix; a plane and polynomial surfaces
+  of order 2 to 5 solved directly (in x and y centred and scaled, the coefficients in powers of x and y with their units), a
+  turned Gaussian or Lorentzian surface (its level, height, centre, FWHM along its axes and turn in degrees, started from the
+  points above half its height), or your formula of x and y; each parameter's start, fix and limits in the dialog.
+- **The result sheet**: each parameter with its unit, standard error, t, p and interval, the statistics, each point's fitted value
+  and residual; it follows its columns or its matrix.
+- **Under the report**: the fitted surface as a matrix (the matrix's own grid, or 101 × 101 over the data's extent), computed by
+  its formula and drawn as a map, one undo step; the residuals as a matrix (from a matrix) or as a map of the points (from
+  columns).
+- **Checked**: five polynomial surfaces against the same least squares in exact rationals, six other surfaces against SciPy's
+  least_squares; each model recovered within four errors, a polynomial's values whatever the origin, refusals; in the browser,
+  both sources, the matrices and maps, a formula, a reload; two perf budgets.
+
 ## Closing the gap with Origin, wave 4, slice 4.7: peak fits, further (2026-11-15)
 
 - **Two shapes**: the exponentially modified Gaussian (a tail towards higher x, by the scaled complementary error function so a

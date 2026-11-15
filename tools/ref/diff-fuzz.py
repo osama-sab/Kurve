@@ -899,6 +899,27 @@ def fsd_post(c, out):
     return max(e, abs(out["T"] - w["T"]) / w["T"]), f"series {e:.2e}"
 POST["fsd"] = fsd_post
 
+# Polynomial surfaces (FIT2_SPEC 4.4): random points about a random centre, order 1 to 5, against least squares in 40-digit mpmath
+# (the normal equations of the centred powers): each point's residual over the data's largest |z|.
+@gen("surfFit", 1e-12, 0.15)
+def _():
+    import mpmath as mpm
+    k = int(rng.integers(1, 6)); m = (k + 1) * (k + 2) // 2; n = int(rng.integers(m + 3, m + 120)); cx, cy = float(rng.choice([0, 1, -50, 1000])), float(rng.choice([0, 3, 200]))
+    X = [float(round(cx + v, 6)) for v in rng.uniform(-5, 5, n)]; Y = [float(round(cy + v, 6)) for v in rng.uniform(-2, 2, n)]
+    Z = [float(round(math.sin(0.7 * (x - cx)) * math.cos(y - cy) + float(rng.normal(0, 0.05)), 6)) for x, y in zip(X, Y)]
+    T = [(d - j, j) for d in range(k + 1) for j in range(d + 1)]
+    with mpm.workdps(40):
+        mx, my = mpm.mpf(sum(X)) / n, mpm.mpf(sum(Y)) / n
+        A = mpm.matrix([[(mpm.mpf(x) - mx) ** a * (mpm.mpf(y) - my) ** b for (a, b) in T] for x, y in zip(X, Y)])
+        G = A.T * A; g = A.T * mpm.matrix([mpm.mpf(z) for z in Z]); b = mpm.lu_solve(G, g); r = mpm.matrix([mpm.mpf(z) for z in Z]) - A * b
+        return [X, Y, Z, "poly" + str(k), {}], {"resid": [float(v) for v in r], "big": max(abs(z) for z in Z)}
+def surf_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or "res" not in out or not out["res"]: return float("inf"), f"no fit: {str(out)[:120]}"
+    R = out["res"]["resid"]; e = max(abs(a - b) for a, b in zip(R, w["resid"])) / max(w["big"], 1e-300)
+    return e, f"residuals {e:.2e}"
+POST["surfFit"] = surf_post
+
 cases = []
 ONLY = os.environ.get("ONLY")  # ONLY=name,name: those generators alone
 for name, (f, tol) in GEN.items():

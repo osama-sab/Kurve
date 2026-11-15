@@ -1650,6 +1650,75 @@ cases.append({"fn": "fsd", "name": "Self-deconvolution: past the Nyquist frequen
 cases.append({"fn": "apodWidth", "name": "the apodisations' own FWHM", "args": [], "want": {k: apod_width(k) for k in ("bessel", "triangle", "happ")}})
 out["xps"] = cases
 
+# ---- Surface fits (FIT2_SPEC 4.4): polynomial surfaces in exact rationals (the normal equations in x and y centred and scaled as
+# Kurve centres them, the coefficients carried back to powers of x and y exactly, s²(AᵀA)⁻¹ for the errors), and six surfaces by
+# SciPy's least_squares (Levenberg–Marquardt to 1e-15, its covariance s²(JᵀJ)⁻¹) ----
+def sterms(k): return [(d - j, j) for d in range(k + 1) for j in range(d + 1)]
+def sctr(V):
+    lo, hi = min(V), max(V); c = lo / 2 + hi / 2; h = hi / 2 - lo / 2; return c, (2.0 ** math.ceil(math.log2(h)) if h > 0 else 1.0)
+def surfcase(name, X, Y, Z, k):
+    n, T = len(X), sterms(k); m = len(T); cx, sx = sctr(X); cy, sy = sctr(Y)
+    t = [(Fr(x) - Fr(cx)) / Fr(sx) for x in X]; u = [(Fr(y) - Fr(cy)) / Fr(sy) for y in Y]; Zf = [Fr(z) for z in Z]
+    A = [[t[i] ** a * u[i] ** b for (a, b) in T] for i in range(n)]
+    G = [[sum(A[i][p] * A[i][q] for i in range(n)) for q in range(m)] for p in range(m)]
+    g = [sum(A[i][p] * Zf[i] for i in range(n)) for p in range(m)]
+    b = fr_solve(G, g); fit = [sum(A[i][q] * b[q] for q in range(m)) for i in range(n)]
+    rss = sum((Zf[i] - fit[i]) ** 2 for i in range(n)); dof = n - m; Gi = fr_inv(G); Vb = [[Gi[p][q] * rss / dof for q in range(m)] for p in range(m)]
+    cxF, sxF, cyF, syF = Fr(cx), Fr(sx), Fr(cy), Fr(sy)
+    Tm = [[(Fr(math.comb(i, p)) * (-cxF) ** (i - p) / sxF ** i * Fr(math.comb(j, q)) * (-cyF) ** (j - q) / syF ** j) if i >= p and j >= q else Fr(0) for (i, j) in T] for (p, q) in T]
+    a = [sum(Tm[r][q] * b[q] for q in range(m)) for r in range(m)]
+    Va = [[sum(Tm[r][p] * Vb[p][q] * Tm[s][q] for p in range(m) for q in range(m)) for s in range(m)] for r in range(m)]
+    cond = [float(sum(abs(Tm[r][q] * b[q]) for q in range(m)) / abs(a[r])) if a[r] != 0 else 1.0 for r in range(m)]
+    cases.append({"fn": "surfFit", "name": name, "args": [X, Y, Z, "poly" + str(k), {}],
+                  "want": {"params": [float(v) for v in a], "errors": [fsqrt(Va[r][r]) for r in range(m)], "cond": cond, "b": [float(v) for v in b],
+                           "c": [cx, cy], "s": [sx, sy], "fit": [float(v) for v in fit], "rss": float(rss), "dof": dof}})
+cases = []
+rng = np.random.default_rng(20261116)
+def grid(nx, ny, x0, dx, y0, dy): return [x0 + i * dx for i in range(nx) for j in range(ny)], [y0 + j * dy for i in range(nx) for j in range(ny)]
+def r6(v): return float(round(v, 6))
+X, Y = grid(6, 5, 0.0, 0.5, -1.0, 0.25); surfcase("a plane through 30 points", X, Y, [r6(1.5 + 0.3 * x - 0.7 * y + float(e)) for x, y, e in zip(X, Y, rng.normal(0, 0.05, 30))], 1)
+X, Y = grid(9, 8, 1000.0, 2.0, 20.0, 0.5); surfcase("a paraboloid at 1000 K and 20 bar", X, Y, [r6(5 + 0.3 * (x - 1000) - 1.5 * (y - 20) + 0.01 * (x - 1000) ** 2 + 0.02 * (x - 1000) * (y - 20) - 0.2 * (y - 20) ** 2 + float(e)) for x, y, e in zip(X, Y, rng.normal(0, 0.01, 72))], 2)
+X = [r6(v) for v in rng.uniform(-3, 3, 60)]; Y = [r6(v) for v in rng.uniform(-2, 4, 60)]; surfcase("a cubic surface on scattered points", X, Y, [r6(math.sin(x) * math.cos(y / 2) + float(e)) for x, y, e in zip(X, Y, rng.normal(0, 0.02, 60))], 3)
+X, Y = grid(10, 9, 0.0, 0.1, 0.0, 0.125); surfcase("a quartic surface on a grid", X, Y, [r6(math.exp(-x * y) + x ** 2 + float(e)) for x, y, e in zip(X, Y, rng.normal(0, 0.001, 90))], 4)
+X, Y = grid(11, 11, 50.0, 1.0, -5.0, 1.0); surfcase("a quintic surface about (55, 0)", X, Y, [r6(math.cos((x - 55) / 3) * math.exp(-(y / 6) ** 2) + float(e)) for x, y, e in zip(X, Y, rng.normal(0, 0.01, 121))], 5)
+# Six surfaces by least_squares, from Kurve's own starts (its guess): the optimum both reach
+def sturn(x, y, p):
+    t = p[6] * math.pi / 180; c, s = math.cos(t), math.sin(t); dx, dy = x - p[2], y - p[3]; return dx * c + dy * s, -dx * s + dy * c
+def g2(x, y, p): u, v = sturn(x, y, p); return p[0] + p[1] * math.exp(-4 * math.log(2) * (u * u / p[4] ** 2 + v * v / p[5] ** 2))
+def l2(x, y, p): u, v = sturn(x, y, p); return p[0] + p[1] / (1 + 4 * (u * u / p[4] ** 2 + v * v / p[5] ** 2))
+def lsfit(f, X, Y, Z, p0):
+    X, Y, Z = map(np.asarray, (X, Y, Z))
+    r = optimize.least_squares(lambda p: np.array([f(x, y, p) for x, y in zip(X, Y)]) - Z, np.asarray(p0, dtype=float), method="lm", xtol=1e-15, ftol=1e-15, gtol=1e-15, max_nfev=20000, x_scale="jac")
+    J = r.jac; dof = len(Z) - len(p0); s2 = float(np.sum(r.fun ** 2)) / dof; C = np.linalg.inv(J.T @ J) * s2
+    return [float(v) for v in r.x], [float(math.sqrt(C[i, i])) for i in range(len(p0))], float(np.sum(r.fun ** 2))
+def nlcase(name, X, Y, Z, model, p0, f, formula=None, norm=None, names=None):
+    p, e, rss = lsfit(f, X, Y, Z, p0)
+    if norm: p, e = norm(p, e)
+    # a formula has no one description of its surface (cos(c·y) is cos(−c·y)), so it starts where SciPy did; a peak from its own guess
+    o = {"formula": formula, "start": dict(zip(names, p0))} if formula else {}
+    cases.append({"fn": "surfFit", "name": name, "args": [X, Y, Z, model, o], "want": {"params": p, "errors": e, "rss": rss, "nl": True}})
+def tnorm(p, e):  # one description: widths above 0, the first axis the longer, the turn within ±90°
+    p, e = list(p), list(e); p[4], p[5] = abs(p[4]), abs(p[5])
+    if p[4] < p[5]: p[4], p[5] = p[5], p[4]; e[4], e[5] = e[5], e[4]; p[6] += 90
+    p[6] = ((p[6] + 90) % 180 + 180) % 180 - 90; return p, e
+X, Y = grid(30, 25, 0.0, 0.3, -2.0, 0.2)
+Zg = [r6(g2(x, y, [2, 10, 4.5, 0.4, 3, 1.4, 30]) + float(e)) for x, y, e in zip(X, Y, rng.normal(0, 0.05, 750))]
+nlcase("a turned Gaussian surface", X, Y, Zg, "gauss2d", [2.1, 9.5, 4.4, 0.45, 2.8, 1.5, 28], g2, norm=tnorm)
+Zr = [r6(g2(x, y, [0, 5, 4, 0.5, 2, 2, 0]) + float(e)) for x, y, e in zip(X, Y, rng.normal(0, 0.02, 750))]
+nlcase("a round Gaussian surface", X, Y, Zr, "gauss2d", [0.05, 4.8, 4.1, 0.45, 2.1, 1.9, 5], g2, norm=tnorm)
+Zl = [r6(l2(x, y, [1, 8, 5, 0, 2.5, 1.2, -40]) + float(e)) for x, y, e in zip(X, Y, rng.normal(0, 0.03, 750))]
+nlcase("a turned Lorentzian surface", X, Y, Zl, "lor2d", [1.1, 7.5, 5.1, 0.1, 2.3, 1.3, -38], l2, norm=tnorm)
+fe = lambda x, y, p: p[0] * math.exp(-p[1] * x) * math.cos(p[2] * y) + p[3]
+Ze = [r6(fe(x, y, [3, 0.4, 1.3, 0.5]) + float(e)) for x, y, e in zip(X, Y, rng.normal(0, 0.01, 750))]
+nlcase("your formula: a decay along x, a wave along y", X, Y, Ze, "formula", [2.8, 0.35, 1.25, 0.45], fe, formula="a*exp(-b*x)*cos(c*y) + d", names=["a", "b", "c", "d"])
+fp = lambda x, y, p: p[0] + p[1] * (x - p[2]) ** 2 + p[3] * (y - p[4]) ** 2
+Zp = [r6(fp(x, y, [1, 0.2, 4, -0.5, 0.3]) + float(e)) for x, y, e in zip(X, Y, rng.normal(0, 0.05, 750))]
+nlcase("your formula: a paraboloid by its vertex", X, Y, Zp, "formula", [0.8, 0.25, 4.2, -0.4, 0.2], fp, formula="z0 + ax*(x - xv)^2 + ay*(y - yv)^2", names=["z0", "ax", "xv", "ay", "yv"])
+X2 = [r6(v) for v in rng.uniform(-4, 4, 400)]; Y2 = [r6(v) for v in rng.uniform(-4, 4, 400)]
+Zs = [r6(g2(x, y, [0.5, -6, 0.5, -1, 2.5, 1.5, 60]) + float(e)) for x, y, e in zip(X2, Y2, rng.normal(0, 0.05, 400))]
+nlcase("a dip on scattered points", X2, Y2, Zs, "gauss2d", [0.45, -5.5, 0.6, -0.9, 2.3, 1.6, 55], g2, norm=tnorm)
+out["surf"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

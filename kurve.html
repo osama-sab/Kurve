@@ -8374,6 +8374,161 @@ function polyLsq(X,Y,W,k,o){ o=o||{}; const n=X.length, m=k+1, fixed=o.fixed||[]
   return {params:a, errors:errs, cov:C, dep, tval, pval, ci, atBound:a.map(()=>false),
     stats:{n, dof, chi2:chi, redChi2:red, R2, adjR2, rss:ssRes, rmse:Math.sqrt(red), aic, bic, iter:0, converged:true, singular:false},
     poly:{c, s, b, V:Vb}}; }
+/* ---- Surface fits (FIT2_SPEC 4.4): z = f(x, y) ----
+   A plane and polynomial surfaces of order 2 to 5 (every xⁱyʲ with i + j ≤ k, ordered by degree, x's power first) solved
+   directly as 4.1's polynomials are: in x and y centred and scaled by powers of two, the columns in double-double, by lsqFit,
+   then carried back to powers of x and y (a = T b, its covariance T V Tᵀ in double-double). A turned two-dimensional Gaussian
+   and Lorentzian (centre, height above z0, FWHM along each of its axes, its angle in degrees), and your formula of x and y, by
+   Levenberg–Marquardt with X a point's index, as globalFit lays sets end to end. Every result lmFit's fields, and `surf`
+   ({c, s, b, k}: the centred solve, for evaluating where powers of x would cancel) for a polynomial. */
+const SURF_MAX=5;
+const surfTerms=k=>{ const t=[]; for(let d=0;d<=k;d++) for(let j=0;j<=d;j++) t.push([d-j,j]); return t; };
+const SURF_SUPS=["","","²","³","⁴","⁵"], surfMono=(i,j)=>(i?"x"+SURF_SUPS[i]:"")+(j?"y"+SURF_SUPS[j]:"")||"1";
+const surfPolyNames=k=>surfTerms(k).map(([i,j])=>"c"+i+j);
+const SURF_POLY_NAMES=["Plane","Paraboloid (quadratic surface)","Cubic surface","Quartic surface","Quintic surface"];
+function surfTurn(x,y,p){ const t=p[6]*Math.PI/180, c=Math.cos(t), s=Math.sin(t), dx=x-p[2], dy=y-p[3]; return [dx*c+dy*s,-dx*s+dy*c]; }
+// The starts of a peak on a surface: z0 the 10th percentile, the peak (or dip) the largest |z − z0|, its centre, widths and turn
+// from the second moments of the points above half its height (a uniform ellipse's moment a²/4, so FWHM = 4√λ).
+function surfPeakGuess(X,Y,Z){ const n=Z.length, s=Array.from(Z).sort((a,b)=>a-b), z0=s[Math.floor(0.1*(n-1))], hi=s[n-1]-z0, lo=s[0]-z0, A=Math.abs(hi)>=Math.abs(lo)?hi:lo;
+  let sx=0, sy=0, m=0; for(let i=0;i<n;i++) if((Z[i]-z0)/A>0.5){ sx+=X[i]; sy+=Y[i]; m++; }
+  const ex=Math.max(...X)-Math.min(...X)||1, ey=Math.max(...Y)-Math.min(...Y)||1;
+  if(m<3){ let k=0; for(let i=1;i<n;i++) if((Z[i]-z0)/A>(Z[k]-z0)/A) k=i; return [z0,A,X[k],Y[k],ex/5,ey/5,0]; }
+  const xc=sx/m, yc=sy/m; let a=0, b=0, c=0; for(let i=0;i<n;i++) if((Z[i]-z0)/A>0.5){ const u=X[i]-xc, v=Y[i]-yc; a+=u*u; b+=u*v; c+=v*v; } a/=m; b/=m; c/=m;
+  const th=0.5*Math.atan2(2*b,a-c), tr=(a+c)/2, d=Math.sqrt(((a-c)/2)**2+b*b), l1=Math.max(tr+d,1e-30), l2=Math.max(tr-d,1e-30*l1);
+  const w1=4*Math.sqrt(l1)||ex/5, w2=4*Math.sqrt(l2)||ey/5; return [z0,A,xc,yc,w1,w2,th*180/Math.PI]; }
+const SURF_PEAK_P=["z0","A","xc","yc","wx","wy","theta"], SURF_PEAK_M=["the level away from the peak","its height above z0","its centre in x","its centre in y","its FWHM along its first (longer) axis","its FWHM along its second axis","its first axis's turn from x, in degrees"];
+const SURF_MODELS={
+  gauss2d:{name:"Gaussian surface", params:SURF_PEAK_P, mean:SURF_PEAK_M, dim:["z","z","x","y","x","y",""],
+    f(x,y,p){ const [u,v]=surfTurn(x,y,p); return p[0]+p[1]*Math.exp(-4*Math.LN2*(u*u/(p[4]*p[4])+v*v/(p[5]*p[5]))); },
+    formula:"z0 + A·exp(−4 ln 2 (u²/wx² + v²/wy²)), u, v: x − xc, y − yc turned by θ", guess:surfPeakGuess, lo:[-Infinity,-Infinity,-Infinity,-Infinity,0,0,-Infinity]},
+  lor2d:{name:"Lorentzian surface", params:SURF_PEAK_P, mean:SURF_PEAK_M, dim:["z","z","x","y","x","y",""],
+    f(x,y,p){ const [u,v]=surfTurn(x,y,p); return p[0]+p[1]/(1+4*(u*u/(p[4]*p[4])+v*v/(p[5]*p[5]))); },
+    formula:"z0 + A/(1 + 4(u²/wx² + v²/wy²)), u, v: x − xc, y − yc turned by θ", guess:surfPeakGuess, lo:[-Infinity,-Infinity,-Infinity,-Infinity,0,0,-Infinity]}
+};
+for(let k=1;k<=SURF_MAX;k++) SURF_MODELS["poly"+k]={name:SURF_POLY_NAMES[k-1], k, params:surfPolyNames(k), mean:surfTerms(k).map(([i,j])=>i+j?"the coefficient of "+surfMono(i,j):"the level at x = y = 0"),
+  dim:surfTerms(k).map(([i,j])=>"z/"+(i?"x"+(i>1?i:""):"")+(j?"y"+(j>1?j:""):"")).map(d=>d==="z/"?"z":d),
+  f(x,y,p){ let v=0; surfTerms(k).forEach(([i,j],t)=>{ v+=p[t]*x**i*y**j; }); return v; },
+  formula:"z = "+surfTerms(k).map(([i,j])=>"c"+i+j+(i+j?"·"+surfMono(i,j):"")).join(" + ")};
+// Your formula of x and y: y read as y__ (the grammar keeps y for a result), every other name a parameter, its starts by name.
+function surfCompile(src){ try{ return compileExpr(String(src).replace(/(^|[^A-Za-z0-9_.])y(?![A-Za-z0-9_])/g,"$1y__")); }catch(e){ e.message=String(e.message).replace(/y__/g,"y"); throw e; } }
+function surfUser(src){ let c; try{ c=surfCompile(src); }catch(e){ return {fail:e.message}; } const ps=c.params.filter(n=>n!=="y__"), yi=c.params.indexOf("y__");
+  if(!ps.length) return {fail:"The formula has no parameter to fit: every name but x and y is one."};
+  const at=ps.map(n=>c.params.indexOf(n)), q=new Array(c.params.length);
+  return {name:"Your formula", params:ps, mean:ps.map(()=>""), dim:ps.map(()=>""), formula:"z = "+String(src).trim(), user:true,
+    f(x,y,p){ for(let t=0;t<at.length;t++) q[at[t]]=p[t]; if(yi>=0) q[yi]=y; const v=c.f(x,q); return v; },
+    guess:(X,Y,Z)=>surfGuessNames(ps,X,Y,Z)}; }
+// Starts from the names, for a surface: a level (z0, c, b, offset) the 10th percentile of z, a height (A, h, amp) the rest of the
+// largest, a centre (xc, x0, mux; yc, y0, muy) where z is largest, a width (w, s, sigma, fwhm; wx, wy) a fifth of its range, else 1.
+function surfGuessNames(ps,X,Y,Z){ const n=Z.length, s=Array.from(Z).sort((a,b)=>a-b), z0=s[Math.floor(0.1*(n-1))]; let k=0; for(let i=1;i<n;i++) if(Z[i]>Z[k]) k=i;
+  const ex=Math.max(...X)-Math.min(...X)||1, ey=Math.max(...Y)-Math.min(...Y)||1;
+  return ps.map(nm=>/^(z0|c|b|offset|base)$/i.test(nm)?z0:/^(a|h|amp|height)$/i.test(nm)?Z[k]-z0:/^(xc|x0|mux|cx)$/i.test(nm)?X[k]:/^(yc|y0|muy|cy)$/i.test(nm)?Y[k]
+    :/^(wy|sy|sigmay)$/i.test(nm)?ey/5:/^(w|s|sigma|fwhm|wx|sx|sigmax|r|width)$/i.test(nm)?ex/5:1); }
+function surfModel(id,src){ if(id==="formula") return surfUser(src||""); const m=SURF_MODELS[id]; return m||{fail:"That model is not known."}; }
+/* A polynomial surface, solved: {params (powers of x and y), errors, cov, …lmFit's, surf {c, s, b, k}} or {error} in words */
+function surfPoly(X,Y,Z,k){ const n=X.length, T=surfTerms(k), m=T.length;
+  if(!(Number.isInteger(k)&&k>=1&&k<=SURF_MAX)) return {error:`A polynomial surface's order is 1 to ${SURF_MAX}.`};
+  if(n<=m) return {error:`Need more than ${m} points to fit ${m} coefficients (have ${n}).`};
+  const ctr=V=>{ let lo=Infinity, hi=-Infinity; for(const v of V){ if(v<lo) lo=v; if(v>hi) hi=v; } const c=lo/2+hi/2, h=hi/2-lo/2; return [c,h>0?2**Math.ceil(Math.log2(h)):1]; };
+  const [cx,sx]=ctr(X), [cy,sy]=ctr(Y), th=new Float64Array(n), tl=new Float64Array(n), uh=new Float64Array(n), ul=new Float64Array(n);
+  for(let i=0;i<n;i++){ const [a,e]=twoSum(X[i],-cx); th[i]=a/sx; tl[i]=e/sx; const [b,f]=twoSum(Y[i],-cy); uh[i]=b/sy; ul[i]=f/sy; }
+  const Pt=[[new Float64Array(n).fill(1),null]], Pu=[[new Float64Array(n).fill(1),null]];
+  for(let d=1;d<=k;d++){ Pt.push(ddMulArr(Pt[d-1][0],Pt[d-1][1],th,tl,n)); Pu.push(ddMulArr(Pu[d-1][0],Pu[d-1][1],uh,ul,n)); }
+  const cols=[], XL=[]; T.forEach(([i,j])=>{ const [h,l]=ddMulArr(Pt[i][0],Pt[i][1],Pu[j][0],Pu[j][1],n); cols.push(h); XL.push(l); });
+  const F=lsqFit(cols,Float64Array.from(Z),n,{XL});
+  if(F.rank<m) return {error:"The points do not spread over enough of the plane to tell the terms apart (they lie on a line, or too few distinct x or y): lower the order."};
+  const bd=T.map((_,u)=>[F.b[u],F.bl[u]]), dof=n-m, chi=F.rss, red=chi/dof, Vu=lsqCovU(F.Q,cols,XL), V=Vu.map(r=>Array.from(r,v=>v*red));
+  // a_pq = Σ_{i≥p, j≥q} C(i,p)(−cx)^{i−p}/sx^i · C(j,q)(−cy)^{j−q}/sy^j · b_ij, in double-double
+  const pw=(c,e)=>{ let t=[1,0]; for(let r=0;r<e;r++) t=ddMul(t,[c,0]); return t; }, zero=[0,0];
+  const Tm=T.map(([p,q])=>T.map(([i,j])=>i<p||j<q?zero:ddMul(ddMul([nChoose(i,p)/sx**i,0],pw(-cx,i-p)),ddMul([nChoose(j,q)/sy**j,0],pw(-cy,j-q)))));
+  const a=Tm.map(row=>{ let t=[0,0]; row.forEach((e,u)=>{ if(e[0]!==0) t=ddAdd(t,ddMul(e,bd[u])); }); return t[0]+t[1]; }), C=ddSandwich(Tm,V);
+  const b=bd.map(v=>v[0]+v[1]), S={c:[cx,cy],s:[sx,sy],b,k}, r=Array.from({length:n},(_,i)=>F.rh[i]+F.rl[i]);
+  const errs=a.map((_,j)=>Math.sqrt(Math.max(C[j][j],0))), ssRes=neuSum(r.map(v=>v*v)), mz=neuSum(Array.from(Z))/n, ssTot=neuSum(Array.from(Z,v=>(v-mz)*(v-mz)));
+  const tval=a.map((v,j)=>errs[j]?v/errs[j]:NaN), pval=tval.map(t=>tPvalue(t,dof)), tc=tQuantile975(dof), ci=a.map((v,j)=>errs[j]?[v-tc*errs[j],v+tc*errs[j]]:[NaN,NaN]);
+  const R2=1-ssRes/ssTot, adjR2=1-(1-R2)*(n-1)/dof, aic=n*Math.log(ssRes/n)+2*(m+1), bic=n*Math.log(ssRes/n)+(m+1)*Math.log(n);
+  return {params:a, errors:errs, cov:C, dep:a.map(()=>null), tval, pval, ci, atBound:a.map(()=>false), resid:r,
+    stats:{n, dof, chi2:chi, redChi2:red, R2, adjR2, rss:ssRes, rmse:Math.sqrt(red), aic, bic, iter:0, converged:true, singular:false}, surf:S}; }
+// A fitted polynomial surface at (x, y), from its centred coefficients (no powers of a large x to cancel).
+function surfPolyAt(S,x,y){ const t=(x-S.c[0])/S.s[0], u=(y-S.c[1])/S.s[1]; let v=0; surfTerms(S.k).forEach(([i,j],q)=>{ v+=S.b[q]*t**i*u**j; }); return v; }
+/* Any surface: the model's own guess, or the starts given (by name, a number), fixed by name, limits by name; a polynomial
+   with nothing fixed or limited solved, else Levenberg–Marquardt. {res, m, f(x, y) at the fitted values} or {fail} in words. */
+function surfFit(X,Y,Z,id,o){ o=o||{}; const m=surfModel(id,o.formula); if(m.fail) return {fail:m.fail}; const n=X.length;
+  for(let i=0;i<n;i++) if(!Number.isFinite(X[i])||!Number.isFinite(Y[i])||!Number.isFinite(Z[i])) return {fail:"A point's x, y or z is not a number."};
+  const np=m.params.length, st=o.start||{}, fx=new Set(Array.isArray(o.fix)?o.fix:[]), lo0=o.lo||{}, hi0=o.hi||{};
+  const lim=m.params.some(nm=>Number.isFinite(lo0[nm])||Number.isFinite(hi0[nm])), anyFix=m.params.some(nm=>fx.has(nm));
+  if(m.params.every(nm=>fx.has(nm))) return {fail:"Every parameter is fixed. Unfix at least one to fit."};
+  if(m.k&&!lim&&!anyFix){ const r=surfPoly(X,Y,Z,m.k); if(r.error) return {fail:r.error}; return {res:r,m,f:(x,y)=>surfPolyAt(r.surf,x,y)}; }
+  if(n<=np-[...fx].filter(nm=>m.params.includes(nm)).length) return {fail:`Need more points than free parameters (have ${n}).`};
+  let g; try{ g=m.guess?m.guess(X,Y,Z):m.params.map(()=>1); }catch(e){ g=m.params.map(()=>1); }
+  if(m.k&&!m.guess){ const r=surfPoly(X,Y,Z,m.k); g=r.error?m.params.map(()=>0):r.params.slice(); }
+  const p0=m.params.map((nm,i)=>Number.isFinite(st[nm])?+st[nm]:Number.isFinite(g[i])?g[i]:1), fixed=m.params.map(nm=>fx.has(nm));
+  const lo=m.params.map((nm,i)=>Number.isFinite(lo0[nm])?+lo0[nm]:(m.lo?m.lo[i]:-Infinity)), hi=m.params.map(nm=>Number.isFinite(hi0[nm])?+hi0[nm]:Infinity);
+  if(m.params.some((_,i)=>lo[i]>hi[i])) return {fail:"A parameter's lowest limit is above its highest."};
+  const ex=Math.max(Math.max(...X)-Math.min(...X),Math.max(...Y)-Math.min(...Y))||1, ez=Math.max(...Z)-Math.min(...Z)||1;
+  const pscale=m.params.map((nm,i)=>/^(xc|wx)$/.test(nm)?Math.max(...X)-Math.min(...X)||1:/^(yc|wy)$/.test(nm)?Math.max(...Y)-Math.min(...Y)||1:nm==="theta"?90:/^(z0|A)$/.test(nm)?ez:Math.abs(p0[i])||1);
+  // a width's limit of 0 is strict: just above it
+  const I=Array.from({length:n},(_,i)=>i), f=(i,p)=>m.f(X[i],Y[i],p), lo2=lo.map((v,i)=>m.lo&&m.lo[i]===0?Math.max(v,1e-9*ex):v);
+  const r=lmFit(f,I,Array.from(Z),I.map(()=>1),p0.map((v,i)=>Math.min(hi[i],Math.max(lo2[i],v))),fixed,{lo:lo2,hi,pscale,maxIter:o.maxIter||400});
+  if(r.error) return {fail:r.error}; if(!r.params.every(Number.isFinite)) return {fail:"The fit diverged: give it starting values nearer the surface."};
+  /* One description of one surface: the first axis the longer (wx ≥ wy; else the two swapped and the turn a quarter more, unless a
+     width or the turn is fixed or limited), and the turn within ±90° (a half turn changes nothing); widths kept above 0 by their limits */
+  if(SURF_PEAK_P===m.params){ const free=[4,5,6].every(i=>!fixed[i]&&!Number.isFinite(lo0[m.params[i]])&&!Number.isFinite(hi0[m.params[i]]));
+    if(free&&r.params[4]<r.params[5]){ const sw=a=>{ if(Array.isArray(a)&&a.length>5){ const t=a[4]; a[4]=a[5]; a[5]=t; } };
+      [r.params,r.errors,r.tval,r.pval,r.ci,r.dep,r.atBound].forEach(sw); if(Array.isArray(r.cov)){ sw(r.cov); r.cov.forEach(sw); }
+      r.params[6]+=90; if(r.ci&&r.ci[6]) r.ci[6]=[r.ci[6][0]+90,r.ci[6][1]+90]; }
+    const t=r.params[6]; r.params[6]=((t+90)%180+180)%180-90; if(r.ci&&r.ci[6]){ const d=r.params[6]-t; r.ci[6]=[r.ci[6][0]+d,r.ci[6][1]+d]; } }
+  r.resid=Array.from(Z,(z,i)=>z-m.f(X[i],Y[i],r.params));
+  return {res:r,m,f:(x,y)=>m.f(x,y,r.params)}; }
+const SURF_KINDS=[["poly1","Plane"],["poly2","Paraboloid (quadratic surface)"],["poly3","Cubic surface"],["poly4","Quartic surface"],["poly5","Quintic surface"],["gauss2d","Gaussian surface (turned)"],["lor2d","Lorentzian surface (turned)"],["formula","Your formula of x and y"]];
+// A parameter's unit: z's over x's and y's powers, as each term needs; a peak's centre and widths in x's or y's.
+function surfUnit(m,i,xu,yu,zu){ const pw=(u,k)=>!u||!k?"":k>1?(/^[\p{L}°]+$/u.test(u)?u+SURF_SUPS[k]:"("+u+")"+SURF_SUPS[k]):u;
+  if(m.k){ const [a,b]=surfTerms(m.k)[i]; if(!a&&!b) return zu||""; if(!zu||(a&&!xu)||(b&&!yu)) return ""; const d=[pw(xu,a),pw(yu,b)].filter(Boolean).join("·"); return zu+"/"+(d.includes("·")?"("+d+")":d); }
+  const d=(m.dim||[])[i]; return d==="z"?zu||"":d==="x"?xu||"":d==="y"?yu||"":m.params[i]==="theta"?"°":""; }
+ANA_KINDS.surf={label:"Surface fit", base:"Surface fit", typed:true, xs:true,
+  typedWhat:p=>p&&p.src==="mat"?"a matrix":"three columns",
+  help:"z as a function of x and y, from three columns or a matrix: a plane, a polynomial surface of order 2 to 5, a turned Gaussian or Lorentzian, or your formula of x and y; each parameter with its error, t, p and interval, the statistics, and each point's fitted value and residual.",
+  heavy(p,ins){ const n=ins.reduce((t,q)=>t+(q.mat?q.mat.z.length:(q.vals||[]).length),0); return !/^poly/.test(p.model||"poly1")&&n>20000; },
+  run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[], conf=anaConf(p), id=SURF_KINDS.some(e=>e[0]===p.model)?p.model:"poly1";
+    let X=[], Y=[], Z=[], nm, un, src;
+    const mq=ins.find(q=>q.mat);
+    if(p.src==="mat"){ if(!mq) return {fail:"Its matrix has been deleted."}; const M=mq.mat, xs=M.xs, ys=M.ys; let miss=0;
+      for(let r=0;r<M.ny;r++) for(let c=0;c<M.nx;c++){ const v=M.z[r*M.nx+c]; if(v==null||!Number.isFinite(v)){ miss++; continue; } X.push(xs[c]); Y.push(ys[r]); Z.push(v); }
+      if(miss) notes.push(`${miss} empty cell${miss===1?"":"s"} of ${mq.name} left out.`);
+      nm=[M.xname||"X",M.yname||"Y",M.zname||mq.name]; un=[M.xunit||"",M.yunit||"",M.zunit||""]; src=`the matrix ${mq.name} (${M.ny} × ${M.nx})`; }
+    else { const g=k=>ins.find(q=>!q.mat&&q.id===p[k]); const qx=g("x"), qy=g("y"), qz=g("z");
+      if(!qx||!qy||!qz) return {fail:"Choose the X, Y and Z columns."}; if(new Set([qx.id,qy.id,qz.id]).size<3) return {fail:"X, Y and Z are three different columns."};
+      if([qx,qy,qz].some(q=>q.cats||q.groups)) return {fail:"X, Y and Z are columns of numbers."};
+      const mp=q=>{ const m=new Map(); (q.rows||[]).forEach((r,i)=>{ const v=q.vals[i]; if(r>=0&&Number.isFinite(v)) m.set(r,v); }); return m; }, [mx,my,mz]=[qx,qy,qz].map(mp);
+      const any=new Set([...mx.keys(),...my.keys(),...mz.keys()]), rows=[...mz.keys()].filter(r=>mx.has(r)&&my.has(r)).sort((a,b)=>a-b), out=any.size-rows.length;
+      if(out) notes.push(`${out} row${out===1?"":"s"} without a value in each of the three columns left out.`);
+      rows.forEach(r=>{ X.push(mx.get(r)); Y.push(my.get(r)); Z.push(mz.get(r)); });
+      nm=[qx.name,qy.name,qz.name]; un=[qx.unit,qy.unit,qz.unit]; src=`${qz.name} against ${qx.name} and ${qy.name}`; }
+    if(Z.length<3) return {fail:"Fewer than three points."};
+    const F=surfFit(X,Y,Z,id,{formula:p.formula,start:p.start,fix:p.fix,lo:p.lo,hi:p.hi}); if(F.fail) return {fail:F.fail};
+    const r=F.res, m=F.m, dof=r.stats.dof, tq=dof>0?DIST.t.isf((1-conf)/2,dof):NaN, pc=anaPct(conf), fx=new Set(Array.isArray(p.fix)?p.fix:[]);
+    const P=m.params.map((pn,i)=>{ const e=r.errors[i], fixed=fx.has(pn), ab=r.atBound&&r.atBound[i], ok=!fixed&&!ab&&Number.isFinite(e)&&e>0;
+      return {name:pn+(fixed?" (fixed)":ab?" (at its limit)":""),mean:m.mean[i]||"",unit:surfUnit(m,i,un[0],un[1],un[2]),v:r.params[i],se:ok?e:null,t:ok?r.params[i]/e:null,p:ok?tPvalue(r.params[i]/e,dof):null,lo:ok?r.params[i]-tq*e:null,hi:ok?r.params[i]+tq*e:null}; });
+    anaTab("",[["name","Parameter"],["unit","Unit"],["v","Value"],["se","Standard error"],["t","t"],["p","p"],["lo",`${pc} interval, from`],["hi","to"]],P,cols,[]);
+    anaTab("Parameters",[["name","Parameter"],["v","Value"],["se","Standard error"],["lo",`${pc} interval, from`],["hi","to"]],P,[],secs);
+    const solved=!!r.surf, st=r.stats, S=[["Points",st.n],["Degrees of freedom",dof],["Residual sum of squares",st.rss],["Residual scatter, s",Math.sqrt(st.rss/dof)],["R²",st.R2],["Adjusted R²",st.adjR2]].concat(solved?[]:[["Iterations",st.iter]]).map(([k,v])=>({k,v}));
+    anaTab("Statistics",[["k","Statistic"],["v","Value"]],S,cols,secs,"st");
+    if(!st.converged) notes.push("The fit had not settled when it stopped: give it starting values nearer the surface.");
+    const fit=X.map((x,i)=>F.f(x,Y[i]));
+    anaTab("",[["x",nm[0]],["y",nm[1]],["z",nm[2]],["fit","Fitted"],["res","Residual"]],X.map((x,i)=>({x,y:Y[i],z:Z[i],fit:fit[i],res:Z[i]-fit[i]})),cols,[],"pt");
+    { const cx=cols.find(c=>c.k==="ptx"); if(cx) cx.role="x"; }   // the points' X, so their Y is drawn against it (the residual map)
+    const ext=[Math.min(...X),Math.max(...X),Math.min(...Y),Math.max(...Y)];
+    const method=`${m.name}, ${m.formula}, fitted to ${Z.length} points of ${src}, ${solved?"solved directly by least squares (QR, in x and y centred and scaled, in double-double), the coefficients carried back to powers of x and y":`by Levenberg–Marquardt from ${p.start&&Object.keys(p.start).length?"the starts given":"its guess"} (${st.iter} iterations)`}; intervals at ${pc} from t with ${dof} degrees of freedom.`;
+    return {tables:[{cols}],report:{sections:secs,method,surf:{model:id,formula:p.formula||"",params:r.params.slice(),poly:r.surf||null,ext,names:nm,units:un,mat:p.src==="mat"?p.mat:null}},notes}; }};
+/* A fitted surface as a formula of x and y with its numbers written in (a matrix sheet computes it): a polynomial about its
+   centre, as it was solved; a peak with its turn's cosine and sine; your formula with each parameter's value in place. */
+function surfFormula(sv){ if(!sv||!Array.isArray(sv.params)) return null; const N=v=>{ const s=String(v); return v<0?"("+s+")":s; }, p=sv.params;
+  if(/^poly/.test(sv.model)){ const S=sv.poly; if(!S||!Array.isArray(S.b)) return null; const t=`((x - ${N(S.c[0])})/${N(S.s[0])})`, u=`((y - ${N(S.c[1])})/${N(S.s[1])})`;
+    return surfTerms(S.k).map(([i,j],q)=>[N(S.b[q])].concat(i?[i>1?t+"^"+i:t]:[],j?[j>1?u+"^"+j:u]:[]).join("*")).join(" + "); }
+  if(sv.model==="gauss2d"||sv.model==="lor2d"){ const th=p[6]*Math.PI/180, c=N(Math.cos(th)), s=N(Math.sin(th)), dx=`(x - ${N(p[2])})`, dy=`(y - ${N(p[3])})`;
+    const q=`((${dx}*${c} + ${dy}*${s})/${N(p[4])})^2 + ((${dy}*${c} - ${dx}*${s})/${N(p[5])})^2`;
+    return sv.model==="gauss2d"?`${N(p[0])} + ${N(p[1])}*exp(-4*ln(2)*(${q}))`:`${N(p[0])} + ${N(p[1])}/(1 + 4*(${q}))`; }
+  if(sv.model==="formula"){ const m=surfUser(sv.formula||""); if(m.fail) return null; let src=String(sv.formula).replace(/^\s*z\s*=\s*/,"");
+    m.params.forEach((nm,i)=>{ src=src.replace(new RegExp("(^|[^A-Za-z0-9_.])"+nm+"(?![A-Za-z0-9_(])","g"),(a,b)=>b+"("+String(p[i])+")"); }); return src.replace(/\s*\n\s*/g,"; "); }
+  return null; }
 /* Σ (a − b)² of two fits' residuals: the sum of squares between nested models */
 function lsqSSBetween(A,B){ const n=A.rh.length, s=[]; for(let i=0;i<n;i++){ const d=(A.rh[i]-B.rh[i])+(A.rl[i]-B.rl[i]); s.push(d*d); } return neuSum(s); }
 /* Terms: each variable (and its powers to spec.pow), then their interactions two at a time, then three…; a term is [[variable, power]…] */
@@ -19083,10 +19238,12 @@ function anaSig(a){ const parts=[a.kind,JSON.stringify(a.p||{}),JSON.stringify(a
   if(a.in.by){ const g=colById(a.in.by); parts.push(g?arrKey(g.data)+txtKey(g.txt)+JSON.stringify(g.cat||null):"gone:"+a.in.by); }
   // The columns its rows are chosen by (a filter's conditions taken as its own, SHEET_SPEC 3.3).
   Object.keys(a.in.where||{}).forEach(id=>{ const g=colById(id); parts.push(g?"w"+arrKey(g.data)+txtKey(g.txt):"gone:"+id); });
+  if(a.in.mat){ const ms=matOf(a.in.mat); parts.push(ms?`m${ms.nx}x${ms.ny}`+JSON.stringify([ms.x,ms.y])+arrKey(ms.z):"gone:"+a.in.mat); }
   return sha256(parts.join("\u0002")).slice(0,24); }
 // Out of date, and why (null when it is not).
 function anaStale(a){ if(!a) return null; if(a.res&&a.res.err) return a.res.err; const gone=(a.in.cols||[]).filter(id=>!colById(id));
   if(gone.length) return `${gone.length===1?"An input column has":gone.length+" input columns have"} been deleted`;
+  if(a.in.mat&&!matOf(a.in.mat)) return "Its matrix has been deleted";
   return a.sig!==anaSig(a)?"What it reads has changed since it was worked out":null; }
 // Which rows an analysis reads (1-based, either end open), or null for all.
 const anaRowsOf=inp=>inp&&Array.isArray(inp.rows)&&inp.rows.length===2&&(inp.rows[0]!=null||inp.rows[1]!=null)?inp.rows:null;
@@ -19165,10 +19322,13 @@ function runAna(a,p,o){ o=o||{}; const K=ANA_KINDS[a.kind]; p=p||P(); if(!K||!p)
   const cs=(a.in.cols||[]).map(colById), gone=cs.filter(c=>!c).length, by=a.in.by?colById(a.in.by):null, wg=Object.keys(a.in.where||{}).filter(id=>!colById(id)).length;
   if(gone||(a.in.by&&!by)||wg){ a.res=Object.assign({},a.res||{},{err:gone?`${gone===1?"An input column has":gone+" input columns have"} been deleted`:wg?"A column its rows were chosen by has been deleted":"Its column of groups has been deleted"}); a.sig=sig; return false; }
   const notes=[], ins=anaInputs(a,cs,by,notes,K);
+  // A matrix read as its cells, with each one's X and Y (a surface fit's, FIT2_SPEC 4.4).
+  if(a.in.mat){ const ms=matOf(a.in.mat,p); if(!ms){ a.res=Object.assign({},a.res||{},{err:"Its matrix has been deleted"}); a.sig=sig; return false; }
+    const xy=matXY(ms); ins.push({id:"mat:"+ms.id,name:ms.name,mat:{nx:ms.nx,ny:ms.ny,xs:Array.from(xy.X),ys:Array.from(xy.Y),z:Array.from(ms.z),xname:ms.xname||"",yname:ms.yname||"",zname:ms.zname||"",xunit:ms.xunit||"",yunit:ms.yunit||"",zunit:ms.zunit||""}}); }
   // A large one is worked out by the compute worker (1.3c), its result put in when it comes back
   // (anaDone), if what it read has not changed meanwhile; the page goes on.
   const nv=ins.reduce((t,q)=>t+(q.vals||q.cells||(q.pts&&q.pts.x)||[]).length,0);
-  if((nv>=ANA_BIG||K.heavy&&K.heavy(a.p||{},ins))&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({id:q.id,name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,cells:q.cells,sheet:q.sheet,role:q.role,order:q.order,rows:q.rows,groups:q.groups,grows:q.grows,missing:q.missing,cats:q.cats,pts:q.pts,xu:q.xu})),notes,sig); return "later"; }
+  if((nv>=ANA_BIG||K.heavy&&K.heavy(a.p||{},ins))&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({id:q.id,name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,cells:q.cells,sheet:q.sheet,role:q.role,order:q.order,rows:q.rows,groups:q.groups,grows:q.grows,missing:q.missing,cats:q.cats,pts:q.pts,xu:q.xu,mat:q.mat})),notes,sig); return "later"; }
   let out; try{ out=anaRunKind(a.kind,ins,a.p||{}); }catch(e){ out={fail:String(e&&e.message||e)}; }
   return anaApply(a,p,out,notes,sig); }
 function anaApply(a,p,out,notes,sig){
@@ -19402,6 +19562,43 @@ const ANA_FORMS={
         fb.innerHTML=ids.filter(id=>id!==y&&id!==wv).map(id=>{ const c=colById(id), txt=isCatCol(c)||textCount(c)>0, on=txt||(keep.has(id)?keep.get(id):fac0.has(id)); return `<label class="chk"><input type="checkbox" id="aLf_${id}"${on?" checked":""}${txt?" disabled":""}> ${esc(colLetter(c)+" "+(c.name||""))}</label>`; }).join("")||`<span class="muted">The other columns ticked</span>`; }); },
     read(v){ return {y:v.aLy||null,fac:Object.keys(v).filter(k=>k.startsWith("aLf_")&&v[k]).map(k=>k.slice(4)),inter:v.aLi,pow:+v.aLp||1,coding:v.aLc==="effect"?"effect":"treat",ss:+v.aLs||3,conf:+v.aCf||0.95,icpt:!!v.aLn,resid:!!v.aLr,diag:!!v.aLd,pred:!!v.aLpr,w:v.aLw||null,contrasts:String(v.aLct||"").trim(),boot:v.aLb?lmBootOf({boot:{kind:v.aLb,B:parseNum(String(v.aLbB||"")),seed:parseNum(String(v.aLbS||""))}}):null}; },
     valid(v){ return !!v.aLy; }},
+  // Surface fit (FIT2_SPEC 4.4): three columns or a matrix, the model, a formula, each parameter's start, fix and limits.
+  surf:{noGroup:true,
+    html(p){ const C=(S.anaCand||[]).filter(c=>anyVal(c.data)), M=matAll(), src=p.src==="mat"&&M.length?"mat":"cols", id=SURF_KINDS.some(e=>e[0]===p.model)?p.model:"poly1";
+      const xd=p.x||rsFirst(c=>c.role==="x"), yd=p.y||rsFirst(()=>true,[xd]), zd=p.z||rsFirst(c=>c.role==="y",[xd,yd]);
+      return `<div class="grid2 surfdlg"><label for="aSsrc">Data</label><select id="aSsrc"><option value="cols"${src==="cols"?" selected":""}>Three columns</option><option value="mat"${src==="mat"?" selected":""}${M.length?"":" disabled"}>A matrix</option></select>
+        ${rsSel("aSx","X",xd,null,C)}${rsSel("aSy","Y",yd,null,C)}${rsSel("aSz","Z",zd,null,C)}
+        <label for="aSm">Matrix</label><select id="aSm">${M.map(q=>`<option value="${q.s.id}"${q.s.id===p.mat?" selected":""}>${esc(matName(q.s.id))}</option>`).join("")}</select>
+        <label for="aSmod">Model</label><select id="aSmod">${SURF_KINDS.map(([k,t])=>`<option value="${k}"${k===id?" selected":""}>${esc(t)}</option>`).join("")}</select>
+        <label for="aSf" class="tipd" title="z as a formula of x and y: every other name is a parameter, as in a function of yours">Formula</label><input id="aSf" type="text" class="mono" value="${esc(p.formula||"")}" placeholder="z0 + A*exp(-((x - xc)^2 + (y - yc)^2)/w^2)">
+        ${confSel(p)}</div><p class="lab">Parameters</p><div id="aSpar">${surfParHtml(id,p.formula,p)}</div><p class="note" id="aSmsg" aria-live="polite" hidden></p>`; },
+    wire(box){ const F=ANA_FORMS.surf, vals=()=>{ const r={}; box.querySelectorAll("input,select").forEach(el=>{ if(el.id) r[el.id]=el.type==="checkbox"?el.checked:el.value; }); return r; };
+      const show=()=>{ const src=$("#aSsrc").value, f=$("#aSmod").value==="formula", hide=(id,h)=>{ const e=box.querySelector("#"+id), l=box.querySelector(`label[for="${id}"]`); if(e) e.hidden=h; if(l) l.hidden=h; };
+        ["aSx","aSy","aSz"].forEach(i=>hide(i,src!=="cols")); hide("aSm",src!=="mat"); hide("aSf",!f); };
+      const msg=()=>{ const w=F.why(vals()), el=$("#aSmsg"); el.textContent=w; el.hidden=!w; };
+      const grid=()=>{ const cur=F.read(vals()); $("#aSpar").innerHTML=surfParHtml($("#aSmod").value,$("#aSf").value,cur); };
+      box.addEventListener("change",e=>{ const t=e.target.id; if(t==="aSsrc"||t==="aSmod") show(); if(t==="aSmod") grid(); msg(); });
+      box.addEventListener("input",e=>{ if(e.target.id==="aSf") grid(); msg(); });
+      show(); msg(); },
+    read(v){ const id=SURF_KINDS.some(e=>e[0]===v.aSmod)?v.aSmod:"poly1", formula=String(v.aSf||"").trim(), m=surfModel(id,formula), o={src:v.aSsrc==="mat"?"mat":"cols",model:id};
+      if(v.aCf!=null) o.conf=+v.aCf; if(o.src==="mat") o.mat=v.aSm||null; else { o.x=v.aSx||null; o.y=v.aSy||null; o.z=v.aSz||null; }
+      if(id==="formula") o.formula=formula;
+      if(!m.fail){ const st={}, lo={}, hi={}, fix=[], g=(k,nm)=>{ const t=String(v[k+nm]==null?"":v[k+nm]).trim(); if(!t) return null; const x=parseNum(t); return Number.isFinite(x)?x:NaN; };
+        m.params.forEach(nm=>{ const a=g("aSs_",nm), l=g("aSl_",nm), h=g("aSh_",nm); if(a!=null) st[nm]=a; if(l!=null) lo[nm]=l; if(h!=null) hi[nm]=h; if(v["aSk_"+nm]) fix.push(nm); });
+        if(Object.keys(st).length) o.start=st; if(fix.length) o.fix=fix; if(Object.keys(lo).length) o.lo=lo; if(Object.keys(hi).length) o.hi=hi; }
+      return o; },
+    why(r){ const o=ANA_FORMS.surf.read(r);
+      if(o.src==="mat"){ if(!o.mat||!matOf(o.mat)) return "Choose a matrix."; }
+      else { if(!o.x||!o.y||!o.z) return "Choose the X, Y and Z columns."; if(new Set([o.x,o.y,o.z]).size<3) return "X, Y and Z are three different columns."; }
+      const m=surfModel(o.model,o.formula); if(m.fail) return o.model==="formula"&&!o.formula?"Write the formula of x and y.":m.fail;
+      for(const [k,t] of [["start","start"],["lo","lowest limit"],["hi","highest limit"]]) for(const nm of Object.keys(o[k]||{})) if(!Number.isFinite(o[k][nm])) return `${nm}'s ${t} is not a number.`;
+      for(const nm of m.params) if(o.lo&&o.hi&&Number.isFinite(o.lo[nm])&&Number.isFinite(o.hi[nm])&&o.lo[nm]>o.hi[nm]) return `${nm}'s lowest limit is above its highest.`;
+      if(o.fix&&o.fix.length===m.params.length) return "Every parameter is fixed: unfix at least one.";
+      for(const nm of (o.fix||[])) if(!(o.start&&Number.isFinite(o.start[nm]))) return `${nm} is fixed: give its value as its start.`;
+      return ""; },
+    valid(r){ return !ANA_FORMS.surf.why(r); },
+    extra(p){ return p.src==="mat"?[]:[p.x,p.y,p.z]; },
+    inp(p,inp){ if(p.src==="mat"&&p.mat) inp.mat=p.mat; else delete inp.mat; }},
   cmpmod:{noGroup:true, html(p){ const C=cmpCands(), keys=(Array.isArray(p.fits)?p.fits:[]).map(s=>s.key), def=[C.find(c=>c.key==="screen")?"screen":"m:linear","m:poly2"], opts=sel=>C.map(c=>c.group?`<optgroup label="${esc(c.group)}">`:c.end?"</optgroup>":`<option value="${esc(c.key)}"${c.key===sel?" selected":""}>${esc(c.name)}</option>`).join("");
       return `<div class="grid2">${[0,1,2,3,4].map(i=>`<label for="aMm${i}">${i<2?`Setting ${i+1}`:`Setting ${i+1}, if any`}</label><select id="aMm${i}">${i>=2?`<option value="">—</option>`:""}${opts(keys[i]||(i<2?def[i]:""))}</select>`).join("")}
       ${cmpCommonHtml(p)}</div>`; },
@@ -19535,16 +19732,18 @@ async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[kin
   const kp=F.read?F.read(v,p0):{}, ana=anaList(q).map(x=>Object.assign({},x));
   // The columns a kind names beside those ticked (a key, a group, another sheet's columns) are read too.
   if(F.extra) (F.extra(kp)||[]).forEach(id=>{ if(id&&!inp.cols.includes(id)&&colById(id)) inp.cols.push(id); });
+  if(F.inp) F.inp(kp,inp);   // a form's own inputs (a surface fit's matrix)
   if(a0){ const a=ana.find(x=>x.id===a0.id); if(!a) return; pushUndo(`the settings of ${a.name}`); Object.assign(a,{in:inp,p:kp,recalc:v.aRc,by:who()}); runAna(a,q);
     save({ana,cols:q.cols},`changed the settings of ${a.name}`); showSheet(a.out.sheet,{quiet:true}); toast(`${a.name} worked out again.`,{action:"Undo",run:undo}); return; }
   pushUndo(K.label.toLowerCase()); stampSheets(q);
   const used=new Set(ana.map(x=>x.name).concat(sheetList(q).map(s=>s.name))); let n=1; while(used.has(`${K.base} ${n}`)) n++;
   const name=`${K.base} ${n}`, sh={id:newSheetId(),name}, a={id:newAnaId(),kind,name,in:inp,p:kp,out:{sheet:sh.id},recalc:v.aRc==="manual"?"manual":"auto",at:Date.now(),by:who()};
   sh.ana=a.id; const ss=sheetList(q).concat([sh]); q.sheets=ss; ana.push(a); runAna(a,q);
-  save({ana,sheets:ss,cols:q.cols},`worked out ${name} (${K.label.toLowerCase()}) of ${K.typed?(K.typedWhat||"the counts typed"):andList(cols.map(id=>colRef(colById(id))))}`);
+  const tw=typeof K.typedWhat==="function"?K.typedWhat(kp):K.typedWhat;
+  save({ana,sheets:ss,cols:q.cols},`worked out ${name} (${K.label.toLowerCase()}) of ${K.typed?(tw||"the counts typed"):andList(cols.map(id=>colRef(colById(id))))}`);
   showSheet(sh.id,{quiet:true}); const a1=anaOf(a.id);
   if(a1&&a1.res&&a1.res.err) toast(`${name} could not be worked out: ${a1.res.err}.`,{action:"Change settings…",run:()=>anaDlg(kind,{id:a.id})});
-  else toast(`${name}: the results of ${K.typed?(K.typedWhat||"the counts typed"):andList(cols.map(id=>specName(colById(id))))}, on a sheet of their own.`,{action:"Undo",run:undo}); }
+  else toast(`${name}: the results of ${K.typed?(tw||"the counts typed"):andList(cols.map(id=>specName(colById(id))))}, on a sheet of their own.`,{action:"Undo",run:undo}); }
 /* A graphical summary (STATS_SPEC 2.1): a figure of the column's histogram with a normal curve over
    it (its legend the mean and SD) and its box chart (its tooltip N, the median and quartiles), made
    from the plots that follow the processing. One undo step. */
@@ -19577,12 +19776,41 @@ function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&
   if(a.kind==="power") return [{key:"curve",label:"Power curve",title:"Power against size, on a graph",enabled:!ro,run:()=>anaPowerPlot(a.id)}];
   if(a.kind==="lm") return [{key:"partial",label:"Partial residual plots",title:"For each column of numbers, the residuals plus its terms' share against it, with the line of those terms, a graph each, in a figure",enabled:!ro&&(a.res.report.nums||0)>0,run:()=>anaPartial(a.id)}];
   if(a.kind==="subsets") return [{key:"fit",label:"Fit one of them…",title:"A linear model of the response by the columns of a subset listed",enabled:!ro&&!!(rep.subsets&&rep.subsets.length),run:()=>anaSubsetFit(a.id)}];
+  if(a.kind==="surf"){ const sv=rep.surf; return [{key:"fmat",label:"Fitted surface as a matrix",title:sv&&sv.mat?"The fitted surface on the matrix's own grid, as a matrix computed by its formula, drawn as a map":"The fitted surface on 101 × 101 points over the data's extent, as a matrix computed by its formula, drawn as a map",enabled:!ro&&!!sv,run:()=>surfToMatrix(a.id,"fit")}]
+      .concat(sv&&sv.mat?[{key:"rmat",label:"Residuals as a matrix",title:"Each cell of the matrix less the fitted surface, as a matrix computed from it, drawn as a map",enabled:!ro,run:()=>surfToMatrix(a.id,"res")}]
+        :sv?[{key:"rmap",label:"Residual map",title:"The points' X and Y coloured by their residual, on a graph",enabled:!ro,run:()=>surfResMap(a.id)}]:[]); }
   if(a.kind==="anova1") return [{key:"means",label:"Means plot",title:"Each group's mean with its interval, on a graph",enabled:!ro,run:()=>anaMeansPlot(a.id)}];
   if(a.kind==="norm") return [{key:"qq",label:"Q–Q plot",title:"The sorted values against the normal quantiles, with the line through their quartiles, on a graph",enabled:!ro&&rep.qq>0,run:()=>anaQQ(a.id)}];
   if(a.kind==="outl"){ const w=`The ${n===1?"value":n+" values"} past the critical value`;
     return [{key:"mask",label:"Mask",title:`${w}: masked, one undo step`,enabled:!ro&&n>0,run:()=>anaMaskOut(a.id)},
     {key:"mark",label:"Mark",title:`${w}: labelled on the graph of its column`,enabled:!ro&&n>0,run:()=>anaMarkOut(a.id)}]; }
   return []; }
+/* A surface fit's parameter grid (FIT2_SPEC 4.4): each of the model's parameters with its start (empty: guessed), Fix, and its
+   lowest and highest (empty: none); a formula's parameters as it is typed. */
+function surfParHtml(id,formula,p){ p=p||{}; const m=surfModel(id,formula);
+  if(m.fail) return `<p class="lab">${esc(id==="formula"&&!String(formula||"").trim()?"Write the formula: its parameters are listed here.":m.fail)}</p>`;
+  const st=p.start||{}, fx=new Set(p.fix||[]), lo=p.lo||{}, hi=p.hi||{}, v=x=>Number.isFinite(x)?String(x):"";
+  return `<table class="ptab surfpar"><thead><tr><th>Parameter</th><th>Start</th><th>Fix</th><th>Lowest</th><th>Highest</th></tr></thead><tbody>${m.params.map((nm,i)=>`<tr><td class="pn" title="${esc(m.mean[i]||nm)}">${esc(nm)}</td><td><input type="text" inputmode="decimal" id="aSs_${nm}" value="${v(st[nm])}" placeholder="guessed" aria-label="Start of ${esc(nm)}"></td><td class="fx"><input type="checkbox" id="aSk_${nm}"${fx.has(nm)?" checked":""} aria-label="Fix ${esc(nm)}"></td><td><input type="text" inputmode="decimal" id="aSl_${nm}" value="${v(lo[nm])}" placeholder="none" aria-label="Lowest ${esc(nm)}"></td><td><input type="text" inputmode="decimal" id="aSh_${nm}" value="${v(hi[nm])}" placeholder="none" aria-label="Highest ${esc(nm)}"></td></tr>`).join("")}</tbody></table>`; }
+/* A surface fit's surface (or, from a matrix, its residuals) as a matrix computed by a formula with its numbers written in, on the
+   matrix's own grid or 101 × 101 over the data's extent, and a map of it: one undo step. */
+function surfToMatrix(id,kind){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const sv=a.res&&a.res.report&&a.res.report.surf;
+  if(!sv){ toast("There is no fitted surface: Recalculate first."); return; } const fx=surfFormula(sv); if(!fx){ toast("This surface cannot be written as a matrix's formula."); return; }
+  const ms=sv.mat?matOf(sv.mat):null; if(sv.mat&&!ms){ toast("Its matrix has been deleted."); return; }
+  const base=ms?matNew({nx:ms.nx,ny:ms.ny,x:clone(ms.x),y:clone(ms.y),v:null}):matNew({nx:101,ny:101,x:{a:sv.ext[0],b:sv.ext[1]},y:{a:sv.ext[2],b:sv.ext[3]},v:null});
+  if(base.fail){ toast(base.fail); return; }
+  const src=kind==="res"?`${ms.name} - (${fx})`:fx, nm=sv.names||[], un=sv.units||[], extra={};
+  [["xname",nm[0]],["xunit",un[0]],["yname",nm[1]],["yunit",un[1]],["zname",kind==="res"?"Residual":"Fitted "+(nm[2]||"z")],["zunit",un[2]]].forEach(([k,v])=>{ if(v) extra[k]=v; });
+  const s=matSheetNew(base,matFreeName(kind==="res"?"Resid":"Fit"),extra), r=matFxParse(src,s.id,p); if(r.err){ toast(r.err); return; }
+  s.fx={src,refs:r.refs}; const e=matFxEval(s,p); if(e.err) s.fx.err=e.err; else s.z=e.z; MATZ_OK.add(s.z);
+  const b=matBookNew(s), graphs=(p.graphs||[]).slice(), g={id:newGid(),name:nextGraphName({graphs}),cols:[],plot:Object.assign(plotBase(GID()?plotOf(GID()):{}),{layout:"heat",mat:s.id,mapKind:"image"})}; graphs.push(g);
+  const what=kind==="res"?"the residuals":"the fitted surface"; pushUndo(what+" as a matrix");
+  save({mats:matBooks(p).concat([b]),graphs},`made ${what} of ${a.name} a matrix, ${s.name}, and ${g.name} its map`); xNew(["g:"+g.id]);
+  const from=winOfGraph(S.gid)||null; renderAll(); splitInto(from,g.id); activateGraph(g.id);
+  toast(`${s.name}: ${what} of ${a.name}, drawn on ${g.name}.`,{action:"Undo",run:undo}); }
+// From columns: the residuals as a map of the points' X and Y, coloured by the residual (a map from scattered points).
+function surfResMap(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const y=p.cols.find(c=>c.ana===id&&c.ak==="pty"), r=p.cols.find(c=>c.ana===id&&c.ak==="ptres");
+  if(!y||!r){ toast("There are no residuals to draw: Recalculate first."); return; }
+  plotCols([y.id],{series:{[y.id]:{type:"tmap",zcol:r.id}},undo:"plotting the residuals as a map",say:`the residuals of ${a.name} as a map`}); }
 function setupAnaActs(){ document.addEventListener("click",e=>{ const b=e.target.closest&&e.target.closest("button[data-anaact]"); if(!b||b.disabled) return;
   const a=anaOf(b.dataset.ana), x=a&&anaActs(a).find(t=>t.key===b.dataset.anaact); if(x&&x.enabled) x.run(); }); }
 // The Q–Q plot: each set's sorted values as symbols against its normal quantiles, its quartiles' line as a line.
@@ -19714,6 +19942,7 @@ function anaClean(p){ if(p.ana!==undefined&&!Array.isArray(p.ana)) delete p.ana;
     .map(a=>{ if(typeof a.name!=="string"||!a.name) a.name=ANA_KINDS[a.kind].base; if(a.recalc!=="manual") a.recalc="auto"; if(!a.in.read||typeof a.in.read!=="object") a.in.read={}; a.in.cols=a.in.cols.filter(x=>typeof x==="string");
       if(a.in.rows!==undefined&&!(Array.isArray(a.in.rows)&&a.in.rows.length===2&&a.in.rows.every(x=>x==null||(Number.isInteger(x)&&x>=1))&&a.in.rows.some(x=>x!=null))) delete a.in.rows;
       if(a.in.miss!==undefined&&a.in.miss!=="list") delete a.in.miss; if(!a.p||typeof a.p!=="object"||Array.isArray(a.p)) a.p={};
+      if(a.in.mat!==undefined&&typeof a.in.mat!=="string") delete a.in.mat;
       if(a.in.where!==undefined){ const w=a.in.where, o={}; if(w&&typeof w==="object"&&!Array.isArray(w)) Object.keys(w).forEach(id=>{ if(filtOk(w[id])) o[id]=w[id]; }); if(Object.keys(o).length) a.in.where=o; else delete a.in.where; }
       return a; });
   const ids=new Set((p.ana||[]).map(a=>a.id)), own=new Map((p.ana||[]).map(a=>[a.out.sheet,a.id]));
@@ -26451,6 +26680,7 @@ function analyzeMenu(){
       {label:"Best subsets…", title:ANA_KINDS.subsets.help, run:()=>anaDlg("subsets",{two:true}), enabled:edit},
       {label:"Compare models…", title:ANA_KINDS.cmpmod.help, run:()=>anaDlg("cmpmod"), enabled:edit},
       {label:"Compare data sets…", title:ANA_KINDS.cmpdata.help, run:()=>anaDlg("cmpdata",{two:true}), enabled:edit&&yCols().length>1},
+      {label:"Surface fit…", title:ANA_KINDS.surf.help, run:()=>anaDlg("surf"), enabled:edit},
       "-",
       {label:"Fit", kbd:"Ctrl+Enter", run:fitNow, enabled:edit&&has},
       yCols().length>1?{label:"Fit every column…", run:openBatchDialog, enabled:edit&&!!f, title:f?"":"Fit the active column first: its fit is the template"}:null,
@@ -29229,7 +29459,7 @@ ${DL([["Area ± error","The trapezoidal sum over the points in the window, less 
 ${DL([["Net counts","The counts in the window less the continuum under them: a straight line through the mean of the channels at each edge (as many as the line baselines use). ± one standard deviation from counting: the counts' own and the continuum's."],["Detected","Above Currie's critical level, 95 %: on a continuum alone, one window in twenty is called detected. Below it, the level is shown."],["Emission, efficiency","Type the share of decays that give the line and the detector's efficiency at its energy, both in %."],["Activity","Net counts ÷ (live time × efficiency × emission), in becquerel, with the counting error. Not detected: the detection limit as an activity, the smallest that would be."]])}
 <p>Counting needs the counts as recorded: an energy calibration, a count rate or a crop keep them; smoothing or a subtracted background do not, and the part says so.</p>
 ${TIP("Overlapping bands are integrated separately, each within its own window. To divide overlapping bands between them, fit them.")}`},
-{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results compare models model comparison aic aicc bic akaike weight extra sum of squares f test nested compare datasets data sets shared parameters global multiple regression mlr weighted least squares wls vif variance inflation factor condition number leverage cook's distance cooks dffits studentized deleted residual influence prediction interval confidence limits partial residual component plus residual best subsets all subsets mallows cp aic bic statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size nonparametric non-parametric rank mann whitney wilcoxon rank sum signed rank sign test hodges lehmann shift pseudo-median kruskal wallis dunn friedman kendall w mood median test kolmogorov smirnov two-sample ks correlation correlation matrix pearson spearman rho kendall tau partial correlation fisher z scatter matrix counts contingency cross table crosstab cross-tabulation chi square chi-square independence expected counts likelihood ratio g test freeman halton mcnemar paired cramer cramér v linear model general linear model glm regression multiple regression ancova covariate factor interaction polynomial treatment coding effect coding type i type ii type iii sums of squares contrast estimable aliased qr two-way anova three-way anova factorial anova interaction plot main effects plot marginal means least squares means lsmeans emmeans simple effects partial eta squared repeated measures rm anova within subjects between subjects mixed anova split-plot sphericity mauchly greenhouse-geisser greenhouse geisser huynh-feldt huynh feldt epsilon profile plot wide long subject power sample size power analysis how many samples effect size cohen d cohen f cohen w noncentral t noncentral f noncentral chi-square g*power pss roc receiver operating characteristic area under the curve auc delong youden cut-off cutoff threshold sensitivity specificity diagnostic",
+{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results surface fit surface fitting 3d fit z x y paraboloid plane polynomial surface gaussian 2d lorentzian 2d gauss2d nonlinear surface matrix fit compare models model comparison aic aicc bic akaike weight extra sum of squares f test nested compare datasets data sets shared parameters global multiple regression mlr weighted least squares wls vif variance inflation factor condition number leverage cook's distance cooks dffits studentized deleted residual influence prediction interval confidence limits partial residual component plus residual best subsets all subsets mallows cp aic bic statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size nonparametric non-parametric rank mann whitney wilcoxon rank sum signed rank sign test hodges lehmann shift pseudo-median kruskal wallis dunn friedman kendall w mood median test kolmogorov smirnov two-sample ks correlation correlation matrix pearson spearman rho kendall tau partial correlation fisher z scatter matrix counts contingency cross table crosstab cross-tabulation chi square chi-square independence expected counts likelihood ratio g test freeman halton mcnemar paired cramer cramér v linear model general linear model glm regression multiple regression ancova covariate factor interaction polynomial treatment coding effect coding type i type ii type iii sums of squares contrast estimable aliased qr two-way anova three-way anova factorial anova interaction plot main effects plot marginal means least squares means lsmeans emmeans simple effects partial eta squared repeated measures rm anova within subjects between subjects mixed anova split-plot sphericity mauchly greenhouse-geisser greenhouse geisser huynh-feldt huynh feldt epsilon profile plot wide long subject power sample size power analysis how many samples effect size cohen d cohen f cohen w noncentral t noncentral f noncentral chi-square g*power pss roc receiver operating characteristic area under the curve auc delong youden cut-off cutoff threshold sensitivity specificity diagnostic",
  lead:"An analysis reads columns and writes what it finds into a result sheet of its own, worked out again when its data change.",
  body:`<h2>Statistics on columns</h2>
 <p>${MP("Analyze › Statistics › Descriptive › Statistics on columns…")}: tick the columns and the statistics, and each column gets a row of a new sheet. Ticked at first are N, the rows missing, mean, standard deviation, standard error of the mean, minimum, Q1, median, Q3, maximum and sum; besides them, the mean's interval, variance, coefficient of variation, range, IQR, MAD, robust SD, the mode and its count, skewness, kurtosis, the geometric and harmonic means, and any percentiles typed (<code>5, 95</code>). <em>Group by</em> a column of text or categories gives a row for each column and group.</p>
@@ -29281,6 +29511,10 @@ ${DL([["Interactions","None; every pair of the columns; or every combination (A:
 <p>${MP("Analyze › Fit › Compare data sets…")}: one fit setting on two or more columns ticked. Each column is fitted alone, then all at once with every free parameter shared, or one chosen, the others each column's own; the F test of the shared fit against the columns alone, both fits' χ², AIC, AICc, BIC and Akaike's weights, and each parameter's values alone and in the shared fit side by side. A setting with constraints between parameters is refused.</p>
 <h2 id="subsets">Best subsets</h2>
 <p>${MP("Analyze › Fit › Best subsets…")}: a <em>Response</em> and up to 20 columns of numbers among those ticked, some <em>Always in</em>. Every subset is fitted (each step adds or takes out one column, so a million subsets take about a second), and the best of each size (1 to 10 of them, by their residual sum, which orders every criterion alike within a size) are listed with R², adjusted R², Mallows' Cp (from the full model's s²), AIC and BIC, ordered by the criterion chosen. Each listed subset is worked out again exactly. <em>Fit one of them…</em> under the report opens the linear model on the subset chosen. A column that is a combination of the others is refused: take it out first.</p>
+<h2 id="surf">Surface fit</h2>
+<p>${MP("Analyze › Fit › Surface fit…")}: z as a function of x and y, from three columns of numbers (each row a point) or from a matrix (each cell a point, at its X and Y; empty cells left out).</p>
+${DL([["Plane, Paraboloid, Cubic to Quintic surface","Every xⁱyʲ with i + j up to the order. Solved directly by least squares, in x and y centred and scaled, so far from x = y = 0 the coefficients keep their digits; they are reported in powers of x and y, each with its unit."],["Gaussian and Lorentzian surface","A peak (or a dip) on a level z0: its height A, centre xc and yc, FWHM wx and wy along its own axes, and theta, its first axis's turn from x in degrees (within ±90°). Started from the points above half its height."],["Your formula of x and y","As a function of yours is written: every name but x, y and the functions is a parameter, its start guessed from its name (z0 a level, A a height, xc and yc where z is largest, w a width) unless typed."]])}
+<p>Each parameter can be given a start, fixed at it, and kept between a lowest and a highest; a polynomial with any of these is fitted by Levenberg–Marquardt from its direct solution. The sheet holds each parameter with its unit, standard error, t, p and interval, the statistics, and each point's fitted value and residual. Under the report: <em>Fitted surface as a matrix</em> (on the matrix's own grid, or 101 × 101 over the data's extent; a matrix computed by the surface's formula with its numbers written in, drawn as a map), and <em>Residuals as a matrix</em> (from a matrix: each cell less the surface) or <em>Residual map</em> (from columns: the points' X and Y coloured by their residual).</p>
 <h2 id="ranks">Nonparametric tests</h2>
 <p>${MP("Analyze › Statistics › Nonparametric")}: tests on ranks and signs, which assume no distribution. p is exact while the samples are small, untied and (for the signed-rank test) have no zeros, as R decides; else by the normal approximation with the tie and continuity corrections. <em>p</em> in the dialog forces either.</p>
 ${DL([["Mann–Whitney…","Two samples: U of the first, p, the shift (the median of every first − second difference, Hodges–Lehmann) with its interval, and the rank-biserial r (2U/(n₁n₂) − 1)."],["Wilcoxon signed-rank…","One sample against a value, or two columns paired by rows: T+ and T−, p, the pseudo-median (the median of the Walsh averages) with its interval. Zeros are dropped (Wilcoxon's) or ranked and then dropped (Pratt's)."],["Sign test…","The values above and below the value tested against, the exact binomial p, the median with an interval from order statistics, and that interval's own level."],["Kruskal–Wallis…","The groups of one factor: H corrected for ties, its df and p, ε², each group's mean rank; Dunn's comparisons of the mean ranks, adjusted by Holm or Bonferroni."],["Friedman…","Columns as treatments, rows as blocks (rows complete in every column): Q corrected for ties, p, Kendall's W, each column's rank sum."],["Mood's median test…","Each group's values above the grand median and not above it, and χ² of that table (Yates's correction with two groups)."],["Two-sample Kolmogorov–Smirnov…","The largest distance D between the two samples' distribution functions (or one side's), its p exact up to a million steps of the lattice, else asymptotic."]])}

@@ -883,6 +883,97 @@ await page(async p => {
   r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "lm"); return a && a.p.boot && a.p.boot.B; });
   check("…and after a reload", r === 500, r);
 }, { name: "4.8" });
+// FIT2_SPEC 4.4: surface fits, from three columns and from a matrix.
+console.log("4.4: surface fits");
+await page(async p => {
+  // A quadratic surface far from the origin, measured on a 15 × 15 grid with a little noise.
+  await p.evaluate(() => { const x = [], y = [], z = []; let s = 5; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; };
+    for (let i = 0; i < 15; i++) for (let j = 0; j < 15; j++) { const u = 1000 + i * 2, v = 20 + j * 0.5; x.push(u); y.push(v); z.push(+(5 + 0.3 * (u - 1000) - 1.5 * (v - 20) + 0.01 * (u - 1000) ** 2 + 0.02 * (u - 1000) * (v - 20) - 0.2 * (v - 20) ** 2 + 0.01 * r()).toFixed(6)); }
+    const col = (role, nm, u, d) => Object.assign(makeCol(role, nm, u), { data: d, pipe: [], mask: [] });
+    save({ cols: [col("x", "Temperature", "K", x), col("ignore", "Pressure", "bar", y), col("y", "Yield", "%", z)], activeY: null }, "typed"); });
+  await p.waitForTimeout(300);
+  let r = await p.evaluate(() => { const fit = menuItems("analyze").find(i => i && i.label === "Fit"); return (typeof fit.sub === "function" ? fit.sub() : fit.sub).filter(Boolean).map(i => i.label); });
+  check("Analyze › Fit has Surface fit…", r.includes("Surface fit…"), JSON.stringify(r));
+  await p.evaluate(() => { anaDlg("surf"); }); await p.waitForSelector("#aSmod");
+  r = await p.evaluate(() => ({ src: $("#aSsrc").value, x: $("#aSx").selectedOptions[0].textContent, y: $("#aSy").selectedOptions[0].textContent, z: $("#aSz").selectedOptions[0].textContent, mat: $("#aSm").hidden, f: $("#aSf").hidden, par: [...document.querySelectorAll("#aSpar td.pn")].map(t => t.textContent), ok: $("#formOk").disabled }));
+  check("the dialog: three columns, X, Y and Z chosen from their roles, a plane's three parameters", r.src === "cols" && /Temperature/.test(r.x) && /Pressure/.test(r.y) && /Yield/.test(r.z) && r.mat && r.f && r.par.join() === "c00,c10,c01" && !r.ok, JSON.stringify(r));
+  await p.selectOption("#aSz", { index: 0 }); await p.waitForTimeout(100);
+  r = await p.evaluate(() => ({ m: $("#aSmsg").textContent, ok: $("#formOk").disabled }));
+  check("the same column twice is refused in words", /three different columns/.test(r.m) && r.ok, JSON.stringify(r));
+  await p.selectOption("#aSz", { label: "C: Yield" }).catch(async () => { await p.evaluate(() => { const s = $("#aSz"); s.value = [...s.options].find(o => /Yield/.test(o.textContent)).value; s.dispatchEvent(new Event("change", { bubbles: true })); }); });
+  await p.selectOption("#aSmod", "poly2"); await p.waitForTimeout(100);
+  r = await p.evaluate(() => [...document.querySelectorAll("#aSpar td.pn")].map(t => t.textContent).join());
+  check("a paraboloid's six coefficients listed", r === "c00,c10,c01,c20,c11,c02", r);
+  await p.click("#formOk");
+  await p.waitForFunction(() => { const a = anaList().find(x => x.kind === "surf"); return a && a.res && (a.res.report || a.res.err); }, null, { timeout: 30000 });
+  r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "surf"), o = {}; P().cols.filter(c => c.ana === a.id).forEach(c => { o[c.ak] = c.txt ? c.data.map((v, i) => c.txt[i] != null ? c.txt[i] : v) : c.data.slice(); });
+    const cs = sheetCols(sheetList()[0].id), X = cs[0].data, Y = cs[1].data, Z = cs[2].data, F = surfFit(X, Y, Z, "poly2");
+    return { o, err: a.res.err, want: F.res.params, se: F.res.errors, method: a.res.report.method, secs: a.res.report.sections.map(s => s.title) }; });
+  check("its coefficients and errors as surfFit gives them, in powers of x and y", !r.err && r.o.v.every((v, i) => Math.abs(v - r.want[i]) <= 1e-9 * Math.max(1, Math.abs(r.want[i]))) && r.o.se.every((v, i) => Math.abs(v / r.se[i] - 1) < 1e-9), JSON.stringify([r.o.v, r.want]));
+  check("…the true surface's within a few errors (c20 0.01, c11 0.02, c02 −0.2 about 1000 K and 20 bar)", Math.abs(r.want[3] - 0.01) < 4 * r.se[3] && Math.abs(r.want[5] + 0.2) < 4 * r.se[5], JSON.stringify(r.want));
+  check("each coefficient's unit: % over K, bar and their products", JSON.stringify(r.o.unit) === JSON.stringify(["%", "%/K", "%/bar", "%/K²", "%/(K·bar)", "%/bar²"]), JSON.stringify(r.o.unit));
+  check("each point's fitted value and residual on the sheet, the statistics, the method", r.o.ptres.length === 225 && Math.abs(r.o.ptz[7] - r.o.ptfit[7] - r.o.ptres[7]) < 1e-12 && r.o.stk.includes("R²") && /solved directly by least squares/.test(r.method) && r.secs.join("|") === "Parameters|Statistics", JSON.stringify([r.secs, r.method]));
+  // The fitted surface as a matrix, and the residual map.
+  await p.evaluate(() => { const a = anaList().find(x => x.kind === "surf"); surfToMatrix(a.id, "fit"); }); await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "surf"), b = matBooks().slice(-1)[0], s = b.sheets[0], xy = matXY(s), cs = sheetCols(sheetList()[0].id), F = surfFit(cs[0].data, cs[1].data, cs[2].data, "poly2");
+    let e = 0; for (let r0 = 0; r0 < s.ny; r0 += 10) for (let c0 = 0; c0 < s.nx; c0 += 10) e = Math.max(e, Math.abs(s.z[r0 * s.nx + c0] - F.f(xy.X[c0], xy.Y[r0])) / 40);
+    const g = graphOf(GID()); return { nx: s.nx, ny: s.ny, fx: !!s.fx, e, mat: g && g.plot.mat === s.id, zn: s.zname, undo: undoListItems().length }; });
+  check("the fitted surface as a matrix of 101 × 101 computed by its formula, its values the fit's, drawn as a map", r.nx === 101 && r.ny === 101 && r.fx && r.e < 1e-12 && r.mat && r.zn === "Fitted Yield", JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(200);
+  r = await p.evaluate(() => ({ m: matBooks().length, g: (P().graphs || []).filter(g => g.plot && g.plot.mat).length }));
+  check("one undo takes the matrix and its map away", r.m === 0 && r.g === 0, JSON.stringify(r));
+  await p.evaluate(() => { const a = anaList().find(x => x.kind === "surf"); surfResMap(a.id); }); await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const g = graphOf(GID()), id = g && g.cols[0], c = colById(id); return { type: g && (g.plot.series || {})[id] && g.plot.series[id].type, z: g && g.plot.series[id].zcol, ak: c && c.ak, x: c && xColFor(c) && xColFor(c).ak }; });
+  check("from columns, the residual map: Y against X, coloured by the residual", r.type === "tmap" && r.ak === "pty" && r.x === "ptx", JSON.stringify(r));
+  // Followed: a value typed.
+  const before = await p.evaluate(() => anaList().find(x => x.kind === "surf").res.report.surf.params[0]);
+  await p.evaluate(() => { const c = sheetCols(sheetList()[0].id)[2]; pushUndo("t"); c.data = c.data.slice(); c.data[100] += 5; save({ cols: P().cols }, "typed"); }); await p.waitForTimeout(1200);
+  r = await p.evaluate(() => anaList().find(x => x.kind === "surf").res.report.surf.params[0]);
+  check("worked out again by itself after a value is typed", r !== before, JSON.stringify([before, r]));
+  // A formula of x and y; a parameter fixed with no start refused, a formula with no parameter refused.
+  await p.evaluate(() => { const a = anaList().find(x => x.kind === "surf"); anaDlg("surf", { id: a.id }); }); await p.waitForSelector("#aSmod");
+  await p.selectOption("#aSmod", "formula"); await p.fill("#aSf", "x*y"); await p.dispatchEvent("#aSf", "input"); await p.waitForTimeout(100);
+  r = await p.evaluate(() => ({ m: $("#aSmsg").textContent, ok: $("#formOk").disabled }));
+  check("a formula with no parameter is refused in words", /no parameter to fit/.test(r.m) && r.ok, JSON.stringify(r));
+  await p.fill("#aSf", "a + b*(x - 1000) + c*(y - 20) + d*(x - 1000)^2"); await p.dispatchEvent("#aSf", "input"); await p.waitForTimeout(100);
+  r = await p.evaluate(() => [...document.querySelectorAll("#aSpar td.pn")].map(t => t.textContent).join());
+  check("a formula's parameters listed as it is typed", r === "a,b,c,d", r);
+  await p.check("#aSk_d"); await p.dispatchEvent("#aSk_d", "change"); await p.waitForTimeout(80);
+  r = await p.evaluate(() => $("#aSmsg").textContent);
+  check("a parameter fixed with no value is refused", /d is fixed: give its value as its start/.test(r), r);
+  await p.fill("#aSs_d", "0.01"); await p.dispatchEvent("#aSs_d", "input"); await p.waitForTimeout(80); await p.click("#formOk"); await p.waitForTimeout(600);
+  r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "surf"); return { err: a.res.err, v: a.res.report && a.res.report.surf.params, names: P().cols.filter(c => c.ana === a.id && c.ak === "name")[0], method: a.res.report && a.res.report.method }; });
+  check("fitted by Levenberg–Marquardt with d held at 0.01", !r.err && r.v && r.v[3] === 0.01 && /Levenberg–Marquardt/.test(r.method), JSON.stringify(r).slice(0, 300));
+}, { name: "4.4" });
+await page(async p => {
+  // A turned Gaussian surface in a matrix (a formula of x and y), fitted from the matrix; its fit and residuals as matrices.
+  await p.evaluate(() => { const m = matNew({ nx: 41, ny: 31, x: { a: 0, b: 10 }, y: { a: -3, b: 3 }, v: null }), s = matSheetNew(m, "Spot", { zname: "Intensity", zunit: "counts", xname: "x", xunit: "mm", yname: "y", yunit: "mm" });
+    const t = 25 * Math.PI / 180, src = `20 + 300*exp(-4*ln(2)*((((x - 5.5)*${Math.cos(t)} + (y - 0.5)*${Math.sin(t)})/3)^2 + (((y - 0.5)*${Math.cos(t)} - (x - 5.5)*${Math.sin(t)})/1.2)^2)) + 0.5*sin(37*x*y)`;
+    const r = matFxParse(src, s.id, P()); s.fx = { src, refs: r.refs }; const e = matFxEval(s, P()); s.z = e.z; MATZ_OK.add(s.z); const b = matBookNew(s); matSaveNew([b], { undo: "a matrix", log: "made a matrix" }); });
+  await p.waitForTimeout(300);
+  await p.evaluate(() => { anaDlg("surf"); }); await p.waitForSelector("#aSmod");
+  await p.selectOption("#aSsrc", "mat"); await p.selectOption("#aSmod", "gauss2d"); await p.waitForTimeout(100);
+  let r = await p.evaluate(() => ({ x: $("#aSx").hidden, m: $("#aSm").hidden, par: [...document.querySelectorAll("#aSpar td.pn")].map(t => t.textContent).join(), ok: $("#formOk").disabled }));
+  check("from a matrix: its list shown, the columns hidden, a Gaussian surface's seven parameters", r.x && !r.m && r.par === "z0,A,xc,yc,wx,wy,theta" && !r.ok, JSON.stringify(r));
+  await p.click("#formOk");
+  await p.waitForFunction(() => { const a = anaList().find(x => x.kind === "surf"); return a && a.res && (a.res.report || a.res.err); }, null, { timeout: 30000 });
+  r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "surf"); return { err: a.res.err, v: a.res.report && a.res.report.surf.params, units: P().cols.filter(c => c.ana === a.id && c.ak === "unit")[0], u: (P().cols.find(c => c.ana === a.id && c.ak === "unit") || {}).txt, log: P().log.slice(-1)[0].text }; });
+  const want = [20, 300, 5.5, 0.5, 3, 1.2, 25];
+  check("the turned Gaussian recovered from the matrix: level, height, centre, widths and turn", !r.err && r.v && want.every((w, i) => Math.abs(r.v[i] - w) <= 0.01 * Math.max(1, Math.abs(w))), JSON.stringify(r.v));
+  check("…its units from the matrix's, the turn in degrees, the log naming a matrix", r.u && r.u[0] === "counts" && r.u[1] === "counts" && r.u[2] === "mm" && r.u[6] === "°" && /of a matrix/.test(r.log), JSON.stringify([r.u, r.log]));
+  await p.evaluate(() => { const a = anaList().find(x => x.kind === "surf"); surfToMatrix(a.id, "res"); }); await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const b = matBooks().slice(-1)[0], s = b.sheets[0], src = matOf(matBooks()[0].sheets[0].id), a = anaList().find(x => x.kind === "surf"), sv = a.res.report.surf, F = surfModel("gauss2d"), xy = matXY(s);
+    let e = 0; for (let k = 0; k < s.z.length; k += 7) { const c = k % s.nx, r0 = (k - c) / s.nx; e = Math.max(e, Math.abs(s.z[k] - (src.z[k] - F.f(xy.X[c], xy.Y[r0], sv.params)))); } return { nx: s.nx, ny: s.ny, e, src: s.fx && s.fx.src.slice(0, 7) }; });
+  check("the residuals as a matrix of the matrix's own size, computed from it: each cell less the fit", r.nx === 41 && r.ny === 31 && r.e < 1e-9 && r.src === "Spot - ", JSON.stringify(r));
+  // The matrix deleted: the analysis says so.
+  await p.evaluate(() => { const p0 = P(); save({ mats: matBooks().slice(1) }, "deleted the matrix"); }); await p.waitForTimeout(600);
+  r = await p.evaluate(() => anaStale(anaList().find(x => x.kind === "surf")));
+  check("its matrix deleted, the analysis says so", /matrix has been deleted/.test(r || ""), r);
+  await p.evaluate(() => undo()); await p.waitForTimeout(400);
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "surf"); return a && { ok: !!(a.res && a.res.report), mat: a.in.mat, stale: anaStale(a) }; });
+  check("after a reload the analysis is there, reading its matrix", r && r.ok && typeof r.mat === "string" && !r.stale, JSON.stringify(r));
+}, { name: "4.4" });
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

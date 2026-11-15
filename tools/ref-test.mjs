@@ -447,6 +447,24 @@ if (fixtures.xps) {
   }
 }
 
+/* ---- Surface fits (FIT2_SPEC 4.4): polynomial surfaces against the same fit in exact rationals (each coefficient's error over
+   its conditioning, as for 4.1's polynomials; the centred coefficients, the fitted values and the errors directly), and six other
+   surfaces against SciPy's least_squares from Kurve's own guess: the same optimum, its parameters and their errors ---- */
+if (fixtures.surf) {
+  for (const c of fixtures.surf.cases) {
+    const [X, Y, Z, id, o] = c.args, w = c.want, F = get("surfFit")(X, Y, Z, id, o || {});
+    if (F.fail) { note(w.nl ? "surfFit.nl" : "surfFit", Infinity, c.name + ": " + F.fail); continue; }
+    const r = F.res, big = Math.max(...w.params.map(Math.abs));
+    // the same optimum: each parameter's difference over its standard error (a round peak's turn is barely determined at all)
+    if (w.nl) { w.params.forEach((v, j) => note("surfFit.nl", Math.abs(r.params[j] - v) / Math.max(w.errors[j], 1e-12 * Math.abs(v), 1e-300), `${c.name} p${j}`));
+      w.errors.forEach((v, j) => note("surfFit.nl.se", relErr(r.errors[j], v), `${c.name} se${j}`)); note("surfFit.nl", relErr(r.stats.rss, w.rss), c.name + " rss"); continue; }
+    w.params.forEach((v, j) => note("surfFit", Math.abs(r.params[j] - v) / Math.max(Math.abs(v), 1e-300) / Math.max(1, w.cond[j]), `${c.name} c${j}`));
+    w.errors.forEach((v, j) => note("surfFit", relErr(r.errors[j], v), `${c.name} se${j}`));
+    w.b.forEach((v, j) => note("surfFit", Math.abs(r.surf.b[j] - v) / Math.max(...w.b.map(Math.abs)), `${c.name} b${j}`));
+    const fb = Math.max(...w.fit.map(Math.abs)); note("surfFit", Math.max(...w.fit.map((v, i) => Math.abs(F.f(X[i], Y[i]) - v) / fb)), c.name + " fitted values");
+  }
+}
+
 /* ---- Robust fits (FIT2_SPEC 4.8): robustFit (through robustPoly) on lines and polynomials against statsmodels' RLM at its fixed point: the
    parameters, their H1 errors, the scale and each point's weight ---- */
 {

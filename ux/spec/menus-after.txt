@@ -223,6 +223,7 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
     Best subsets…  ## new (FIT2_SPEC 4.2)
     Compare models…  ## new (FIT2_SPEC 4.3)
     Compare data sets…  ## new (FIT2_SPEC 4.3); ↓ until there are two columns or more
+    Surface fit…  ## new (FIT2_SPEC 4.4)
     Fit  [Ctrl+Enter]  ## ~ "Run the fit"
     Fit every column…  ## ~ "Fit every spectrum…"; ↓ until there are two columns or more
     Put the fit in the worksheet  ## new (FIT_SPEC slice 6)

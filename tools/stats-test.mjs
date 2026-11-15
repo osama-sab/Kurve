@@ -671,5 +671,25 @@ check("binomial with p = 0 or 1", D.binom.cdf(0, 10, 0) === 1 && D.binom.sf(9, 1
   check("bootstrap and robust fits refuse in words: too few points, a model that is not known", /too few points/.test(bf({ set: { model: "linear" }, X: [1, 2], Y: [1, 2], p: [0, 1] }).fail || "") && /not known/.test(bf({ set: { model: "nope" }, X, Y, p }).fail || ""));
 }
 
+// Surface fits (FIT2_SPEC 4.4): each model recovered from noisy data within four errors; a polynomial's fitted values whatever the
+// origin of x and y; refusals in words.
+{
+  const sf = get("surfFit"), SM = get("SURF_MODELS"), mc = get("mulberry32")(44), gs = () => { let u = 0; for (let k = 0; k < 12; k++) u += mc(); return u - 6; };
+  const grid = (f, sd, x0 = 0, y0 = 0) => { const X = [], Y = [], Z = []; for (let i = 0; i < 25; i++) for (let j = 0; j < 20; j++) { const x = x0 + i * 0.4, y = y0 + j * 0.3; X.push(x); Y.push(y); Z.push(f(x, y) + sd * gs()); } return [X, Y, Z]; };
+  for (let k = 1; k <= 5; k++) { const m = SM["poly" + k], p = m.params.map((_, i) => (i % 3 - 1) * 0.3 / (1 + i)), [X, Y, Z] = grid((x, y) => m.f(x - 5, y - 3, p), 0.01, 0, 0);
+    const F = sf(X, Y, Z.map((z, i) => z), "poly" + k), Fs = sf(X.map(x => x + 1e4), Y.map(y => y - 300), Z, "poly" + k);
+    check(`surface poly${k}: R² near 1 and the fitted values the same whatever the origin of x and y`, !F.fail && !Fs.fail && F.res.stats.R2 > 0.99 && X.every((x, i) => Math.abs(F.f(x, Y[i]) - Fs.f(x + 1e4, Y[i] - 300)) < 1e-8 * (1 + Math.abs(F.f(x, Y[i])))), F.fail || Fs.fail); }
+  for (const [id, truth] of [["gauss2d", [1, 8, 5, 3, 3, 1.5, 35]], ["lor2d", [0.5, 6, 4.5, 2.5, 2.5, 1.2, -20]]]) { const [X, Y, Z] = grid((x, y) => SM[id].f(x, y, truth), 0.05), F = sf(X, Y, Z, id);
+    check(`surface ${id}: every parameter within four errors of the truth`, !F.fail && truth.every((v, i) => Math.abs(F.res.params[i] - v) < 4 * F.res.errors[i] + 1e-9), F.fail || JSON.stringify(F.res.params)); }
+  { const [X, Y, Z] = grid((x, y) => 2 * Math.exp(-0.3 * x) * Math.cos(1.1 * y) + 0.4, 0.01), F = sf(X, Y, Z, "formula", { formula: "a*exp(-b*x)*cos(c*y) + d", start: { a: 1.8, b: 0.25, c: 1, d: 0.3 } });
+    check("surface formula: every parameter within four errors, from the starts given", !F.fail && [2, 0.3, 1.1, 0.4].every((v, i) => Math.abs(F.res.params[i] - v) < 4 * F.res.errors[i]), F.fail || JSON.stringify(F.res.params)); }
+  { const X = [0, 1, 2, 3, 4, 5, 6, 7], Y = X.map(x => 2 * x), Z = X.map(x => x * x), F = sf(X, Y, Z, "poly2");
+    check("surface: points on a line refused in words", /do not spread over enough of the plane/.test(F.fail || ""), F.fail); }
+  check("surface: fewer points than coefficients refused", /Need more than 6 points/.test(sf([0, 1, 2], [0, 1, 0], [1, 2, 3], "poly2").fail || ""));
+  check("surface: every parameter fixed refused", /Every parameter is fixed/.test(sf([0, 1, 2, 3], [0, 1, 0, 1], [1, 2, 3, 4], "poly1", { fix: ["c00", "c10", "c01"], start: { c00: 1, c10: 1, c01: 1 } }).fail || ""));
+  check("surface: a formula with no parameter refused", /no parameter to fit/.test(sf([0, 1, 2, 3], [0, 1, 0, 1], [1, 2, 3, 4], "formula", { formula: "x*y" }).fail || ""));
+  { const [X, Y, Z] = grid((x, y) => 1 + 2 * x - y + 0.01 * x * y, 0.01), F = sf(X, Y, Z, "poly2", { fix: ["c11"], start: { c11: 0.01 } });
+    check("surface: a polynomial with a coefficient fixed is fitted iteratively, the fixed one held", !F.fail && F.res.params[4] === 0.01 && F.res.stats.iter > 0, F.fail); }
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

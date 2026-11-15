@@ -898,6 +898,17 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-15: surface fits (FIT2_SPEC 4.4)
+
+- **A surface fit is an analysis, not a second Fit window.** It reads three columns or a matrix, writes its sheet and follows
+  its data, as the other fits of Analyze › Fit beyond the curve and peak fits do; the Fit window stays about a curve on a graph.
+- **One dialog, its parts shown as they apply.** The columns' lists or the matrix's, and the formula's field, appear when the
+  data's source or the model asks for them; the parameter grid follows the model and the formula as it is typed, so starts,
+  fixes and limits are set where the parameters are named.
+- **A result that can be looked at is offered under the report.** The fitted surface and the residuals become matrices computed
+  by a formula with the numbers written in, each drawn as a map at once, one undo step for both: a surface is understood by
+  seeing it against the data, not from a table of coefficients.
+
 ### 2026-11-15: peak fits, further (FIT2_SPEC 4.7)
 
 - **A baseline that comes from the data is fitted like any other.** Shirley's and Tougaard's backgrounds sit in the same

@@ -1361,6 +1361,30 @@ graph first, with the taskbar kept at the bottom of the screen.
   design, or with `stream`, `lsqStream(n, m, row, yw)` (Givens rotations a row at a time, in doubles, `{b, Vu, rss, rank}`);
   each refused in words (too few distinct X, powers that cannot be told apart, every coefficient fixed). `polyEval(P, x, b)`,
   `polyVar(P, x)`, `polySane(P, k)`.
+  **Surface fits** (FIT2_SPEC 4.4; after `polyLsq`): `SURF_MODELS` (`poly1`…`poly5`: every xⁱyʲ with i + j ≤ k, `surfTerms(k)` by
+  degree, x's power first, parameters `c<i><j>`, `SURF_POLY_NAMES`; `gauss2d` and `lor2d` `[z0, A, xc, yc, wx, wy, theta]` (`SURF_PEAK_P`,
+  `surfTurn`, theta in degrees, FWHM along the turned axes), each `{name, params, mean, dim, f(x, y, p), formula, guess, lo}`;
+  `surfPeakGuess` the moments of the points above half the height), `surfUser(src)` (your formula of x and y: `surfCompile`, y read
+  as `y__` as `matCompile` does; `surfGuessNames` starts from the names), `surfModel(id, formula)`, `surfPoly(X, Y, Z, k)` (x and y
+  centred and scaled by powers of two as `polyLsq`, the columns tⁱuʲ in double-double, `lsqFit`/`lsqCovU`, carried back to powers of
+  x and y by T in double-double with `ddSandwich`; lmFit's fields, `resid`, `surf {c, s, b, k}`; refused in words when the points do
+  not spread over the plane), `surfPolyAt(S, x, y)` (from the centred coefficients), `surfFit(X, Y, Z, id, {formula, start, fix, lo,
+  hi})` (a polynomial with nothing fixed or limited solved, else `lmFit` with X a point's index from the guess or the starts; a
+  width's limit of 0 strict; a peak described one way, the first axis the longer (wx and wy swapped with their errors and
+  covariance and the turn a quarter more, unless a width or the turn is fixed or limited) and theta within ±90°; `{res, m, f(x,
+  y)}` or `{fail}`), `surfFormula(sv)` (the fitted surface as
+  a formula of x and y with its numbers written in: a polynomial about its centre, a peak with its turn's cosine and sine, your
+  formula with each value in place), `SURF_KINDS`, `surfUnit`. Kind `surf` (`typed`, `xs`, `typedWhat(p)`; `p.src` "cols" with `x`,
+  `y`, `z` column ids or "mat" with `mat` a matrix sheet's id (`a.in.mat`: `runAna` reads it as an input `{mat: {nx, ny, xs, ys, z,
+  names, units}}`, `anaSig` its values, `anaStale` and `runAna` say when it has gone, `anaClean`), `model`, `formula`, `start`,
+  `fix`, `lo`, `hi`, `conf`; the sheet each parameter (`name`, `unit`, `v`, `se`, `t`, `p`, `lo`, `hi`), the statistics (`stk`,
+  `stv`) and each point's `ptx` (an X), `pty`, `ptz`, `ptfit`, `ptres`; `report.surf {model, formula, params, poly, ext, names,
+  units, mat}`). Form `ANA_FORMS.surf` (`#aSsrc`, `#aSx`, `#aSy`, `#aSz`, `#aSm`, `#aSmod`, `#aSf`, `#aCf`, `#aSpar` from
+  `surfParHtml(id, formula, p)`: `aSs_<name>` start, `aSk_<name>` fix, `aSl_`/`aSh_` limits; `#aSmsg` its `why`; `inp` puts
+  `in.mat`: `anaDlg` calls a form's `inp(p, inp)`, and a typed kind's `typedWhat` may be a function of its settings). Report actions
+  `surfToMatrix(id, "fit"|"res")` (a matrix computed by `surfFormula`'s text, on the matrix's grid or 101 × 101 over the extent, the
+  residuals `<matrix> - (…)`, and its map: one undo step) and `surfResMap(id)` (from columns: `pty` against `ptx` as a `tmap` curve
+  coloured by `ptres`). Analyze › Fit › Surface fit….
   **Rows of a model and two- and three-way ANOVA** (STATS_SPEC 2.6): `linModel` returns `vars`, `termList` and `spec`;
   `lmCell(M, codes)` (a cell's design row, memoised per model in `LMCELL`), `lmEstOk(M, L)` (estimable: each aliased
   column's entry what the kept ones make it), `lmEst(M, L)` (`{est, v, se}`, b in double-double; `lmContrast` is on it),
@@ -3513,7 +3537,11 @@ best subsets ordered by BIC against bestSubsets, Fit one of them…, 21 columns 
 model offered by kind, four models' χ², AICc and weights against fitByDesc and fitCompare, the nested pair's F test, no
 verdict, the fit on screen offered first, followed after a value typed, data sets with every parameter and the centre alone
 shared, refusals, a reload), and 4.8 (the linear model's bootstrap through its dialog, its errors and intervals on the sheet
-as the kind gives them with that seed, the report's section and method, followed, a reload); `ONLY=2.11` runs one section.
+as the kind gives them with that seed, the report's section and method, followed, a reload), and 4.4 (Analyze › Fit's Surface
+fit…, X, Y and Z from their roles and one column twice refused, a paraboloid's coefficients, errors and units against surfFit,
+the fitted surface as a matrix and its map in one undo step, the residual map, followed, a formula's parameters listed as typed
+and a fixed one refused without a value, a turned Gaussian from a matrix, its residuals as a matrix, the matrix deleted, a
+reload); `ONLY=2.11` runs one section.
 `node tools/stats-test.mjs [path]` checks the distributions' properties (the tails adding up to
 1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
 up to 1 and their tails being their sums, Cauchy's t, closed forms), and the descriptive statistics'
@@ -3542,7 +3570,8 @@ interval's coverage, best subsets against every subset fitted, a column forced i
 test's size over 2 000 data sets, Akaike's weights adding up to 1, nesting by a fixed parameter, two columns from one model told
 apart about 5 % of the time, refusals), and honest intervals' (a robust line not pulled by planted outliers, Huber's efficiency,
 its H1 error against its spread, the bootstrap interval's coverage of a known slope, a seed's numbers again, a linear model's
-bootstrap, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
+bootstrap, refusals), and surface fits' (each model recovered within four errors, a polynomial's fitted values whatever the
+origin of x and y, a coefficient fixed, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
 ANA block.
 `node tools/sheet-drive.mjs [path]` (Playwright; `ONLY=3.1` runs one section) checks the worksheet as a table
 (`ux/spec/SHEET_SPEC.md`, wave 3): 3.1, formulas typed into the F(x)= row (an aggregate, rows of other rows, a running
@@ -5206,7 +5235,10 @@ Next, in order:
    coefficients; statsmodels' RLM agreeing to 1e-11, the bootstrap's coverage by simulation), done 15.11;
    slice 4.7, peak fits further (the EMG and Doniach–Šunjić shapes, your function as a shape, Shirley and Tougaard baselines
    fitted with the peaks; Shirley and Tougaard in Subtract baseline and Fourier self-deconvolution in Data › Transform; NumPy
-   written from the papers agreeing to 1.2e-13), done 15.11
+   written from the papers agreeing to 1.2e-13), done 15.11;
+   slice 4.4, surface fits (a plane, polynomial surfaces to order 5 solved directly, turned Gaussian and Lorentzian surfaces and
+   your formula of x and y, from three columns or a matrix; the fitted surface and the residuals as matrices drawn as maps), done
+   15.11
 
 ## Known gaps
 
@@ -5434,6 +5466,9 @@ Next, in order:
   proposal is a step's plain settings (lists, switches, numbers), not its anchors, reference peaks,
   pairs or code, nor a new step or another order of steps. What was read is kept per
   browser (a comment read on another computer is new here), and judged by the comments' times
+- Surface fits: equal weights only (no weights from a column or a matrix), no X or Y errors, no bootstrap or robust surface;
+  your formula of x and y with lines naming values is written into a matrix's formula on one line; the fitted surface as a
+  matrix is a copy made when asked (a later fit does not change it); no 3D drawing yet (PARITY_SPEC 7.8: a map instead)
 - Shirley and Tougaard: in the peak fit worked out from the points in its range (a fit of every
   column from each column's own; refused when fitting every column together), Tougaard's from at most
   8000 points; the universal and three-parameter cross-sections only; no active Shirley–Proctor, no

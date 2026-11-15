@@ -778,6 +778,18 @@
   "tol": 1e-13,
   "why": "random Lorentzians with and without noise, each apodisation, against numpy.fft (worst seen 7.5e-15)"
  },
+ "surfFit": {
+  "tol": 1e-12,
+  "why": "polynomial surfaces of order 1 to 5 against the same least squares in exact rationals: each coefficient over its conditioning (powers of x and y about their centre carried back), the centred coefficients, the fitted values and the errors"
+ },
+ "surfFit.nl": {
+  "tol": 1e-5,
+  "why": "Gaussian, Lorentzian and formula surfaces against SciPy's least_squares (a peak from Kurve's own guess, a formula from SciPy's starts): the same optimum, each parameter's difference over its standard error (worst seen 1.5e-6, a round peak's turn, whose error is 18°)"
+ },
+ "surfFit.nl.se": {
+  "tol": 1e-5,
+  "why": "their errors, s²(JᵀJ)⁻¹, from Jacobians by central and by SciPy's own differences"
+ },
  "xps.shirley": {
   "tol": 1e-12,
   "why": "Shirley's background by Proctor and Sherwood's iteration against NumPy written from the paper, the same trapezoids and stop, the iterations counted the same"

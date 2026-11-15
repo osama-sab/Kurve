@@ -74,6 +74,8 @@ const BUDGET = {
   "Bootstrap: 1000 resamples of a peak": [1500, "a Gaussian on 300 points fitted again on 1000 resamples (in the worker in the app; FIT2_SPEC 4.8)"],
   "Shirley baseline: two peaks, 2000 points": [250, "two Gaussians on 2000 points fitted with a Shirley baseline, its ends fitted and its iteration run again at each step (FIT2_SPEC 4.7)"],
   "Self-deconvolution: 100 000 points": [160, "Fourier self-deconvolution of 100 000 points, Bessel apodisation, twice narrower (FIT2_SPEC 4.7)"],
+  "Surface: quintic, 100 000 points": [1100, "a polynomial surface of order 5 (21 coefficients) on 100 000 points, solved directly in double-double (FIT2_SPEC 4.4)"],
+  "Surface: Gaussian, 200 × 200 matrix": [800, "a turned Gaussian surface fitted to a matrix of 40 000 cells by Levenberg–Marquardt from its guess (FIT2_SPEC 4.4)"],
   "ANOVA: Tukey, 10 groups": [1100, "Tukey–Kramer's 45 pairs and its quantile (worked out in the worker in the app)"],
 };
 const got = {};
@@ -204,6 +206,11 @@ await withPage(async (p) => {
     const r = lmFit(m.f, X, Y, X.map(() => 1), p0, p0.map(() => false), b); if (!r.stats.converged) throw new Error("not settled"); return performance.now() - a; }));
   got["Self-deconvolution: 100 000 points"] = await best(() => p.evaluate(() => { const n = 100000, y = Array.from({ length: n }, (_, i) => { let v = 0; for (let k = 0; k < 40; k++) { const c = 1000 + k * 2450, d = i - c; v += 1000 * 6 / Math.PI / (d * d + 36); } return v + 1; });
     const a = performance.now(), r = fsd(y, { w: 12, k: 2, apod: "bessel" }); if (r.y.length !== n) throw new Error("short"); return performance.now() - a; }));
+  got["Surface: quintic, 100 000 points"] = await best(() => p.evaluate(() => { const mb = mulberry32(15), n = 100000, X = Array.from({ length: n }, () => mb() * 10), Y = Array.from({ length: n }, () => mb() * 5), Z = X.map((x, i) => Math.sin(x) * Math.cos(Y[i]) + 0.01 * (mb() - 0.5));
+    const a = performance.now(), F = surfFit(X, Y, Z, "poly5"); if (F.fail) throw new Error(F.fail); return performance.now() - a; }));
+  got["Surface: Gaussian, 200 × 200 matrix"] = await best(() => p.evaluate(() => { const mb = mulberry32(16), X = [], Y = [], Z = [], g = SURF_MODELS.gauss2d.f;
+    for (let i = 0; i < 200; i++) for (let j = 0; j < 200; j++) { const x = i * 0.05, y = j * 0.05; X.push(x); Y.push(y); Z.push(g(x, y, [1, 8, 5, 4.5, 3, 1.5, 35]) + 0.05 * (mb() - 0.5)); }
+    const a = performance.now(), F = surfFit(X, Y, Z, "gauss2d"); if (F.fail || !F.res.stats.converged) throw new Error(F.fail || "not settled"); return performance.now() - a; }));
   got["Bootstrap: 1000 resamples of a peak"] = await best(() => p.evaluate(() => { const mb = mulberry32(13), n = 300, X = Array.from({ length: n }, (_, i) => i / 30), Y = X.map(v => 0.2 + 2 * Math.exp(-0.5 * ((v - 5) / 1.2) ** 2) + 0.05 * (mb() - 0.5));
     const F = fitByDesc({ model: "gauss" }, X, Y, null, "none"); const a = performance.now(), r = bootFit({ set: { model: "gauss" }, X, Y, kind: "cases", B: 1000, seed: 1, p: F.res.params }); if (r.fail) throw new Error(r.fail); return performance.now() - a; }));
   got["Correlation: 1M pairs"] = await best(() => p.evaluate(() => { const mb = mulberry32(10), n = 1000000, x = Array.from({ length: n }, () => mb()), rows = x.map((_, i) => i);
