@@ -637,6 +637,11 @@ await page(async p => {
     return {n:yCols().length, imp, save:Math.min(...ms), img:!!document.querySelector("#plot image")}; });
   check("2000 files come in as 2000 columns, drawn as a map", t.n === 2000 && t.img, JSON.stringify(t));
   check("…a save with the map on the desk is quick (it took 560 ms)", t.save < 300, Math.round(t.save) + " ms");
+  // The value under the pointer (the lab day of 15.11: it threw "sorted is not defined" on every move over a map since 06.11).
+  { const pe = []; p.on("pageerror", e => pe.push(e.message)); const b = await p.locator("#plot").boundingBox();
+    for (let k = 1; k < 6; k++) await p.mouse.move(b.x + b.width * k / 6, b.y + b.height * (k % 3 + 1) / 4);
+    const z = await p.evaluate(() => { const g = S.geo, v = g.v; return g.mapZ((v.x0 + v.x1) / 2, (v.y0 + v.y1) / 2); });
+    check("the map's value under the pointer is read, and moving over it raises nothing", typeof z === "number" && Number.isFinite(z) && !pe.length, JSON.stringify({ z, pe: pe.slice(0, 2) })); }
   // The History: a box a lane, the boxes drawn only about the view, and the keys go past them.
   let r = await p.evaluate(() => { openWin("flow",{render:true}); focusWin("flow"); return { all: flowLayout().nodes.length, drawn: document.querySelectorAll("#flowWin .fnode").length }; });
   check("the History draws only the boxes about the view", r.all > 4000 && r.drawn > 4 && r.drawn < 400, JSON.stringify(r));

@@ -14652,8 +14652,8 @@ function buildPlot(W,H,pal,colEx,opt){
     const rows=MR.rows, cols=Math.max(16,Math.min(900,Math.round(pw))), vx0=Math.min(v.x0,v.x1), vx1=Math.max(v.x0,v.x1), kind=cfg.mapKind||"image";
     const along=n=>Array.from({length:n},(_,k)=>{ const t=(k+0.5)/n; return revX?vx1-(vx1-vx0)*t:vx0+(vx1-vx0)*t; });
     const hk=rows.map(r=>objId(r.pts)+"@"+r.v).join(",")+"|"+cols+"|"+vx0+"|"+vx1+"|"+revX+"|"+(logY?1:0);
-    const HM=heatMemo(hk,()=>{ const xs=along(cols), XY=rows.map(r=>{ const q=r.pts.slice().sort((a,b)=>a.x-b.x); return [q.map(z=>z.x),q.map(z=>z.y)]; }), onto=xt=>XY.map(([qx,qy])=>interpOnto(qx,qy,xt)), grid=onto(xs);
-      let lo=Infinity, hi=-Infinity; grid.forEach(g=>g.forEach(z=>{ if(z!=null&&(!logY||z>0)){ if(z<lo) lo=z; if(z>hi) hi=z; } })); return {onto,grid,lo,hi,url:new Map()}; });
+    const HM=heatMemo(hk,()=>{ const xs=along(cols), sorted=rows.map(r=>r.pts.slice().sort((a,b)=>a.x-b.x)), XY=sorted.map(q=>[q.map(z=>z.x),q.map(z=>z.y)]), onto=xt=>XY.map(([qx,qy])=>interpOnto(qx,qy,xt)), grid=onto(xs);
+      let lo=Infinity, hi=-Infinity; grid.forEach(g=>g.forEach(z=>{ if(z!=null&&(!logY||z>0)){ if(z<lo) lo=z; if(z>hi) hi=z; } })); return {onto,grid,lo,hi,sorted,url:new Map()}; });
     const onto=HM.onto, grid=HM.grid, ys=rows.map(r=>r.v);
     let lo=HM.lo, hi=HM.hi;
     if(cfg.ax.y2&&cfg.ax.y2.min!=null&&cfg.ax.y2.min!=="") lo=+cfg.ax.y2.min; if(cfg.ax.y2&&cfg.ax.y2.max!=null&&cfg.ax.y2.max!=="") hi=+cfg.ax.y2.max;
@@ -14676,7 +14676,8 @@ function buildPlot(W,H,pal,colEx,opt){
     geo.heatZ=[lo,hi]; geo.mapLevs=levs.map(back); geo.mapSeries=!!mapS; geo.mapRows=rows.map(r=>({c:r.c,v:r.v})); geo.mapWhy=MR.why||(MR.left?`${MR.left} column${MR.left===1?" has":"s have"} no value of the series variable and ${MR.left===1?"is":"are"} left out.`:"");
     // The value under the pointer: each row's at that X exactly, then between the rows.
     const at1=(q,x)=>{ let a=0, b=q.length-1; if(b<1||x<q[0].x||x>q[b].x) return null; while(b-a>1){ const m=(a+b)>>1; if(q[m].x<=x) a=m; else b=m; } const t=q[b].x>q[a].x?(x-q[a].x)/(q[b].x-q[a].x):0; return q[a].y+(q[b].y-q[a].y)*t; };
-    geo.mapZ=(x,y)=>mapAt(ys,sorted.map(q=>at1(q,x)),y,!mapS);
+    // each row's points in X's order, kept with the map's grid (the readout asks on every move of the pointer)
+    const sorted=HM.sorted; geo.mapZ=(x,y)=>mapAt(ys,sorted.map(q=>at1(q,x)),y,!mapS);
   }
   // Boxes: the quartiles, the median, whiskers to the furthest values within 1.5 IQR (or to the
   // extremes), the rest as outliers, the mean as a diamond. Violins: each spectrum's kernel
