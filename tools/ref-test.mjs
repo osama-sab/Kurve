@@ -429,6 +429,24 @@ const nistRead = (name) => { const txt = readFileSync(join(here, "ref", "nist", 
     note("models", worst, at); }
 }
 
+/* ---- XPS backgrounds and self-deconvolution (FIT2_SPEC 4.7): Shirley's iteration (its iterations counted the same),
+   Tougaard's integral and B, and the self-deconvolution, against NumPy written from the papers; each background over the
+   largest value of the data, the deconvolved series over its largest ---- */
+if (fixtures.xps) {
+  const mx = (a) => a.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+  for (const c of fixtures.xps.cases) {
+    const w = c.want;
+    if (c.fn === "apodWidth") { for (const k of Object.keys(w)) note("xps.fsd", relErr(get("apodWidth")(k), w[k]), "apodWidth " + k); continue; }
+    if (c.fn === "fsd") { const [y, o] = c.args, r = get("fsd")(y, o), big = mx(w.y);
+      note("xps.fsd", Math.max(...w.y.map((v, i) => Math.abs(r.y[i] - v) / big)), c.name); note("xps.fsd", relErr(r.T, w.T), c.name + " T");
+      if (r.clamped !== w.clamped) note("xps.fsd", Infinity, c.name + ": clamped differs"); continue; }
+    const [x, y, o] = c.args, r = get(c.fn)(x, y, o), big = mx(y), key = c.fn === "shirleyBg" ? "xps.shirley" : "xps.tougaard";
+    note(key, Math.max(...w.b.map((v, i) => Math.abs(r.b[i] - v) / big)), c.name);
+    if (c.fn === "shirleyBg" && (r.iter !== w.iter || r.conv !== w.conv)) note(key, Infinity, `${c.name}: ${r.iter} iterations, NumPy ${w.iter}`);
+    if (c.fn === "tougaardBg") { note(key, relErr(r.B, w.B), c.name + " B"); note(key, relErr(r.lev, w.lev), c.name + " level"); }
+  }
+}
+
 /* ---- Robust fits (FIT2_SPEC 4.8): robustFit (through robustPoly) on lines and polynomials against statsmodels' RLM at its fixed point: the
    parameters, their H1 errors, the scale and each point's weight ---- */
 {

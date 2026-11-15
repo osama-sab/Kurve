@@ -898,6 +898,22 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-15: peak fits, further (FIT2_SPEC 4.7)
+
+- **A baseline that comes from the data is fitted like any other.** Shirley's and Tougaard's backgrounds sit in the same
+  baseline list and card as a straight line, their parameters named in words (*At the lowest X*, *At the highest X*, *B*), and
+  Tougaard's settings (the side the losses fall on, C, D) in that card rather than a dialog: they belong to the baseline, and
+  changing one seeds it again on the graph at once.
+- **A setting that cannot be read is refused where it is typed.** A C of 0 puts the field back with a message, as crossed
+  limits do in the parameter grid.
+- **One direction setting, not two shapes.** A Doniach–Šunjić leaning either way is one shape with a signed asymmetry, so a
+  binding-energy axis and a kinetic-energy one use the same line; the sign is in its meaning and its help, not a second entry
+  in the list.
+- **Your function joins the built-ins' list**, marked *(yours)*, once it says which parameters are its centre, area and width:
+  areas, shares and labels then read as for any shape, and a function without them is not offered as one.
+- **A step says what it costs.** The self-deconvolution's note gives the noise's rise, worked out from the filter itself, and
+  warns only when the raised noise is a visible fraction of the bands, since every useful narrowing raises it.
+
 ### 2026-11-15: more models (FIT2_SPEC 4.6)
 
 - **A long list is still one list.** 105 models are found the way 25 were: by kind, by a word of the name, the purpose or a

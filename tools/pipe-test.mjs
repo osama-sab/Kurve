@@ -393,5 +393,42 @@ console.log("Pipeline");
   check("values below the first bin are counted out, with a warning", out.d.y.reduce((a, b) => a + b, 0) === 50 && /50 values fell outside/.test(out.warn[0]));
   let thr = ""; try { run(series([0, 1], [NaN, NaN]), "hist", {}); } catch (e) { thr = e.message; } check("nothing to count is an error in words", /no values/.test(thr), thr);
 }
+/* ---------- XPS backgrounds and self-deconvolution (FIT2_SPEC 4.7) ---------- */
+console.log("XPS backgrounds and self-deconvolution");
+{
+  const r = rng(47), xs = Array.from({ length: 300 }, (_, i) => 280 + i * 0.05), g = (x, c, a, w) => a / (w / 2.3548 * Math.sqrt(2 * Math.PI)) * Math.exp(-((x - c) ** 2) / (2 * (w / 2.3548) ** 2));
+  const P = xs.map((x) => g(x, 285, 4000, 1.1) + g(x, 287, 1500, 1.3)), cum = [0]; for (let i = 1; i < xs.length; i++) cum.push(cum[i - 1] + 0.05 * (P[i] + P[i - 1]) / 2);
+  const BG = cum.map((c) => 300 + 400 * c / cum[cum.length - 1]), y = xs.map((x, i) => P[i] + BG[i] + Math.sqrt(P[i] + BG[i]) * gauss(r));
+  const xps = { x: xs, y, e: null, idx: xs.map((_, i) => i), xn: "Binding energy", xu: "eV", yn: "Counts", yu: "counts" };
+  const sh = run(xps, "bg", { method: "shirley", ends: 3 });
+  check("shirley: the background within a few counts of the one the data were made on", rms(sh.extra.base.map((v, i) => v - BG[i])) < 6, rms(sh.extra.base.map((v, i) => v - BG[i])).toFixed(2));
+  check("shirley: settled, said in its note, no warning", /Shirley's background, \d+ rounds?, from/.test(sh.note) && sh.warn.length === 0, sh.note + " | " + JSON.stringify(sh.warn));
+  const P2 = xs.map((x) => g(x, 285, 4000, 1.1)); let j = xs.map((x, i) => P2[i] + 150);
+  // Tougaard's background on its own data: made by its own integral, B = 2500
+  const tb = (yy) => { const lev = 150, U = new Array(xs.length).fill(0), K = (T) => T / ((1643 + T * T) ** 2); for (let i = 1; i < xs.length; i++) { let s = 0; for (let k = 0; k < i; k++) s += 0.05 * (K(xs[i] - xs[k]) * (yy[k] - lev) + K(xs[i] - xs[k + 1]) * (yy[k + 1] - lev)) / 2; U[i] = s; } return U; };
+  for (let it = 0; it < 40; it++) { const U = tb(j); j = xs.map((x, i) => P2[i] + 150 + 2500 * U[i]); }
+  const tg = run({ ...xps, y: j }, "bg", { method: "tougaard", tdir: "up", tC: 1643, tD: 0, ends: 3 });
+  check("tougaard: B found from the ends, said in its note with its unit", /B = 2\d\d\d(\.\d+)? eV²/.test(tg.note) && tg.warn.length === 0, tg.note);
+  const wrong = run({ ...xps, y: j }, "bg", { method: "tougaard", tdir: "down", tC: 1643, tD: 0, ends: 3 });
+  check("tougaard: the losses on the wrong side are reported", wrong.warn.some((w) => /which side the losses fall on/.test(w)), JSON.stringify(wrong.warn));
+  let thr = ""; try { const xx = Array.from({ length: 8100 }, (_, i) => i); run(series(xx, xx.map(() => 1)), "bg", { method: "tougaard" }); } catch (e) { thr = e.message; }
+  check("tougaard: more than 8000 points refused in words", /8000 at most/.test(thr), thr);
+  // self-deconvolution: two Lorentzians half a width apart, one maximum, come apart; the area kept
+  const xf = Array.from({ length: 512 }, (_, i) => i * 0.5), L = (x, c, w) => (w / 2) / Math.PI / ((x - c) ** 2 + (w / 2) ** 2), yf = xf.map((x) => 1000 * (L(x, 120, 6) + L(x, 123.2, 6)) + 2);
+  const maxima = (a) => a.filter((v, i) => i > 0 && i < a.length - 1 && v > a[i - 1] && v > a[i + 1] && v > 0.2 * Math.max(...a)).length;
+  const fs = run(series(xf, yf), "fsd", { fwhm: 6, k: 2.5, apod: "bessel" }), area = (a) => a.reduce((s, v) => s + v - 2, 0);
+  check("self-deconvolution: a doublet with one maximum comes out as two", maxima(yf) === 1 && maxima(fs.d.y) === 2, [maxima(yf), maxima(fs.d.y)]);
+  check("self-deconvolution: the area kept", Math.abs(area(fs.d.y) - area(yf)) / area(yf) < 2e-3, [area(yf), area(fs.d.y)]);
+  check("self-deconvolution: no warning on data with no noise", fs.warn.length === 0, fs.note + JSON.stringify(fs.warn));
+  const rn = rng(5), yn = yf.map((v) => v + 0.5 * gauss(rn)), noisy = run(series(xf, yn), "fsd", { fwhm: 6, k: 3.5, apod: "triangle" });
+  check("self-deconvolution: noise raised past twice is reported, and said in the note", noisy.warn.some((w) => /The noise is .* times what it was/.test(w)) && /Noise .* times what it was/.test(noisy.note), JSON.stringify(noisy.warn));
+  const cl = run(series(xf, yf), "fsd", { fwhm: 1, k: 4, apod: "bessel" });
+  check("self-deconvolution: past what the spacing holds is reported", cl.warn.some((w) => /cannot be made .* times narrower/.test(w)), JSON.stringify(cl.warn));
+  const xu = xf.map((x, i) => x + (i % 2 ? 0.2 : 0)), un = run(series(xu, yf), "fsd", { fwhm: 6, k: 2, apod: "bessel" });
+  check("self-deconvolution: uneven spacing is reported", un.warn.some((w) => /spacing varies/.test(w)), JSON.stringify(un.warn));
+  let thr2 = ""; try { run(series(xf, yf), "fsd", { fwhm: null }); } catch (e) { thr2 = e.message; }
+  check("self-deconvolution: no width is an error in words", /Set the width taken out/.test(thr2), thr2);
+  check("self-deconvolution: its width suggested from the bands", N.stepParams("fsd", series(xf, yf)).fwhm > 2 && N.stepParams("fsd", series(xf, yf)).fwhm < 12, N.stepParams("fsd", series(xf, yf)).fwhm);
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

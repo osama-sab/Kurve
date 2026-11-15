@@ -131,7 +131,7 @@ await page(async p => {
   check("Analyze measures: Fit, Peaks, Integrate, then kinds", m.an.join("|") === ["Fit", "Peaks…", "Integrate…", "Signal processing", "Calculus", "Statistics", "Spectroscopy", "Results"].join("|"), m.an);
   check("Spectroscopy is a submenu of Analyze", m.sp.join("|") === ["Overview of the spectrum…", "Remove cosmic-ray spikes…", "Name the peaks from known lines…", "X axis", "Corrections", "Detector"].join("|"), m.sp);
   check("Data has Baseline: Subtract baseline… and Linear detrend…", m.base.join("|") === "Subtract baseline…|Linear detrend…", m.base);
-  check("Data's Transform holds what changes values or units", m.tr.length === 6 && m.tr[0] === "Scale and offset Y…", m.tr);
+  check("Data's Transform holds what changes values or units", m.tr.length === 7 && m.tr[0] === "Scale and offset Y…" && m.tr[6] === "Fourier self-deconvolution…", m.tr);
   check("Plot's View has the graph's pointer tools", ["Zoom", "Pan", "Reader", "X–Y lines", "Show all the data"].every(l => m.view.includes(l)), m.view);
   check("Analyze › Fit switches what of the fit is drawn", ["Show residuals", "Confidence band", "Prediction band", "Remove fit"].every(l => m.fit.includes(l)), m.fit);
   check("Publish has every export and the two copies", ["Graph as PDF", "Report", "Copy the graph as a picture", "Copy the results table"].every(l => m.pub.includes(l)), m.pub);
@@ -179,7 +179,8 @@ await page(async p => {
   let r = await first("background");
   check("“background” finds Subtract baseline… first, and Linear detrend…", r.on === "Subtract baseline…" && r.labs.includes("Linear detrend…") && /matches background/.test(r.syn || ""), JSON.stringify(r));
   r = await first("fourier");
-  check("“fourier” finds the FFT filter", r.on === "FFT filter…" && r.where === "Analyze › Signal processing", JSON.stringify(r));
+  // two commands are Fourier's (FIT2_SPEC 4.7): the self-deconvolution by its name, the FFT filter by the word for it
+  check("“fourier” finds the FFT filter beside the self-deconvolution", r.labs.slice(0, 2).includes("FFT filter…") && r.labs.slice(0, 2).includes("Fourier self-deconvolution…"), JSON.stringify(r));
   r = await first("power spectrum");
   check("a phrase people use is kept whole", r.on === "FFT filter…", JSON.stringify(r));
   r = await first("export");

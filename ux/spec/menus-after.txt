@@ -152,6 +152,7 @@ Data
     Scale and offset X…
     Subtract or divide by another column…  ## ~ "Subtract or divide by another spectrum…"
     Average with other columns…  ## ~ "Average with other spectra…"
+    Fourier self-deconvolution…  ## new (FIT2_SPEC 4.7)
   Calibrate  ## new (11.11, the user's request): calibrating where the data are prepared
     Calibrate X on reference peaks…  ## new route: also Analyze › Spectroscopy › X axis
     Energy calibration…  ## new route: also Analyze › Spectroscopy › X axis

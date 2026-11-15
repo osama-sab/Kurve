@@ -395,6 +395,22 @@ members are in).
 
 ## 4.7 Peak fits, further
 
+Done 15.11, as below, with these changes of plan: a Shirley or Tougaard baseline in the peak fit is worked out from the points
+fitted, which the fit keeps (`bx`, `by`), so it draws and refits the same background after a reload and in the worker; Shirley's
+ends are fitted, the background for them found again by the iteration (the last four kept, as the Jacobian's central
+differences alternate two vectors point by point); Tougaard's is y₀ + B·∫K(T)(y − y₀), the counts above the level being fitted,
+so U and the kernel's own integral are worked out once; a fit of every column works each out from its own points, and fitting
+them together refuses it in words. The Doniach–Šunjić's α is signed: above 0 its tail goes to higher x (a binding-energy axis),
+below to lower (kinetic energy); |α| ≤ 0.9, the line continuous through 0 with a kink in its slope there. The self-deconvolution
+says the noise's rise from the filter itself (Parseval: exact for white noise, as measured) and warns once the raised noise
+reaches 2 % of the deconvolved bands' height, not at a fixed factor (every useful narrowing raises white noise more than
+twice); the apodisations' FWHM by 40-point Gauss–Legendre, so it agrees with mpmath to the last digit. The bench: 12 Shirley,
+12 Tougaard and 14 self-deconvolution cases (`fixtures/xps.json`, the references in `tools/ref/xps_ref.py`), worst 0 (bit for
+bit), 4e-16 and 2e-15, and the fuzzer's random ones (Shirley bit for bit too, its rounds counted the same, once the ends' means are added
+in order as the paper's sum is); the self-deconvolution was 1.2e-12 from `numpy.fft` until Kurve's FFT worked out each twiddle
+factor directly instead of by repeated multiplication (its error, a few parts in 10¹⁶ a stage, raised ten thousand times by the
+narrowing), and is 7.5e-15 now, its target 1e-13.
+
 **What.** In the peak fit: the exponentially modified Gaussian and the Doniach–Šunjić as shapes;
 your function as a shape, once its editor marks which parameters are the centre, the area and the
 width; Shirley and Tougaard baselines, fitted with the peaks (Shirley iterated to its fixed point at

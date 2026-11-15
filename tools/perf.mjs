@@ -72,6 +72,8 @@ const BUDGET = {
   "Model list: 105 models opened": [60, "the Fit window's model list opened for the first time, each model's sketch drawn (FIT2_SPEC 4.6)"],
   "Robust fit: a peak on 10 000 points": [500, "a Gaussian on 10 000 points with outliers, reweighted by the bisquare until it settles (FIT2_SPEC 4.8)"],
   "Bootstrap: 1000 resamples of a peak": [1500, "a Gaussian on 300 points fitted again on 1000 resamples (in the worker in the app; FIT2_SPEC 4.8)"],
+  "Shirley baseline: two peaks, 2000 points": [250, "two Gaussians on 2000 points fitted with a Shirley baseline, its ends fitted and its iteration run again at each step (FIT2_SPEC 4.7)"],
+  "Self-deconvolution: 100 000 points": [160, "Fourier self-deconvolution of 100 000 points, Bessel apodisation, twice narrower (FIT2_SPEC 4.7)"],
   "ANOVA: Tukey, 10 groups": [1100, "Tukey–Kramer's 45 pairs and its quantile (worked out in the worker in the app)"],
 };
 const got = {};
@@ -196,6 +198,12 @@ await withPage(async (p) => {
   got["Robust fit: a peak on 10 000 points"] = await best(() => p.evaluate(() => { const mb = mulberry32(12), n = 10000, X = Array.from({ length: n }, (_, i) => i / 1000), f = (x, q) => q[0] + q[1] * Math.exp(-0.5 * ((x - q[2]) / q[3]) ** 2);
     const Y = X.map(v => f(v, [0.2, 2, 5, 1.2]) + 0.02 * (mb() - 0.5)); for (let i = 0; i < n; i += 97) Y[i] += 1; const W = X.map(() => 1), fx = [false, false, false, false];
     const a = performance.now(), R = robustFit(f, X, Y, W, [0.1, 1.8, 4.9, 1], fx, (Wn, p0) => lmFit(f, X, Y, Wn, p0.slice(), fx.slice(), {}), { kind: "bisquare", tol: 1e-9 }); if (R.error || !R.robust.conv) throw new Error(R.error || "not settled"); return performance.now() - a; }));
+  got["Shirley baseline: two peaks, 2000 points"] = await best(() => p.evaluate(() => { const mb = mulberry32(14), n = 2000, X = Array.from({ length: n }, (_, i) => 280 + i * 0.0075), G = (x, c, a, w) => PEAKS.gauss.f(x, [c, a, w]), pk = x => G(x, 285, 3000, 1.2) + G(x, 287.5, 1200, 1.4);
+    const cum = [0]; for (let i = 1; i < n; i++) cum.push(cum[i - 1] + 0.0075 * (pk(X[i]) + pk(X[i - 1])) / 2); const Y = X.map((x, i) => pk(x) + 200 + 500 * cum[i] / cum[n - 1] + 5 * (mb() - 0.5));
+    const a = performance.now(), P0 = dataBasePts(X, Y), spec = { base: "shirley", peaks: [{ type: "gauss" }, { type: "gauss" }], bx: P0.bx, by: P0.by }, m = compileModel(spec, 287.5), sd = dataBaseSeed("shirley", X, Y), p0 = [...sd, 285.2, 2500, 1, 287.3, 1000, 1.2], b = modelBounds(spec, m, p0);
+    const r = lmFit(m.f, X, Y, X.map(() => 1), p0, p0.map(() => false), b); if (!r.stats.converged) throw new Error("not settled"); return performance.now() - a; }));
+  got["Self-deconvolution: 100 000 points"] = await best(() => p.evaluate(() => { const n = 100000, y = Array.from({ length: n }, (_, i) => { let v = 0; for (let k = 0; k < 40; k++) { const c = 1000 + k * 2450, d = i - c; v += 1000 * 6 / Math.PI / (d * d + 36); } return v + 1; });
+    const a = performance.now(), r = fsd(y, { w: 12, k: 2, apod: "bessel" }); if (r.y.length !== n) throw new Error("short"); return performance.now() - a; }));
   got["Bootstrap: 1000 resamples of a peak"] = await best(() => p.evaluate(() => { const mb = mulberry32(13), n = 300, X = Array.from({ length: n }, (_, i) => i / 30), Y = X.map(v => 0.2 + 2 * Math.exp(-0.5 * ((v - 5) / 1.2) ** 2) + 0.05 * (mb() - 0.5));
     const F = fitByDesc({ model: "gauss" }, X, Y, null, "none"); const a = performance.now(), r = bootFit({ set: { model: "gauss" }, X, Y, kind: "cases", B: 1000, seed: 1, p: F.res.params }); if (r.fail) throw new Error(r.fail); return performance.now() - a; }));
   got["Correlation: 1M pairs"] = await best(() => p.evaluate(() => { const mb = mulberry32(10), n = 1000000, x = Array.from({ length: n }, () => mb()), rows = x.map((_, i) => i);

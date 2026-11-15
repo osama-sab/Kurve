@@ -1607,6 +1607,49 @@ with mp.workdps(30):
                 cases.append({"fn": "MODELS." + name + ".f", "args": [x, P], "want": v, "kind": "model"})
 out["models"] = cases
 
+# ---- XPS backgrounds and self-deconvolution (FIT2_SPEC 4.7), written in NumPy from the papers: Shirley's background by
+# Proctor and Sherwood's iteration (Shirley 1972; Anal. Chem. 54, 13, 1982), the trapezoids and the stop as Kurve has them;
+# Tougaard's (Surf. Interface Anal. 11, 453, 1988) with the universal cross-section T/(C + T²)² and the three-parameter
+# T/((C − T²)² + D·T²), B meeting the high-loss end; Fourier self-deconvolution (Kauppinen et al., Appl. Spectrosc. 35, 271,
+# 1981) by numpy.fft, the apodisation's own FWHM found in 30-digit mpmath ----
+from xps_ref import shirley_ref, tougaard_ref, fsd_ref, apod_width
+cases = []
+rng = np.random.default_rng(20261115)
+def voigtish(x, c, a, w, eta=0.3):
+    s = w / 2.3548200450309493
+    return a * ((1 - eta) * np.exp(-(x - c) ** 2 / (2 * s * s)) / (s * math.sqrt(2 * math.pi)) + eta * (w / 2) / math.pi / ((x - c) ** 2 + (w / 2) ** 2))
+def xps_spec(n, x0, x1, peaks, lo, step, desc=False, noise=True):
+    x = np.linspace(x0, x1, n); P = sum(voigtish(x, *p) for p in peaks)
+    cum = np.concatenate([[0.0], np.cumsum((x[1:] - x[:-1]) * (P[1:] + P[:-1]) / 2)]); y = lo + step * cum / cum[-1] + P
+    if noise: y = rng.poisson(y).astype(float)
+    if desc: x, y = x[::-1].copy(), y[::-1].copy()
+    return x, y
+specs = [
+    ("C 1s, rising binding energy", xps_spec(240, 280, 295, [(284.8, 9000, 1.1), (286.4, 2500, 1.3), (288.9, 900, 1.4)], 400, 300)),
+    ("Au 4f doublet, falling binding energy", xps_spec(320, 80, 92, [(84.0, 40000, 0.9), (87.7, 30000, 0.9)], 2000, 3500, desc=True)),
+    ("Kinetic energy, the step on the left", xps_spec(200, 1200, 1215, [(1207, 8000, 1.5)], 1500, -900)),
+    ("No noise", xps_spec(150, 0, 10, [(4, 500, 0.8), (6, 300, 1.0)], 50, 60, noise=False)),
+]
+for nm, (x, y) in specs:
+    for ends in (3, 8):
+        cases.append({"fn": "shirleyBg", "name": f"Shirley: {nm}, ends {ends} %", "args": [x.tolist(), y.tolist(), {"ends": ends}], "want": shirley_ref(x, y, ends)})
+    ya, yb = float(np.min(y)) * 0.98, float(np.max(y[:5] if x[0] > x[-1] else y[-5:])) * 1.01
+    cases.append({"fn": "shirleyBg", "name": f"Shirley: {nm}, ends given", "args": [x.tolist(), y.tolist(), {"ya": ya, "yb": yb, "tol": 1e-13, "iter": 500}], "want": shirley_ref(x, y, ya=ya, yb=yb, tol=1e-13, maxit=500)})
+    for (dr, C, D) in (("up", 1643.0, 0.0), ("down", 1643.0, 0.0), ("up", 551.0, 436.0)):
+        cases.append({"fn": "tougaardBg", "name": f"Tougaard: {nm}, losses {dr}, C {C:g}, D {D:g}", "args": [x.tolist(), y.tolist(), {"dir": dr, "C": C, "D": D, "ends": 3}], "want": tougaard_ref(x, y, dr, C, D, 3)})
+# self-deconvolution: two Lorentzians 14 points apart, 10 wide, with and without noise; each apodisation, narrowed 1.5 to 3 times
+xs = np.arange(512.0)
+lor = lambda c, g: (g / 2) / math.pi / ((xs - c) ** 2 + (g / 2) ** 2)
+yc = 1000 * (lor(200, 10) + 0.6 * lor(214, 10)) + 5 + 0.01 * xs
+yn = yc + rng.normal(0, 0.05, xs.size)
+for apod in ("bessel", "triangle", "happ"):
+    for k in (1.5, 2.0, 3.0):
+        cases.append({"fn": "fsd", "name": f"Self-deconvolution: {apod}, k {k:g}", "args": [yc.tolist(), {"w": 10, "k": k, "apod": apod}], "want": fsd_ref(yc, 10, k, apod)})
+    cases.append({"fn": "fsd", "name": f"Self-deconvolution: {apod}, noisy, k 2", "args": [yn.tolist(), {"w": 10, "k": 2, "apod": apod}], "want": fsd_ref(yn, 10, 2, apod)})
+cases.append({"fn": "fsd", "name": "Self-deconvolution: past the Nyquist frequency (clamped)", "args": [yc.tolist(), {"w": 3, "k": 4, "apod": "bessel"}], "want": fsd_ref(yc, 3, 4, "bessel")})
+cases.append({"fn": "apodWidth", "name": "the apodisations' own FWHM", "args": [], "want": {k: apod_width(k) for k in ("bessel", "triangle", "happ")}})
+out["xps"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

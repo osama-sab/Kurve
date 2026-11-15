@@ -9,6 +9,7 @@ Kurve's numbers checked against numbers Kurve did not compute (`ux/spec/PARITY_S
 | The pure blocks of `kurve.html` under node | `run.mjs` (a module, and a program reading cases on stdin) |
 | Kurve against the fixtures and NIST | `../ref-test.mjs` (node alone; part of the suite) |
 | Random cases against SciPy | `diff-fuzz.py` (needs the Python packages) |
+| Exact references shared by both | `refs.py` (rationals and 40-digit mpmath), `xps_ref.py` (Shirley's and Tougaard's backgrounds and the self-deconvolution in NumPy, written from the papers) |
 
 `node tools/ref-test.mjs` needs nothing but node: the fixtures are committed. It prints each
 function's worst error against its target. A function short of its target fails unless

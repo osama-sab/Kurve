@@ -276,8 +276,14 @@ graph first, with the taskbar kept at the bottom of the screen.
   xn, xu, yn, yu}`: idx is the raw row of each point, and the names and units travel with it
   because some steps change them (Raman shift, unit conversion, normalize). Ops: correct,
   crop, exclude, despike, sort, dedupe, resample; bg (arPLS, ALS, airPLS, ModPoly, I-ModPoly,
-  SNIP, rolling ball, anchors with spline/PCHIP/lines, line, constant; all through one banded
-  `whittaker` solve or `chebFit`); smooth (Savitzky–Golay, moving average, median, Gaussian,
+  SNIP, rolling ball, anchors with spline/PCHIP/lines, line, constant, all through one banded
+  `whittaker` solve or `chebFit`; Shirley and Tougaard for photoelectron spectra (FIT2_SPEC 4.7):
+  `shirleyBg(x, y, {ends, ya, yb, tol, iter})` (Proctor and Sherwood's iteration, the ends the means of
+  the first and last `ends` % of the points unless given, `{b, iter, conv, ya, yb}`) and `tougaardBg(x, y,
+  {dir, C, D, ends, B, lev})` (B·∫K(T)(y − lev) over the low-loss side, `tougaardK` the universal
+  T/(C + T²)² or with D the three-parameter one, `dir` "up" losses towards higher x, B meeting the
+  high-loss end unless given; `{b, B, lev, U, Ux (U in the input's order), xs}`; 8000 points at most);
+  `ends`, `tdir`, `tC`, `tD`); smooth (Savitzky–Golay, moving average, median, Gaussian,
   Whittaker); shift (wavelength to Raman shift), xunit, calib (reference peaks, `CAL_REFS`,
   Raman standards and gamma lines; a shift, a line, or with `order` "2" and three found a
   parabola, `extra.co`, flagged when it turns back), ecal (channels to energy: E = a·ch + b + c·ch² from typed
@@ -289,7 +295,13 @@ graph first, with the taskbar kept at the bottom of the screen.
   both have values, `extra {k, b}`, the note naming them; refused in words when too few points or a
   flat reference), combine (mean, median or sum with
   other spectra, the spread as error bars), deriv, cumint (running integral), fft
-  (zero-phase Butterworth low- or high-pass, `fftFilter`, ends mirrored), log, absorb, km,
+  (zero-phase Butterworth low- or high-pass, `fftFilter`, ends mirrored; `fftInPlace` radix 2 with each twiddle factor worked
+  out directly, kept per size in `FFTW`), fsd (Data › Transform, Fourier
+  self-deconvolution: `fsd(y, {w (points), k, apod})`, the line through the ends off and mirrored as
+  `fftFilter`, times exp(πγ|t|)·D(t/T) with `FSD_APOD` Bessel, triangle, Happ–Genzel, T = `apodWidth(kind)`·k/w
+  (an apodisation's own FWHM, 40-point Gauss–Legendre and bisection, `FSDW`), held at the Nyquist frequency
+  (`clamped`), `gain` the filter's root mean square (white noise's rise, Parseval); the step warns when the
+  raised noise passes 2 % of the bands' height, of uneven or unsorted X and of a clamp), log, absorb, km,
   bose; hist (Analyze › Statistics › Histogram: the values of Y, or of X, counted into `histBins`'
   bins, as counts, probability, percent or density, cumulative or not; X the bin centres named
   after the values (`d.yn0`, the source's value name, carried into a derived spectrum's input
@@ -339,10 +351,26 @@ graph first, with the taskbar kept at the bottom of the screen.
   either may rightly go to zero. **Fano** (Breit–Wigner–Fano) is `[xc, A, w, iq]` with iq =
   1/q in [-0.9, 0.9]; its area is not finite, so A is the area of its Lorentzian limit
   (`fitWarnings` says so), `height` is the true maximum at `top`, and `fwhm` the true width,
-  Γ(1+iq²)/|1-iq²|. **Ties** (`peakLinks(peaks, m)`, `applyPeakLinks`, `linkResult`): a peak's
+  Γ(1+iq²)/|1-iq²|. **EMG** `[xc, A, w, tau]` (a Gaussian of FWHM w with a tail of time constant τ towards
+  higher x, through `emgF` and `erfcx`; τ = 0 the Gaussian) and **Doniach–Šunjić** `ds` `[xc, A, w, alpha]`
+  (a Lorentzian of FWHM w, asymmetric by |α| ≤ 0.9 by Γ(1 − α) cos(πα/2 + (1 − α) arctan(ε/γ))/(ε² + γ²)^((1 −
+  α)/2); α above 0 tails towards higher x (ε = xc − x), below towards lower; `areaNote`, A its Lorentzian
+  limit's, said by `fitWarnings` (`ds`)) have top, height and FWHM measured from the line (`peakTopOf(def, p, a,
+  b)`: 41 points then golden sections; `peakFwhmOf(def, p, top, s)`). **Your function as a shape**:
+  `peakOfUser(fn)` (a function of yours with `fn.peak {xc, A, w}`, the roles' parameter names: a PEAKS-like
+  def with params `["xc", "A", "w", ...the rest]`, its top, height and FWHM measured, `bounds`/`init` from
+  `fn.params`, `wSeed` from its own FWHM at w = 1; null without three distinct roles; memoised in `PUSER`), and
+  `peakDef(pk)` the one door to a peak's shape (`PEAKS[pk.type]`, else a carried `pk.fn`, else Gaussian); a
+  spec's peak with a function is `{type: "u:<id>", fn}`. **Ties** (`peakLinks(peaks, m)`, `applyPeakLinks`, `linkResult`): a peak's
   `tie[nm] = {to: peakId, mul, add}` makes that parameter `mul·(the other's) + add`; ties to a
   peak that is itself tied are not followed, so they never chain or loop. `BASELINES`
-  (none/constant/line/quadratic/cubic, evaluated in `x - x0`),
+  (none/constant/line/quadratic/cubic, evaluated in `x - x0`; `shirley` `["ya", "yb"]` and `tougaard` `["y0",
+  "B"]`, `data:true`, `lname` the name mid-sentence, `baseLabel(k)`: worked out from the points fitted, which
+  the spec carries as `bx`, `by` (rising in X) with `bopt {dir, C, D}`, by `dataBase(kind, spec)`: Shirley the
+  fixed point of `shirleyBg` for the fitted ends, the last four kept per points (`SHM`); Tougaard y0 + B·(U −
+  y0·K), U and K the integrals of the counts and of 1 with lev 0, worked out once (`TGM`); straight lines between
+  the points, level past the ends; null without three points or past 8000 for Tougaard; `dataBasePts(X, Y)`,
+  `dataBaseSeed(kind, X, Y, bopt)` the ends' means or Tougaard's lev and B),
   `compileModel` which flattens a `{base, peaks[]}` spec into one parameter vector,
   `modelBounds`, `sgCoeffs`/`sgApply` (Savitzky–Golay, needs even spacing), `findPeaks`
   (`max`, or `deriv2` for shoulders that never form a maximum), `seedPeak`, `noiseSigma` and
@@ -513,7 +541,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   panel's model (falling back to the fit's copy, then to a Gaussian). `editUserFn(id, {from})`
   is the editor (formula, live check with the line of a mistake, a preview of the function at
   its starts over the data, start/limits/unit per parameter), `deleteUserFn`, `adoptLibFn`.
-  The report's Method and the CSV state the formula and its limits.
+  The report's Method and the CSV state the formula and its limits. A function with `peak {xc, A, w}`
+  (the editor's *A peak shape too*, `#fbPk` with `#fbPkX`, `#fbPkA`, `#fbPkW` guessed from the names, one
+  parameter in two roles refused; FIT2_SPEC 4.7) is a peak shape too: `peakShapeOpts()`/`shapeOptsHtml(cur)`
+  list it as `u:<id>`, *(yours)*; `newPeak(type)` makes a draft's peak, carrying a copy of the function
+  (`{type, fn}`), `shapeName(t)`; `runPeakFit`, the draft from a fit and `batchFoundSeed` carry `fn`; the
+  report's Method states the shape's formula and roles.
   A parameter that stopped at a limit (`atBound`) has no meaningful standard error: tables
   show "at its limit" instead of ±, and derived peak quantities (height, FWHM) leave it out of
   the delta method. A tied parameter shows its value with the carried error and what it follows.
@@ -2088,7 +2121,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   `toolItem` returns its `op`), checked, enabled}`; `cmdkTerms(q)` the words typed, a phrase of
   `CMDK_SYN` (`CMDK_PHRASES`) kept whole; `cmdkScore(it, words, spare)` (the name's start 12, a
   word's start 9, anywhere 6, a word for it in the name 8 (`cmdkSynOf`, the groups of
-  `CMDK_SYN`), the menu's words or a word for them 3, the step's search words 2, the tooltip 1; a
+  `CMDK_SYN`; 9 when its search words have the word typed), the menu's words or a word for them 3, the step's search words 2, the tooltip 1; a
   word of one or two letters only at a word's start; +1 enabled, +2 a step; `spare` words may be
   missing, 1 when nothing has them all); `renderCmdk` (Recent from `kurve.cmdk`, `cmdkRecent`/
   `cmdkRemember`, else six to start; else the best 40 grouped by menu in the order of each
@@ -2514,7 +2547,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   consistent (kind `s` keeps the height, so the top stays and the tails change) and respects
   fixed parameters; `handleTip` adds the shape's value. `fitAt` equals the fit's `at` while the draft is exactly that
   fit, which is how the overlay knows not to draw a duplicate; every edit to the draft clears
-  it. `recenterBase` re-expresses the baseline coefficients when the view (and so `x0`) moves.
+  it. `recenterBase` re-expresses the baseline coefficients when the view (and so `x0`) moves (not a
+  Shirley or Tougaard one). A Shirley or Tougaard baseline (FIT2_SPEC 4.7): `pdraftModel` compiles
+  `withDataBase(spec, fitPoints(), draftBopt(d))` (the points by `dbPts`, memoised per list; `d.bopt {dir, C, D}`,
+  its side from the X name: kinetic is "down"); `seedBaseline` and `pfBaseline` take `dataBaseSeed`; the card
+  shows its parameters in words (`BASE_LABEL` ya, yb, B), Tougaard's `#pbDir`, `#pbC`, `#pbD` (`data-bopt`, `TG_DIRS`;
+  a change re-seeds, one undo step; C above 0, D 0 or above, else refused) and, without the points, a note;
+  `runPeakFit` stores `bx`, `by`, `bopt` in the spec (refused in words without the points); `fitOne` works it out
+  from its own points and seeds its ends from them; `fitTogetherPrep` refuses it; `methodLines` says how it was
+  found.
   `setPeakShape` changes a shape keeping centre, width and height. Every peak has a stable `id`
   (assigned in `pdraftModel`, which also writes tied values into `init`); ties are set from
   the chain-link button beside a parameter (`tieMenuItems`, `setTie`, `askTie` for a ratio or a
@@ -3417,7 +3458,10 @@ distribution over binned counts with its mean, X past 1 refused in words, units 
 directly, far from zero, with limits) and 4.8 (Robust offered and chosen, a bisquare line against robustFit, the outliers'
 weights drawn as the residuals' size, Results' section and note, the statistics and the Method; Bootstrap intervals ticked,
 worked out in the worker as bootFit gives them, Results' section, Another seed with Stop, undo, a fit of every column robust,
-a reload, a refusal, Huber on a decay; a robust peak fit and its bootstrap of the residuals).
+a reload, a refusal, Huber on a decay; a robust peak fit and its bootstrap of the residuals) and 4.7 (the baseline list's
+Shirley and Tougaard and the shapes' EMG and Doniach–Šunjić, a Shirley baseline seeded, fitted with two peaks, named in the
+Method and kept across a reload, Tougaard's settings in its card with C refused at 0, a global fit refused, both shapes fitted,
+your Gaussian as a shape through the editor giving the built-in's numbers, the steps in Data › Transform and the History).
 **The bench** (PARITY_SPEC wave 0; `tools/ref/README.md`): `node tools/ref-test.mjs [path]` checks
 Kurve's numerics against `tools/ref/fixtures/*.json` (40-digit mpmath for special functions and
 tails, SciPy, NumPy and statsmodels for procedures) and NIST's certified data (`tools/ref/nist/`: the
@@ -4534,6 +4578,13 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **JSON writes a large double as an integer that is not the double.** `JSON.stringify(3.391541843989872e19)` is
   "33915418439898720000", which Python reads as an exact integer 1792 away: an error of 5e-17 that was not there. Write
   numbers for an exact comparison with `toExponential(17)`.
+- **A recurrence drifts, and a filter can raise the drift.** Kurve's FFT made its twiddle factors by multiplying by one step's
+  rotation again and again: a few parts in 10¹⁶ a stage, invisible in a low-pass filter, but the self-deconvolution raises
+  high frequencies ten thousand times, and the fuzzer found it 1.2e-12 from `numpy.fft`. Each factor is worked out directly now
+  (7.5e-15). Judge a numerical shortcut by what is done with its result.
+- **A test of the blocks alone cannot see the page's names.** A baseline's label was first `baseName`, which the import
+  already had for a file's name: fit-test and pipe-test, which load the pure blocks only, passed, and the page did not load at
+  all. Run the duplicate checks (functions, then `const` and `let`) before the first drive, as the rule says.
 - **A name is taken, once more.** The linear model was first written as `lmFit`, which is the Levenberg–Marquardt fitter;
   the later declaration would have replaced it everywhere. It is `linModel`.
 - **A pure block calls only what is in the blocks.** The analyses formatted a factor's levels with `fmt`, which lived outside
@@ -5152,7 +5203,10 @@ Next, in order:
    to 4e-14, found by Origin's names), done 15.11;
    slice 4.8, honest intervals (robust curve and peak fits by Huber's or the bisquare's weights, their weights drawn as the
    residuals' size; bootstrap intervals of cases or residuals in the worker, beside the curvature's, and of a linear model's
-   coefficients; statsmodels' RLM agreeing to 1e-11, the bootstrap's coverage by simulation), done 15.11
+   coefficients; statsmodels' RLM agreeing to 1e-11, the bootstrap's coverage by simulation), done 15.11;
+   slice 4.7, peak fits further (the EMG and Doniach–Šunjić shapes, your function as a shape, Shirley and Tougaard baselines
+   fitted with the peaks; Shirley and Tougaard in Subtract baseline and Fourier self-deconvolution in Data › Transform; NumPy
+   written from the papers agreeing to 1.2e-13), done 15.11
 
 ## Known gaps
 
@@ -5372,13 +5426,20 @@ Next, in order:
   Pearson VII's m, a Fano's 1/q), by the pointer or the keys; a Voigt's two widths keep their
   ratio when its width is dragged, and their share is typed
 - Ties are between the same parameter of two peaks; there are no free-form constraints between
-  different parameters, and a user's function cannot be a peak shape in a peak fit
+  different parameters. A function of yours as a peak shape has no handle for its own extra
+  parameters on the graph, and is not offered by the peak finder's seeding (it seeds the shape
+  chosen in the list)
 - Comments are plain text; a mention is said by a message while the project is open (no e-mail or
   notification outside the page), and only people the project knows by name can be mentioned. A
   proposal is a step's plain settings (lists, switches, numbers), not its anchors, reference peaks,
   pairs or code, nor a new step or another order of steps. What was read is kept per
   browser (a comment read on another computer is new here), and judged by the comments' times
-- No Shirley or Tougaard background (XPS); no Fourier self-deconvolution
+- Shirley and Tougaard: in the peak fit worked out from the points in its range (a fit of every
+  column from each column's own; refused when fitting every column together), Tougaard's from at most
+  8000 points; the universal and three-parameter cross-sections only; no active Shirley–Proctor, no
+  Shirley with a slope; a Doniach–Šunjić has a kink in its slope at α = 0, and an EMG's tail goes to
+  higher x only. The self-deconvolution assumes Lorentzian bands and even spacing; no maximum entropy
+  or Fourier deconvolution by a measured line shape
 - The worksheet fuzzer's seed 1 (`tools/sheet-fuzz.mjs kurve.html 1`, step 61, on the version before text
   cells too): after an undo, a click and a value typed and held past the delayed save, the view scrolls
   back towards the undone cell and Enter enters the value without moving; found 07.11, not yet fixed

@@ -1024,6 +1024,27 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 4, slice 4.7: peak fits, further (2026-11-15)
+
+- **Two shapes**: the exponentially modified Gaussian (a tail towards higher x, by the scaled complementary error function so a
+  long one does not overflow) and the Doniach–Šunjić line of a metal's core level (α above 0 tails to higher x, below to lower),
+  each with its top, height and FWHM measured from the line; a Doniach–Šunjić's area is its Lorentzian limit's, and the fit
+  says so.
+- **Your function as a shape**: the function editor's *A peak shape too*, with its centre, area and width named (guessed from
+  the names, one parameter in two roles refused), offers it among the peak fit's shapes as *(yours)*; the fit keeps a copy.
+- **Shirley and Tougaard baselines fitted with the peaks**: Shirley's two ends fitted, the background between them Shirley's
+  iteration on the data; Tougaard's level and B fitted with the universal or three-parameter cross-section, its C, D and the
+  side the losses fall on in the baseline's card; the report's Method says how each was found and on how many points.
+- **In the processing**: Shirley and Tougaard as methods of Subtract baseline (the number of rounds, B with its unit, the
+  losses on the wrong side warned of); Fourier self-deconvolution in Data › Transform (width, narrowing, Bessel, triangle or
+  Happ–Genzel apodisation; its width suggested from the bands; the noise's rise said, and warned of past 2 % of the bands).
+- **Checked**: Shirley's iteration, Tougaard's integral and the self-deconvolution against NumPy written from the papers (38
+  cases and the fuzzer's random ones, worst 7.5e-15, Shirley bit for bit; Kurve's FFT now works out each twiddle factor
+  directly, which took the self-deconvolution from 1.2e-12 to that); each shape integrating to its area with its stated FWHM, a doublet of each recovered, your Gaussian as a
+  shape giving the built-in's numbers to 1e-7, Shirley and Tougaard baselines on data made from them recovered to 1e-6; the
+  steps' checks; in the browser, each shape picked, a Shirley baseline fitted with two peaks and kept across a reload, Tougaard's
+  settings, your function as a shape, the steps in the History.
+
 ## Closing the gap with Origin, wave 4, slice 4.6: more models (2026-11-15)
 
 - **From 25 models to 105**, in eight kinds (Physics and Distributions new): a line through the origin, two segments with

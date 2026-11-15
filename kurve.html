@@ -847,7 +847,8 @@ details.grp>.gb{padding:var(--sp-1) var(--sp-4) var(--sp-4)}
 /* Fit control and the iterations of a curve fit */
 details.fctl,details.flog{margin:var(--sp-5) 0}
 .fctl .frow{grid-template-columns:128px minmax(0,1fr);margin-bottom:var(--sp-4)}
-.fboot select{justify-self:start}.fbootc{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-4)}.fbootc input{width:5.5em;font-family:var(--mono)}.fbootc input.seed{width:7em}.fbootc>label{color:var(--ink-2)}
+.fboot select{justify-self:start}.fbpk{display:flex;flex-direction:column;gap:var(--sp-2);margin:var(--sp-3) 0}.fbpkc{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-4)}.fbpkc select{width:auto}.fbpkc>label{color:var(--ink-2)}
+.fbootc{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-4)}.fbootc input{width:5.5em;font-family:var(--mono)}.fbootc input.seed{width:7em}.fbootc>label{color:var(--ink-2)}
 .bootrun{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap}.bootbar{flex:1 1 120px;min-width:80px;height:6px;border-radius:var(--r-s);background:var(--panel-3);border:1px solid var(--rule);overflow:hidden}.bootbar>span{display:block;height:100%;background:var(--ctl-on)}
 .fctl .frow>input[type=text]{max-width:160px;font-family:var(--mono);text-align:right}
 .fctl .fcm{color:var(--ink)}
@@ -3654,6 +3655,37 @@ function faddeeva(x,y){
   return [2*(pr*d2r+pi*d2i)/d2+k*cr, 2*(pi*d2r-pr*d2i)/d2-k*ci];
 }
 const faddeevaRe=(x,y)=>faddeeva(x,y)[0];
+/* A shape's top and FWHM found numerically (the EMG's, the Doniach–Šunjić's, a function of yours): the top by a grid of 41
+   points between a and b then golden sections; each half-maximum by bisection outward from the top, the step doubled until the
+   curve falls below half (at most 60 doublings of s). Smooth to about 1e-12 of the width, so the delta method can read them. */
+function peakTopOf(def,p,a,b){ if(!(b>a)) return p[0]; let bi=0, bv=-Infinity; const n=41, h=(b-a)/(n-1);
+  for(let i=0;i<n;i++){ const v=Math.abs(def.f(a+i*h,p)); if(v>bv){ bv=v; bi=i; } }
+  let lo=a+Math.max(0,bi-1)*h, hi=a+Math.min(n-1,bi+1)*h; const r=(Math.sqrt(5)-1)/2, g=x=>Math.abs(def.f(x,p));
+  let c=hi-r*(hi-lo), d=lo+r*(hi-lo), fc=g(c), fd=g(d);
+  for(let i=0;i<80&&hi-lo>1e-14*(Math.abs(lo)+Math.abs(hi)+1e-300);i++){ if(fc>fd){ hi=d; d=c; fd=fc; c=hi-r*(hi-lo); fc=g(c); } else { lo=c; c=d; fc=fd; d=lo+r*(hi-lo); fd=g(d); } }
+  return (lo+hi)/2; }
+function peakFwhmOf(def,p,top,s){ const H=Math.abs(def.f(top,p)), half=H/2, g=x=>Math.abs(def.f(x,p)); if(!(H>0)||!(s>0)) return 0;
+  const side=dir=>{ let st=s/4, k=0; while(g(top+dir*st)>half&&k<60){ st*=2; k++; } let lo=0, hi=st; for(let i=0;i<70;i++){ const m=(lo+hi)/2; if(g(top+dir*m)>half) lo=m; else hi=m; } return (lo+hi)/2; };
+  return side(-1)+side(1); }
+/* A function of yours as a peak shape (FIT2_SPEC 4.7): its editor marks which parameters are the centre, the area and the
+   width (fn.peak {xc, A, w}); the shape's parameters are those three, named xc, A and w so ties and sharing work as for any
+   shape, then the rest in the function's order. Its top and FWHM numerically. Kept per function's text and roles. */
+const PUSER=new Map();
+function peakOfUser(fn){ if(!fn||!fn.peak||typeof fn.expr!=="string") return null; const key=fn.expr+"\u0000"+JSON.stringify(fn.peak); if(PUSER.has(key)) return PUSER.get(key);
+  let c; try{ c=compileExpr(fn.expr); }catch(e){ return null; } const roles=[fn.peak.xc,fn.peak.A,fn.peak.w]; if(roles.some(r=>!c.params.includes(r))||new Set(roles).size<3) return null;
+  const rest=c.params.filter(n=>!roles.includes(n)), names=["xc","A","w"].concat(rest), at=c.params.map(n=>{ const i=roles.indexOf(n); return i>=0?i:3+rest.indexOf(n); }), q=new Array(c.params.length);
+  const byName=Object.fromEntries((fn.params||[]).map(o=>[o.n,o])), lim=n=>{ const o=byName[n]||{}; return [Number.isFinite(o.lo)?o.lo:-Infinity,Number.isFinite(o.hi)?o.hi:Infinity]; };
+  const def={name:fn.name||"Your function", short:fn.name||"your function", params:names, user:true, fnId:fn.id||null,
+    meaning:["centre","area","width"].concat(rest.map(n=>(byName[n]&&byName[n].mean)||n)),
+    f(x,p){ for(let i=0;i<at.length;i++) q[i]=p[at[i]]; const v=c.f(x,q); return Number.isFinite(v)?v:0; },
+    top:p=>peakTopOf(def,p,p[0]-2*Math.abs(p[2]),p[0]+2*Math.abs(p[2])), height:p=>def.f(def.top(p),p), fwhm:p=>peakFwhmOf(def,p,def.top(p),Math.abs(p[2])),
+    bounds:Object.fromEntries(rest.map(n=>[n,lim(n)]).filter(([,b])=>Number.isFinite(b[0])||Number.isFinite(b[1]))),
+    init:Object.fromEntries(rest.map(n=>[n,byName[n]&&Number.isFinite(byName[n].init)?byName[n].init:1])), labels:{xc:roles[0],A:roles[1],w:roles[2]}};
+  // its width seeded as the measured FWHM over its own FWHM at w = 1 (a width that is a standard deviation is not a FWHM)
+  { const r=def.fwhm([0,1,1].concat(rest.map(n=>def.init[n]))); def.wSeed={w:r>0&&Number.isFinite(r)?1/r:1}; }
+  if(PUSER.size>64) PUSER.clear(); PUSER.set(key,def); return def; }
+// A peak of a spec or draft: its shape (a built-in, or a function of yours carried with the peak as fn), a Gaussian when unknown.
+function peakDef(pk){ if(!pk) return PEAKS.gauss; return PEAKS[pk.type]||(pk.fn?peakOfUser(pk.fn):null)||PEAKS.gauss; }
 const PEAKS={
   gauss:{name:"Gaussian", params:["xc","A","w"], meaning:["centre","area","FWHM"],
     f(x,p){ const s=p[2]/FWHM_SIG; if(!(s>0)) return 0; const z=(x-p[0])/s; return p[1]/(s*SQ2PI_)*Math.exp(-0.5*z*z); },
@@ -3710,7 +3742,25 @@ const PEAKS={
     top:p=>p[0]+p[3]*Math.abs(p[2])/2,
     fwhm:p=>{ const a=p[3]; return Math.abs(p[2])*(1+a*a)/Math.abs(1-a*a); },
     bounds:{iq:[-0.9,0.9]}, init:{iq:-0.1}, areaNote:true, short:"Fano",
-    labels:{xc:"Resonance",A:"Area (Lorentzian limit)",w:"Width Γ"}}
+    labels:{xc:"Resonance",A:"Area (Lorentzian limit)",w:"Width Γ"}},
+  // The exponentially modified Gaussian (FIT2_SPEC 4.7): a Gaussian of FWHM w convolved with an exponential tail of time
+  // constant tau, by erfcx so a long tail does not overflow; a Gaussian when tau is 0. Its top and FWHM are found numerically.
+  emg:{name:"Exponentially modified Gaussian", short:"EMG", params:["xc","A","w","tau"], meaning:["the Gaussian's centre","area","the Gaussian's FWHM","the tail's time constant"],
+    f(x,p){ const s=Math.abs(p[2])/FWHM_SIG, t=p[3]; if(!(s>0)) return 0; if(!(t>s*1e-6)) return PEAKS.gauss.f(x,p); return emgF(x,0,p[1],p[0],s,t); },
+    top:p=>peakTopOf(PEAKS.emg,p,p[0]-Math.abs(p[2]),p[0]+Math.abs(p[2])+5*Math.max(0,p[3])),
+    height:p=>PEAKS.emg.f(PEAKS.emg.top(p),p),
+    fwhm:p=>peakFwhmOf(PEAKS.emg,p,PEAKS.emg.top(p),Math.abs(p[2])+Math.max(0,p[3])),
+    bounds:{tau:[0,Infinity]}, init:{tau:null}, wSeed:{w:0.8}, labels:{xc:"Gaussian centre",w:"Gaussian FWHM",tau:"Tail τ"}},
+  // Doniach and Šunjić's line of a metal's core level: a Lorentzian of FWHM w made asymmetric by alpha (0 the Lorentzian).
+  // Its tail falls as a power, so its area is not finite: A is the area of its Lorentzian limit, as a Fano's is.
+  // α above 0 leans the tail towards higher x (a binding-energy axis), below 0 towards lower x (kinetic energy); |α| is the asymmetry
+  ds:{name:"Doniach–Šunjić", short:"Doniach–Šunjić", params:["xc","A","w","alpha"], meaning:["centre","area of its Lorentzian limit","the Lorentzian's FWHM","asymmetry α (above 0 its tail towards higher x, below towards lower)"],
+    f(x,p){ const g=Math.abs(p[2])/2, a=Math.min(Math.abs(p[3]),0.95); if(!(g>0)||!Number.isFinite(a)) return 0; const d=p[3]>=0?p[0]-x:x-p[0];
+      return p[1]/Math.PI*Math.exp(lgam(1-a))*Math.cos(Math.PI*a/2+(1-a)*Math.atan(d/g))/Math.pow(d*d+g*g,(1-a)/2); },
+    top:p=>peakTopOf(PEAKS.ds,p,p[0]-2*Math.abs(p[2]),p[0]+2*Math.abs(p[2])),
+    height:p=>PEAKS.ds.f(PEAKS.ds.top(p),p),
+    fwhm:p=>peakFwhmOf(PEAKS.ds,p,PEAKS.ds.top(p),Math.abs(p[2])),
+    bounds:{alpha:[-0.9,0.9]}, init:{alpha:0.1}, areaNote:true, labels:{alpha:"Asymmetry α"}}
 };
 /* ---- Tied parameters ---------------------------------------------------------
    A peak's parameter can follow the same parameter of another peak: equal (one
@@ -3723,9 +3773,9 @@ const PEAKS={
    that parameter is not followed, so ties never chain or loop. */
 function peakLinks(peaks,m){
   const idx={}, out=[]; (peaks||[]).forEach((pk,k)=>{ if(pk&&pk.id) idx[pk.id]=k; });
-  (peaks||[]).forEach((pk,k)=>{ const def=PEAKS[pk.type]||PEAKS.gauss;
+  (peaks||[]).forEach((pk,k)=>{ const def=peakDef(pk);
     Object.keys(pk.tie||{}).forEach(nm=>{ const t=pk.tie[nm], j=t?idx[t.to]:undefined; if(j==null||j===k) return;
-      const pj=peaks[j], dj=PEAKS[pj.type]||PEAKS.gauss, i1=def.params.indexOf(nm), i2=dj.params.indexOf(nm);
+      const pj=peaks[j], dj=peakDef(pj), i1=def.params.indexOf(nm), i2=dj.params.indexOf(nm);
       if(i1<0||i2<0||(pj.tie&&pj.tie[nm]&&idx[pj.tie[nm].to]!=null)) return;
       out.push({k,j,nm,gi:m.offsets[k]+i1,gj:m.offsets[j]+i2,mul:Number.isFinite(t.mul)&&t.mul!==0?t.mul:1,add:Number.isFinite(t.add)?t.add:0}); }); });
   return out;
@@ -3749,40 +3799,72 @@ const BASELINES={
   const:{name:"Constant", params:["y0"], f:(u,p)=>p[0]},
   linear:{name:"Straight line", params:["y0","slope"], f:(u,p)=>p[0]+p[1]*u},
   quad:{name:"Quadratic", params:["y0","b1","b2"], f:(u,p)=>p[0]+u*(p[1]+u*p[2])},
-  cubic:{name:"Cubic", params:["y0","b1","b2","b3"], f:(u,p)=>p[0]+u*(p[1]+u*(p[2]+u*p[3]))}
+  cubic:{name:"Cubic", params:["y0","b1","b2","b3"], f:(u,p)=>p[0]+u*(p[1]+u*(p[2]+u*p[3]))},
+  shirley:{name:"Shirley (XPS)", lname:"Shirley", params:["ya","yb"], data:true, f:()=>0},
+  tougaard:{name:"Tougaard (XPS)", lname:"Tougaard", params:["y0","B"], data:true, f:()=>0}
 };
+const baseLabel=k=>{ const b=BASELINES[k]||BASELINES.none; return b.lname||b.name.toLowerCase(); };
+/* Shirley and Tougaard as a peak fit's baseline (FIT2_SPEC 4.7), worked out from the points fitted, which the spec carries
+   (bx, by, rising in X), so a stored fit draws and refits the same background. Shirley's two ends (ya at the lowest X, yb at
+   the highest) are fitted, the background for them being Shirley's fixed point on the data (shirleyBg with the ends given),
+   found again whenever they change; Tougaard's level y0 and B are fitted, its integral U of the measured counts with the
+   universal cross-section (C, D and the side the losses fall on from bopt) worked out once, of the counts above y0. Between the points the background
+   is joined by straight lines, held level past the ends. null without the points. */
+const SHM=new WeakMap(), TGM=new WeakMap();
+function dataBase(kind,spec){
+  const X=spec.bx, Y=spec.by; if(!Array.isArray(X)||!Array.isArray(Y)||X.length<3||Y.length!==X.length) return null;
+  const n=X.length, o=spec.bopt||{};
+  const at=(B,x)=>{ if(!(x>X[0])) return B[0]; if(x>=X[n-1]) return B[n-1]; let lo=0, hi=n-1; while(hi-lo>1){ const m=(lo+hi)>>1; if(X[m]<=x) lo=m; else hi=m; }
+    const t=(x-X[lo])/(X[hi]-X[lo]||1); return B[lo]+(B[hi]-B[lo])*t; };
+  // the last four kept: a Jacobian's central differences alternate two vectors point by point
+  if(kind==="shirley") return (x,p)=>{ let L=SHM.get(X); if(!L||L.Y!==Y){ L={Y,e:[]}; SHM.set(X,L); } let c=L.e.find(q=>q.ya===p[0]&&q.yb===p[1]);
+    if(!c){ c={ya:p[0],yb:p[1],B:shirleyBg(X,Y,{ya:p[0],yb:p[1],tol:1e-13,iter:500}).b}; L.e.unshift(c); if(L.e.length>4) L.e.pop(); } return at(c.B,x); };
+  if(kind==="tougaard"){ const key=[o.dir==="down"?"down":"up",+o.C||1643,+o.D||0].join("|"); let c=TGM.get(X);
+    if(!c||c.Y!==Y||c.key!==key){ if(n>8000) return null; const q={dir:o.dir,C:+o.C,D:+o.D,B:0,lev:0}; c={Y,key,U:tougaardBg(X,Y,q).Ux,K:tougaardBg(X,X.map(()=>1),q).Ux}; TGM.set(X,c); }
+    // y0 + B·∫K(T)(y − y0): the counts above the level being fitted, so U and the kernel's own integral are worked out once
+    const U=c.U, K=c.K; return (x,p)=>p[0]+p[1]*(at(U,x)-p[0]*at(K,x)); }
+  return null;
+}
+// The points a data baseline is worked out from: rising in X, finite.
+function dataBasePts(X,Y){ const I=[]; for(let i=0;i<X.length;i++) if(Number.isFinite(X[i])&&Number.isFinite(Y[i])) I.push(i); I.sort((a,b)=>X[a]-X[b]); return {bx:I.map(i=>X[i]), by:I.map(i=>Y[i])}; }
+// Its starting values: Shirley's ends the means of the first and last 3 % of the points; Tougaard's level the low-loss end's, B what meets the other.
+function dataBaseSeed(kind,X,Y,o){ o=o||{}; const P=dataBasePts(X,Y), n=P.bx.length; if(n<3) return null;
+  if(kind==="shirley"){ const k=Math.max(1,Math.round(n*0.03)); return [pMean(P.by.slice(0,k)),pMean(P.by.slice(-k))]; }
+  if(kind==="tougaard"){ if(n>8000) return null; const r=tougaardBg(P.bx,P.by,{dir:o.dir,C:+o.C,D:+o.D}); return [r.lev,Number.isFinite(r.B)?r.B:0]; }
+  return null; }
 
 /* A composite model flattens into one parameter vector: baseline first, then
    each peak in turn. The baseline works in x - x0 so its coefficients stay
    well scaled however far from the origin the spectrum sits. */
 function compileModel(spec,x0){
-  const base=BASELINES[spec.base]||BASELINES.none;
+  const base=BASELINES[spec.base]||BASELINES.none, bd=base.data?dataBase(spec.base,spec):null;
   const slots=[];
   base.params.forEach((nm,i)=>slots.push({kind:"base",name:nm,label:nm,pi:i}));
   (spec.peaks||[]).forEach((pk,k)=>{
-    const def=PEAKS[pk.type]||PEAKS.gauss;
+    const def=peakDef(pk);
     def.params.forEach((nm,i)=>slots.push({kind:"peak",peak:k,name:nm,label:`${nm}${k+1}`,meaning:def.meaning[i],pi:i}));
   });
   const nb=base.params.length;
   const offsets=[]; let off=nb;
-  (spec.peaks||[]).forEach(pk=>{ offsets.push(off); off+=(PEAKS[pk.type]||PEAKS.gauss).params.length; });
+  (spec.peaks||[]).forEach(pk=>{ offsets.push(off); off+=peakDef(pk).params.length; });
+  const bf=base.data?(bd||(()=>0)):(x,p)=>base.f(x-x0,p);
   const f=(x,p)=>{
-    let y=base.f(x-x0,p);
+    let y=bf(x,p);
     for(let k=0;k<(spec.peaks||[]).length;k++){
-      const def=PEAKS[spec.peaks[k].type]||PEAKS.gauss, o=offsets[k];
+      const def=peakDef(spec.peaks[k]), o=offsets[k];
       y+=def.f(x,p.slice(o,o+def.params.length));
     }
     return y;
   };
-  const peakF=k=>{ const def=PEAKS[spec.peaks[k].type]||PEAKS.gauss, o=offsets[k];
+  const peakF=k=>{ const def=peakDef(spec.peaks[k]), o=offsets[k];
     return (x,p)=>def.f(x,p.slice(o,o+def.params.length)); };
-  const baseF=(x,p)=>base.f(x-x0,p);
-  return {f, peakF, baseF, slots, offsets, nb, x0, n:off};
+  const baseF=bf;
+  return {f, peakF, baseF, slots, offsets, nb, x0, n:off, data:!!base.data, nodata:!!base.data&&!bd};
 }
 function modelBounds(spec,model,init){
   const lo=init.map(()=>-Infinity), hi=init.map(()=>Infinity);
   (spec.peaks||[]).forEach((pk,k)=>{
-    const def=PEAKS[pk.type]||PEAKS.gauss, o=model.offsets[k];
+    const def=peakDef(pk), o=model.offsets[k];
     def.params.forEach((nm,i)=>{
       if(/^w/.test(nm)) lo[o+i]=1e-12;                       // a negative width is not a peak
       const b=def.bounds&&def.bounds[nm];
@@ -4614,13 +4696,16 @@ function bandWidthPts(d){
 /* Zero-phase Butterworth filter in Fourier space. The straight line between
    the ends is taken out first and the data mirrored, so the periodic signal the
    transform assumes has no jump at its ends to ring from. */
+// Each twiddle factor worked out directly (kept per size), not by repeated multiplication, whose error grows with the length.
+const FFTW=new Map();
 function fftInPlace(re,im,inv){
-  const n=re.length;
+  const n=re.length, half=n>>1;
   for(let i=1,j=0;i<n;i++){ let b=n>>1; for(;j&b;b>>=1) j^=b; j^=b; if(i<j){ let t=re[i]; re[i]=re[j]; re[j]=t; t=im[i]; im[i]=im[j]; im[j]=t; } }
-  for(let len=2;len<=n;len<<=1){ const a=(inv?2:-2)*Math.PI/len, wr=Math.cos(a), wi=Math.sin(a);
-    for(let i=0;i<n;i+=len){ let cr=1, ci=0;
-      for(let k=0;k<len/2;k++){ const ur=re[i+k], ui=im[i+k], vr=re[i+k+len/2]*cr-im[i+k+len/2]*ci, vi=re[i+k+len/2]*ci+im[i+k+len/2]*cr;
-        re[i+k]=ur+vr; im[i+k]=ui+vi; re[i+k+len/2]=ur-vr; im[i+k+len/2]=ui-vi; const t=cr*wr-ci*wi; ci=cr*wi+ci*wr; cr=t; } } }
+  let T=FFTW.get(n); if(!T){ T={c:new Float64Array(half),s:new Float64Array(half)}; for(let k=0;k<half;k++){ const a=2*Math.PI*k/n; T.c[k]=Math.cos(a); T.s[k]=Math.sin(a); } if(FFTW.size>16) FFTW.clear(); FFTW.set(n,T); }
+  const C=T.c, Sn=T.s, sg=inv?1:-1;
+  for(let len=2;len<=n;len<<=1){ const st=n/len, h=len>>1;
+    for(let i=0;i<n;i+=len) for(let k=0;k<h;k++){ const cr=C[k*st], ci=sg*Sn[k*st], a=i+k, b=a+h, vr=re[b]*cr-im[b]*ci, vi=re[b]*ci+im[b]*cr;
+      re[b]=re[a]-vr; im[b]=im[a]-vi; re[a]+=vr; im[a]+=vi; } }
   if(inv) for(let i=0;i<n;i++){ re[i]/=n; im[i]/=n; }
 }
 function fftFilter(y,o){
@@ -4645,7 +4730,49 @@ function stepPKey(s){ const p=s.p||{}; if(s.op!=="python") return p; return {cod
 
 /* ---- The steps ----------------------------------------------------------- */
 const PIPE_GROUPS=[["clean","Clean"],["bg","Background"],["smooth","Smooth"],["axis","Axis and calibration"],["norm","Normalize"],["math","Math"]];
-const BG_METHODS=[["arpls","arPLS (automatic)"],["als","Asymmetric least squares (ALS)"],["airpls","airPLS"],["modpoly","Polynomial, iterative (ModPoly)"],["imodpoly","Polynomial, improved (I-ModPoly)"],["snip","SNIP (peak clipping)"],["rolling","Rolling ball"],["anchors","Anchor points"],["line","Straight line between the ends"],["const","Constant"]];
+/* ---- XPS backgrounds and Fourier self-deconvolution (FIT2_SPEC 4.7) -------------------------------------------------
+   Shirley's background (Shirley 1972; Proctor and Sherwood 1982): B(x) = ya + (yb − ya)·Q(x)/Q(xb), Q(x) the area of
+   y − B from the low-x end to x (trapezoids), ya and yb the means of the ends' points (ends, % of them each), made again
+   from the B before until it moves by less than tol of yb − ya. {b (in the input's order), iter, conv, ya, yb}. */
+function shirleyBg(x,y,o){ o=o||{}; const n=x.length, ord=x.map((_,i)=>i).sort((a,b)=>x[a]-x[b]), xs=ord.map(i=>x[i]), ys=ord.map(i=>y[i]);
+  const k=Math.max(1,Math.round(n*(o.ends>0?o.ends:3)/100)), ya=Number.isFinite(o.ya)?o.ya:pMean(ys.slice(0,k)), yb=Number.isFinite(o.yb)?o.yb:pMean(ys.slice(-k)), tol=o.tol>0?o.tol:1e-10, max=o.iter>0?o.iter:100;
+  let B=xs.map(()=>ya), it=0, conv=false;
+  while(it<max){ const c=new Float64Array(n); for(let i=1;i<n;i++) c[i]=c[i-1]+(xs[i]-xs[i-1])*((ys[i]-B[i])+(ys[i-1]-B[i-1]))/2;
+    const tot=c[n-1]; it++; if(!(Math.abs(tot)>0)){ conv=true; break; }
+    let dm=0; const Bn=xs.map((_,i)=>{ const v=ya+(yb-ya)*c[i]/tot; dm=Math.max(dm,Math.abs(v-B[i])); return v; }); B=Bn;
+    if(!Number.isFinite(dm)) break; if(dm<=tol*Math.max(Math.abs(yb-ya),1e-300)){ conv=true; break; } }
+  const b=new Array(n); ord.forEach((i,j)=>{ b[i]=B[j]; }); return {b,iter:it,conv,ya,yb}; }
+/* Tougaard's background (Tougaard 1989): the electrons that lost energy T on their way out, B(x) = lev + B·∫ K(T)(y(x′) − lev)dx′
+   over the points on the low-loss side of x (x′ < x when the losses go to higher x, as on a binding-energy axis), K(T) the
+   universal cross-section T/(C + T²)², or with D > 0 the three-parameter T/((C − T²)² + D·T²); lev the low-loss end's level.
+   B is fitted so that the background meets the high-loss end's level (unless given). {b, B, lev}. */
+function tougaardK(T,C,D){ return D>0?T/((C-T*T)**2+D*T*T):T/((C+T*T)**2); }
+function tougaardBg(x,y,o){ o=o||{}; const n=x.length, up=o.dir!=="down", ord=x.map((_,i)=>i).sort((a,b)=>up?x[a]-x[b]:x[b]-x[a]), xs=ord.map(i=>x[i]), ys=ord.map(i=>y[i]);
+  const C=o.C>0?o.C:1643, D=o.D>0?o.D:0, k=Math.max(1,Math.round(n*(o.ends>0?o.ends:3)/100)), lev=Number.isFinite(o.lev)?o.lev:pMean(ys.slice(0,k)), top=pMean(ys.slice(-k)), U=new Float64Array(n);
+  // U(x_i): trapezoids over the points before it on the loss side, the kernel at each one's loss T = |x_i − x_j|
+  for(let i=1;i<n;i++){ let s=0; for(let j=0;j<i;j++){ const T0=Math.abs(xs[i]-xs[j]), T1=Math.abs(xs[i]-xs[j+1]), w=Math.abs(xs[j+1]-xs[j]);
+      s+=w*(tougaardK(T0,C,D)*(ys[j]-lev)+tougaardK(T1,C,D)*(ys[j+1]-lev))/2; } U[i]=s; }
+  const ue=pMean(Array.from(U.slice(-k))), Bc=Number.isFinite(o.B)?o.B:ue!==0?(top-lev)/ue:0;
+  const b=new Array(n), Ux=new Array(n); ord.forEach((i,j)=>{ b[i]=lev+Bc*U[j]; Ux[i]=U[j]; }); return {b,B:Bc,lev,U:Array.from(U),Ux,xs}; }
+/* Fourier self-deconvolution (Kauppinen et al. 1981): the series (evenly spaced, its straight line through the ends taken off
+   and mirrored, as fftFilter does) multiplied in Fourier space by exp(πγ|t|), the inverse of a Lorentzian of FWHM γ (in
+   points), and by an apodisation D(|t|/T) cut at T = c·k/γ, c the FWHM its own line shape has at T = 1, so a band of FWHM γ
+   comes out k times narrower, its area kept (D(0) = 1). T past the Nyquist frequency is held there (clamped). {y, T, clamped,
+   gain (white noise's standard deviation times this)}. */
+const FSD_APOD={bessel:["Bessel",t=>(1-t*t)**2],triangle:["Triangle",t=>1-t],happ:["Happ–Genzel",t=>0.54+0.46*Math.cos(Math.PI*t)]};
+const FSDW={};
+// The FWHM of the line an apodisation makes at T = 1: 2∫₀¹ D(t) cos(2πut) dt by 40-point Gauss–Legendre (exact to rounding for these), halved by bisection.
+function apodWidth(kind){ if(FSDW[kind]) return FSDW[kind]; const D=(FSD_APOD[kind]||FSD_APOD.bessel)[1], G=glNodes(40), L=u=>{ let s=0; for(let i=0;i<40;i++){ const t=(G.xs[i]+1)/2; s+=G.ws[i]*D(t)*Math.cos(2*Math.PI*u*t); } return s; };
+  const h=L(0)/2; let a=0, b=0.1; while(L(b)>h) b*=1.5; for(let i=0;i<60;i++){ const c=(a+b)/2; if(L(c)>h) a=c; else b=c; } return FSDW[kind]=a+b; }
+function fsd(y,o){ const n=y.length, g=Math.abs(o.w), k=Math.max(1,+o.k||2), D=(FSD_APOD[o.apod]||FSD_APOD.bessel)[1]; if(n<4||!(g>0)) return {y:y.slice(),T:0,clamped:false};
+  const a=y[0], b=y[n-1], line=i=>a+(b-a)*i/(n-1); let N=1; while(N<2*n) N<<=1;
+  const re=new Float64Array(N), im=new Float64Array(N); for(let i=0;i<n;i++){ const v=y[i]-line(i); re[i]=v; re[2*n-1-i]=v; }
+  fftInPlace(re,im,false);
+  let T=apodWidth(o.apod)*k/g, clamped=false; if(T>0.5){ T=0.5; clamped=true; }
+  let f2=0; for(let q=0;q<N;q++){ const t=Math.min(q,N-q)/N, f=t<T?Math.exp(Math.PI*g*t)*D(t/T):0; re[q]*=f; im[q]*=f; f2+=f*f; }
+  // gain: what white noise's standard deviation is multiplied by (Parseval: the filter's root mean square)
+  fftInPlace(re,im,true); const out=new Array(n); for(let i=0;i<n;i++) out[i]=re[i]+line(i); return {y:out,T,clamped,gain:Math.sqrt(f2/N)}; }
+const BG_METHODS=[["arpls","arPLS (automatic)"],["als","Asymmetric least squares (ALS)"],["airpls","airPLS"],["modpoly","Polynomial, iterative (ModPoly)"],["imodpoly","Polynomial, improved (I-ModPoly)"],["snip","SNIP (peak clipping)"],["rolling","Rolling ball"],["anchors","Anchor points"],["line","Straight line between the ends"],["const","Constant"],["shirley","Shirley (XPS)"],["tougaard","Tougaard (XPS)"]];
 const SMOOTH_METHODS=[["sg","Savitzky–Golay"],["ma","Moving average"],["median","Median"],["gauss","Gaussian"],["whittaker","Whittaker"]];
 const XUNITS=[["nm","Wavelength (nm)"],["um","Wavelength (µm)"],["cm-1","Wavenumber (cm⁻¹, absolute)"],["eV","Photon energy (eV)"],["THz","Frequency (THz)"]];
 const XUNIT_LABEL={nm:["Wavelength","nm"],um:["Wavelength","µm"],"cm-1":["Wavenumber","cm⁻¹"],eV:["Energy","eV"],THz:["Frequency","THz"]};
@@ -4821,8 +4948,11 @@ const PIPE_OPS={
       {k:"cmode",label:"Level",type:"sel",opts:[["min","Lowest point"],["pct","A percentile"],["value","A value"]],show:p=>p.method==="const"},
       {k:"q",label:"Percentile",type:"num",min:0,max:50,unit:"%",show:p=>p.method==="const"&&p.cmode==="pct"},
       {k:"val",label:"Value",type:"num",show:p=>p.method==="const"&&p.cmode==="value"},
-      {k:"ends",label:"End regions",type:"num",min:0.5,max:30,unit:"% of the points, each end",show:p=>p.method==="line"}],
-    defaults:{method:"arpls",lam:5,p:-2,order:3,win:30,lls:false,smooth:true,anchors:[],interp:"spline",avg:2,cmode:"min",q:5,val:0,ends:5},
+      {k:"ends",label:"End regions",type:"num",min:0.5,max:30,unit:"% of the points, each end",show:p=>["line","shirley","tougaard"].includes(p.method),hint:"The points averaged at each end for its level: the background meets the data there"},
+      {k:"tdir",label:"Losses towards",type:"sel",opts:[["up","Higher x (binding energy)"],["down","Lower x (kinetic energy)"]],show:p=>p.method==="tougaard",hint:"The side of a line its inelastic losses fall on: higher binding energy, or lower kinetic energy"},
+      {k:"tC",label:"C",type:"num",min:1,max:100000,unit:"eV²",show:p=>p.method==="tougaard",hint:"Of the cross-section: 1643 eV² for most metals and their oxides (Tougaard's universal)"},
+      {k:"tD",label:"D",type:"num",min:0,max:100000,unit:"eV²",show:p=>p.method==="tougaard",hint:"0 for the universal two-parameter cross-section; above 0 the three-parameter one (polymers, C 551 and D 436 eV²)"}],
+    defaults:{method:"arpls",lam:5,p:-2,order:3,win:30,lls:false,smooth:true,anchors:[],interp:"spline",avg:2,cmode:"min",q:5,val:0,ends:5,tdir:"up",tC:1643,tD:0},
     init(d){ const bw=bandWidthPts(d), w=bw?bw.typ:10; const n=d.x.length;
       return {lam:suggestLam(w), win:Math.max(3,Math.min(Math.round(n/3),Math.round(3*w))), anchors:autoAnchors(d,10), lls:pMin(d.y)>=0&&false, suggestW:w}; },
     summary(p){ const m=(BG_METHODS.find(q=>q[0]===p.method)||[,p.method])[1].replace(/ \(.*\)$/,"");
@@ -4834,7 +4964,8 @@ const PIPE_OPS={
     run(d,p){
       const n=d.x.length; if(n<5) throw new Error("Too few points to estimate a background.");
       const ord=d.x.map((_,i)=>i), asc=spacing(d.x).sorted;
-      const y=d.y, x=d.x; let b, anchors=null;
+      const y=d.y, x=d.x; let b, anchors=null, extraNote="";
+      const extraWarn=[];
       switch(p.method){
         case "als": b=alsBaseline(y,lamOf(p.lam),lamOf(p.p),20); break;
         case "airpls": b=airplsBaseline(y,lamOf(p.lam),20); break;
@@ -4848,6 +4979,9 @@ const PIPE_OPS={
         case "line":{ const o=ord.slice().sort((a,c)=>x[a]-x[c]), k=Math.max(1,Math.round(n*(p.ends||5)/100));
           const L=o.slice(0,k), R=o.slice(-k), xl=pMean(L.map(i=>x[i])), yl=pMean(L.map(i=>y[i])), xr=pMean(R.map(i=>x[i])), yr=pMean(R.map(i=>y[i]));
           b=x.map(v=>xr===xl?yl:yl+(yr-yl)*(v-xl)/(xr-xl)); break; }
+        case "shirley":{ const r=shirleyBg(x,y,{ends:p.ends||3}); b=r.b; extraNote=`Shirley's background, ${r.iter} round${r.iter===1?"":"s"}${r.conv?"":", not settled"}, from ${nf(r.ya,4)} to ${nf(r.yb,4)}${d.yu?" "+d.yu:""}.`; if(!r.conv) extraWarn.push("The Shirley background had not settled after 100 rounds: the ends' levels may be on bands. Widen the range or move the end regions."); break; }
+        case "tougaard":{ if(n>8000) throw new Error("Tougaard's background reads every pair of points: 8000 at most. Crop or resample first."); const r=tougaardBg(x,y,{ends:p.ends||3,dir:p.tdir,C:+p.tC,D:+p.tD}); b=r.b;
+          const xu0=(d.xu||"").trim(), u2=xu0?" "+(/^[\p{L}°]+$/u.test(xu0)?xu0+"²":"("+xu0+")²"):""; extraNote=`Tougaard's background, B = ${nf(r.B,5)}${u2}, C = ${nf(+p.tC||1643,5)}${u2}${+p.tD>0?`, D = ${nf(+p.tD,5)}${u2}`:""}.`; if(!(r.B>0)) extraWarn.push("Tougaard's B came out at 0 or below: the high-loss end is not above the low-loss one. Check which side the losses fall on."); break; }
         case "const":{ let v;
           if(p.cmode==="value") v=+p.val||0;
           else if(p.cmode==="pct"){ const s=Float64Array.from(y).sort(); v=s[Math.min(n-1,Math.max(0,Math.floor((p.q||0)/100*(n-1))))]; }
@@ -4856,7 +4990,7 @@ const PIPE_OPS={
         default: b=arplsBaseline(y,lamOf(p.lam),60);
       }
       if(!asc&&["modpoly","imodpoly","snip","rolling","als","arpls","airpls"].includes(p.method)&&!spacing(d.x).sorted) {}
-      const out=y.map((v,i)=>v-b[i]), warn=[];
+      const out=y.map((v,i)=>v-b[i]), warn=extraWarn.slice();
       // Over-subtraction: a stretch where the background sits clearly above the data.
       const sig=noiseSigma(y)||0;
       if(sig>0){ let run=0, best=0, bestEnd=-1, tot=0, lowest=0;
@@ -4866,7 +5000,7 @@ const PIPE_OPS={
       }
       const bands=detectBands(x,y), loss=bgBandLoss(y,out,bands,sig);
       if(loss) warn.push(`The background follows the band at ${nf(loss.x,5)}${ux(d)} and takes away ${Math.round(loss.loss*100)}% of its height. ${["als","arpls","airpls"].includes(p.method)?"Increase the stiffness λ.":p.method==="snip"||p.method==="rolling"?"Widen the window.":p.method==="anchors"?"Move the anchors off the band.":"Lower the order."}`);
-      return {d:pser(d,x,out,d.e,d.idx), extra:{base:b,anchors,input:y}, warn};
+      return {d:pser(d,x,out,d.e,d.idx), extra:{base:b,anchors,input:y}, warn, ...(extraNote?{note:extraNote}:{})};
     }},
   smooth:{group:"smooth", rank:7, label:"Smooth", short:"Smooth",
     help:"Reduces noise. Every smoothing lowers and broadens the narrowest bands a little; this step measures how much and warns when it matters.",
@@ -5206,6 +5340,26 @@ const PIPE_OPS={
       if(worst) warn.push(`The filter lowers the band at ${nf(worst.x,5)}${ux(d)} by ${Math.round(worst.loss*100)}%: it is ${nf(worst.pts,2)} points wide, against a cut-off of ${nf(cut,3)} points. Use a ${p.mode==="high"?"longer":"shorter"} cut-off period.`);
       return {d:pser(d,d.x,out,null,d.idx), note:d.e?"Error bars dropped: filtered points are no longer independent.":"", warn};
     }},
+  fsd:{group:"smooth", rank:8, label:"Fourier self-deconvolution", short:"Self-deconvolution",
+    help:"Narrows overlapping bands: the data's Fourier transform is multiplied by the inverse of a Lorentzian's of the width given and apodised, so a band of about that width comes out narrower by the factor given, its area kept. The noise rises with it, and the step says by how much.",
+    params:[{k:"fwhm",label:"Width taken out",type:"num",min:0,hint:"The FWHM of the Lorentzian taken out, in X's units: about the bands' own width"},
+      {k:"k",label:"Narrowing",type:"num",min:1,max:5,step:0.1,slider:true,unit:"times",hint:"How many times narrower a band of that width comes out; more raises the noise"},
+      {k:"apod",label:"Apodisation",type:"sel",opts:Object.entries(FSD_APOD).map(([k,v])=>[k,v[0]]),hint:"The window that keeps the noise down: Bessel the smoothest, triangle the narrowest lines with side lobes"}],
+    defaults:{fwhm:null,k:2,apod:"bessel"},
+    init(d){ const bw=bandWidthPts(d), sp=spacing(d.x), dx=Math.abs(sp.abs)||1; return {fwhm:+((bw?bw.typ:10)*dx).toPrecision(3)}; },
+    summary:p=>`width ${nf(+p.fwhm,4)}, ${nf(+p.k,3)} times narrower, ${(FSD_APOD[p.apod]||FSD_APOD.bessel)[0]}`,
+    run(d,p){
+      const n=d.y.length; if(n<16) throw new Error("Too few points to deconvolve.");
+      const sp=spacing(d.x), dx=Math.abs(sp.abs), w=Math.abs(+p.fwhm)/dx; if(!(w>0)||!Number.isFinite(w)) throw new Error("Set the width taken out: the FWHM of the bands, in X's units.");
+      const r=fsd(d.y,{w,k:+p.k||2,apod:p.apod}), warn=[];
+      if(sp.uneven>0.05) warn.push(`X spacing varies by ${Math.round(sp.uneven*100)}%, and a Fourier transform treats every point as evenly spaced. Add Resample above this step.`);
+      if(!sp.sorted) warn.push("X is not in order, so neighbouring rows are not neighbouring points. Add Sort by X above this step.");
+      if(r.clamped) warn.push(`A band ${nf(w,3)} points wide cannot be made ${nf(+p.k,3)} times narrower in these points: the narrowing stops at what the spacing holds. Lower the narrowing.`);
+      // the noise's rise is the filter's own (exact for white noise); warned of once it reaches 2 % of the bands' height
+      const gain=r.gain, s0=noiseSigma(d.y)||0, rg=amax(r.y)-amin(r.y);
+      if(s0*gain>0.02*rg) warn.push(`The noise is ${nf(gain,2)} times what it was, ${nf(100*s0*gain/rg,2)} % of the deconvolved bands' height: lower the narrowing, or smooth before this step.`);
+      return {d:pser(d,d.x,r.y,null,d.idx), note:`${Number.isFinite(gain)?`Noise ${nf(gain,2)} times what it was. `:""}${d.e?"Error bars dropped: the deconvolved points are no longer independent.":""}`.trim(), warn};
+    }},
   // Python is no longer part of Kurve. A project made with it keeps each Python step's
   // stored result, replayed here so it opens with the same data; it cannot be run or
   // changed, and is in no menu. Delete it to go back to the data before it.
@@ -5455,8 +5609,8 @@ function describeSpec(spec){
   const n=(spec.peaks||[]).length;
   // Shapes are named after people (Gauss, Lorentz, Voigt, Pearson, Fano), so
   // their names keep their capitals mid-sentence.
-  const kinds=[...new Set((spec.peaks||[]).map(k=>{ const d=PEAKS[k.type]||PEAKS.gauss; return d.short||d.name; }))];
-  const b=(BASELINES[spec.base]||BASELINES.none).name.toLowerCase();
+  const kinds=[...new Set((spec.peaks||[]).map(k=>{ const d=peakDef(k); return d.short||d.name; }))];
+  const b=baseLabel(spec.base);
   return `${n} ${kinds.length===1?kinds[0]:"mixed"} peak${n===1?"":"s"}${spec.base&&spec.base!=="none"?` on a ${b} baseline`:""}`;
 }
 function FM_slots(fit){ const FM=fitModel(fit); return FM&&FM.composite?FM.model.slots:[]; }
@@ -5496,7 +5650,7 @@ function peakMetrics(fit){
   const FM=fitModel(fit); if(!FM||!FM.composite) return [];
   const m=FM.model, errs=fit.errors||[];
   const rows=(fit.spec.peaks||[]).map((pk,k)=>{
-    const def=PEAKS[pk.type]||PEAKS.gauss, o=m.offsets[k], np=def.params.length;
+    const def=peakDef(pk), o=m.offsets[k], np=def.params.length;
     const pv=fit.params.slice(o,o+np), ai=def.params.indexOf("A");
     // Height is a function of area and width, so its error comes from theirs
     // by the delta method — the same machinery the single-curve models use.
@@ -5544,6 +5698,7 @@ function unitFor(dim,xu,yu){
   if(dim==="y") return yu;
   if(dim==="1/x"){ if(!xu) return ""; if(/\u207b\u00b9$/.test(xu)) return xu.slice(0,-2); return /^[\p{L}°]+$/u.test(xu)?xu+"\u207b\u00b9":"1/("+xu+")"; }
   { const m=/^1\/x([2-9])$/.exec(dim||""); if(m){ if(!xu) return ""; return /^[\p{L}°]+$/u.test(xu)?xu+"\u207b"+SUPN[+m[1]]:"1/("+xu+")"+SUPN[+m[1]]; } }
+  { const m=/^x([2-9])$/.exec(dim||""); if(m){ if(!xu) return ""; return /^[\p{L}°]+$/u.test(xu)?xu+SUPN[+m[1]]:"("+xu+")"+SUPN[+m[1]]; } }
   if(!xu||!yu) return "";
   if(dim==="yx") return yu+"\u00b7"+xu;
   if(dim==="y/x") return yu+"/"+xu;
@@ -9441,12 +9596,14 @@ function fitWarnings(f){
       else if(tiny(l)&&!tiny(g)) add("info","voigt",`Peak ${k+1}'s Lorentzian width went to zero: the line is a Gaussian. Fit it as a Gaussian, or fix one of its widths if it is known.`,
         `Peak ${k+1}: its Lorentzian width went to zero, so it is a Gaussian.`); });
     if(fano.length) add("info","fano",`${fano.length===1?`Peak ${fano[0]} is a Fano profile`:`Peaks ${fano.join(", ")} are Fano profiles`}: the tail of an asymmetric Fano line never returns to zero, so its area is not finite. The area given is that of the Lorentzian it becomes as 1/q goes to 0, and its centre is the resonance position, not the top of the line.`,
-      `${fano.length===1?`Peak ${fano[0]} is a Fano profile`:`Peaks ${fano.join(", ")} are Fano profiles`}: the area given is the Lorentzian limit's.`); }
+      `${fano.length===1?`Peak ${fano[0]} is a Fano profile`:`Peaks ${fano.join(", ")} are Fano profiles`}: the area given is the Lorentzian limit's.`);
+    const ds=(f.spec.peaks||[]).map((q,k)=>q.type==="ds"?k+1:0).filter(Boolean), dsW=ds.length===1?`Peak ${ds[0]} is a Doniach–Šunjić line`:`Peaks ${ds.join(", ")} are Doniach–Šunjić lines`;
+    if(ds.length) add("info","ds",`${dsW}: its tail falls as a power, so its area is not finite. The area given is that of the Lorentzian it becomes as α goes to 0, and its centre is the Lorentzian's, not the top of the line.`,`${dsW}: the area given is the Lorentzian limit's.`); }
   if((f.errors||[]).some(e=>e===null||Number.isNaN(e))) add("bad","singular","The covariance matrix is singular, so no uncertainties could be computed for this fit. "+(pk?"That usually means two components are describing the same feature.":"That usually means two parameters are doing the same job for these data."),
     "Singular covariance: no uncertainties could be computed.",[["Fit window","fitwin"]]);
   const slots=FM_slots(f);
   const whose=i=>{ if(pk){ const sl=slots[i]; if(!sl) return "a parameter"; if(sl.kind!=="peak") return `baseline ${sl.name}`;
-    const pd=PEAKS[((f.spec.peaks||[])[sl.peak]||{}).type]||PEAKS.gauss; return `peak ${sl.peak+1} ${(pd.labels&&pd.labels[sl.name])||PARAM_LABEL[sl.name]||sl.name}`; } const ph=(FM.model.ph||[])[i]; return ph?phPlain(ph):((FM.model.params||[])[i]||"a parameter"); };
+    const pd=peakDef((f.spec.peaks||[])[sl.peak]); return `peak ${sl.peak+1} ${(pd.labels&&pd.labels[sl.name])||PARAM_LABEL[sl.name]||sl.name}`; } const ph=(FM.model.ph||[])[i]; return ph?phPlain(ph):((FM.model.params||[])[i]||"a parameter"); };
   const deps=(f.dep||[]).map((v,i)=>({v,i})).filter(q=>!(f.fixed&&f.fixed[q.i])&&Number.isFinite(q.v));
   const worst=deps.length?deps.reduce((a,b)=>b.v>a.v?b:a):null;
   if(worst&&worst.v>0.99) add("warn","dep",`${whose(worst.i)} is strongly tied to the other parameters (dependency ${fmt(worst.v,4)}). Its own value is less certain than its error suggests, as ${pk?"these peaks may not be separable: consider fixing a width or removing a peak.":"these data may not separate every parameter of this model."}`,
@@ -11976,7 +12133,7 @@ function fplText(cfg,k,name,m,u){
   return fs.includes("num")?(parts.length?`${val.num}: ${parts.join(", ")}`:val.num):parts.join(", "); }
 function peakTops(m,params,peaks){
   return peaks.map((pk,k)=>{
-    const def=PEAKS[pk.type]||PEAKS.gauss, o=m.offsets[k], pv=params.slice(o,o+def.params.length);
+    const def=peakDef(pk), o=m.offsets[k], pv=params.slice(o,o+def.params.length);
     if(!pv.every(Number.isFinite)) return null;
     // An asymmetric shape's top is not at its centre parameter.
     const xc=def.top?def.top(pv):pv[0], h=def.height(pv), w=Math.abs(peakFWHM(def,pv));
@@ -16470,7 +16627,7 @@ function hitHandle(ev){ const el=ev.target&&ev.target.closest?ev.target.closest(
 function applyHandle(hd,pt){
   const d=S.pdraft; if(!d||d.pid!==S.pid||!pt) return;
   const m=pdraftModel(), k=hd.k; if(!d.peaks[k]) return;
-  const def=PEAKS[d.peaks[k].type]||PEAKS.gauss, o=m.offsets[k];
+  const def=peakDef(d.peaks[k]), o=m.offsets[k];
   const pv=d.init.slice(o,o+def.params.length), fx=i=>!!d.fixed[o+i], ai=def.params.indexOf("A");
   if(hd.kind==="c"){
     const shift=def.top?def.top(pv)-pv[0]:0, xc=fx(0)?pv[0]:pt.x-shift;
@@ -16500,7 +16657,7 @@ function applyHandle(hd,pt){
 }
 function handleTip(k){
   const d=S.pdraft; if(!d||!d.peaks[k]) return "";
-  const m=pdraftModel(), def=PEAKS[d.peaks[k].type]||PEAKS.gauss, o=m.offsets[k], pv=d.init.slice(o,o+def.params.length);
+  const m=pdraftModel(), def=peakDef(d.peaks[k]), o=m.offsets[k], pv=d.init.slice(o,o+def.params.length);
   const [xu,yu]=dataUnits(), sp=shapeParOf(d.peaks[k].type);
   return `Peak ${k+1}   centre ${fmt(pv[0],6)}${xu?" "+xu:""}   height ${fmt(def.height(pv),4)}${yu?" "+yu:""}   FWHM ${fmt(Math.abs(peakFWHM(def,pv)),4)}${xu?" "+xu:""}${sp?`   ${sp.name} ${fmt(pv[sp.i],3)}`:""}`;
 }
@@ -18898,7 +19055,7 @@ async function catDlg(id){ const c=colById(id); if(!c||S.readOnly) return;
 // What a step does to the rows (PARITY_SPEC 1.3): keep them, keep them with neighbours depending on
 // each other, drop some, or merge or make points. Every step has one; ana-drive checks.
 const PIPE_ROWS={correct:"keep",bg:"keep",shift:"keep",xunit:"keep",calib:"keep",ecal:"keep",xlin:"keep",norm:"keep",scale:"keep",
-  smooth:"dep",fft:"dep",deriv:"dep",cumint:"dep",despike:"dep",
+  smooth:"dep",fft:"dep",fsd:"dep",deriv:"dep",cumint:"dep",despike:"dep",
   crop:"drop",exclude:"drop",sort:"drop",log:"drop",absorb:"drop",km:"drop",ref:"drop",combine:"drop",bose:"drop",where:"drop",
   dedupe:"merge",resample:"merge",hist:"merge",python:"merge"};
 const ROWS_RANK={keep:0,dep:1,drop:2,merge:3};
@@ -23596,13 +23753,18 @@ async function editUserFn(id,opt){
     const msg=$("#fbMsg"), prev=$("#fbPrev"), tb=$("#fbPars tbody"), tbl=$("#fbPars"); if(!msg) return false;
     try{ comp=compileExpr(r.fbExpr); }
     catch(e){ comp=null; shown=null; msg.className="fbmsg bad"; msg.innerHTML=`${ICON("alert","sm")}<span>${esc((e.line&&String(r.fbExpr).includes("\n")?`Line ${e.line}: `:"")+e.message)}</span>`; tb.innerHTML=""; tbl.hidden=true; prev.innerHTML=""; return false; }
-    const sig=comp.params.join("\u0000"); if(sig!==shown){ tb.innerHTML=rows(comp.params); shown=sig; } tbl.hidden=false;
+    const sig=comp.params.join("\u0000"); if(sig!==shown){ tb.innerHTML=rows(comp.params); shown=sig;
+      // the peak shape's roles: the parameters as they are now, each list keeping its choice (else a guess by name)
+      const guessRole={fbPkX:/^(xc|x0|mu|c|center|centre|pos)$/i,fbPkA:/^(A|area|a)$/,fbPkW:/^(w|s|sigma|gamma|g|fwhm|width)$/i};
+      ["fbPkX","fbPkA","fbPkW"].forEach(id=>{ const el=$("#"+id); if(!el) return; const cur=el.value||el.dataset.v||(comp.params.find(n=>guessRole[id].test(n))||"");
+        el.innerHTML=`<option value="">—</option>`+comp.params.map(n=>`<option value="${esc(n)}"${n===cur?" selected":""}>${esc(n)}</option>`).join(""); }); } tbl.hidden=false;
     const bad=comp.params.find(n=>["lo","hi"].some(f=>String(vals[n][f]||"").trim()!==""&&pnum(vals[n][f])==null));
     // A start that is not a number must read as a formula of the data (with no data, its names are checked).
     const MM=X.length?dataMeasures(X,Y):Object.fromEntries(START_NAMES.map(q=>[q[0],1])), sbad=comp.params.map(n=>{ const s=String(vals[n].init||"").trim(); if(!s||pnum(s)!=null) return null; const e=evalStart(s,MM); return e.err?[n,e.err]:null; }).find(Boolean);
     if(sbad){ msg.className="fbmsg bad"; msg.innerHTML=`${ICON("alert","sm")}<span>The start of ${esc(sbad[0])}: ${esc(sbad[1])}.</span>`; prev.innerHTML=preview(); return false; }
     const crossed=comp.params.find(n=>{ const lo=pnum(vals[n].lo), hi=pnum(vals[n].hi), s=pnum(vals[n].init); return (lo!=null&&hi!=null&&lo>=hi)||(s!=null&&((lo!=null&&s<lo)||(hi!=null&&s>hi))); });
     if(bad||crossed){ msg.className="fbmsg bad"; msg.innerHTML=`${ICON("alert","sm")}<span>${bad?`The limits of ${esc(bad)} must be numbers, or left empty.`:`${esc(crossed)}: the lowest value must be below the highest, and the start between them.`}</span>`; prev.innerHTML=preview(); return false; }
+    if(r.fbPk){ const roles=[r.fbPkX,r.fbPkA,r.fbPkW]; if(roles.some(v=>!v)||new Set(roles).size<3){ msg.className="fbmsg bad"; msg.innerHTML=`${ICON("alert","sm")}<span>A peak shape needs three different parameters: its centre, its area and its width.</span>`; prev.innerHTML=preview(); return false; } }
     { const C=String(r.fbCons||"").trim()?parseCons(r.fbCons,comp.params):null, Dv=parseDerived(r.fbDer||"",comp.params);
       if(C&&C.err){ msg.className="fbmsg bad"; msg.innerHTML=`${ICON("alert","sm")}<span>Constraints, line ${C.err.line}: ${esc(C.err.msg)}.</span>`; prev.innerHTML=preview(); return false; }
       if(Dv.err){ msg.className="fbmsg bad"; msg.innerHTML=`${ICON("alert","sm")}<span>Derived values, line ${Dv.err.line}: ${esc(Dv.err.msg)}.</span>`; prev.innerHTML=preview(); return false; } }
@@ -23620,6 +23782,8 @@ async function editUserFn(id,opt){
     <table class="ptab fbpars" id="fbPars"><thead><tr><th>Parameter</th><th>Start</th><th>Lowest</th><th>Highest</th><th>Unit</th><th>Meaning</th></tr></thead><tbody></tbody></table>
     <div class="grid2 fbmore"><label for="fbCons" class="tipd" title="One a line: a = a formula of the other parameters, or a &lt; b. The Fit window starts with them when the function is chosen.">Constraints</label><textarea id="fbCons" class="code" rows="2" spellcheck="false" autocomplete="off" placeholder="t1 &lt; t2">${esc(base.cons||"")}</textarea>
     <label for="fbDer" class="tipd" title="One a line: a name = a formula of the parameters. Results gives each with its error.">Derived values</label><textarea id="fbDer" class="code" rows="2" spellcheck="false" autocomplete="off" placeholder="Half-life = t*ln(2)">${esc(base.derived||"")}</textarea></div>
+    <div class="fbpk"><label class="chk tipd" title="Offered in the peak fit's list of shapes, once you say which parameter is its centre, its area and its width; areas and shares are then the area parameter's"><input type="checkbox" id="fbPk"${base.peak?" checked":""}> A peak shape too</label>
+      <span class="fbpkc"><label for="fbPkX">Centre</label><select id="fbPkX" data-v="${esc((base.peak||{}).xc||"")}"></select><label for="fbPkA">Area</label><select id="fbPkA" data-v="${esc((base.peak||{}).A||"")}"></select><label for="fbPkW">Width</label><select id="fbPkW" data-v="${esc((base.peak||{}).w||"")}"></select></span></div>
     <label class="chk"><input type="checkbox" id="fbLib"${inLib?" checked":""}> Keep it in this browser's library too, for other projects</label>
     <details class="grp fbhelp"><summary>How to write a function</summary><div class="gb"><p>Write it as on paper: <code>+ - * / ^</code> (or <code>**</code>), parentheses, numbers such as <code>1.5e-3</code>, and the functions <code>exp ln log10 sqrt abs sin cos tan asin acos atan sinh cosh tanh erf erfc pow min max sign step</code>; <code>log</code> is the natural logarithm, like <code>ln</code>. The constants are <code>pi</code> and <code>e</code>. A product needs its <code>*</code>.</p><p>Every name other than <code>x</code> is a parameter. Name a value on a line of its own and use it below: <code>u = (x - xc)/w</code>, then <code>y = A*exp(-u^2/2) + c</code>. <code>#</code> starts a comment.</p><p>An empty start is guessed from the data by the parameter's name: <code>y0</code> or <code>c</code> a baseline, <code>A</code> or <code>H</code> a height, <code>xc</code> or <code>x0</code> the position of the largest point, <code>w</code> or <code>sigma</code> a tenth of the range, <code>t</code> or <code>tau</code> a third of it; any other starts at 1.</p></div></details></div>`;
   const sheet=$("#formModal .sheet"); sheet.classList.remove("small"); sheet.classList.add("mid");
@@ -23637,7 +23801,8 @@ async function editUserFn(id,opt){
   const fn={id:old?old.id:"f"+Date.now().toString(36)+Math.random().toString(36).slice(2,5), name:(String(r.fbName||"").trim()||"My function").slice(0,60),
     expr:String(r.fbExpr||"").trim().slice(0,4000),
     params:comp.params.map(n=>{ const v=vals[n]||{}, s=String(v.init||"").trim(), num=pnum(s); return {n,init:num,fx:num==null&&s?s:null,lo:pnum(v.lo),hi:pnum(v.hi),dim:v.dim||"",mean:String(v.mean||"").trim().slice(0,80)}; }),
-    cat:String(r.fbCat||"").trim().slice(0,40), cons:String(r.fbCons||"").trim().slice(0,2000), derived:String(r.fbDer||"").trim().slice(0,2000), at:Date.now(), by:who()};
+    cat:String(r.fbCat||"").trim().slice(0,40), cons:String(r.fbCons||"").trim().slice(0,2000), derived:String(r.fbDer||"").trim().slice(0,2000), at:Date.now(), by:who(),
+    ...(r.fbPk&&r.fbPkX&&r.fbPkA&&r.fbPkW?{peak:{xc:r.fbPkX,A:r.fbPkA,w:r.fbPkW}}:{})};
   const P0=P(), list=(P0.userFns||[]).slice(), at=list.findIndex(f=>f.id===fn.id);
   if(at>=0) list[at]=fn; else list.push(fn);
   pushUndo(old?"editing a fit function":"adding a fit function");
@@ -23698,7 +23863,7 @@ function ensurePeakDraft(){
   if(S.pdraft&&S.pdraft.pid===S.pid) return S.pdraft;
   const f=activeFit()&&activeFit().kind==="composite"?activeFit():null;
   S.pdraft=f
-    ? {pid:S.pid, base:f.spec.base, peaks:f.spec.peaks.map(k=>Object.assign({type:k.type},k.id?{id:k.id}:{},k.tie?{tie:JSON.parse(JSON.stringify(k.tie))}:{},k.lab?{lab:k.lab}:{})), init:f.params.slice(), fixed:(f.fixed||f.params.map(()=>false)).slice(), weighted:!!f.weighted, weight:weightOf(f), wcol:f.wcol||null, follow:!!f.follow, xerr:!!f.xerr, conf:confKeep(confOf(f)), x0:f.x0, fitAt:f.at}
+    ? {pid:S.pid, base:f.spec.base, ...(f.spec.bopt?{bopt:clone(f.spec.bopt)}:{}), peaks:f.spec.peaks.map(k=>Object.assign({type:k.type},k.id?{id:k.id}:{},k.tie?{tie:JSON.parse(JSON.stringify(k.tie))}:{},k.lab?{lab:k.lab}:{},k.fn?{fn:clone(k.fn)}:{})), init:f.params.slice(), fixed:(f.fixed||f.params.map(()=>false)).slice(), weighted:!!f.weighted, weight:weightOf(f), wcol:f.wcol||null, follow:!!f.follow, xerr:!!f.xerr, conf:confKeep(confOf(f)), x0:f.x0, fitAt:f.at}
     : {pid:S.pid, base:"linear", peaks:[], init:[], fixed:[], weighted:hasErr(), weight:hasErr()?"yerr":"none", xerr:hasXErr(), x0:null, fitAt:null};
   return S.pdraft;
 }
@@ -23707,15 +23872,22 @@ function ensurePeakDraft(){
    neither the drawn guess nor the next fit's starting point jumps. */
 function recenterBase(d,m){
   const nb=(BASELINES[d.base]||BASELINES.none).params.length;
+  if(m.data){ d.x0=m.x0; return; }
   if(d.x0==null||!nb||d.x0===m.x0||d.init.length<nb||!Number.isFinite(d.x0)){ d.x0=m.x0; return; }
   const dl=m.x0-d.x0, c=d.init.slice(0,nb), out=new Array(nb).fill(0);
   for(let j=0;j<nb;j++){ let binom=1; for(let i=0;i<=j;i++){ out[i]+=c[j]*binom*Math.pow(dl,j-i); binom=binom*(j-i)/(i+1); } }
   if(out.every(Number.isFinite)) for(let i=0;i<nb;i++) d.init[i]=out[i];
   d.x0=m.x0;
 }
+// A peak fit's Shirley or Tougaard baseline (FIT2_SPEC 4.7): the points it is worked out from, and Tougaard's settings.
+const DBP=new WeakMap();
+function dbPts(pts){ let r=DBP.get(pts); if(!r){ r=dataBasePts(pts.map(q=>q.x),pts.map(q=>q.y)); DBP.set(pts,r); } return r; }
+function draftBopt(d){ if(!d.bopt){ const f=finalOf(activeYCol())||{}; d.bopt={dir:/kinetic/i.test(f.xn||"")?"down":"up",C:1643,D:0}; } return d.bopt; }
+function withDataBase(spec,pts,bopt){ if(!(BASELINES[spec.base]||{}).data) return spec; const P=dbPts(pts); return Object.assign({},spec,{bx:P.bx,by:P.by,bopt:Object.assign({},bopt||spec.bopt||{dir:"up",C:1643,D:0})}); }
+const TG_DIRS=[["up","Higher x (binding energy)"],["down","Lower x (kinetic energy)"]];
 function pdraftModel(){ const d=ensurePeakDraft(), [a,b]=fitRange();
   d.peaks.forEach(pk=>{ if(!pk.id) pk.id=newPeakId(); });
-  const m=compileModel({base:d.base,peaks:d.peaks},(a+b)/2); recenterBase(d,m);
+  const m=compileModel(withDataBase({base:d.base,peaks:d.peaks},fitPoints(),(BASELINES[d.base]||{}).data?draftBopt(d):null),(a+b)/2); recenterBase(d,m);
   if(d.init.length===m.n){ const L=peakLinks(d.peaks,m); if(L.length) applyPeakLinks(d.init,L); }
   return m; }
 function syncPdraft(){ // keep init/fixed the right length after a spec change
@@ -23729,6 +23901,7 @@ function seedBaseline(){
   const d=S.pdraft, pts=fitPoints(); if(!pts.length) return;
   const nb=(BASELINES[d.base]||BASELINES.none).params.length;
   if(!nb) return;
+  if(BASELINES[d.base].data){ const sd=dataBaseSeed(d.base,pts.map(q=>q.x),pts.map(q=>q.y),draftBopt(d)); if(sd) for(let i=0;i<nb;i++) if(!d.fixed[i]) d.init[i]=sd[i]; return; }
   const m=pdraftModel();
   const lowest=pts.slice().sort((a,b)=>a.y-b.y).slice(0,Math.max(3,Math.round(pts.length*0.2)));
   const c=polyfit(lowest.map(q=>q.x-m.x0),lowest.map(q=>q.y),nb-1);
@@ -23749,7 +23922,7 @@ function reseedPeaks(){
   const lo=amin(X), hi=amax(X);
   let moved=0;
   d.peaks.forEach((pk,k)=>{
-    const def=PEAKS[pk.type]||PEAKS.gauss, o=m.offsets[k], xc=d.init[o];
+    const def=peakDef(pk), o=m.offsets[k], xc=d.init[o];
     let j=0;
     if(Number.isFinite(xc)&&xc>=lo&&xc<=hi){
       for(let i=1;i<X.length;i++) if(Math.abs(X[i]-xc)<Math.abs(X[j]-xc)) j=i;
@@ -23757,7 +23930,7 @@ function reseedPeaks(){
     }else{
       const left=X.map((x,i)=>{ let v=0;
         d.peaks.forEach((p2,k2)=>{ if(k2===k) return;
-          const d2=PEAKS[p2.type]||PEAKS.gauss, o2=m.offsets[k2];
+          const d2=peakDef(p2), o2=m.offsets[k2];
           const pv=d.init.slice(o2,o2+d2.params.length);
           if(pv.every(Number.isFinite)) v+=d2.f(x,pv); });
         return Y[i]-v; });
@@ -23777,12 +23950,12 @@ function reseedPeaks(){
 function addPeakAt(x){
   const d=ensurePeakDraft(), pts=fitPoints();
   pushUndo("placing that peak");
-  d.peaks.push({type:S.peakType||"gauss"});
+  d.peaks.push(newPeak(S.peakType||"gauss"));
   syncPdraft();
   const m=pdraftModel(), k=d.peaks.length-1, o=m.offsets[k];
   const near=pts.reduce((best,q)=>Math.abs(q.x-x)<Math.abs(best.x-x)?q:best,pts[0]||{x,y:1,i:0});
   const span=Math.abs((fitRange()[1]-fitRange()[0]))/20||1;
-  const def=PEAKS[d.peaks[k].type]||PEAKS.gauss;
+  const def=peakDef(d.peaks[k]);
   const h=Math.max(near.y-m.baseF(x,d.init),Math.abs(near.y)*0.1||1);
   d.init[o]=x; d.init[o+1]=h*(span/FWHM_SIG)*Math.sqrt(2*Math.PI);
   def.params.forEach((nm,i)=>{ if(/^w/.test(nm)) d.init[o+i]=span*wSeedOf(def,nm);
@@ -23795,7 +23968,7 @@ function addPeakAt(x){
 }
 function removePeak(k){
   const d=S.pdraft; if(!d||S.readOnly||!d.peaks[k]) return;
-  const m=pdraftModel(), o=m.offsets[k], np=(PEAKS[d.peaks[k].type]||PEAKS.gauss).params.length;
+  const m=pdraftModel(), o=m.offsets[k], np=peakDef(d.peaks[k]).params.length;
   pushUndo("removing peak "+(k+1));
   const gone=d.peaks[k].id;
   d.init.splice(o,np); d.fixed.splice(o,np); d.peaks.splice(k,1);
@@ -23812,7 +23985,7 @@ function tieText(l){ return `= peak ${l.j+1}${l.mul!==1?` × ${fmt(l.mul,5)}`:""
 function setTie(k,nm,t){
   const d=S.pdraft; if(!d||S.readOnly||!d.peaks[k]) return;
   d.peaks.forEach(pk=>{ if(!pk.id) pk.id=newPeakId(); });
-  const pk=d.peaks[k], def=PEAKS[pk.type]||PEAKS.gauss, lbl=paramLabelOf(def,nm).toLowerCase();
+  const pk=d.peaks[k], def=peakDef(pk), lbl=paramLabelOf(def,nm).toLowerCase();
   pushUndo(t?"tying a parameter":"untying a parameter");
   if(t){
     // Peaks that followed this one now follow what it follows, with the same
@@ -23827,7 +24000,7 @@ function setTie(k,nm,t){
   renderFit(); renderPlot();
 }
 async function askTie(k,nm,j,kind){
-  const d=S.pdraft, m=pdraftModel(), def=PEAKS[d.peaks[k].type]||PEAKS.gauss, dj=PEAKS[d.peaks[j].type]||PEAKS.gauss;
+  const d=S.pdraft, m=pdraftModel(), def=peakDef(d.peaks[k]), dj=peakDef(d.peaks[j]);
   const vk=d.init[m.offsets[k]+def.params.indexOf(nm)], vj=d.init[m.offsets[j]+dj.params.indexOf(nm)];
   const ratio=kind==="mul", start=ratio?(vj?vk/vj:1):vk-vj, lbl=paramLabelOf(def,nm).toLowerCase();
   const r=await formDlg({title:ratio?`Peak ${k+1}'s ${lbl} as a multiple of peak ${j+1}'s`:`Peak ${k+1}'s ${lbl} at a fixed spacing from peak ${j+1}'s`,
@@ -23837,9 +24010,9 @@ async function askTie(k,nm,j,kind){
   setTie(k,nm,ratio?{to:d.peaks[j].id,mul:x,add:0}:{to:d.peaks[j].id,mul:1,add:x});
 }
 function tieMenuItems(k,nm){
-  const d=S.pdraft, m=pdraftModel(), pk=d.peaks[k], def=PEAKS[pk.type]||PEAKS.gauss, cur=(pk.tie||{})[nm];
+  const d=S.pdraft, m=pdraftModel(), pk=d.peaks[k], def=peakDef(pk), cur=(pk.tie||{})[nm];
   const items=[{group:`Peak ${k+1}: ${paramLabelOf(def,nm)}`,plain:true}];
-  d.peaks.forEach((pj,j)=>{ if(j===k) return; const dj=PEAKS[pj.type]||PEAKS.gauss, i2=dj.params.indexOf(nm); if(i2<0) return;
+  d.peaks.forEach((pj,j)=>{ if(j===k) return; const dj=peakDef(pj), i2=dj.params.indexOf(nm); if(i2<0) return;
     if(pj.tie&&pj.tie[nm]&&d.peaks.some(q=>q.id===pj.tie[nm].to)) return;       // it follows another peak itself
     const same=cur&&cur.to===pj.id, vj=d.init[m.offsets[j]+i2];
     items.push({label:`Equal to peak ${j+1}'s (${fmt(vj,5)})`, radio:true, checked:!!(same&&(cur.mul==null||cur.mul===1)&&!cur.add), run:()=>setTie(k,nm,{to:pj.id,mul:1,add:0})});
@@ -23852,19 +24025,19 @@ function tieMenuItems(k,nm){
 }
 // Whether every peak's width follows peak 1's.
 function widthsShared(d){
-  if(!d||d.peaks.length<2) return false; const first=d.peaks[0], w0=(PEAKS[first.type]||PEAKS.gauss).params.filter(nm=>/^w/.test(nm));
-  const rest=d.peaks.slice(1).filter(pk=>(PEAKS[pk.type]||PEAKS.gauss).params.some(nm=>/^w/.test(nm)&&w0.includes(nm)));
-  return rest.length>0&&rest.every(pk=>(PEAKS[pk.type]||PEAKS.gauss).params.filter(nm=>/^w/.test(nm)&&w0.includes(nm)).every(nm=>pk.tie&&pk.tie[nm]&&pk.tie[nm].to===first.id&&(pk.tie[nm].mul==null||pk.tie[nm].mul===1)&&!pk.tie[nm].add));
+  if(!d||d.peaks.length<2) return false; const first=d.peaks[0], w0=peakDef(first).params.filter(nm=>/^w/.test(nm));
+  const rest=d.peaks.slice(1).filter(pk=>peakDef(pk).params.some(nm=>/^w/.test(nm)&&w0.includes(nm)));
+  return rest.length>0&&rest.every(pk=>peakDef(pk).params.filter(nm=>/^w/.test(nm)&&w0.includes(nm)).every(nm=>pk.tie&&pk.tie[nm]&&pk.tie[nm].to===first.id&&(pk.tie[nm].mul==null||pk.tie[nm].mul===1)&&!pk.tie[nm].add));
 }
 /* One width for every peak (an instrument's resolution), or each its own again. */
 function shareWidths(){
   const d=S.pdraft; if(!d||S.readOnly||d.peaks.length<2) return;
   d.peaks.forEach(pk=>{ if(!pk.id) pk.id=newPeakId(); });
-  const first=d.peaks[0], w0=(PEAKS[first.type]||PEAKS.gauss).params.filter(nm=>/^w/.test(nm)), undoIt=widthsShared(d);
+  const first=d.peaks[0], w0=peakDef(first).params.filter(nm=>/^w/.test(nm)), undoIt=widthsShared(d);
   pushUndo(undoIt?"giving each peak its own width":"sharing one width");
   let skipped=0;
   if(first.tie){ first.tie=Object.assign({},first.tie); w0.forEach(nm=>delete first.tie[nm]); if(!Object.keys(first.tie).length) delete first.tie; }
-  d.peaks.forEach((pk,k)=>{ if(!k) return; const ws=(PEAKS[pk.type]||PEAKS.gauss).params.filter(nm=>/^w/.test(nm));
+  d.peaks.forEach((pk,k)=>{ if(!k) return; const ws=peakDef(pk).params.filter(nm=>/^w/.test(nm));
     pk.tie=Object.assign({},pk.tie);
     if(undoIt) ws.forEach(nm=>delete pk.tie[nm]);
     else { const both=ws.filter(nm=>w0.includes(nm)); if(!both.length) skipped++; both.forEach(nm=>{ pk.tie[nm]={to:first.id,mul:1,add:0}; }); }
@@ -23877,12 +24050,18 @@ function shareWidths(){
 /* Changing shape keeps what the eye sees: the same centre, width and height.
    Parameters the shapes share carry over; the area is recomputed so the new
    shape stands as tall as the old one did. */
+/* The shapes a peak can have: the built-in ones, then each function of the project's that its editor made a peak shape
+   (FIT2_SPEC 4.7), as "u:<id>"; a new peak of a function's shape carries a copy of the function, as a fit does. */
+function peakShapeOpts(){ const p=P(); return Object.entries(PEAKS).map(([k,v])=>[k,v.name]).concat(((p&&p.userFns)||[]).filter(fn=>fn.peak&&peakOfUser(fn)).map(fn=>["u:"+fn.id,fn.name+" (yours)"])); }
+const shapeOptsHtml=cur=>peakShapeOpts().map(([k,n])=>`<option value="${esc(k)}"${k===cur?" selected":""}>${esc(n)}</option>`).join("");
+function newPeak(type){ if(String(type).startsWith("u:")){ const fn=((P()||{}).userFns||[]).find(f=>"u:"+f.id===type); if(fn&&peakOfUser(fn)) return {type,fn:clone(fn)}; return {type:"gauss"}; } return {type:PEAKS[type]?type:"gauss"}; }
+const shapeName=t=>{ const d=peakDef(newPeak(t)); return d.short||d.name; };
 function setPeakShape(k,type){
   const d=S.pdraft; if(!d||!d.peaks[k]) return;
-  const m=pdraftModel(), old=m.offsets[k], oldDef=PEAKS[d.peaks[k].type]||PEAKS.gauss;
+  const m=pdraftModel(), old=m.offsets[k], oldDef=peakDef(d.peaks[k]);
   const keep=d.init.slice(old,old+oldDef.params.length), hOld=oldDef.height(keep), wOld=peakFWHM(oldDef,keep);
-  d.peaks[k].type=type;
-  const nd=PEAKS[type]||PEAKS.gauss;
+  const np=newPeak(type); d.peaks[k].type=np.type; if(np.fn) d.peaks[k].fn=np.fn; else delete d.peaks[k].fn;
+  const nd=peakDef(d.peaks[k]);
   const head=d.init.slice(0,old), tail=d.init.slice(old+oldDef.params.length);
   const headF=d.fixed.slice(0,old), tailF=d.fixed.slice(old+oldDef.params.length);
   const fresh=nd.params.map((nm,i)=>{ const j=oldDef.params.indexOf(nm); if(j>=0) return keep[j];
@@ -23894,7 +24073,7 @@ function setPeakShape(k,type){
 }
 const PARAM_LABEL={xc:"Centre",A:"Area",w:"FWHM",mu:"Lorentz fraction",wG:"Gauss FWHM",wL:"Lorentz FWHM",m:"Shape m",iq:"Asymmetry 1/q"};
 const PARAM_DIM={xc:"x",A:"yx",w:"x",wG:"x",wL:"x"};
-const BASE_LABEL={y0:["Offset","y"],slope:["Slope","y/x"],b1:["Linear","y/x"],b2:["Quadratic","y/x2"],b3:["Cubic","y/x3"]};
+const BASE_LABEL={y0:["Offset","y"],slope:["Slope","y/x"],b1:["Linear","y/x"],b2:["Quadratic","y/x2"],b3:["Cubic","y/x3"],ya:["At the lowest X","y"],yb:["At the highest X","y"],B:["B","x2"]};
 /* ---- Finding peaks ---------------------------------------------------------
    The finder's settings, a live preview on the graph (filled triangles: what
    it would find; hollow: what it turned down), and the reason for every
@@ -23917,6 +24096,7 @@ function pfBaseline(pts){
   const d=ensurePeakDraft(), nb=(BASELINES[d.base]||BASELINES.none).params.length; if(!nb||!pts.length) return ()=>0;
   const m=pdraftModel();
   if(d.fitAt||d.peaks.length){ const init=d.init.slice(); return x=>m.baseF(x,init); }
+  if(m.data){ const sd=dataBaseSeed(d.base,pts.map(q=>q.x),pts.map(q=>q.y),draftBopt(d)); return sd?(x=>m.baseF(x,sd)):(()=>0); }
   const lowest=pts.slice().sort((a,b)=>a.y-b.y).slice(0,Math.max(3,Math.round(pts.length*0.2)));
   const c=polyfit(lowest.map(q=>q.x-m.x0),lowest.map(q=>q.y),nb-1);
   return x=>{ let v=0, t=1; for(let i=0;i<nb;i++){ v+=(Number.isFinite(c[i])?c[i]:0)*t; t*=(x-m.x0); } return v; };
@@ -23996,11 +24176,11 @@ function runPeakFinder(append){
   const nb=(BASELINES[d.base]||BASELINES.none).params.length;
   if(!append){ const keepBase=d.init.slice(0,nb); d.peaks=[]; d.init=keepBase; d.fixed=keepBase.map(()=>false); }
   const start=d.peaks.length;
-  r.found.forEach(()=>d.peaks.push({type:S.peakType||"gauss"}));
+  r.found.forEach(()=>d.peaks.push(newPeak(S.peakType||"gauss")));
   syncPdraft();
   const m=pdraftModel(), sg=o.dir==="negative"?-1:1;
   r.found.forEach((q,j)=>{
-    const k=start+j, def=PEAKS[d.peaks[k].type]||PEAKS.gauss, off=m.offsets[k];
+    const k=start+j, def=peakDef(d.peaks[k]), off=m.offsets[k];
     const base=sg*Y[q.i]>2*sg*q.h&&Number.isFinite(q.h)?Y[q.i]-q.h:0;
     const sd=seedPeak(X,Y,q.i,base); let w=sd.w;
     if(Number.isFinite(q.w)&&q.w>0&&(!(w>0)||w>2.5*q.w)) w=q.w;
@@ -24033,16 +24213,16 @@ function renderPeakFit(box,p,top){
   // 2 Adjust
   h+=`<section class="stepsec"><h3 class="gh"><span class="sn">2</span>Peaks and baseline <span class="cnt">${d.peaks.length||""}</span><span style="flex:1"></span><button class="btn sm ghost" id="pfAddMode"${ro} aria-pressed="${S.mode==="peak"}" title="Click the graph where you see a peak; Esc stops">${ICON("peak","sm")}Add a peak</button>${d.peaks.length>1?`<button class="btn sm ghost" id="shareW"${ro} aria-pressed="${widthsShared(d)}" title="${widthsShared(d)?"Give each peak its own width again":"Tie every peak's width to peak 1's: one width, fitted for all (an instrument's resolution)"}">${ICON("link","sm")}One width</button>`:""}<button class="btn sm ghost" id="clrPeaks"${ro}${d.peaks.length?"":" disabled"}>Clear</button></h3>`;
   h+=`<div class="frow"><label for="pbase">Baseline</label><select id="pbase"${ro}>${Object.entries(BASELINES).map(([k,v])=>`<option value="${k}"${k===d.base?" selected":""}>${v.name}</option>`).join("")}</select>
-    <label for="ptype">New peaks</label><div class="pair"><select id="ptype" style="flex:1"${ro}>${Object.entries(PEAKS).map(([k,v])=>`<option value="${k}"${k===(S.peakType||"gauss")?" selected":""}>${v.name}</option>`).join("")}</select>${d.peaks.some(pk=>pk.type!==(S.peakType||"gauss"))?`<button class="btn sm" id="ptypeAll"${ro}>Apply to all</button>`:""}</div></div>`;
+    <label for="ptype">New peaks</label><div class="pair"><select id="ptype" style="flex:1"${ro}>${shapeOptsHtml(S.peakType||"gauss")}</select>${d.peaks.some(pk=>pk.type!==(S.peakType||"gauss"))?`<button class="btn sm" id="ptypeAll"${ro}>Apply to all</button>`:""}</div></div>`;
   if(!d.peaks.length) h+=`<p class="nothing">No peaks yet. Find them above, or press <strong>Add a peak</strong> and click the graph.</p>`;
   const links=peakLinks(d.peaks,m);
   d.peaks.forEach((pk,k)=>{
-    const def=PEAKS[pk.type]||PEAKS.gauss, o=m.offsets[k];
+    const def=peakDef(pk), o=m.offsets[k];
     const col=peakColor(k);
     const mr=rowFor(k), bad=mr&&!mr.ok, flag=bad?` <span class="flag" title="${esc("Not a usable peak: "+mr.problems.join("; "))}" aria-label="not a usable peak">!</span>`:"";
     h+=`<div class="pcard${S.selPeak===k?" sel":""}${bad?" badrow":""}" data-peak="${k}">
       <div class="pcard-h"><span class="dot" style="background:${col}"></span><strong>Peak ${k+1}</strong>${flag}<input type="text" class="pname" data-pname="${k}" value="${esc(pk.lab||"")}" placeholder="Name" maxlength="60" aria-label="Name of peak ${k+1}" title="A name for this peak: for its label on the graph, Results and the report"${ro}><span class="at">${esc(fmt(d.init[o],6))}${xu?" "+esc(xu):""}</span>
-        <select data-ptype="${k}"${ro} aria-label="Shape of peak ${k+1}">${Object.entries(PEAKS).map(([kk,v])=>`<option value="${kk}"${kk===pk.type?" selected":""}>${v.name}</option>`).join("")}</select>
+        <select data-ptype="${k}"${ro} aria-label="Shape of peak ${k+1}">${shapeOptsHtml(pk.type)}</select>
         <button class="tb sm icon" data-delpeak="${k}" aria-label="Delete peak ${k+1}" title="Delete peak ${k+1}"${ro}>${ICON("x","sm")}</button></div>
       <table class="ptab"><tbody>`;
     def.params.forEach((nm,i)=>{ const gi=o+i, tl=links.find(l=>l.gi===gi), lb=paramLabelOf(def,nm);
@@ -24056,7 +24236,7 @@ function renderPeakFit(box,p,top){
   });
   const nb=(BASELINES[d.base]||BASELINES.none).params.length;
   if(nb){
-    h+=`<div class="pcard"><div class="pcard-h" style="cursor:default"><span class="dot" style="background:var(--muted)"></span><strong>Baseline</strong><span class="at">${esc((BASELINES[d.base]||BASELINES.none).name.toLowerCase())}</span></div><table class="ptab"><tbody>`;
+    h+=`<div class="pcard"><div class="pcard-h" style="cursor:default"><span class="dot" style="background:var(--muted)"></span><strong>Baseline</strong><span class="at">${esc(baseLabel(d.base))}</span></div><table class="ptab"><tbody>`;
     (BASELINES[d.base]||BASELINES.none).params.forEach((nm,i)=>{
       const bl=BASE_LABEL[nm]||[nm,""];
       h+=`<tr><td class="pn" title="${esc(nm)}">${esc(bl[0])}${uu(bl[1])}</td>
@@ -24064,7 +24244,11 @@ function renderPeakFit(box,p,top){
         <td class="fx"><input type="checkbox" data-pfix="${i}"${d.fixed[i]?" checked":""} title="Hold ${esc(nm)} at its initial value" aria-label="Fix baseline ${esc(nm)}"${ro}></td>
         <td class="res">${resOf(i)}</td></tr>`;
     });
-    h+=`</tbody></table><p class="lab" style="margin:2px 9px 8px">In powers of (x − ${esc(fmt(m.x0,6))}), the centre of the range.</p></div>`;
+    if(d.base==="tougaard"){ const bo=draftBopt(d);
+      h+=`<tr><td class="pn"><label for="pbDir">Losses towards</label></td><td colspan="3"><select id="pbDir" data-bopt="dir"${ro}>${TG_DIRS.map(([v,l])=>`<option value="${v}"${bo.dir===v?" selected":""}>${l}</option>`).join("")}</select></td></tr>
+        <tr><td class="pn tipd" title="Of the universal cross-section: 1643 eV² for most metals and their oxides">C${uu("x2")}</td><td><input type="text" inputmode="decimal" id="pbC" data-bopt="C" value="${esc(String(bo.C||1643))}" aria-label="Tougaard's C"${ro}></td><td class="fx"></td><td class="res"></td></tr>
+        <tr><td class="pn tipd" title="Of the three-parameter cross-section; 0 for the universal one">D${uu("x2")}</td><td><input type="text" inputmode="decimal" id="pbD" data-bopt="D" value="${esc(String(bo.D||0))}" aria-label="Tougaard's D"${ro}></td><td class="fx"></td><td class="res"></td></tr>`; }
+    h+=`</tbody></table>${m.data?(m.nodata?noteHtml("warn",d.base==="tougaard"&&fitPoints().length>8000?"Tougaard's background reads every pair of points: 8000 at most. Narrow the range.":"Too few points in the range for this background."):""):`<p class="lab" style="margin:2px 9px 8px">In powers of (x − ${esc(fmt(m.x0,6))}), the centre of the range.</p>`}</div>`;
   }
   h+=`</section>`;
   // 3 Fit
@@ -24092,7 +24276,7 @@ function renderPeakFit(box,p,top){
     d.init=new Array(nb2).fill(0).concat(keep); d.fixed=new Array(nb2).fill(false).concat(keepF);
     d.x0=null; d.fitAt=null;
     syncPdraft(); seedBaseline(); S.fitError="";
-    save({},"set the baseline to "+(BASELINES[d.base]||BASELINES.none).name.toLowerCase());
+    save({},"set the baseline to "+baseLabel(d.base));
     renderFit(); renderPlot(); };
   $("#ptype").onchange=e=>{ S.peakType=e.target.value; renderFit(); };
   $("#clrPeaks").onclick=()=>{ if(S.readOnly) return;
@@ -24117,9 +24301,9 @@ function renderPeakFit(box,p,top){
     const t=S.peakType||"gauss";
     pushUndo("changing every peak's shape");
     d.peaks.forEach((pk,k)=>{ if(pk.type!==t) setPeakShape(k,t); });
-    save({},"changed every peak to "+lcFirst((PEAKS[t]||PEAKS.gauss).short||(PEAKS[t]||PEAKS.gauss).name));
+    save({},"changed every peak to "+lcFirst(shapeName(t)));
     renderFit(); renderPlot();
-    toast(`All ${d.peaks.length} peaks are now ${(PEAKS[t]||PEAKS.gauss).name}. Press Fit to refit them.`,{action:"Undo",run:undo});
+    toast(`All ${d.peaks.length} peaks are now ${shapeName(t)}. Press Fit to refit them.`,{action:"Undo",run:undo});
   };
   box.querySelectorAll("[data-delpeak]").forEach(b=>b.onclick=()=>{
     if(S.readOnly) return;
@@ -24136,6 +24320,10 @@ function renderPeakFit(box,p,top){
     renderPlot();
   });
   box.querySelectorAll("input[data-pfix]").forEach(inp=>inp.onchange=()=>{ d.fixed[+inp.dataset.pfix]=inp.checked; });
+  box.querySelectorAll("[data-bopt]").forEach(el=>el.onchange=()=>{ const k=el.dataset.bopt, bo=draftBopt(d);
+    let v=el.value; if(k!=="dir"){ v=parseNum(el.value); if(v===null||!(k==="C"?v>0:v>=0)){ el.value=String(bo[k]); toast(k==="C"?"C must be a number above 0.":"D must be 0 or a number above it."); return; } }
+    pushUndo("changing Tougaard's background"); bo[k]=v; d.fitAt=null; seedBaseline();
+    save({},k==="dir"?`set Tougaard's losses towards ${v==="down"?"lower":"higher"} x`:`set Tougaard's ${k} to ${fmt(v,6)}`); renderFit(); renderPlot(); });
   box.querySelectorAll("[data-tie]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); const s=b.dataset.tie, i=s.indexOf(":"), k=+s.slice(0,i), nm=s.slice(i+1);
     toggleMenu(b,()=>tieMenuItems(k,nm),{label:"Tie to another peak"}); });
   const sw=$("#shareW"); if(sw) sw.onclick=shareWidths;
@@ -24175,7 +24363,8 @@ function runPeakFit(){
   if(WT.fail){ S.fitError=WT.fail; renderFit(); return; }
   const W=WT.W, useW=WT.kind!=="none";
   if(d.xerr&&WT.kind==="col"){ S.fitError=WCOL_ODR; renderFit(); return; }
-  const spec={base:d.base,peaks:d.peaks.map(k=>Object.assign({type:k.type},k.id?{id:k.id}:{},k.tie?{tie:JSON.parse(JSON.stringify(k.tie))}:{},k.lab?{lab:k.lab}:{}))};
+  if(m.nodata){ S.fitError=d.base==="tougaard"&&pts.length>8000?"Tougaard's background reads every pair of points: 8000 at most. Narrow the range.":`${baseLabel(d.base)}'s background needs at least three points in the range.`; renderFit(); return; }
+  const spec=withDataBase({base:d.base,peaks:d.peaks.map(k=>Object.assign({type:k.type},k.id?{id:k.id}:{},k.tie?{tie:JSON.parse(JSON.stringify(k.tie))}:{},k.lab?{lab:k.lab}:{},k.fn?{fn:clone(k.fn)}:{}))},pts,m.data?draftBopt(d):null);
   const {lo,hi}=modelBounds(spec,m,d.init);
   const L=peakLinks(spec.peaks,m), fixedT=d.fixed.slice(); L.forEach(l=>{ fixedT[l.gi]=true; });
   const span=Math.abs(amax(X)-amin(X))||1;
@@ -24447,7 +24636,7 @@ function renderResults0(){
   warns.forEach(w=>{ h+=noteHtml(w.level,w.brief,false,w.acts,w.text); });
   h+=`<div class="rgrid"><div class="rmain">`;
   if(FM.composite){
-    const rows=peakMetrics(f), hasN=rows.some(r=>r.name), au=unitFor("yx",xu,yu), shd=(k,nms)=>{ if(!f.shared) return ""; const pd=PEAKS[(f.spec.peaks[k]||{}).type]||PEAKS.gauss, o=FM.model.offsets[k], ix=pd.params.map((nm,i)=>nms.test(nm)?o+i:-1).filter(i=>i>=0);
+    const rows=peakMetrics(f), hasN=rows.some(r=>r.name), au=unitFor("yx",xu,yu), shd=(k,nms)=>{ if(!f.shared) return ""; const pd=peakDef(f.spec.peaks[k]), o=FM.model.offsets[k], ix=pd.params.map((nm,i)=>nms.test(nm)?o+i:-1).filter(i=>i>=0);
       return ix.length&&ix.every(i=>f.shared[i])?` <span class="lab shd" title="One value for every column of the global fit">shared</span>`:""; };
     h+=`<table class="rtab rpk"><thead><tr><th class="l">Peak</th>${hasN?`<th class="l x">Name</th>`:""}<th class="l x">Shape</th><th>Centre ${u(xu)}</th><th class="x">Height ${u(yu)}</th><th>FWHM ${u(xu)}</th><th>Area ${u(au)}</th><th class="x">Area %</th></tr></thead><tbody>`;
     rows.forEach(r=>{ h+=`<tr data-prow="${r.k}" class="rmain${S.selPeak===r.k?" sel":""}" title="${r.ok?"Click to select this peak":esc("Not a usable peak: "+r.problems.join("; "))}">
@@ -25299,7 +25488,11 @@ function methodLines(){
   const nm=maskOf(c).length; if(nm) out.push(nm+" point(s) masked and excluded from the fit");
   if(f){
     out.push("Model: "+FM.name);
-    if(FM.composite){ const L=peakLinks(f.spec.peaks,FM.model); if(L.length) out.push("Tied parameters (not fitted on their own): "+L.map(l=>{ const dd=PEAKS[f.spec.peaks[l.k].type]||PEAKS.gauss, lb=paramLabelOf(dd,l.nm); return `peak ${l.k+1} ${lb} = ${tieFormula(l,lb)}`; }).join("; ")); }
+    if(FM.composite){ const L=peakLinks(f.spec.peaks,FM.model); if(L.length) out.push("Tied parameters (not fitted on their own): "+L.map(l=>{ const dd=peakDef(f.spec.peaks[l.k]), lb=paramLabelOf(dd,l.nm); return `peak ${l.k+1} ${lb} = ${tieFormula(l,lb)}`; }).join("; ")); }
+    if(FM.composite){ const sp=f.spec, np=(sp.bx||[]).length, o=sp.bopt||{};
+      if(sp.base==="shirley") out.push(`Baseline: Shirley's, its two ends fitted, the background between them found by Proctor and Sherwood's iteration on the ${np} points fitted at each step`);
+      if(sp.base==="tougaard") out.push(`Baseline: Tougaard's, y0 + B·∫K(T)(y − y0) over the low-loss side (the losses towards ${o.dir==="down"?"lower":"higher"} x) of the ${np} points fitted, K(T) = ${+o.D>0?`T/((C − T²)² + D·T²), C = ${fmt(+o.C||1643,6)}, D = ${fmt(+o.D,6)}`:`T/(C + T²)², C = ${fmt(+o.C||1643,6)}`}; y0 and B fitted`);
+      const seen=new Set(); (sp.peaks||[]).forEach(k=>{ const fn=k.fn; if(!fn||!fn.peak||seen.has(fn.expr)) return; seen.add(fn.expr); out.push(`Peak shape “${fn.name||"your function"}”: ${fn.expr} (centre ${fn.peak.xc}, area ${fn.peak.A}, width ${fn.peak.w})`); }); }
     if(FM.model.user){ const lim=FM.model.params.map((n,i)=>{ const lo=FM.model.lo[i], hi=FM.model.hi[i]; return Number.isFinite(lo)||Number.isFinite(hi)?n+(Number.isFinite(lo)&&Number.isFinite(hi)?" from "+fmt(lo,6)+" to "+fmt(hi,6):Number.isFinite(lo)?" at least "+fmt(lo,6):" at most "+fmt(hi,6)):null; }).filter(Boolean);
       out.push("Function, defined in the project: "+FM.model.expr); }
     { const lt=limText(f); if(lt) out.push("Limits: "+lt); }
@@ -26043,7 +26236,7 @@ async function exportCsv(){
 const TOOL_GROUPS=[
   ["Clean",["crop","exclude","despike","sort","dedupe","resample"]],
   ["Background",["bg"]],
-  ["Smooth and filter",["smooth","fft"]],
+  ["Smooth and filter",["smooth","fft","fsd"]],
   ["Arithmetic",["scale","xlin","norm","ref","combine"]],
   ["Calculus",["deriv","cumint"]],
   ["Statistics",["hist"]],
@@ -26224,7 +26417,7 @@ function dataMenu(){
     "-",
     {label:"Clean", sub:()=>[t("crop"), t("exclude"), t("sort"), t("dedupe"), t("resample")]},
     {label:"Baseline", sub:()=>[t("bg"), Object.assign(toolItem("bg",{p:{method:"line"}})||{},{label:"Linear detrend…", title:"A straight line between the ends of the data, subtracted"})]},
-    {label:"Transform", sub:()=>[t("scale"), t("norm"), t("log"), t("xlin"), t("ref"), t("combine")]},
+    {label:"Transform", sub:()=>[t("scale"), t("norm"), t("log"), t("xlin"), t("ref"), t("combine"), t("fsd")]},
     // Calibrating (11.11, the user's request): X against known peaks or energies, Y against a response.
     {label:"Calibrate", sub:()=>[t("calib"), t("ecal"), t("xlin"), Object.assign(toolItem("ref",{p:{op:"div",use:"raw"}})||{},{label:"Y by a reference's response…", title:"Divides by a lamp's or a white standard's spectrum, so intensities from different days or instruments compare"})]}];
 }
@@ -26783,10 +26976,10 @@ function fitFoundPeaks(){
   const m0=pdraftModel(), X=pts.map(q=>q.x), Y=pts.map(q=>q.y-m0.baseF(q.x,d.init)), nb=(BASELINES[d.base]||BASELINES.none).params.length;
   const keep=d.init.slice(0,nb); d.peaks=[]; d.init=keep; d.fixed=keep.map(()=>false);
   const inView=rows.filter(r=>r.x>=amin(X)&&r.x<=amax(X));
-  inView.forEach(()=>d.peaks.push({type:S.peakType||"gauss"})); syncPdraft();
+  inView.forEach(()=>d.peaks.push(newPeak(S.peakType||"gauss"))); syncPdraft();
   const m=pdraftModel();
   inView.forEach((r,k)=>{ let i=0; X.forEach((x,j)=>{ if(Math.abs(x-r.x)<Math.abs(X[i]-r.x)) i=j; });
-    const def=PEAKS[d.peaks[k].type]||PEAKS.gauss, off=m.offsets[k], sg=pfOpts().dir==="negative"?-1:1, hh=Number.isFinite(r.h)?sg*r.h:NaN;
+    const def=peakDef(d.peaks[k]), off=m.offsets[k], sg=pfOpts().dir==="negative"?-1:1, hh=Number.isFinite(r.h)?sg*r.h:NaN;
     // A peak on a larger one's tail is measured from its own valleys.
     const sd=seedPeak(X,Y,i,Number.isFinite(hh)&&sg*Y[i]>2*Math.abs(hh)?Y[i]-hh:0); let w=sd.w; if(r.w>0&&(!(w>0)||w>2.5*r.w)) w=r.w;
     d.init[off]=sd.xc; def.params.forEach((nm,j)=>{ if(/^w/.test(nm)) d.init[off+j]=w*wSeedOf(def,nm); if(def.init&&def.init[nm]!=null) d.init[off+j]=def.init[nm]; d.fixed[off+j]=false; });
@@ -28177,7 +28370,8 @@ function cmdkScore(it,words,spare){
     else if(short){ if(PW.some(x=>x.startsWith(w))) s=3; }
     else {
       const ss=cmdkSynOf(w);
-      if(ss.some(x=>L.includes(x))){ s=8; if(!syn) syn=w; }
+      // a word for it in the name; one more when the command's own search words have the word typed (power spectrum: the FFT filter)
+      if(ss.some(x=>L.includes(x))){ s=8+(K.includes(w)?1:0); if(!syn) syn=w; }
       else if(PW.some(x=>x.startsWith(w))||ss.some(x=>PW.includes(x))) s=3;
       else if(K.includes(w)||ss.some(x=>K.includes(x))) s=2;
       else if(T.includes(w)){ s=1; inTitle=true; }
@@ -29165,23 +29359,26 @@ ${DL([["<code>b = 2*a + 1</code>","b follows the others: it is not fitted on its
 <p>The logistic, the power law, the logarithm and Arrhenius take the logarithm of <i>x</i> or a power of it, so they need X above 0; Hill and Michaelis–Menten need X of 0 or more. A fit over other X says so instead of fitting: set the ${DA("fit","range")} to the X they can take. Arrhenius reads X as the temperature in kelvins.</p>
 <div id="docModelList"></div>
 <p><em>Function</em> beside the model's button, <em>New function…</em> at the foot of the list, or ${MP("Analyze › Fit › New function…")}, adds ${DA("userfn","your own")}.</p>`},
-{id:"peakfit", g:"Fitting", t:"Peak fit", kw:"peak fit deconvolution peaks baseline draft handles drag find peaks reset estimates shape name label labels number centre area fwhm height errors units leader row turned",
+{id:"peakfit", g:"Fitting", t:"Peak fit", kw:"peak fit deconvolution peaks baseline draft handles drag find peaks reset estimates shape name label labels number centre area fwhm height errors units leader row turned xps shirley tougaard background photoelectron",
  lead:"A spectrum as a sum of peaks on a baseline, each peak described by its centre, area and width.",
  body:`<h2>1 · Find peaks</h2>
 <p>It looks over the Fit window's <em>Range</em> (${DA("fit","what is fitted")}). The ${DA("finder","finder")} previews what it would find on the graph (filled: found; hollow: not counted as peaks). <em>Use these peaks</em> starts the draft from them; <em>Add to my peaks</em> adds them to what is there. Or press <em>Add a peak</em> in part 2 and click the graph.</p>
 <h2>2 · Peaks and baseline</h2>
-<p>Each peak's shape and starting values, and the baseline (none, constant, straight line, quadratic or cubic, measured from the centre of the fitted range). On the graph, the draft is drawn dashed with its sum:</p>
+<p>Each peak's shape and starting values, and the baseline: none, constant, straight line, quadratic or cubic, measured from the centre of the fitted range; or, for photoelectron spectra, Shirley or Tougaard, worked out from the points fitted and fitted with the peaks (below). On the graph, the draft is drawn dashed with its sum:</p>
 ${DL([["Numbered dot","Drag to move the peak's centre and height."],["Side handles","Of the selected peak: drag to change its width."],["Diamond","Of the selected peak, on a short track over its number, when its shape has a parameter of its own (a pseudo-Voigt's Lorentzian fraction, from Gaussian at the left to Lorentzian at the right; a Pearson VII's m; a Fano's asymmetry 1/q, zero marked in the middle): drag it sideways. The top stays where it is; the tails change."],["The keys","Click the graph and press "+K("Tab")+" until the peak is selected (after the annotations): "+K("←")+" "+K("→")+" move its centre, "+K("↑")+" "+K("↓")+" its height, "+K("[")+" "+K("]")+" its width, a pixel at a time ("+K("Shift")+", or "+K("{")+" "+K("}")+", ten); "+K(",")+" "+K(".")+" its shape, as the diamond does."],["Type","Any value in the table; the lock holds it fixed; the chain link "+DA("ties","ties it")+" to another peak's."]])}
 <p><em>One width</em> gives every peak the same width, for an instrument's resolution. Changing a peak's shape keeps its centre, width and height.</p>
 <p>The box beside <em>Peak 1</em> is its name (<em>C=O stretch</em>, <code>\\nu_{1}</code>): it goes into the peak's label, Results, the report and the exports, and into every spectrum of a batch fitted with these peaks.</p>
 <h2>3 · Fit</h2>
 <p><em>Fit</em> or ${K("Ctrl","Enter")}. <em>Reset to estimates</em> measures every peak again from the data, and puts a peak that has run off the spectrum back on the largest feature no other peak describes.</p>
 <p>Shapes: ${DA("shapes","Peak shapes")}.</p>
+<h2 id="xps">Shirley and Tougaard baselines</h2>
+${DL([["Shirley","Its two ends (<em>At the lowest X</em>, <em>At the highest X</em>) are fitted; at each step of the fit the background between them is Shirley's iteration on the data for those ends, so it rises in step with the area above it."],["Tougaard","Its level <i>y</i><sub>0</sub> and <i>B</i> are fitted; the background is <i>y</i><sub>0</sub> + <i>B</i> times the integral, on the low-loss side, of the counts above <i>y</i><sub>0</sub> weighted by the cross-section. <em>Losses towards</em>, <em>C</em> and <em>D</em> are in the baseline's card."]])}
+<p>Both are worked out from the points in the Range, which the fit keeps, so it draws and reports the same background after a reload. A fit of every column works each one out from its own points; fitting every column together does not take them.</p>
 <h2 id="labels">Labels on the graph</h2>
 <p>Each fitted peak is labelled on the graph. <em>Labels show</em>, under the fit, picks what they say; the right-click menu of a label, and the Format pane's <em>Fitted peak labels</em> page have everything:</p>
 ${DL([["Each label shows","Any of its number, name, centre, height, FWHM, area and share of the area."],["Or your own text","Your words around the numbers: <code>{n}</code> the number, <code>{name}</code>, <code>{xc}</code> the centre, <code>{h}</code> the height, <code>{fwhm}</code>, <code>{area}</code>, <code>{pct}</code>. A new line starts a new line."],["The numbers","Decimals, with ± their standard errors, with their units."],["Where","Above the peak, inside it, or in a row along the top with a leader to each peak (spread so none overlap); one line or stacked; turned 90°. A label that would rise above the plot sits beside its peak."],["Mark and look","A dot on the top, a line down to the baseline or through the graph; each peak's colour or the text's; a box; the font, size and style of the text."]])}
 <p>Drag a label to move it (a leader goes back to its peak); double-click it to name its peak; right-click it for its options and <em>Put its label back</em>. The settings belong to the graph, so each graph of a project can label its peaks its own way; they travel with ${DA("style#formats","formats")}.</p>`},
-{id:"shapes", g:"Fitting", t:"Peak shapes", kw:"gaussian lorentzian pseudo-voigt voigt pearson fano breit wigner shape formula area fwhm",
+{id:"shapes", g:"Fitting", t:"Peak shapes", kw:"gaussian lorentzian pseudo-voigt voigt pearson fano breit wigner shape formula area fwhm emg exponentially modified gaussian tail chromatography doniach sunjic šunjić xps asymmetric metal core level your own shape",
  lead:"Every shape is written in terms of its centre, its area and its full width at half maximum, so the table holds the numbers a paper needs.",
  body:`<h2>Gaussian</h2>
 <div class="eq"><i>y</i> = <i>A</i> / (<i>σ</i>√(2π)) · exp[−(<i>x</i> − <i>x</i><sub>c</sub>)² / 2<i>σ</i>²], &nbsp; <i>σ</i> = <i>w</i> / (2√(2 ln 2))</div>
@@ -29199,7 +29396,14 @@ ${DL([["Each label shows","Any of its number, name, centre, height, FWHM, area a
 <p>Lorentzian at <i>m</i> = 1, close to Gaussian as <i>m</i> grows; between them in one parameter.</p>
 <h2>Fano (Breit–Wigner–Fano)</h2>
 <div class="eq"><i>y</i> = (2<i>A</i> / π<i>Γ</i>) · (1 + <i>ε</i>/<i>q</i>)² / (1 + <i>ε</i>²), &nbsp; <i>ε</i> = 2(<i>x</i> − <i>x</i><sub>c</sub>)/<i>Γ</i></div>
-<p>A line interfering with a continuum, asymmetric by 1/<i>q</i> (0 gives a Lorentzian; kept within ±0.9). Its tail never returns to zero, so its area is not finite: <i>A</i> is the area of the Lorentzian it becomes as 1/<i>q</i> goes to 0. Its height is the true maximum and its FWHM the true width, <i>Γ</i>(1 + 1/<i>q</i>²)/|1 − 1/<i>q</i>²|.</p>`},
+<p>A line interfering with a continuum, asymmetric by 1/<i>q</i> (0 gives a Lorentzian; kept within ±0.9). Its tail never returns to zero, so its area is not finite: <i>A</i> is the area of the Lorentzian it becomes as 1/<i>q</i> goes to 0. Its height is the true maximum and its FWHM the true width, <i>Γ</i>(1 + 1/<i>q</i>²)/|1 − 1/<i>q</i>²|.</p>
+<h2>Exponentially modified Gaussian</h2>
+<p>A Gaussian (centre <i>x</i><sub>c</sub>, FWHM <i>w</i>) convolved with a decay of time constant <i>τ</i> towards higher x: a chromatographic peak's tail, or a detector's. <i>τ</i> = 0 is the Gaussian; a long tail is worked out through the scaled complementary error function, so it does not overflow. Its top, height and FWHM are found from the line itself.</p>
+<h2>Doniach–Šunjić</h2>
+<div class="eq"><i>y</i> = (<i>A</i>/π) Γ(1 − <i>α</i>) cos[π<i>α</i>/2 + (1 − <i>α</i>) arctan(<i>ε</i>/<i>γ</i>)] / (<i>ε</i>² + <i>γ</i>²)<sup>(1 − <i>α</i>)/2</sup>, &nbsp; <i>γ</i> = <i>w</i>/2</div>
+<p>A metal's core level, as photoelectrons measure it: a Lorentzian of FWHM <i>w</i> made asymmetric by <i>α</i> (0 the Lorentzian; kept within ±0.9). With <i>α</i> above 0 the tail goes to higher x, as on a binding-energy axis (<i>ε</i> = <i>x</i><sub>c</sub> − <i>x</i>); below 0 to lower x, as on a kinetic-energy one. Its tail falls as a power, so its area is not finite: <i>A</i> is the area of its Lorentzian limit, and the fit says so.</p>
+<h2>Your own</h2>
+<p>A ${DA("userfn#shape","function of yours")} marked as a peak shape, with its centre, area and width named, is offered with these.</p>`},
 {id:"ties", g:"Fitting", t:"Tied parameters", kw:"tie link constraint shared width area ratio doublet spin orbit spacing",
  lead:"Make one peak's parameter follow another's: equal widths, a fixed area ratio, a fixed spacing.",
  body:`<h2>Tying</h2>
@@ -29212,7 +29416,7 @@ ${DL([["Equal","The same value."],["A multiple","For areas: the 2 to 1 of a spin
 <li>Dragging any peak of a tied group on the graph moves the group.</li>
 <li>Ties never chain: a peak can only follow a peak that follows no one.</li>
 <li>The report's method lists every tie.</li></ul>`},
-{id:"userfn", g:"Fitting", t:"Your own fit functions", kw:"user function custom formula expression parameters limits library category organizer organise organize meaning derived value half-life constraint start formula rename delete",
+{id:"userfn", g:"Fitting", t:"Your own fit functions", kw:"user function custom formula expression parameters limits library category organizer organise organize meaning derived value half-life constraint start formula rename delete peak shape centre area width",
  lead:"Write a function of x as on paper, and fit it like any built-in model.",
  body:`<h2>Writing one</h2>
 <p>${MP("Analyze › Fit › New function…")}, or <em>Function</em> beside the model list.</p>
@@ -29221,6 +29425,8 @@ ${DL([["Equal","The same value."],["A multiple","For areas: the 2 to 1 of a spin
 <h2>Parameters</h2>
 <p>Each has a start (a number; a ${DA("curvefit#fxstart","formula of the data")} such as <code>max(y) - min(y)</code> or <code>xat</code>, measured on the data it is fitted to; or empty: guessed from its name, such as <code>y0</code> a baseline, <code>A</code> a height, <code>xc</code> the position of the largest point, <code>w</code> a tenth of the range), optional lower and upper limits, a unit, and what it means (shown in the Fit window and Results). A preview draws the function at its starts over the data as you type, and a mistake is named with its line.</p>
 ${DL([["Category","Where the model list files it, among your functions: <em>Your functions: Kinetics</em>."],["Constraints","One a line, as in the Fit window (<code>y0 = A/50</code>, <code>t1 &lt; t2</code>): the Fit window starts with them whenever the function is chosen. "+DA("curvefit#cons","Constraints")],["Derived values","One a line: a name = a formula of the parameters (<code>Half-life = t*ln(2)</code>). Results gives each with its error, by the delta method, as it does for the built-in models."]])}
+<h2 id="shape">As a peak shape</h2>
+<p>Tick <em>A peak shape too</em> and say which parameter is its centre, its area and its width: the function is offered among the peak fit's shapes (<em>My Gaussian (yours)</em>), its areas and shares are its area parameter's, and its height and FWHM are measured from the line. Its other parameters keep their starts and limits. A peak fit keeps a copy of the function, as a curve fit does.</p>
 <h2>Keeping them</h2>
 <p>A function belongs to the project and, if you choose, to this browser's library for later projects. A fit keeps a copy of the function it used, so editing the function never changes a result already made; the report and the CSV state the formula and its limits.</p>
 <h2 id="org">Your functions</h2>
@@ -29333,8 +29539,9 @@ const DOC_STEP={
   crop:`<p>Zoomed in, ${MP("Data › Clean › Crop…")} starts on the range the graph shows. To leave points out of the fit only, mask them instead: masked points stay in the data.</p>`,
   exclude:`<p>Pick the range by dragging on the graph (<em>Pick the range on the graph</em>).</p>`,
   despike:`<h2>How it decides</h2><p>A point is a spike when it stands more than <em>Threshold</em> times the noise above a smooth line through its neighbours, and the feature is at most <em>Widest spike</em> points wide. Real bands are wider, so they are left alone. The graph marks every point the step replaced.</p><h2>Checks</h2><p>It warns when it changed points inside a band, or when a "spike" was wide enough to be a narrow band.</p>${TIP("Remove spikes before smoothing: a smoothed spike is wider, and survives as a false band.")}`,
-  bg:`<h2>Methods</h2>${DL([["arPLS","Automatic. A smooth curve that weights points above it less and less, so it passes under the bands. Stiffness λ sets how slowly it may bend. Start here."],["ALS","Asymmetric least squares: the same idea with a fixed asymmetry p (0.001 to 0.05). Follows bands more than arPLS."],["airPLS","Adaptive iterative reweighting: another automatic variant, good on steep fluorescence."],["ModPoly, I-ModPoly","A polynomial fitted again and again, clipped to the data each time. I-ModPoly also allows for noise."],["SNIP","Peak clipping over a window wider than the widest band. With the log-log-sqrt transform, for counts."],["Rolling ball","A ball of the window's width rolled under the data."],["Anchor points","Points you place (or let Kurve place) joined by a spline, a monotone cubic, or straight lines. Drag them on the graph."],["Straight line","Between the means of the end regions."],["Constant","The lowest point, a percentile, or a value you give."]])}<h2>Checks</h2><p>A stretch of the result below −3σ is over-subtraction: the background rose into the data. A background that follows a band's shape eats into its area: a symmetric method with a small window or a low stiffness does that, and the step says so.</p>${TIP("The step's box in the History shows the background curve drawn under its input.")}`,
+  bg:`<h2>Methods</h2>${DL([["arPLS","Automatic. A smooth curve that weights points above it less and less, so it passes under the bands. Stiffness λ sets how slowly it may bend. Start here."],["ALS","Asymmetric least squares: the same idea with a fixed asymmetry p (0.001 to 0.05). Follows bands more than arPLS."],["airPLS","Adaptive iterative reweighting: another automatic variant, good on steep fluorescence."],["ModPoly, I-ModPoly","A polynomial fitted again and again, clipped to the data each time. I-ModPoly also allows for noise."],["SNIP","Peak clipping over a window wider than the widest band. With the log-log-sqrt transform, for counts."],["Rolling ball","A ball of the window's width rolled under the data."],["Anchor points","Points you place (or let Kurve place) joined by a spline, a monotone cubic, or straight lines. Drag them on the graph."],["Straight line","Between the means of the end regions."],["Constant","The lowest point, a percentile, or a value you give."],["Shirley (XPS)","The background under a photoelectron line rises in step with the line's area: at each point, the level of the low end plus the step between the ends times the area of the data above the background on the low side, found by Proctor and Sherwood's iteration until it settles. The ends' levels are the means of the first and last <em>End regions</em> of the points; the note says how many rounds it took."],["Tougaard (XPS)","The electrons that lost energy on their way out: at each point, B times the integral of the counts on the low-loss side weighted by Tougaard's universal cross-section T/(C + T²)² (C = 1643 eV² for most metals and their oxides), or with D above 0 the three-parameter one for polymers and semiconductors. B is set so the background meets the high-loss end. <em>Losses towards</em> says which side that is: higher binding energy, or lower kinetic energy."]])}<h2>Checks</h2><p>A stretch of the result below −3σ is over-subtraction: the background rose into the data. A background that follows a band's shape eats into its area: a symmetric method with a small window or a low stiffness does that, and the step says so.</p>${TIP("The step's box in the History shows the background curve drawn under its input.")}`,
   smooth:`<h2>Methods</h2>${DL([["Savitzky–Golay","A polynomial fitted in a moving window. Keeps band heights best for its window; needs even spacing."],["Moving average","The mean over the window. Simple; flattens narrow bands."],["Median","Robust to single outliers."],["Gaussian","A Gaussian-weighted average."],["Whittaker","A penalised smoother with one setting, λ; works on uneven spacing."]])}<h2>Checks</h2><p>The step measures what it takes off the narrowest band, on an ideal band of the same width in points, and warns when that matters; it also warns about uneven spacing.</p>`,
+  fsd:`<h2>How it works</h2><p>The series, its straight line through the ends taken off and mirrored, is taken into Fourier space, multiplied there by the inverse of a Lorentzian's transform of FWHM <em>Width taken out</em> and by the apodisation, cut where a band of that width comes out <em>Narrowing</em> times narrower, and brought back (Kauppinen and others, 1981). A band's area is kept; its shape becomes the apodisation's line. Bessel is the smoothest, the triangle gives the narrowest lines with side lobes, Happ–Genzel lies between.</p><h2>Checks</h2><p>The note says how many times the noise rose (worked out from the filter itself, exact for white noise); past 2 % of the deconvolved bands' height the step warns. It warns of uneven spacing, of X out of order, and of a narrowing the spacing cannot hold.</p>${TIP("Narrowed bands are for seeing where they are and how many; measure areas on the data before this step.")}`,
   sort:`<p>Needed after merging files, or for data recorded in scan order that doubles back.</p>`,
   dedupe:`<p>Repeated scans written into one file give repeated X values; this averages them, and the spread becomes each point's error.</p>`,
   resample:`<p>Linear interpolation onto an even grid from the first X, at the spacing you give (the median spacing by default).</p>`,
@@ -29393,13 +29600,13 @@ const DOC_PARAM={
   "cumint.norm":"Divide by the total, so the curve ends at 1.",
   "fft.mode":"Remove fast noise (low-pass) or slow drift (high-pass).","fft.cut":"In points: features narrower than this are removed (low-pass), or wider than this (high-pass)."
 };
-const DOC_KW={ecal:"energy calibration channel kev gamma mca gain offset quadratic tka detector",bg:"baseline fluorescence arpls als airpls modpoly snip rolling ball anchors polynomial",smooth:"noise savitzky golay moving average median gaussian whittaker filter",
+const DOC_KW={ecal:"energy calibration channel kev gamma mca gain offset quadratic tka detector",bg:"baseline fluorescence arpls als airpls modpoly snip rolling ball anchors polynomial shirley tougaard xps photoemission inelastic",smooth:"noise savitzky golay moving average median gaussian whittaker filter",
   despike:"cosmic ray spike outlier dead pixel",norm:"normalise normalization internal standard snv",deriv:"derivative savitzky golay shoulder",shift:"raman laser wavelength wavenumber",
   xunit:"units nm wavelength wavenumber ev energy frequency convert",calib:"calibration silicon neon lamp reference",combine:"average mean median repeated scans sum",
-  fft:"fourier low-pass high-pass drift noise butterworth",cumint:"integral running area",hist:"histogram distribution bins frequency count probability density cumulative freedman diaconis sturges",ref:"dark reference white lamp subtract divide",crop:"range cut trim",
+  fft:"fourier low-pass high-pass drift noise butterworth power spectrum frequency",fsd:"fourier self deconvolution FSD band narrowing resolution enhancement overlapping bands apodization Bessel Happ Genzel",cumint:"integral running area",hist:"histogram distribution bins frequency count probability density cumulative freedman diaconis sturges",ref:"dark reference white lamp subtract divide",crop:"range cut trim",
   exclude:"region remove notch laser line",resample:"interpolate even spacing grid",dedupe:"duplicate repeated average",sort:"order ascending",correct:"correction typo reason fix wrong value",python:"code script"};
 const DOC_MENU={crop:"Data › Clean",exclude:"Data › Clean",despike:"Analyze › Spectroscopy",sort:"Data › Clean",dedupe:"Data › Clean",resample:"Data › Clean",
-  bg:"Data › Baseline",smooth:"Analyze › Signal processing",fft:"Analyze › Signal processing",scale:"Data › Transform",xlin:"Data › Transform",norm:"Data › Transform",
+  bg:"Data › Baseline",smooth:"Analyze › Signal processing",fft:"Analyze › Signal processing",fsd:"Data › Transform",scale:"Data › Transform",xlin:"Data › Transform",norm:"Data › Transform",
   ref:"Data › Transform",combine:"Data › Transform",deriv:"Analyze › Calculus",cumint:"Analyze › Calculus",hist:"Analyze › Statistics",log:"Data › Transform",absorb:"Analyze › Analyze › Spectroscopy › Corrections",
   km:"Analyze › Analyze › Spectroscopy › Corrections",shift:"Analyze › Spectroscopy › X axis",xunit:"Analyze › Spectroscopy › X axis",calib:"Data › Calibrate",ecal:"Data › Calibrate",bose:"Analyze › Analyze › Spectroscopy › Corrections"};
 // The article of each window, for its "?" and F1.
@@ -30119,7 +30326,9 @@ function fitOne(c,t,seed,spec){
   const base={onCol:c.id,onColName:c.name||"",maskSig:maskSig(c),pipeSig:pipeSig(c),rawFp:rawFp(),hadErrCol:he,range:[x0,x1],...weightRec(WT),by:who(),at:Date.now(),batch:true,...(t.conf?{conf:t.conf}:{})};
   const out=(res,more)=>Object.assign(more,{params:res.params,errors:res.errors,cov:res.cov,dep:finOrNull(res.dep),pval:finOrNull(res.pval),tval:finOrNull(res.tval),ci:finOrNull(res.ci),atBound:res.atBound,stats:res.stats},base,SX?{xerr:true,odr:odrNote(res)}:{});
   if(t.kind==="composite"){
-    const sp=spec||t.spec, m=compileModel(sp,t.x0); if(m.n!==seed.length) return {fail:"the model and its starting values do not match"};
+    const sp=withDataBase(spec||t.spec,pts), m=compileModel(sp,t.x0); if(m.n!==seed.length) return {fail:"the model and its starting values do not match"};
+    if(m.nodata) return {fail:`${baseLabel(sp.base)}'s background cannot be worked out from these points`};
+    if(m.data){ seed=seed.slice(); const sd=dataBaseSeed(sp.base,X,Y,sp.bopt), fx=spec?null:t.fixed; if(sd) for(let i=0;i<m.nb;i++) if(!(fx&&fx[i])) seed[i]=sd[i]; }
     const fixed=(spec?seed.map(()=>false):t.fixed).slice(), {lo,hi}=modelBounds(sp,m,seed), L=peakLinks(sp.peaks,m), fixedT=fixed.slice(); L.forEach(l=>{ fixedT[l.gi]=true; });
     const span=(x1-x0)||1, yspan=(y1-y0)||1, pscale=seed.map(v=>Math.abs(v)||1);
     m.slots.forEach((s,i)=>{ if(s.kind==="peak"){ if(s.name==="xc") pscale[i]=span; else if(s.name==="A") pscale[i]=yspan*span; else if(/^w/.test(s.name)) pscale[i]=span/20; } });
@@ -30154,11 +30363,13 @@ function fitOne(c,t,seed,spec){
 function batchFoundSeed(c,t){
   const d=finalOf(c), r=peakSearchOn(c,Object.assign({},pfOpts()),t.range,d.xu||"");
   if(!r) return {fail:"too few points to look for peaks"}; if(!r.found.length) return {fail:"no peak passes the peak finder's settings"};
-  const type=((t.spec.peaks||[])[0]||{}).type||"gauss", found=r.found.slice(0,20), spec={base:t.spec.base,peaks:found.map(()=>({type}))}, m=compileModel(spec,t.x0), init=new Array(m.n).fill(0);
+  const p0=(t.spec.peaks||[])[0]||{type:"gauss"}, found=r.found.slice(0,20), spec={base:t.spec.base,peaks:found.map(()=>Object.assign({type:p0.type||"gauss"},p0.fn?{fn:clone(p0.fn)}:{}))}, m=compileModel(spec,t.x0), init=new Array(m.n).fill(0);
   const nb=(BASELINES[spec.base]||BASELINES.none).params.length;
-  if(nb){ const low=r.pts.slice().sort((a,b)=>a.y-b.y).slice(0,Math.max(3,Math.round(r.pts.length*0.2))), cf=polyfit(low.map(q=>q.x-m.x0),low.map(q=>q.y),nb-1)||[]; for(let i=0;i<nb;i++) init[i]=Number.isFinite(cf[i])?cf[i]:0; }
-  const X=r.X, Y=r.pts.map(q=>q.y-m.baseF(q.x,init));
-  found.forEach((q,k)=>{ const def=PEAKS[type]||PEAKS.gauss, off=m.offsets[k];
+  if(t.spec.bopt) spec.bopt=clone(t.spec.bopt);
+  if(nb&&BASELINES[spec.base].data){ const sd=dataBaseSeed(spec.base,r.pts.map(q=>q.x),r.pts.map(q=>q.y),spec.bopt); if(sd) for(let i=0;i<nb;i++) init[i]=sd[i]; }
+  else if(nb){ const low=r.pts.slice().sort((a,b)=>a.y-b.y).slice(0,Math.max(3,Math.round(r.pts.length*0.2))), cf=polyfit(low.map(q=>q.x-m.x0),low.map(q=>q.y),nb-1)||[]; for(let i=0;i<nb;i++) init[i]=Number.isFinite(cf[i])?cf[i]:0; }
+  const mb=BASELINES[spec.base]&&BASELINES[spec.base].data?compileModel(withDataBase(spec,r.pts),t.x0):m, X=r.X, Y=r.pts.map(q=>q.y-mb.baseF(q.x,init));
+  found.forEach((q,k)=>{ const def=peakDef(p0), off=m.offsets[k];
     const base=Y[q.i]>2*q.h&&Number.isFinite(q.h)?Y[q.i]-q.h:0, sd=seedPeak(X,Y,q.i,base); let w=sd.w;
     if(Number.isFinite(q.w)&&q.w>0&&(!(w>0)||w>2.5*q.w)) w=q.w;
     init[off]=sd.xc;
@@ -30177,7 +30388,7 @@ function shareKindOf(t,i){ if(t.kind!=="composite") return "par"; const s=compil
 function tmplTied(t){ return t.kind==="composite"?new Set(peakLinks(t.spec.peaks,compileModel(t.spec,t.x0)).map(l=>l.gi)):new Set(); }
 function tmplParamName(t,i){
   if(t.kind==="composite"){ const s=compileModel(t.spec,t.x0).slots[i]; if(!s) return `parameter ${i+1}`; if(s.kind==="base") return `baseline ${s.name}`;
-    const pd=PEAKS[((t.spec.peaks||[])[s.peak]||{}).type]||PEAKS.gauss; return `peak ${s.peak+1} ${lcFirst((pd.labels&&pd.labels[s.name])||PARAM_LABEL[s.name]||s.name)}`; }
+    const pd=peakDef((t.spec.peaks||[])[s.peak]); return `peak ${s.peak+1} ${lcFirst((pd.labels&&pd.labels[s.name])||PARAM_LABEL[s.name]||s.name)}`; }
   let m=null; try{ m=t.fn?userModel(t.fn):getModel(t.model); }catch(e){} const ph=m&&(m.ph||[])[i]; return ph?phPlain(ph):((m&&m.params[i])||`parameter ${i+1}`); }
 const andList=a=>a.length<2?a.join(""):a.slice(0,-1).join(", ")+" and "+a[a.length-1];
 // "the centres and widths", or the parameters one by one.
@@ -30226,6 +30437,7 @@ async function fitTogetherAsync(list,t,share,stopped){ const c=fitTogetherPrep(l
 function fitTogetherPrep(list,t,share){
   const comp=t.kind==="composite", K=list.length; let m=null, mdl=null, L=[];
   const fixedT=t.fixed.slice();
+  if(comp&&(BASELINES[t.spec.base]||{}).data) return {fail:`a ${baseLabel(t.spec.base)} baseline is worked out from each column's own points, so it is not fitted together: fit the columns one by one`};
   if(comp){ m=compileModel(t.spec,t.x0); if(m.n!==t.params.length) return {fail:"the model and its values do not match"}; L=peakLinks(t.spec.peaks,m); L.forEach(l=>{ fixedT[l.gi]=true; }); }
   else { try{ mdl=t.fn?userModel(t.fn):getModel(t.model); }catch(e){ mdl=null; } if(!mdl) return {fail:"its model is no longer available"}; if(consOf(t,mdl)) return {fail:"constraints between parameters are not taken by a fit of every column together yet: fit them one by one, or take the constraints away"}; }
   const sh=share.map((s,i)=>s===true&&!fixedT[i]), fl=share.map((s,i)=>FOLLOW_KINDS[s]&&!fixedT[i]?s:null);
@@ -30506,7 +30718,7 @@ function batchQuantities(){
     const sh=b.glob&&b.glob.share;
     if(t.kind==="composite"&&b.seed!=="found"){ const m=compileModel(t.spec,t.x0);
       // Shared: a centre or area that is one parameter shared; a FWHM whose widths all are; a height whose area and widths all are.
-      const pkSh=(k,f)=>{ if(!sh) return false; const pd=PEAKS[t.spec.peaks[k].type]||PEAKS.gauss, o=m.offsets[k], is=nm=>sh[o+pd.params.indexOf(nm)]===true;
+      const pkSh=(k,f)=>{ if(!sh) return false; const pd=peakDef(t.spec.peaks[k]), o=m.offsets[k], is=nm=>sh[o+pd.params.indexOf(nm)]===true;
         return f==="xc"?is("xc"):f==="area"?is("A"):f==="fwhm"?pd.params.filter(nm=>/^w/.test(nm)).every(is):f==="height"?pd.params.filter(nm=>nm!=="xc").every(is):false; };
       t.spec.peaks.forEach((pk,k)=>{ const ctr=t.params[m.offsets[k]], g=`Peak ${k+1}`+(Number.isFinite(ctr)?` (${fmt(ctr,4)})`:"");
         [["xc","centre","x"],["height","height","y"],["fwhm","FWHM","x"],["area","area","yx"],["areaPct","area %",""]].forEach(([f,l,dim])=>out.push({id:`pk${k}.${f}`,label:`${g} ${l}`,group:g,short:l,dim,peak:k,f,shared:pkSh(k,f)})); }); }

@@ -16,7 +16,7 @@ const grab = (tag) => {
 // tools/pipe-test.mjs tests the rest of it. The curve fit's models are a block of
 // their own (MODELS), after the pipeline.
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n${grab("MODELS")}\n${grab("STATS")}\n` +
-  `return {fxRun,phononInt,erfcx,lgammaRe,ratGuess,solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,countBand,activityOf,effCurve,effAt,fwhmCurve,fwhmAt,distFit,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,nuclideSets,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,distGroups,delaunay,triContours,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF,dataMeasures,evalStart,parseCons,consBack,consFwd,consResult,consFit,parseDerived};`;
+  `return {fxRun,phononInt,erfcx,lgammaRe,ratGuess,solve,inverse,lmFit,polyfit,tPvalue,betai,PEAKS,BASELINES,compileModel,modelBounds,sgCoeffs,sgApply,findPeaks,peakSearch,seedPeak,noiseSigma,peakAreaForHeight,FWHM_SIG,interpOnto,trapz,PIPE_OPS,runPipe,compileExpr,guessUserParams,erfFn,erfcFn,probit,faddeeva,peakLinks,applyPeakLinks,linkResult,integrateBand,countBand,activityOf,effCurve,effAt,fwhmCurve,fwhmAt,distFit,bandsFromPeaks,globalFit,matchPeakTracks,matchLines,nuclideSets,fillSeries,mulberry32,lgammaFn,poissonRand,quantileSorted,boxStats,distGroups,delaunay,triContours,kdeBandwidth,kdeAt,histBins,niceWidth,odrFit,fitBounds,MODELS,MODEL_GROUPS,derivedWithErr,modelXBad,EXT_FW,polyOrderOf,polyIdOf,tCrit,tQuantile975,fPvalue,residualStats,outliersOf,fitAnova,corrMat,fitYAt,fitXAt,gradient,fitWeights,appModel,appPoints,APP_TF,dataMeasures,evalStart,parseCons,consBack,consFwd,consResult,consFit,parseDerived,peakOfUser,dataBasePts,dataBaseSeed,shirleyBg,tougaardBg};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -455,6 +455,72 @@ function fitSpec(X, Y, spec, init, opts) {
     const p0 = [1].concat(init), b = N.modelBounds(spec, model, p0);
     const r = N.lmFit(model.f, X, Y, X.map(() => 1), p0, p0.map(() => false), b);
     check(`${type}: a fit recovers its parameters`, r.params && truth.every((v, i) => rel(r.params[i + 1], v, 0.03)) && r.stats.converged, r.params);
+  }
+}
+/* ---------- peak fits, further (FIT2_SPEC 4.7): EMG and Doniach–Šunjić shapes, your function as a shape, Shirley and
+   Tougaard baselines fitted with the peaks ---------- */
+{
+  const integ = (f, p, a, b, n = 400000) => { let s = 0; const h = (b - a) / n; for (let i = 0; i < n; i++) s += f(a + (i + 0.5) * h, p); return s * h; };
+  const E = N.PEAKS.emg, D = N.PEAKS.ds, G = N.PEAKS.gauss;
+  for (const p of [[10, 50, 2, 0.5], [10, 50, 2, 3], [10, 50, 1, 40]]) {
+    check(`emg ${p}: integrates to its area`, rel(integ(E.f, p, -200, 1200), p[1], 1e-6), integ(E.f, p, -200, 1200));
+    const top = E.top(p); let best = -Infinity, bx = 0; for (let x = p[0] - 3 * p[2]; x <= p[0] + 3 * p[2] + 3 * p[3]; x += 1e-4) { const v = E.f(x, p); if (v > best) { best = v; bx = x; } }
+    check(`emg ${p}: its top and height are the line's maximum`, near(top, bx, 2e-4) && rel(E.height(p), best, 1e-7), [top, bx, E.height(p), best]);
+    check(`emg ${p}: its FWHM is the line's own`, rel(numericFWHM(E.f, p, top, 400), E.fwhm(p), 1e-5), [numericFWHM(E.f, p, top, 400), E.fwhm(p)]);
+  }
+  check("emg: no tail is a Gaussian", rel(E.f(11.3, [10, 50, 2, 0]), G.f(11.3, [10, 50, 2]), 1e-12));
+  check("emg: a tail of 2000 widths does not overflow", [9, 10, 50, 500, 4000].every((x) => Number.isFinite(E.f(x, [10, 50, 2, 4000])) && E.f(x, [10, 50, 2, 4000]) >= 0));
+  check("doniach–šunjić: no asymmetry is a Lorentzian of FWHM w", rel(D.f(11.3, [10, 50, 2, 0]), N.PEAKS.lorentz.f(11.3, [10, 50, 2]), 1e-12) && rel(D.fwhm([10, 50, 2, 0]), 2, 1e-7));
+  for (const p of [[10, 50, 2, 0.1], [10, 50, 2, 0.3]]) {
+    const top = D.top(p); let best = -Infinity, bx = 0; for (let x = 8; x <= 14; x += 1e-4) { const v = D.f(x, p); if (v > best) { best = v; bx = x; } }
+    check(`doniach–šunjić ${p}: its top and height are the line's maximum`, near(top, bx, 2e-4) && rel(D.height(p), best, 1e-7), [top, bx]);
+    check(`doniach–šunjić ${p}: its FWHM is the line's own`, rel(numericFWHM(D.f, p, top, 200), D.fwhm(p), 1e-5), [numericFWHM(D.f, p, top, 200), D.fwhm(p)]);
+    check(`doniach–šunjić ${p}: it leans to higher x`, D.f(top + 3, p) > D.f(top - 3, p));
+  }
+  check("doniach–šunjić: α below 0 is the mirror image, leaning to lower x", [7, 9.5, 12, 15].every((x) => rel(D.f(x, [10, 50, 2, -0.2]), D.f(20 - x, [10, 50, 2, 0.2]), 1e-12)) && D.f(5, [10, 50, 2, -0.2]) > D.f(15, [10, 50, 2, -0.2]));
+  check("doniach–šunjić: continuous through α = 0", rel(D.f(11, [10, 50, 2, 1e-9]), D.f(11, [10, 50, 2, -1e-9]), 1e-8) && rel(D.f(11, [10, 50, 2, 1e-9]), D.f(11, [10, 50, 2, 0]), 1e-8));
+  // a doublet of each shape on a constant, recovered by a fit
+  for (const [type, truth, init] of [["emg", [40, 300, 3, 2, 60, 200, 3, 2], [39, 250, 3.5, 1, 61, 150, 3.5, 1]], ["ds", [40, 300, 3, 0.15, 60, 200, 3, 0.15], [39.5, 250, 3.5, 0.1, 60.5, 150, 3.5, 0.1]]]) {
+    const spec = { base: "const", peaks: [{ type }, { type }] }, model = N.compileModel(spec, 50), X = [], Y = [];
+    let s = 5; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; };
+    for (let i = 0; i < 400; i++) { const x = i * 0.25; X.push(x); Y.push(model.f(x, [2].concat(truth)) + rnd() * 0.05); }
+    const p0 = [1].concat(init), b = N.modelBounds(spec, model, p0), r = N.lmFit(model.f, X, Y, X.map(() => 1), p0, p0.map(() => false), b);
+    check(`${type}: a doublet's parameters recovered by a fit`, r.params && truth.every((v, i) => rel(r.params[i + 1], v, 0.02)) && r.stats.converged, r.params);
+  }
+  // your Gaussian, written with its FWHM, as a shape: the built-in's numbers
+  const fn = { id: "ug", name: "My Gaussian", expr: "A*sqrt(4*ln(2)/pi)/w*exp(-4*ln(2)*(x - xc)^2/w^2)", params: [], peak: { xc: "xc", A: "A", w: "w" } };
+  const U = N.peakOfUser(fn);
+  check("your function as a shape: its centre, area and width in place", U && U.params.join() === "xc,A,w" && rel(U.fwhm([5, 2, 1.5]), 1.5, 1e-9) && rel(U.height([5, 2, 1.5]), G.height([5, 2, 1.5]), 1e-9), U && U.params);
+  check("your function as a shape: refused without its three roles", N.peakOfUser({ expr: "a*x + b", peak: { xc: "a", A: "b", w: "c" } }) === null);
+  {
+    const sg = { base: "linear", peaks: [{ type: "gauss" }, { type: "gauss" }] }, su = { base: "linear", peaks: [{ type: "user", fn }, { type: "user", fn }] };
+    const mg = N.compileModel(sg, 50), mu = N.compileModel(su, 50), truth = [4, 0.02, 40, 500, 5, 55, 300, 6], X = [], Y = [];
+    let s = 9; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; };
+    for (let i = 0; i < 300; i++) { const x = i * 0.33; X.push(x); Y.push(mg.f(x, truth) + rnd()); }
+    const p0 = [3, 0, 39, 400, 4, 56, 250, 5], bg = N.modelBounds(sg, mg, p0), bu = N.modelBounds(su, mu, p0);
+    const rg = N.lmFit(mg.f, X, Y, X.map(() => 1), p0.slice(), p0.map(() => false), bg), ru = N.lmFit(mu.f, X, Y, X.map(() => 1), p0.slice(), p0.map(() => false), bu);
+    check("your Gaussian as a shape: the built-in's parameters and errors", rg.params.every((v, i) => rel(ru.params[i], v, 1e-7) && rel(ru.errors[i], rg.errors[i], 1e-5)), [rg.params, ru.params]);
+  }
+  // Shirley and Tougaard fitted with the peaks: data made from each, without noise, give their numbers back
+  const X = Array.from({ length: 400 }, (_, i) => 280 + i * 0.05), gk = (x, c, a, w) => G.f(x, [c, a, w]), pk = (x) => gk(x, 285, 3000, 1.2) + gk(x, 287.5, 1200, 1.4);
+  {
+    const cum = [0]; for (let i = 1; i < X.length; i++) cum.push(cum[i - 1] + (X[i] - X[i - 1]) * (pk(X[i]) + pk(X[i - 1])) / 2);
+    const Y = X.map((x, i) => pk(x) + 200 + 500 * cum[i] / cum[cum.length - 1]), P = N.dataBasePts(X, Y), spec = { base: "shirley", peaks: [{ type: "gauss" }, { type: "gauss" }], bx: P.bx, by: P.by };
+    const m = N.compileModel(spec, 287.5), sd = N.dataBaseSeed("shirley", X, Y), p0 = [...sd, 285.2, 2500, 1, 287.3, 1000, 1.2], b = N.modelBounds(spec, m, p0);
+    check("shirley baseline: its ends seeded from the data's ends", near(sd[0], 200, 1) && near(sd[1], 700, 3), sd);
+    const r = N.lmFit(m.f, X, Y, X.map(() => 1), p0, p0.map(() => false), b), want = [200, 700, 285, 3000, 1.2, 287.5, 1200, 1.4];
+    check("shirley baseline: fitted with two peaks, every number back", r.stats.converged && want.every((v, i) => rel(r.params[i], v, 1e-6)), r.params);
+    check("shirley baseline: no data, no background", N.compileModel({ base: "shirley", peaks: [] }, 0).nodata === true);
+  }
+  {
+    const Bt = 3000; let j = X.map((x) => pk(x) + 150);
+    for (let it = 0; it < 80; it++) { const r = N.tougaardBg(X, j, { dir: "up", B: Bt, lev: 150 }); j = X.map((x, i) => pk(x) + 150 + Bt * r.Ux[i]); }
+    const P = N.dataBasePts(X, j), spec = { base: "tougaard", peaks: [{ type: "gauss" }, { type: "gauss" }], bx: P.bx, by: P.by, bopt: { dir: "up", C: 1643, D: 0 } };
+    const m = N.compileModel(spec, 287.5), sd = N.dataBaseSeed("tougaard", X, j, spec.bopt), p0 = [...sd, 285.2, 2500, 1, 287.3, 1000, 1.2], b = N.modelBounds(spec, m, p0);
+    const r = N.lmFit(m.f, X, j, X.map(() => 1), p0, p0.map(() => false), b), want = [150, 3000, 285, 3000, 1.2, 287.5, 1200, 1.4];
+    check("tougaard baseline: fitted with two peaks, every number back", r.stats.converged && want.every((v, i) => rel(r.params[i], v, 1e-6)), r.params);
+    const sp2 = Object.assign({}, spec, { bopt: { dir: "down", C: 1643, D: 0 } }), m2 = N.compileModel(sp2, 287.5);
+    check("tougaard baseline: the losses' side is the background's", m2.baseF(281, [150, 3000]) > m2.baseF(294, [150, 3000]) && m.baseF(281, [150, 3000]) < m.baseF(294, [150, 3000]));
   }
 }
 /* ---------- tied parameters: a doublet with a fixed area ratio and one width ---------- */

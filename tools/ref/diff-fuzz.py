@@ -853,6 +853,52 @@ def robust_post(c, out):
     return max(e, es), f"parameters, scale and weights {e:.2e}, errors {es:.2e}"
 POST["robustPoly"] = robust_post
 
+# XPS backgrounds and self-deconvolution (FIT2_SPEC 4.7): random lines on a step, rising or falling X, counts or not, against
+# NumPy written from the papers (xps_ref.py); each background over the data's largest, the deconvolved series over its largest.
+from xps_ref import shirley_ref, tougaard_ref, fsd_ref
+def xps_rand():
+    n = int(rng.integers(20, 400)); x0 = float(rng.uniform(-50, 1500)); span = float(rng.uniform(2, 40)); x = np.linspace(x0, x0 + span, n)
+    P = np.zeros(n)
+    for _ in range(int(rng.integers(1, 5))):
+        c, w, a = float(rng.uniform(x0, x0 + span)), float(rng.uniform(span / 60, span / 5)), float(lognum(1, 5)); s = w / 2.3548200450309493
+        P += a * np.exp(-(x - c) ** 2 / (2 * s * s)) / (s * math.sqrt(2 * math.pi))
+    cum = np.concatenate([[0.0], np.cumsum((x[1:] - x[:-1]) * (P[1:] + P[:-1]) / 2)]); y = float(lognum(0, 4)) + float(rng.uniform(-1, 1)) * float(lognum(0, 4)) * cum / cum[-1] + P
+    if rng.random() < 0.5: y = rng.poisson(np.maximum(y, 0)).astype(float)
+    if rng.random() < 0.3: x, y = x[::-1].copy(), y[::-1].copy()
+    return x, y
+@gen("shirleyBg", 1e-12, 0.3)
+def _():
+    x, y = xps_rand(); ends = int(rng.integers(1, 15))
+    return [x.tolist(), y.tolist(), {"ends": ends}], shirley_ref(x, y, ends)
+@gen("tougaardBg", 1e-12, 0.3)
+def _():
+    x, y = xps_rand(); dr = str(rng.choice(["up", "down"])); C = float(rng.choice([1643.0, 551.0, float(rng.uniform(100, 3000))])); D = float(rng.choice([0.0, 0.0, float(rng.uniform(1, 800))]))
+    return [x.tolist(), y.tolist(), {"dir": dr, "C": C, "D": D, "ends": 3}], tougaard_ref(x, y, dr, C, D, 3)
+def bg_post(c, out):
+    w, y = c["want"], c["args"][1]; big = max(abs(v) for v in y) or 1.0
+    if not isinstance(out, dict) or "b" not in out: return float("inf"), f"no background: {str(out)[:120]}"
+    e = max(abs(a - b) / big for a, b in zip(out["b"], w["b"]))
+    if "iter" in w and (out.get("iter") != w["iter"] or out.get("conv") != w["conv"]): return float("inf"), f"{out.get('iter')} rounds, NumPy {w['iter']}"
+    if "B" in w: e = max(e, abs(out["B"] - w["B"]) / max(abs(w["B"]), 1e-300) if w["B"] else abs(out["B"]))
+    return e, f"background {e:.2e}"
+POST["shirleyBg"] = bg_post; POST["tougaardBg"] = bg_post
+@gen("fsd", 1e-12, 0.3)
+def _():
+    n = int(rng.integers(32, 1500)); xs = np.arange(n, dtype=float); g = float(rng.uniform(3, 30)); y = np.zeros(n)
+    for _ in range(int(rng.integers(1, 6))):
+        c = float(rng.uniform(0, n)); y += float(lognum(0, 4)) * (g / 2) / math.pi / ((xs - c) ** 2 + (g / 2) ** 2)
+    y += float(rng.uniform(-10, 10)) + float(rng.uniform(-0.1, 0.1)) * xs
+    if rng.random() < 0.5: y += rng.normal(0, float(lognum(-4, -1)) * float(np.max(np.abs(y))), n)
+    k = float(rng.uniform(1, 3.5)); apod = str(rng.choice(["bessel", "triangle", "happ"])); w = g * float(rng.uniform(0.8, 1.2))
+    return [y.tolist(), {"w": w, "k": k, "apod": apod}], fsd_ref(y, w, k, apod)
+def fsd_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or "y" not in out: return float("inf"), f"no series: {str(out)[:120]}"
+    big = max(abs(v) for v in w["y"]) or 1.0; e = max(abs(a - b) / big for a, b in zip(out["y"], w["y"]))
+    if out.get("clamped") != w["clamped"]: return float("inf"), "clamped differs"
+    return max(e, abs(out["T"] - w["T"]) / w["T"]), f"series {e:.2e}"
+POST["fsd"] = fsd_post
+
 cases = []
 ONLY = os.environ.get("ONLY")  # ONLY=name,name: those generators alone
 for name, (f, tol) in GEN.items():

@@ -766,6 +766,30 @@
   "tol": 1e-10,
   "why": "random polynomials with outliers against RLM: the parameters over their largest, the scale, the weights and the H1 errors (worst seen 1.6e-11)"
  },
+ "shirleyBg": {
+  "tol": 1e-12,
+  "why": "random lines on a step, rising or falling X, against NumPy written from the paper, the rounds counted the same (bit for bit once the ends' means are added in order)"
+ },
+ "tougaardBg": {
+  "tol": 1e-12,
+  "why": "random lines, either side, universal and three-parameter cross-sections, against NumPy written from the paper"
+ },
+ "fsd": {
+  "tol": 1e-13,
+  "why": "random Lorentzians with and without noise, each apodisation, against numpy.fft (worst seen 7.5e-15)"
+ },
+ "xps.shirley": {
+  "tol": 1e-12,
+  "why": "Shirley's background by Proctor and Sherwood's iteration against NumPy written from the paper, the same trapezoids and stop, the iterations counted the same"
+ },
+ "xps.tougaard": {
+  "tol": 1e-12,
+  "why": "Tougaard's integral with the universal and three-parameter cross-sections, its level and B, against NumPy written from the paper"
+ },
+ "xps.fsd": {
+  "tol": 1e-13,
+  "why": "Fourier self-deconvolution against numpy.fft (the series over its largest; worst seen 7.5e-15 once each twiddle factor was worked out directly, 1.2e-12 by repeated multiplication), the apodisations' FWHM against 30-digit mpmath"
+ },
  "models": {
   "tol": 1e-13,
   "why": "each new curve-fit model's function against its formula in 30-digit mpmath (worst seen 3.7e-14: a sum of two sines near a zero); Debye's and Bloch–Grüneisen's integrals by Gauss–Legendre, Pearson IV's complex gamma by Stirling's series"

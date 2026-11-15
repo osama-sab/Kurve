@@ -599,6 +599,100 @@ await page(async p => {
   r = await p.evaluate(() => { chooseModel("rat12"); return paramRows(Object.assign({}, activeFit(), { model: "rat12", params: [0, 0, 0, 0], errors: [0, 0, 0, 0], fixed: [] })).map(q => q.unit); });
   check("units of 1/x² for a rational function's x² term", r[3] === "µm⁻²" && r[2] === "µm⁻¹", JSON.stringify(r));
 }, { name: "more models" });
+console.log("Wave 4, slice 4.7: peak fits, further");
+// An XPS doublet on a Shirley background, binding energy rising.
+const xpsProject = async (p, name) => p.evaluate(async (name) => {
+  const x = [], y = []; let s = 11; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; }, gn = () => { let u = 0; while (!u) u = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * r()); };
+  const G = (v, c, a, w) => PEAKS.gauss.f(v, [c, a, w]), pk = (v) => G(v, 285, 3000, 1.2) + G(v, 287.5, 1200, 1.4);
+  for (let i = 0; i < 300; i++) x.push(280 + i * 0.05);
+  const cum = [0]; for (let i = 1; i < x.length; i++) cum.push(cum[i - 1] + 0.05 * (pk(x[i]) + pk(x[i - 1])) / 2);
+  x.forEach((v, i) => { const m = pk(v) + 200 + 500 * cum[i] / cum[cum.length - 1]; y.push(Math.round(m + Math.sqrt(m) * gn())); });
+  const xc = makeCol("x", "Binding energy", "eV", x), yc = Object.assign(makeCol("y", "C 1s", "counts", y), { pipe: [], mask: [] });
+  const pr = Object.assign(blankProject(name), { cols: [xc, yc], activeY: yc.id }); pr.graphs = [{ id: newGid(), name: "Graph 1", cols: [yc.id], plot: { style: "auto" } }];
+  await createProject(pr, "test"); await new Promise((r) => setTimeout(r, 80)); renderAll(); }, name);
+await page(async p => {
+  await xpsProject(p, "XPS"); await p.waitForTimeout(300);
+  await p.evaluate(() => { S.fitMode = "peaks"; showTab("fit"); focusWin("fit"); renderFit(); }); await p.waitForTimeout(150);
+  let r = await p.evaluate(() => ({ base: [...document.querySelectorAll("#pbase option")].map(o => o.value + "=" + o.textContent), shapes: [...document.querySelectorAll("#ptype option")].map(o => o.value) }));
+  check("the baseline list offers Shirley and Tougaard, the shapes EMG and Doniach–Šunjić", r.base.includes("shirley=Shirley (XPS)") && r.base.includes("tougaard=Tougaard (XPS)") && r.shapes.includes("emg") && r.shapes.includes("ds"), JSON.stringify(r));
+  await p.selectOption("#pbase", "shirley"); await p.waitForTimeout(200);
+  r = await p.evaluate(() => { const d = ensurePeakDraft(); return { base: d.base, init: d.init.slice(0, 2), rows: [...document.querySelectorAll("#pane-fit .pcard td.pn")].map(t => t.textContent.trim()), powers: /In powers of/.test($("#pane-fit").textContent), log: P().log.slice(-1)[0].text }; });
+  check("Shirley chosen: its ends seeded from the data's, named in words, no powers of x", r.base === "shirley" && Math.abs(r.init[0] - 200) < 15 && Math.abs(r.init[1] - 700) < 40 && r.rows.some(t => /^At the lowest X/.test(t)) && r.rows.some(t => /^At the highest X/.test(t)) && !r.powers && /Shirley/.test(r.log), JSON.stringify(r));
+  await p.evaluate(() => { const d = ensurePeakDraft(); d.peaks = [{ type: "gauss", id: "p1" }, { type: "gauss", id: "p2" }]; syncPdraft(); const m = pdraftModel(); d.init = [d.init[0], d.init[1], 285.2, 2500, 1, 287.3, 1000, 1.2]; d.fixed = d.init.map(() => false); renderFit(); runPeakFit(); });
+  await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const f = activeFit(), m = fitModel(f); return { base: f.spec.base, n: f.spec.bx && f.spec.bx.length, p: f.params, e: f.errors, conv: f.stats.converged, name: m && m.name, b0: m.model.baseF(280, f.params), b1: m.model.baseF(295, f.params) }; });
+  check("fitted with two peaks: the areas, centres and ends recovered within three errors", r.base === "shirley" && r.n === 300 && r.conv && [[2, 285], [3, 3000], [5, 287.5], [6, 1200]].every(([i, v]) => Math.abs(r.p[i] - v) < 3 * r.e[i] + 1e-9) && Math.abs(r.p[0] - 200) < 3 * r.e[0] + 2 && Math.abs(r.p[1] - 700) < 3 * r.e[1] + 2, JSON.stringify(r));
+  check("the fit is named with its baseline's capital, and draws the background", /on a Shirley baseline/.test(r.name) && Math.abs(r.b0 - r.p[0]) < 1e-9 && Math.abs(r.b1 - r.p[1]) < 1e-9, JSON.stringify(r));
+  r = await p.evaluate(() => { openWin("res", { render: true }); focusWin("res"); const f = activeFit(); return { rows: paramRows(f).slice(0, 2).map(q => q.label + ": " + q.meaning), copy: resultsText() }; });
+  check("every parameter's table and the copied one name the ends in words", /lowest x/i.test(r.rows[0]) && /highest x/i.test(r.rows[1]) && /baseline ya/.test(r.copy) && /baseline yb/.test(r.copy), JSON.stringify(r.rows));
+  r = await p.evaluate(() => methodLines().filter(l => /Baseline:/.test(l)));
+  check("the report's Method says how the Shirley background was found, on how many points", r.length === 1 && /Proctor and Sherwood's iteration on the 300 points fitted/.test(r[0]), JSON.stringify(r));
+  // A reload: the fit carries its points, and draws the same background.
+  await p.reload(); await ready(p); await p.waitForTimeout(300);
+  r = await p.evaluate(() => { const f = activeFit(), m = fitModel(f); return { ok: !!m && !m.model.nodata, b: m && m.model.baseF(287, f.params), p: f.params }; });
+  check("after a reload: the fit draws the same Shirley background", r.ok && Number.isFinite(r.b) && r.b > r.p[0] && r.b < r.p[1], JSON.stringify(r));
+  // Tougaard: its settings in the card, B fitted.
+  await p.evaluate(() => { S.fitMode = "peaks"; showTab("fit"); focusWin("fit"); renderFit(); }); await p.waitForTimeout(150);
+  await p.selectOption("#pbase", "tougaard"); await p.waitForTimeout(200);
+  r = await p.evaluate(() => ({ dir: $("#pbDir") && $("#pbDir").value, C: $("#pbC") && $("#pbC").value, unit: ($("#pbC") && $("#pbC").closest("tr").textContent) || "" }));
+  check("Tougaard chosen: losses towards higher binding energy, C 1643 eV²", r.dir === "up" && r.C === "1643" && /\(eV(²|2)\)/.test(r.unit), JSON.stringify(r));
+  await p.fill("#pbC", "0"); await p.dispatchEvent("#pbC", "change"); await p.waitForTimeout(150);
+  r = await p.evaluate(() => ({ C: ensurePeakDraft().bopt.C, v: $("#pbC").value }));
+  check("a C of 0 is refused, the field put back", r.C === 1643 && r.v === "1643", JSON.stringify(r));
+  await p.evaluate(() => { runPeakFit(); }); await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const f = activeFit(); return { base: f.spec.base, bopt: f.spec.bopt, B: f.params[1], conv: f.stats.converged, err: S.fitError }; });
+  check("Tougaard fitted with the peaks, B above 0, its settings kept with the fit", r.base === "tougaard" && r.bopt && r.bopt.C === 1643 && r.bopt.dir === "up" && r.B > 0 && r.conv, JSON.stringify(r));
+  r = await p.evaluate(() => { const f = activeFit(); return fitTogetherPrep([{ c: activeYCol() }], batchTemplate(f), f.params.map(() => true)).fail; });
+  check("a global fit with a Tougaard baseline is refused in words", /worked out from each column's own points, so it is not fitted together/.test(r || ""), r);
+  // The shapes: EMG and Doniach–Šunjić picked on a peak.
+  await p.evaluate(() => { showTab("fit"); renderFit(); }); await p.waitForTimeout(100);
+  await p.selectOption('select[data-ptype="0"]', "emg"); await p.waitForTimeout(150);
+  await p.selectOption('select[data-ptype="1"]', "ds"); await p.waitForTimeout(150);
+  r = await p.evaluate(() => { const d = ensurePeakDraft(), m = pdraftModel(); return { t: d.peaks.map(k => k.type), n: m.n, rows: [...document.querySelectorAll("#pane-fit .pcard td.pn")].map(t => t.textContent.trim()) }; });
+  check("EMG and Doniach–Šunjić picked: their tail and asymmetry in the cards", r.t.join() === "emg,ds" && r.n === 10 && r.rows.some(t => /Tail/i.test(t)) && r.rows.some(t => /Asymmetry/.test(t)), JSON.stringify(r));
+  await p.evaluate(() => runPeakFit()); await p.waitForTimeout(500);
+  r = await p.evaluate(() => { const f = activeFit(); return { t: f.spec.peaks.map(k => k.type), conv: f.stats.converged, R2: f.stats.R2, warn: fitWarnings(f).map(w => w.kind) }; });
+  check("fitted with them: converged, a Doniach–Šunjić's area noted as its Lorentzian limit's", r.t.join() === "emg,ds" && r.conv && r.R2 > 0.99 && r.warn.includes("ds"), JSON.stringify(r));
+}, { name: "Shirley and Tougaard baselines, EMG and Doniach–Šunjić" });
+await page(async p => {
+  // Your Gaussian as a shape: the built-in's numbers.
+  await xpsProject(p, "XPS 2"); await p.waitForTimeout(300);
+  await p.evaluate(() => { S.fitMode = "peaks"; showTab("fit"); editUserFn(null); }); await p.waitForTimeout(250);
+  await p.fill("#fbName", "My Gaussian"); await p.fill("#fbExpr", "A*sqrt(4*ln(2)/pi)/w*exp(-4*ln(2)*(x - xc)^2/w^2)"); await p.dispatchEvent("#fbExpr", "input"); await p.waitForTimeout(150);
+  await p.check("#fbPk"); await p.waitForTimeout(150);
+  let r = await p.evaluate(() => ({ x: $("#fbPkX").value, a: $("#fbPkA").value, w: $("#fbPkW").value, ok: $("#formOk").disabled }));
+  check("the editor's peak shape: centre, area and width guessed from the names", r.x === "xc" && r.a === "A" && r.w === "w" && !r.ok, JSON.stringify(r));
+  await p.selectOption("#fbPkW", "A"); await p.waitForTimeout(100);
+  r = await p.evaluate(() => ({ msg: $("#fbMsg").textContent, ok: $("#formOk").disabled }));
+  check("one parameter in two roles is refused in words", /three different parameters/.test(r.msg) && r.ok, JSON.stringify(r));
+  await p.selectOption("#fbPkW", "w"); await p.waitForTimeout(100);
+  await p.click("#formOk"); await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const fn = (P().userFns || []).find(f => f.name === "My Gaussian"); S.fitMode = "peaks"; showTab("fit"); focusWin("fit"); renderFit(); return { peak: fn && fn.peak, opt: [...document.querySelectorAll("#ptype option")].map(o => o.textContent).filter(t => /yours/.test(t)) }; });
+  check("saved with its roles, offered among the shapes as yours", r.peak && r.peak.xc === "xc" && r.peak.A === "A" && r.peak.w === "w" && r.opt.join() === "My Gaussian (yours)", JSON.stringify(r));
+  const fitWith = (type) => p.evaluate((type) => { const d = ensurePeakDraft(); d.base = "linear"; d.peaks = [newPeak(type), newPeak(type)]; d.peaks.forEach((k, i) => k.id = "q" + i); syncPdraft(); d.init = [450, 30, 285.2, 2500, 1, 287.3, 1000, 1.2]; d.fixed = d.init.map(() => false); d.x0 = null; d.fitAt = null; runPeakFit(); const f = activeFit(); return { p: f.params, e: f.errors, name: describeSpec(f.spec) }; }, type);
+  const g = await fitWith("gauss"), id = await p.evaluate(() => "u:" + P().userFns.find(f => f.name === "My Gaussian").id), u = await fitWith(id);
+  check("your Gaussian as a shape gives the built-in's numbers", g.p.every((v, i) => Math.abs(u.p[i] - v) <= 1e-6 * Math.max(1, Math.abs(v))) && g.e.every((v, i) => Math.abs(u.e[i] / v - 1) < 1e-4) && /My Gaussian/.test(u.name), JSON.stringify([g, u]).slice(0, 400));
+  r = await p.evaluate(() => { const f = activeFit(); deleteUserFn && 0; return { carried: f.spec.peaks.every(k => k.fn && k.fn.peak), draws: !!fitModel(f) }; });
+  check("the fit carries the function, so it draws whatever becomes of it", r.carried && r.draws, JSON.stringify(r));
+}, { name: "your function as a peak shape" });
+await page(async p => {
+  // The steps in the History: Shirley as Subtract background's method, then a self-deconvolution from Data › Transform.
+  await xpsProject(p, "XPS 3"); await p.waitForTimeout(300);
+  let r = await p.evaluate(() => { const flat = (items, path) => (typeof items === "function" ? items() : items || []).flatMap(it => it && typeof it === "object" && it.sub ? flat(it.sub, path + it.label + " › ") : it && typeof it === "object" && it.label ? [path + it.label] : []); return flat(menuItems("data"), ""); });
+  check("Data › Transform offers Fourier self-deconvolution…", r.includes("Transform › Fourier self-deconvolution…"), r.filter(t => /Transform/.test(t)).join(" | "));
+  await p.evaluate(() => openTool("bg", { p: { method: "shirley" } })); await p.waitForTimeout(250);
+  r = await p.evaluate(() => ({ m: S.pending && S.pending.step.p.method, ends: !!document.querySelector('#pane-tool [data-pk="ends"], #pane-tool input[aria-label*="End"]') || /Ends/.test($("#pane-tool").textContent) }));
+  check("Subtract background's Shirley method, with its ends", r.m === "shirley" && r.ends, JSON.stringify(r));
+  await p.evaluate(() => { toolDest("here"); applyTool(); }); await p.waitForTimeout(300);
+  await p.evaluate(() => openTool("fsd")); await p.waitForTimeout(250);
+  r = await p.evaluate(() => ({ w: S.pending && S.pending.step.p.fwhm, txt: $("#pane-tool").textContent }));
+  check("the self-deconvolution's width suggested from the bands", r.w > 0.4 && r.w < 3, JSON.stringify({ w: r.w }));
+  await p.evaluate(() => { toolDest("here"); applyTool(); }); await p.waitForTimeout(300);
+  r = await p.evaluate(() => { const c = activeYCol(); openWin("flow", { render: true }); focusWin("flow"); return { ops: c.pipe.map(s => s.op + (s.p.method ? ":" + s.p.method : "")), boxes: [...document.querySelectorAll("#w-flow .fnode")].map(b => b.textContent.replace(/\s+/g, " ").trim()).join(" | "), y: finalOf(c).y.length }; });
+  check("both steps in the History, the data deconvolved", r.ops.join() === "bg:shirley,fsd" && /Baseline\s*Shirley/.test(r.boxes) && /Self-deconvolution/.test(r.boxes) && r.y === 300, JSON.stringify(r).slice(0, 500));
+  r = await p.evaluate(() => { const c = activeYCol(), st = runPipe(rawSeries(c), c.pipe, pipeCtx); return st.stages.map(x => x.note || "").join(" | "); });
+  check("each says what it did: Shirley's rounds, the noise's rise", /Shirley's background, \d+ rounds?/.test(r) && /Noise .* times what it was/.test(r), r);
+}, { name: "XPS steps in the History" });
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);
