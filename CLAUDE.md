@@ -5275,7 +5275,7 @@ Next, in order:
    15.11; slice 4.5, implicit fits (a circle, an ellipse or a formula f(x, y) = 0 through points measured in both coordinates, by
    each point's exact distance to the curve; SciPy polished on the exact distances agreeing to 1.2e-7 of an error, distances to
    ellipses against 40 digits to 2e-15 near the long axis and a few parts in 10¹⁶ of the axis near the curve), done 15.11:
-   wave 4's eight slices are done, and its end (the suite, a 40-minute lab day with Analyze › Fit's dialogs, screenshots at
+   wave 4's eight slices are done, and its end (the suite, two 40-minute lab days with Analyze › Fit's dialogs, screenshots at
    three widths in both themes and styles; Origin's tutorials not reached, its site refused here)
 
 ## Known gaps

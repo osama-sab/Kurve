@@ -1031,7 +1031,8 @@ people type (`CMDK_SYN`).
 - **A 40-minute lab day** with a new action: Analyze › Fit's dialogs opened, their lists and ticks changed at random, then run or
   left. It found a fault from 06.11: every move of the pointer over a map of a series threw (its readout read the rows' order,
   which the cached grid no longer kept); fixed, and odd-test reads the value under the pointer. Memory, page elements and
-  listeners came back down by the end, and the reload lost nothing.
+  listeners came back down by the end, and the reload lost nothing. A second, on the fixed build: 1401 actions, no failures, the
+  page never waiting more than 16 ms, the longest task 248 ms.
 - **Screenshots** of the wave's tools (a robust fit with bootstrap intervals in Results, multiple regression's dialog and report,
   Compare models, a fitted surface as a map, an implicit fit's plot) at 1440, 1024 and 390 px, light and dark, Bench and
   Graphite: read by eye. Results' statistics box cut a long line (the robust fit's) at its edge; it wraps after a semicolon now.
