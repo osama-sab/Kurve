@@ -3422,7 +3422,7 @@ graph first, with the taskbar kept at the bottom of the screen.
 Works fully as a single-user app, exports included. Only collaboration (shared projects,
 presence, names) depends on the claude.ai runtime and would need a real backend behind the
 `LocalStore` / `makeDbStore` interface. Since 15.11 local is the target (PARITY_SPEC decision 10):
-review between people goes by `.kurve` files (wave 10), and the shared store is not built on.
+review between people goes by `.kurve` files (wave 11), and the shared store is not built on.
 
 ## Checking a change
 
@@ -5279,8 +5279,10 @@ Next, in order:
    wave 4's eight slices are done, and its end (the suite, two 40-minute lab days with Analyze › Fit's dialogs, screenshots at
    three widths in both themes and styles; Origin's tutorials not reached, its site refused here). Added 15.11, at the user's
    request, before wave 5: Kurve runs locally for now (PARITY_SPEC decision 10: people work together by passing `.kurve`
-   files, which carry the discussion and the review), and a wave 10, last, review as in Word (names locally, comments on
-   every kind of thing, tracked changes shown where they were made with Simple, All, No markup and Original, Accept and
+   files, which carry the discussion and the review); a wave 10, the first start (a tour of the app; who you are: a name,
+   an organization and an id another user cannot reproduce; the terms and conditions; a fingerprint on what is exported and
+   imported; the user's suggestion, its design discussed when the wave starts); and a wave 11, last, review as in Word (its
+   names from wave 10's identity, comments on every kind of thing, tracked changes shown where they were made with Simple, All, No markup and Original, Accept and
    Reject, the round trip of a reviewed file back into its project, Compare and Combine, Restrict and Inspect; a Review menu,
    a Review tool window, the toolbar and the status bar), its eight slices in `ux/spec/PARITY_SPEC.md`
 

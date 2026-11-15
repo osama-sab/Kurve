@@ -114,11 +114,12 @@ wave 1  foundations: project files · column types ·             │ every wave
           ├─ wave 7  plots                 (text columns; tests; dendrograms; matrices for 3D)
           ├─ wave 8  automation            (project files; analyses; templates)
           ├─ wave 9  more files            (matrices; text columns)
-          └─ wave 10 review, as in Word    (project files; the History; comments), last
+          ├─ wave 10 the first start       (a tour; who you are; the terms; a fingerprint)
+          └─ wave 11 review, as in Word    (project files; the History; comments; wave 10's names), last
 ```
 
-Waves 2 to 10 depend on wave 1, and wave 1 on wave 0. Wave 10, added on 15.11, comes last, at
-the user's word. After wave 1, waves 2 and 3 can alternate
+Waves 2 to 11 depend on wave 1, and wave 1 on wave 0. Waves 10 and 11, added on 15.11, come last,
+at the user's word, the review last of all, its names from the first start. After wave 1, waves 2 and 3 can alternate
 slice by slice; the rest follow in order, because each uses what the one before made (the linear
 model engine of wave 2 is wave 4's, wave 3's matrices are wave 5's and 7's, wave 6's dendrograms
 are wave 7's).
@@ -507,7 +508,52 @@ on files made by the reference tools (`scipy.io`, `netCDF4`, `h5py`).
   points each (linear or log), points picked by clicks or traced along a colour, into a sheet;
   tested on pictures of known curves to within a pixel.
 
-## Wave 10, last: review, as in Word
+## Wave 10: the first start
+
+Added on 15.11, the user's suggestion, to be discussed when the wave starts (nothing below is decided
+yet): "add another wave to the spec, which is initial setup, where we give the user a tour of the
+app, we also need them to include their name and organization and a unique id, that cannot be
+replicated by a different user, such that when they import or export, they have a fingerprint on
+the analysis and work (we discuss that once we reach the wave, just keep this suggestion in mind).
+We also add that to the terms and conditions. Using that method we fix the names section." It comes
+before the review (wave 11), whose names it supplies. Its spec, `ux/spec/SETUP_SPEC.md`, is written
+when it starts.
+
+**What it covers, as suggested.**
+- **A tour** of the app at the first start: the desk, the worksheet, a graph, the History, the
+  tool windows, Find a command; skipped at any step, and taken again from Help.
+- **Who you are**: a name and an organization, typed at the first start, and a unique id that a
+  different user cannot reproduce.
+- **A fingerprint on the work**: what is exported (a project file, and perhaps the figures, the
+  CSVs and the report) carries it, and what is imported says whose it is.
+- **The terms and conditions**, accepted at the first start, saying what the id is and what the
+  fingerprint means.
+- **The review's names** (11.1) come from it: the name, the organization, the initials and the id,
+  instead of a name typed in Preferences.
+
+**To discuss when the wave starts.**
+- What "cannot be replicated" can mean on one computer with no server (decision 10). One way: a
+  key pair made in the browser (Web Crypto), its private key kept unexportable in that browser's
+  storage, the id the public key's fingerprint, and each file signed with it, so anyone can check
+  that a file was signed by the holder of that key and not changed since. What that proves and what
+  it does not: the same key signed it; the name and organization are what the person typed, and
+  nothing ties them to a real person without someone (an organization, a server later) vouching for
+  the key. A new browser, another computer or cleared storage makes a new key, unless the key can be
+  backed up and brought along.
+- What the fingerprint covers: the file as a whole; each change and comment (wave 11); the original
+  data's check code; exports other than the project file.
+- What an import of someone else's signed file shows, how it is kept with the project as where it
+  came from, and what a signature that does not check says.
+- Privacy: the name and organization travel in every file; Inspect (11.8) can take them out of a
+  copy.
+- The terms' text is the user's (or their organization's) to write or approve; Kurve shows it,
+  records its acceptance with the date and the version of the text, and shows it again when the
+  text changes.
+
+**Its slices**, settled with its spec (about four: the tour; who you are and the id; the terms; the
+fingerprint on files).
+
+## Wave 11, last: review, as in Word
 
 Added on 15.11, before wave 5 began, at the user's request: "instead of having the app running over
 the internet, I want it to run locally for now, however when exporting the project, the discussion
@@ -515,8 +561,9 @@ and comments are saved within the project, such that a supervisor can follow the
 criticize the work of the peer. It needs to mimic the review functionality of Microsoft Word as well
 as possible, … like tracking changes and accepting/rejecting and compare functionalities, we already
 have history built-in … The changes must be easy to reach and easy to find and recognize, this must
-be at the end of the spec however." It comes after wave 9, and decision 10 (below) holds from now on.
-Its spec, `ux/spec/REVIEW_SPEC.md`, is written when it starts, as every wave's is.
+be at the end of the spec however." It comes last, after the first start (wave 10), and decision
+10 (below) holds from now on. Its spec, `ux/spec/REVIEW_SPEC.md`, is written when it starts, as
+every wave's is.
 
 **What Kurve already has.** The History: every step of every column in a flow chart, each box
 with its settings, and the log of who changed what and when. The original data's record, each
@@ -598,34 +645,36 @@ the points to check in Word itself are marked *(to confirm)*):
 - **The display**: Simple markup (the bars), All markup (the details), No markup (the project as
   it is), Original (as it was before every open change, read only, every window drawing it, as
   the History draws a stage); filtered by kind and by reviewer.
-- **Who is who**: Preferences › *Your name* and *Initials* (per browser, as Word's), asked the first
-  time a comment is posted or tracking is turned on; every reviewer of a project kept in it with
-  a colour of their own, so the names travel with the file.
+- **Who is who**: the identity made at the first start (wave 10): the name, the organization, the
+  initials and the id; every reviewer of a project kept in it with a colour of their own, so the
+  names travel with the file. (Before, Preferences › *Your name* and *Initials*, as Word's; the
+  user's suggestion of 15.11 replaced it.)
 
 **Its slices**, in this order:
-- **10.1 Names.** Your name and initials locally; the log, the record, comments and proposals
-  signed with them; the project's reviewers and their colours, carried in the file.
-- **10.2 Comments everywhere.** On a cell or a range of cells (a corner mark, as a spreadsheet's), a
+- **11.1 Names.** From the first start's identity (wave 10): the log, the record, comments and
+  proposals signed with the name, organization and id; the project's reviewers and their colours,
+  carried in the file.
+- **11.2 Comments everywhere.** On a cell or a range of cells (a corner mark, as a spreadsheet's), a
   column, a sheet, a graph's curve, axis, legend or annotation, a row of Results, a cell of an
   analysis's table, a matrix cell, a change; Previous and Next comment; the Review window's list of
   comments (open, resolved, by reviewer); New comment from the Review menu and every right-click.
-- **10.3 Tracking.** The switch (for everyone, or only my edits); every kind of change recorded and
+- **11.3 Tracking.** The switch (for everyone, or only my edits); every kind of change recorded and
   merged per thing; the Review window's list and counts; the status bar and the toolbar's group.
-- **10.4 Markup.** Simple, All, No markup and Original in every window; the reviewers' colours and
+- **11.4 Markup.** Simple, All, No markup and Original in every window; the reviewers' colours and
   initials; the filters by kind and reviewer.
-- **10.5 Accept and Reject.** One, one and the next, all shown, all, all and stop tracking; what
+- **11.5 Accept and Reject.** One, one and the next, all shown, all, all and stop tracking; what
   depends on a change named before it goes; decisions kept, said in the log and the report;
   proposals as suggestions.
-- **10.6 The round trip.** The file's lineage (the project's identity across files) and version;
+- **11.6 The round trip.** The file's lineage (the project's identity across files) and version;
   a file of a project that is here offered as *Combine into this project* (its comments, changes
   and decisions merged by id; the same thing changed by both shown as two changes to choose
   between) or a project of its own; what came in said ("A. Supervisor: 7 comments, 4 changes; 2
   of your changes rejected").
-- **10.7 Compare.** Two files, or a file and this project: a new project whose changes are every
+- **11.7 Compare.** Two files, or a file and this project: a new project whose changes are every
   difference (the original data cell by cell, the steps, the fits, the analyses, the graphs and
   their format, the annotations, the comments), by the later version's author, the two left
   as they were; settings for what is compared.
-- **10.8 Restrict and inspect.** Lock tracking (an optional passphrase, said not to be security);
+- **11.8 Restrict and inspect.** Lock tracking (an optional passphrase, said not to be security);
   a file for comments only, or only for tracked changes; a copy without comments, changes and
   names (Publish › A copy for sharing…); the report with its markup or without.
 
@@ -678,14 +727,15 @@ them; changing one later is a decision of its own, written here with its date.
    wave 2 needs it, through the environment's settings.
 10. **Local, for now** (15.11, the user's): Kurve runs on one computer, from the file or a local
     server, its projects in that browser; people work together by passing `.kurve` files, which
-    carry the discussion, the changes and their decisions (wave 10). The claude.ai shared store
+    carry the discussion, the changes and their decisions (wave 11). The claude.ai shared store
     stays in the code and is not built on; no wave depends on a network. The web fonts stay
     optional, as now (offline the standard fonts stand in).
 
 ## Size, and how each wave ends
 
-About 80 slices: wave 0, 5; wave 1, 9; wave 2, 12; wave 3, 7; wave 4, 8; wave 5, 8; wave 6, 5;
-wave 7, 8; wave 8, 5; wave 9, 5; wave 10, 8. Each wave ends with: the full suite green; a 40-minute lab day
+About 84 slices: wave 0, 5; wave 1, 9; wave 2, 12; wave 3, 7; wave 4, 8; wave 5, 8; wave 6, 5;
+wave 7, 8; wave 8, 5; wave 9, 5; wave 10, about 4 (settled with its spec); wave 11, 8. Each wave
+ends with: the full suite green; a 40-minute lab day
 with the wave's tools in it; Origin's tutorials for the wave worked to the same numbers; screenshots
 at three widths in both themes and styles, read by eye; `CLAUDE.md`, `DESIGN.md`,
 `ux/CHANGELOG.md`, the Help and `menus-after.txt` brought up to date; the wave's new known gaps
