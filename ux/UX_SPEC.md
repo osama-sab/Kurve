@@ -377,6 +377,7 @@ spectroscopy tools), and nowhere else.
 | conditional formatting; rule | cells filled by their values; one colour scale or highlight of a column | Data › Conditional formatting, the column menu | heat map (a graph's), style |
 | stack, unstack, pivot table, sorted copy, transpose, join, append | the reshaping analyses (wide to long and back, a table of aggregates, rows reordered into a copy, rows and columns swapped, two sheets matched by a key, one under another) | Data › Reshape, their result sheets | melt, crosstab, merge, concatenate |
 | filter; filtered | rows kept in view by a column's values or conditions; a sheet or column that has one | Data › Filter, the column menu, the foot | query, hide (for a filter's rows) |
+| compare models; compare data sets; Akaike's weight | fit settings fitted to the same points and their numbers side by side; one setting on several columns, alone and shared; the chance a model is the best of those compared, from AICc | Analyze › Fit, their result sheets | model selection, best model, extra sum-of-squares |
 | multiple regression; variance inflation factor; leverage; Cook's distance; prediction; best subsets | the linear model on several columns; how much a coefficient's variance grows from its column's likeness to the others; a row's pull on its own fitted value; how much the coefficients move without a row; a value worked out for a row with no response; every subset of the columns fitted | Analyze › Fit, its result sheets | MLR, VIF, hat value (spoken), forecast, all subsets |
 
 ## 3.7 Defaults that fit the data

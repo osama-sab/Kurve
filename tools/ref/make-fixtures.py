@@ -1385,6 +1385,80 @@ def bscase(name, n, k, force=()):
 bscase("6 columns", 50, 6); bscase("10 columns, one forced in", 80, 10, (3,)); bscase("12 columns", 120, 12)
 out["mreg"] = cases
 
+# ---- Comparing fits (FIT2_SPEC 4.3): SciPy's curve_fit (tight tolerances) for each setting's χ², statsmodels'
+# compare_f_test for nested polynomials, and the information criteria and F tests in closed form from the sums ----------
+cases = []; rng = np.random.default_rng(43)
+def py_f(expr):  # a formula as Kurve's compileExpr reads it, in Python
+    e = expr.replace("^", "**")
+    for fn in ("exp", "sqrt", "log"): e = e.replace(fn + "(", "np." + fn + "(")
+    return e
+def cf(expr, names, X, Y, p0, sig=None):
+    code = py_f(expr); f = lambda x, *p: eval(code, {"np": np, "x": x, **dict(zip(names, p))})
+    popt, _ = optimize.curve_fit(f, np.asarray(X), np.asarray(Y), p0=p0, sigma=sig, absolute_sigma=sig is not None, xtol=1e-15, ftol=1e-15, gtol=1e-15, maxfev=200000, method="lm")
+    r = (np.asarray(Y) - f(np.asarray(X), *popt)) / (np.asarray(sig) if sig is not None else 1)
+    return float(np.sum(r ** 2)), [float(v) for v in popt]
+def crit(n, k, chi):
+    K = k + 1; aic = n * math.log(chi / n) + 2 * K; d = n - K - 1
+    return {"aic": aic, "aicc": aic + 2 * K * (K + 1) / d if d > 0 else None, "bic": n * math.log(chi / n) + K * math.log(n)}
+G = ("y0 + A*exp(-((x - xc)/w)^2)", ["y0", "A", "xc", "w"]); L = ("y0 + A/(1 + ((x - xc)/w)^2)", ["y0", "A", "xc", "w"])
+for t, (n, noise, wk) in enumerate([(120, 0.02, "none"), (80, 0.05, "yerr"), (300, 0.01, "none")]):
+    X = sorted(float(v) for v in rng.uniform(-5, 5, n)); Ytrue = [0.1 + 2 * math.exp(-((x - 0.3) / 1.2) ** 2) for x in X]
+    E = [noise * (1 + 0.5 * abs(x) / 5) for x in X]; Y = [float(y + e * rng.normal()) for y, e in zip(Ytrue, E)]
+    rows = []
+    for nm, (ex, pn), p0 in (("Gaussian", G, [0.1, 2, 0.3, 1.2]), ("Lorentzian", L, [0.1, 2, 0.3, 1.0])):
+        chi, popt = cf(ex, pn, X, Y, p0, E if wk == "yerr" else None)
+        st = {"fn": {"expr": ex, "name": nm}, "init": p0, "name": nm}
+        cases.append({"fn": "fitByDesc", "name": f"{nm}, set {t}", "args": [st, X, Y, E, wk], "want": {"chi2": chi, "params": popt}})
+        rows.append({"name": nm, "n": n, "k": 4, "chi2": chi})
+    out_ = [dict(r, **crit(r["n"], r["k"], r["chi2"])) for r in rows]; lo = min(r["aicc"] for r in out_); tot = sum(math.exp(-(r["aicc"] - lo) / 2) for r in out_)
+    for r in out_: r["daicc"] = r["aicc"] - lo; r["w"] = math.exp(-r["daicc"] / 2) / tot
+    cases.append({"fn": "fitCompare", "name": f"Gaussian against Lorentzian, set {t}", "args": [rows, []], "want": {"rows": out_, "tests": []}})
+# nested polynomials: statsmodels' compare_f_test on the OLS fits
+X = [float(v) for v in np.linspace(0, 4, 60)]; Y = [float(1 + 0.5 * x - 0.2 * x * x + 0.03 * x ** 3 + 0.05 * rng.normal()) for x in X]
+fits = {}
+for k in (1, 2, 3, 4):
+    D = np.column_stack([np.asarray(X) ** j for j in range(k + 1)]); fits[k] = sm.OLS(np.asarray(Y), D).fit()
+    cases.append({"fn": "fitByDesc", "name": f"polynomial of order {k}", "args": [{"model": "linear" if k == 1 else f"poly{k}"}, X, Y, [None] * 60, "none"], "want": {"chi2": float(fits[k].ssr), "params": [float(v) for v in fits[k].params]}})
+rows = [{"name": f"order {k}", "n": 60, "k": k + 1, "chi2": float(fits[k].ssr)} for k in (4, 3, 2, 1)]
+pairs = [[i, j] for i in range(4) for j in range(4) if i < j]
+tests = []
+for i, jj in pairs:
+    F, pv, df = fits[4 - i].compare_f_test(fits[4 - jj]); tests.append({"i": i, "j": jj, "F": float(F), "p": float(pv), "df1": int(df), "df2": int(fits[4 - i].df_resid)})
+out_ = [dict(r, **crit(r["n"], r["k"], r["chi2"])) for r in rows]; lo = min(r["aicc"] for r in out_); tot = sum(math.exp(-(r["aicc"] - lo) / 2) for r in out_)
+for r in out_: r["daicc"] = r["aicc"] - lo; r["w"] = math.exp(-r["daicc"] / 2) / tot
+cases.append({"fn": "fitCompare", "name": "polynomials of order 4 to 1, every pair nested", "args": [rows, pairs], "want": {"rows": out_, "tests": tests}})
+# data sets: a decay on three columns, every parameter shared, then the rate alone; curve_fit on them laid end to end
+D3 = ("y0 + A*exp(-x/t)", ["y0", "A", "t"])
+cols3 = []
+for k, (A, tt) in enumerate([(5.0, 2.0), (5.2, 2.0), (4.8, 2.6)]):
+    X = [float(v) for v in np.linspace(0, 10, 40 + 5 * k)]; Y = [float(0.3 + A * math.exp(-x / tt) + 0.05 * rng.normal()) for x in X]; cols3.append((X, Y))
+def shared_fit(share):
+    names = []; base = []; idx = []
+    for k in range(3):
+        row = []
+        for j, pn in enumerate(D3[1]):
+            key = pn if share[j] else f"{pn}_{k}"
+            if key not in names: names.append(key); base.append(pn)
+            row.append(names.index(key))
+        idx.append(row)
+    def f(_, *p):
+        out = []
+        for k, (X, Y) in enumerate(cols3):
+            q = [p[i] for i in idx[k]]; out.extend(q[0] + q[1] * np.exp(-np.asarray(X) / q[2]))
+        return np.asarray(out)
+    Yall = np.concatenate([np.asarray(Y) for X, Y in cols3]); p0 = [{"y0": 0.3, "A": 5.0, "t": 2.0}[b] for b in base]
+    popt, _ = optimize.curve_fit(f, np.zeros(len(Yall)), Yall, p0=p0, xtol=1e-15, ftol=1e-15, gtol=1e-15, maxfev=200000, method="lm")
+    return float(np.sum((Yall - f(None, *popt)) ** 2)), len(names)
+alone = [cf(D3[0], D3[1], X, Y, [0.3, 5.0, 2.0])[0] for X, Y in cols3]
+N = sum(len(X) for X, Y in cols3)
+for test, share in (("all", [True, True, True]), ("t", [False, False, True])):
+    chiSh, kSh = shared_fit(share); chiSep = sum(alone); kSep = 9; df1 = kSep - kSh; df2 = N - kSep
+    F = ((chiSh - chiSep) / df1) / (chiSep / df2)
+    ins = [{"name": f"C{k}", "pts": {"x": X, "y": Y, "e": [None] * len(X), "rows": list(range(len(X)))}} for k, (X, Y) in enumerate(cols3)]
+    cases.append({"fn": "anaRunKind", "name": f"data sets, {test} shared", "args": ["cmpdata", ins, {"set": {"fn": {"expr": D3[0], "name": "Decay"}, "init": [0.3, 5.0, 2.0]}, "test": test}],
+                  "want": {"chiSep": chiSep, "chiSh": chiSh, "kSep": kSep, "kSh": kSh, "F": F, "p": float(stats.f.sf(F, df1, df2))}})
+out["cmp"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

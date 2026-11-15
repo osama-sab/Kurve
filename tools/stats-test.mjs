@@ -615,5 +615,27 @@ check("binomial with p = 0 or 1", D.binom.cdf(0, 10, 0) === 1 && D.binom.sf(9, 1
   check("best subsets refuse in words: a column that is a combination of others; too few rows", /combination/.test(bs([X1, X2, X1.map((v, i) => v + X2[i])], Y, {}).fail || "") && /rows for/.test(bs([X1, X2], Y.slice(0, 3), {}).fail || ""));
 }
 
+/* ---- comparing fits (FIT2_SPEC 4.3): the tests' size by simulation ---- */
+{
+  const fb = get("fitByDesc"), fc = get("fitCompare"), mc = get("mulberry32")(43), gs = () => { let u = 0; for (let k = 0; k < 12; k++) u += mc(); return u - 6; };
+  // The nested F test: data from a quadratic, a cubic against it; rejected at 5 % about 5 % of the time.
+  let rej = 0; const K = 2000, X = Array.from({ length: 25 }, (_, i) => i / 4), E = X.map(() => null);
+  for (let t = 0; t < K; t++) { const Y = X.map((x) => 1 + 0.4 * x - 0.1 * x * x + 0.3 * gs()), a = fb({ model: "poly3" }, X, Y, E, "none"), b = fb({ model: "poly2" }, X, Y, E, "none");
+    const C = fc([{ n: a.n, k: a.k, chi2: a.chi2 }, { n: b.n, k: b.k, chi2: b.chi2 }], [[0, 1]]); if (C.tests[0].p < 0.05) rej++; }
+  check("compare models: the nested F test rejects a true smaller model about 5 % of the time (2000 data sets)", Math.abs(rej / K - 0.05) < 0.012, rej / K);
+  // Akaike's weights add up to 1; a setting with a parameter fixed is nested in the free one.
+  const Y0 = X.map((x) => 2 + 3 * Math.exp(-x / 1.5) + 0.05 * gs()), f1 = fb({ model: "expdec" }, X, Y0, E, "none"), f2 = fb({ model: "expdec", fixed: [true, false, false], init: [2, 3, 1.5] }, X, Y0, E, "none");
+  const C2 = fc([{ n: f1.n, k: f1.k, chi2: f1.chi2 }, { n: f2.n, k: f2.k, chi2: f2.chi2 }], [[0, 1]]);
+  check("compare models: Akaike's weights add up to 1; a parameter fixed makes a setting nested in the free one", Math.abs(C2.rows[0].w + C2.rows[1].w - 1) < 1e-14 && get("nestedOf")({ model: "expdec" }, { model: "expdec", fixed: [true, false, false] }) && !get("nestedOf")({ model: "gauss" }, { model: "lorentz" }) && get("nestedOf")({ model: "poly3" }, { model: "linear" }) && f2.k === 2);
+  // Compare data sets: two columns from one decay; the F test of every parameter shared rejects near 5 %.
+  let rj = 0; const K2 = 400, X2 = Array.from({ length: 40 }, (_, i) => i / 4);
+  for (let t = 0; t < K2; t++) { const mk = () => X2.map((x) => ({ x, y: 0.5 + 4 * Math.exp(-x / 2) + 0.1 * gs() })), ins = [mk(), mk()].map((q, k) => ({ name: "C" + k, pts: { x: q.map((o) => o.x), y: q.map((o) => o.y), e: q.map(() => null), rows: q.map((_, i) => i) } }));
+    const r = get("anaRunKind")("cmpdata", ins, { set: { model: "expdec", init: [0.5, 4, 2] }, test: "all" }); const tt = Object.fromEntries(r.tables[0].cols.map((q) => [q.k, q.vals])); if (tt.ftp[0] < 0.05) rj++; }
+  check("compare data sets: columns from one model are told apart at 5 % about 5 % of the time (400 pairs)", rj / K2 > 0.025 && rj / K2 < 0.085, rj / K2);
+  // Refusals in words.
+  const one = get("anaRunKind")("cmpdata", [{ name: "C", pts: { x: X2, y: X2, e: [], rows: [] } }], { set: { model: "linear" } }).fail, cons = get("anaRunKind")("cmpdata", [{ name: "C", pts: { x: X2, y: X2, e: [], rows: [] } }, { name: "D", pts: { x: X2, y: X2, e: [], rows: [] } }], { set: { model: "linear", cons: "a = b" } }).fail;
+  check("comparisons refuse in words: one column, constraints in a setting", /two columns or more/.test(one || "") && /Constraints between parameters/.test(cons || ""), [one, cons].join(" | "));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

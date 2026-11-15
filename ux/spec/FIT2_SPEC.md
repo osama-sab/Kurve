@@ -278,6 +278,12 @@ ridge, lasso and PLS (PLS is wave 6); factors in best subsets (numbers only).
 
 ## 4.3 Comparing fits
 
+Done 14.11, as below, with these changes of plan: the settings to compare are chosen among the fit on screen, saved fit
+settings, your functions and every built-in model from its own guess (not the fit history, whose records keep a summary, not a
+setting); every setting is fitted over the same range and with the same weights, chosen in the dialog; Akaike's weights are
+from AICc; a nested pair is found by `nestedOf` alone (the same model with parameters fixed, polynomials, the exponential
+decays), not said by the user.
+
 **What.** Analyze › Fit › Compare models…: one column, two to five fit settings (the fit on screen,
 saved settings, the column's fit history, each a row: its model, name and settings), each fitted to
 the same points; the table: each model's points, parameters, residual sum of squares, reduced χ²,

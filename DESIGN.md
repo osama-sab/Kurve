@@ -898,6 +898,15 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-14: comparing fits (FIT2_SPEC 4.3)
+
+- **A comparison is an analysis**, so it follows the data, sits in the History and is reported, as every other result does; a
+  table that vanished with its dialog would be one more thing to redo after a value changes.
+- **The same points and weights for every model.** Criteria compare fits of the same data only, so the dialog sets one range
+  and one weighting for all; a setting's own are not used, and the method says what was fitted.
+- **Numbers, not a winner.** Akaike's weights and the F tests are shown; no model is called better, as no test is called
+  significant elsewhere.
+
 ### 2026-11-14: multiple regression (FIT2_SPEC 4.2)
 
 - **One analysis, two doors.** Regression on several columns is the linear model already in Analyze › Statistics; a person

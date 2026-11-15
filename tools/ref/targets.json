@@ -729,5 +729,29 @@
  "bestSubsets": {
   "tol": 1e-12,
   "why": "every subset enumerated by lstsq: the best three of each size, their sums and criteria"
+ },
+ "cmp.fit": {
+  "tol": 1e-09,
+  "why": "each setting's χ² against SciPy's curve_fit with tight tolerances (two iterative fits to one minimum)"
+ },
+ "cmp.fit.params": {
+  "tol": 1e-06,
+  "why": "the parameters at that minimum, which a flat valley makes looser than the sum"
+ },
+ "cmp.fit.poly": {
+  "tol": 1e-12,
+  "why": "a polynomial's sum and coefficients against statsmodels' OLS"
+ },
+ "fitCompare": {
+  "tol": 1e-12,
+  "why": "AIC, AICc, BIC, ΔAICc and Akaike's weights in closed form; the nested F tests against compare_f_test"
+ },
+ "cmp.data": {
+  "tol": 1e-09,
+  "why": "each alone and shared, χ² against curve_fit on the columns laid end to end"
+ },
+ "cmp.data.F": {
+  "tol": 1e-06,
+  "why": "the F test from two iterative sums that nearly cancel"
  }
 }

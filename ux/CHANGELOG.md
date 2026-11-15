@@ -1024,6 +1024,17 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 4, slice 4.3: comparing fits (2026-11-14)
+
+- **Analyze › Fit › Compare models…**: two to five fit settings (the fit on screen, saved settings, your functions, any built-in
+  model) fitted to the same points of a column; each one's residual sum, R², AIC, AICc, BIC, ΔAICc and Akaike's weight, the F
+  test for each nested pair, each model's parameters. An analysis with its result sheet, worked out again when the data change.
+- **Analyze › Fit › Compare data sets…**: one setting on two or more columns, alone and with every parameter (or one) shared;
+  the F test and the criteria of the two, each parameter's values side by side.
+- **Checked**: SciPy's curve_fit for each setting's χ² (to 1e-14), statsmodels' compare_f_test for nested polynomials, the
+  criteria in closed form, a comparison of data sets against curve_fit on the columns laid end to end; the F test's size over
+  2 000 data sets, columns from one model told apart about 5 % of the time.
+
 ## Closing the gap with Origin, wave 4, slice 4.2: multiple regression (2026-11-14)
 
 - **Analyze › Fit › Multiple regression…**, the linear model's second door, grows: *Weights* (a column among those ticked,

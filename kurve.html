@@ -7789,6 +7789,45 @@ function bestSubsets(X,y,o){ o=o||{}; const p=X.length, n=y.length, icpt=o.icpt!
     const r2=icpt?1-rss/sst:null; rows.push({cols:T,rss,r2,ar2:r2==null?null:1-(1-r2)*(n-1)/(n-kk),cp:rss/s2-n+2*kk,aic:n*Math.log(rss/n)+2*(kk+1),bic:n*Math.log(rss/n)+(kk+1)*Math.log(n)}); });
     rows.slice(-keep.get(sz).length).sort((a,b)=>a.rss-b.rss).forEach((r,i,arr)=>{ rows[rows.length-arr.length+i]=r; }); });
   return {rows,n,sst,s2}; }
+/* ---- Comparing fits (FIT2_SPEC 4.3) -----------------------------------------
+   A fit setting (as fitSetOf saves one: model or fn, init, fixed, lim, cons, ctl) made and fitted by the pure blocks, so an
+   analysis (and the worker) can fit it: a built-in model by its id, a function of yours from its formula. fitByDesc fits it
+   to X, Y (E the errors) with the weighting wk ("none", "yerr", "counts"); a polynomial by polyLsq, the rest by lmFit (with its
+   constraints through consFit). {res, m, k (free parameters), chi2 (the sum minimised)} or {fail} in words. */
+function fitDescModel(s){ if(!s||typeof s!=="object") return null;
+  if(s.fn&&typeof s.fn.expr==="string"){ let c; try{ c=compileExpr(s.fn.expr); }catch(e){ return null; }
+    return {name:s.fn.name||"Your function",params:c.params,f:c.f,user:true,lo:c.params.map(()=>-Infinity),hi:c.params.map(()=>Infinity),guess:(X,Y)=>guessUserParams(c.params,X,Y)}; }
+  const m=MODELS[s.model]; return m?Object.assign({id:s.model},m):null; }
+function fitByDesc(s,X,Y,E,wk){ const m=fitDescModel(s); if(!m) return {fail:"its model is not known"}; const n=m.params.length;
+  if(X.length<=n) return {fail:`${X.length} points for ${n} parameters`};
+  const xb=modelXBad(m,X); if(xb) return {fail:`${m.name} needs X ${xb.strict?"above 0":"of 0 or more"}, and X reaches ${fmt(xb.x,6)}`};
+  const WT=wk&&wk!=="none"?fitWeights(wk,Y,E):{W:Y.map(()=>1),scale:true}; if(WT.fail) return {fail:WT.fail==="noerr"?"a point has no error to weight by":WT.fail==="nocount"?"a count is not above zero":"a point cannot be weighted"};
+  const ok=a=>Array.isArray(a)&&a.length===n, p0=ok(s.init)&&s.init.every(Number.isFinite)?s.init.slice():m.guess(X,Y), fixed=ok(s.fixed)?s.fixed.map(Boolean):p0.map(()=>false), L=s.lim&&typeof s.lim==="object"?s.lim:{};
+  const B=fitBounds(n,{lo:ok(L.lo)?L.lo:undefined,hi:ok(L.hi)?L.hi:undefined,slo:ok(L.slo)?L.slo:undefined,shi:ok(L.shi)?L.shi:undefined,mlo:m.lo,mhi:m.hi,p0,fixed,names:m.params}); if(B.fail) return {fail:B.fail};
+  const C=s.cons?parseCons(s.cons,m.params):null; if(C&&C.err) return {fail:"its constraints: "+C.err.msg};
+  const k0=!m.user&&!(C&&C.any)?polyOrderOf(s.model):0; let res=null;
+  if(k0){ const r=polyLsq(X,Y,WT.W,k0,{fixed:B.fixed,p0:B.p0,scale:WT.scale}); if(!r.error&&!r.params.some((v,i)=>!B.fixed[i]&&(v<B.lo[i]||v>B.hi[i]))) res=r; }
+  if(!res){ const ctl=s.ctl||{}; res=consFit(m.f,X,Y,WT.W,B.p0,B.fixed,{lo:B.lo,hi:B.hi,scale:WT.scale,maxIter:ctl.maxIter||400,tol:ctl.tol||1e-12},C&&C.any?C:null); }
+  if(res.error) return {fail:res.error}; if(!res.params.every(Number.isFinite)) return {fail:"the fit diverged"};
+  return {res,m,k:res.stats.n-res.stats.dof,chi2:res.stats.chi2,n:res.stats.n}; }
+/* The numbers that compare fits on the same points: rows [{n, k, chi2}] (k the free parameters, chi2 the sum each minimised)
+   → each row's AIC = n ln(χ²/n) + 2(k + 1), AICc (its small-sample correction), BIC, ΔAICc from the smallest and Akaike's
+   weight from them (exp(−Δ/2) over their sum); pairs [[i, j]] with j nested in i → the F test of the parameters i has beyond j */
+function fitCompare(rows,pairs){ const K=r=>r.k+1;
+  const out=rows.map(r=>{ const aic=r.n*Math.log(r.chi2/r.n)+2*K(r), d=r.n-K(r)-1; return Object.assign({},r,{aic,aicc:d>0?aic+2*K(r)*(K(r)+1)/d:null,bic:r.n*Math.log(r.chi2/r.n)+K(r)*Math.log(r.n)}); });
+  const ok=out.filter(r=>r.aicc!=null&&Number.isFinite(r.aicc)), lo=ok.length?Math.min(...ok.map(r=>r.aicc)):null, tot=ok.reduce((a,r)=>a+Math.exp(-(r.aicc-lo)/2),0);
+  out.forEach(r=>{ r.daicc=r.aicc!=null&&lo!=null?r.aicc-lo:null; r.w=r.daicc!=null&&tot>0?Math.exp(-r.daicc/2)/tot:null; });
+  const tests=(pairs||[]).map(([i,j])=>{ const a=out[i], b=out[j], df1=a.k-b.k, df2=a.n-a.k; if(!(df1>0)||!(df2>0)||a.n!==b.n) return {i,j,fail:"not nested on the same points"};
+    const F=((b.chi2-a.chi2)/df1)/(a.chi2/df2); return {i,j,df1,df2,F,p:F>=0?DIST.F.sf(F,df1,df2):1}; });
+  return {rows:out,tests}; }
+/* Whether setting b is nested in a (a special case of it): the same model with more of its parameters fixed (each fixed in a
+   fixed alike in b), a polynomial of a lower order (none fixed), or fewer exponential terms (expdec ⊂ expdec2 ⊂ expdec3). */
+const NEST_CHAIN=[["linear","poly2","poly3","poly4","poly5","poly6","poly7","poly8","poly9","poly10"],["expdec","expdec2","expdec3"]];
+function nestedOf(a,b){ if(!a||!b) return false; const sameM=a.fn||b.fn?!!(a.fn&&b.fn&&a.fn.expr===b.fn.expr):a.model===b.model;
+  const fx=s=>Array.isArray(s.fixed)?s.fixed.map(Boolean):[];
+  if(sameM){ const fa=fx(a), fb=fx(b), n=Math.max(fa.length,fb.length); let more=0; for(let i=0;i<n;i++){ if(fa[i]&&!fb[i]) return false; if(fa[i]&&fb[i]&&a.init&&b.init&&a.init[i]!==b.init[i]) return false; if(fb[i]&&!fa[i]) more++; } return more>0; }
+  if(a.fn||b.fn||fx(a).some(Boolean)||fx(b).some(Boolean)||a.cons||b.cons) return false;
+  return NEST_CHAIN.some(ch=>{ const i=ch.indexOf(a.model), j=ch.indexOf(b.model); return i>=0&&j>=0&&j<i; }); }
 /* Predictions (FIT2_SPEC 4.2): for each new row (codes as lmCell takes them: a number column's value, a factor's level), the
    fitted value, its standard error, and the confidence (of the mean) and prediction (of one new value, of weight w, 1 unless
    given) limits at the model's level; null for a row the data cannot estimate */
@@ -7915,6 +7954,61 @@ ANA_KINDS.lm={label:"Linear model", base:"Model", cats:true, xs:true,
     const method=[`${wi>=0?"Weighted least squares":"Least squares"} by Householder QR, refined in double-double, over the ${M.n} rows complete in every column${wi>=0?`, each weighted by its value of ${ins[wi].name} (as 1/σ²)`:""}.`,vars.some(v=>!v.num)?(sp.coding==="effect"?"Factors coded by effect: each level against the mean of the levels, the last left out.":"Factors coded by treatment: each level against the first."):"",
       M.anova.rows.length?`Type ${["I","II","III"][M.anova.type-1]} sums of squares${M.anova.type===3&&vars.some(v=>!v.num)?" (with effect coding)":""}.`:"",sp.icpt?"":"No intercept: R² is about zero, not the mean."].filter(Boolean).join(" ");
     return {tables:[{cols}],report:{sections:secs,method,nums:vq.filter(o=>o.num).length},notes}; }};
+/* Compare models (FIT2_SPEC 4.3): two to five fit settings (p.fits, each with its name) fitted to the same points of one
+   column, in p.x0 to p.x1 when given, weighted alike (p.weight); each one's numbers, and the F test of each pair where one is a
+   special case of the other (nestedOf). Compare data sets: one setting (p.set) on two or more columns, each alone, then all at
+   once with every parameter shared (p.test "all") or one; the F test of the two and AIC. Numbers only (STATS_SPEC decision 9). */
+const CMP_WEIGHT=[["none","None"],["yerr","Y error (1/σ²)"],["counts","Counting statistics (1/y)"]];
+function cmpPts(q,p){ const P=q.pts, x0=Number.isFinite(p.x0)?p.x0:-Infinity, x1=Number.isFinite(p.x1)?p.x1:Infinity, lo=Math.min(x0,x1), hi=Math.max(x0,x1), X=[], Y=[], E=[];
+  P.x.forEach((x,i)=>{ if(x>=lo&&x<=hi){ X.push(x); Y.push(P.y[i]); E.push(P.e[i]); } }); return {X,Y,E}; }
+function cmpParTab(nm,F,secs,cols,key){ const m=F.m, r=F.res, rows=m.params.map((pn,i)=>({par:pn,v:r.params[i],e:r.errors[i]==null?null:r.errors[i]}));
+  anaTab(`Parameters, ${nm}`,[["par","Parameter"],["v","Value"],["e","Standard error"]],rows,cols,secs,key); }
+ANA_KINDS.cmpmod={label:"Compare models", base:"Models", pts:true,
+  help:"Two to five fit settings fitted to the same points of a column: each one's residual sum, R², AIC, AICc, BIC and Akaike's weight, and the F test of each pair where one is a special case of the other.",
+  heavy(p,ins){ const n=ins[0]&&ins[0].pts?ins[0].pts.x.length:0; return n*((p.fits||[]).length)>200000; },
+  run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[], q=ins[0]; if(!q||!q.pts) return {fail:"No column chosen."};
+    if(ins.length>1) notes.push(`${ins.length-1} other column${ins.length===2?"":"s"} ticked left out: models are compared on one column.`);
+    const sets=(Array.isArray(p.fits)?p.fits:[]).filter(s=>s&&typeof s==="object").slice(0,5); if(sets.length<2) return {fail:"Choose two fit settings or more to compare."};
+    const {X,Y,E}=cmpPts(q,p); if(X.length<3) return {fail:"Fewer than three points in the range."};
+    const wk=CMP_WEIGHT.some(e=>e[0]===p.weight)?p.weight:"none", nm=sets.map((s,i)=>String(s.name||`Model ${i+1}`));
+    const F=sets.map(s=>fitByDesc(s,X,Y,E,wk)), ok=F.map((f,i)=>f.fail?-1:i).filter(i=>i>=0);
+    F.forEach((f,i)=>{ if(f.fail) notes.push(`${nm[i]}: not fitted, ${f.fail}.`); });
+    if(ok.length<2) return {fail:"Fewer than two of the settings could be fitted to these points."};
+    const pairs=[]; ok.forEach((i,a)=>ok.forEach((j,b)=>{ if(i!==j&&nestedOf(sets[i],sets[j])) pairs.push([a,b]); }));
+    const C=fitCompare(ok.map(i=>({name:nm[i],n:F[i].n,k:F[i].k,chi2:F[i].chi2})),pairs);
+    const rows=C.rows.map((r,a)=>{ const f=F[ok[a]]; return {name:r.name,model:f.m.name,k:r.k,n:r.n,chi2:r.chi2,red:f.res.stats.redChi2,r2:f.res.stats.R2,aic:r.aic,aicc:r.aicc,bic:r.bic,d:r.daicc,w:r.w}; });
+    const ch=wk==="none"?"Residual sum of squares":"χ²";
+    anaTab("",[["name","Setting"],["model","Model"],["k","Parameters"],["n","Points"],["chi2",ch],["red","Reduced χ²"],["r2","R²"],["aic","AIC"],["aicc","AICc"],["bic","BIC"],["d","ΔAICc"],["w","Akaike's weight"]],rows,cols,[]);
+    anaTab("Models",[["name","Setting"],["k","Parameters"],["chi2",ch],["r2","R²"]],rows,[],secs);
+    anaTab("Information criteria",[["name","Setting"],["aicc","AICc"],["d","ΔAICc"],["w","Akaike's weight"],["bic","BIC"]],rows,[],secs);
+    if(C.tests.length){ const tr=C.tests.filter(t=>!t.fail).map(t=>({a:rows[t.i].name,b:rows[t.j].name,F:t.F,df:`${t.df1}, ${t.df2}`,p:t.p}));
+      anaTab("Nested pairs, F test",[["a","Larger"],["b","Special case"],["F","F"],["df","df"],["p","p"]],tr,cols,secs,"nt"); }
+    ok.forEach((i,a)=>cmpParTab(nm[i],F[i],secs,cols,`p${a}`));
+    const method=`Each setting fitted to the same ${X.length} points of ${q.name}${Number.isFinite(p.x0)||Number.isFinite(p.x1)?` (x ${fmt(Math.min(p.x0??-Infinity,p.x1??Infinity),6)} to ${fmt(Math.max(p.x0??-Infinity,p.x1??-Infinity),6)})`:""}, ${wk==="none"?"unweighted":wk==="yerr"?"weighted by 1/σ² from the Y errors":"weighted by counting statistics, 1/y"}. AIC = n ln(χ²/n) + 2(k + 1), AICc its small-sample form, BIC = n ln(χ²/n) + (k + 1) ln n, k the free parameters; Akaike's weights from AICc. The F test for each pair where one setting is a special case of the other (the same model with parameters fixed, a polynomial of a lower order, fewer exponential terms).`;
+    return {tables:[{cols}],report:{sections:secs,method},notes}; }};
+ANA_KINDS.cmpdata={label:"Compare data sets", base:"Data sets", pts:true,
+  help:"One fit setting on two or more columns: each fitted alone, then all at once with its parameters shared (every one, or one chosen); the F test and AIC of the two, and each parameter's values side by side.",
+  heavy(p,ins){ return ins.reduce((t,q)=>t+(q.pts?q.pts.x.length:0),0)>100000; },
+  run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[]; if(ins.length<2) return {fail:"Tick two columns or more to compare."};
+    const s=p.set; if(!s||typeof s!=="object") return {fail:"Choose the fit setting to compare them by."}; if(s.cons) return {fail:"Constraints between parameters are not taken by a comparison of data sets: take them out of the setting."};
+    const m=fitDescModel(s); if(!m) return {fail:"Its model is not known."};
+    const wk=CMP_WEIGHT.some(e=>e[0]===p.weight)?p.weight:"none", D=ins.map(q=>cmpPts(q,p)), A=ins.map((q,k)=>fitByDesc(s,D[k].X,D[k].Y,D[k].E,wk));
+    const bad=A.findIndex(f=>f.fail); if(bad>=0) return {fail:`${ins[bad].name}: ${A[bad].fail}.`};
+    const n=m.params.length, fixed=Array.isArray(s.fixed)&&s.fixed.length===n?s.fixed.map(Boolean):new Array(n).fill(false), test=p.test==="all"||!m.params.includes(p.test)?"all":p.test;
+    const shared=m.params.map((nm,i)=>!fixed[i]&&(test==="all"||nm===test)); if(!shared.some(Boolean)) return {fail:"Nothing to share: every parameter is fixed."};
+    const W=D.map(d=>wk==="none"?null:fitWeights(wk,d.Y,d.E).W);
+    const G=globalFit(D.map((d,k)=>({X:d.X,Y:d.Y,W:W[k]})),m.f,A.map(f=>f.res.params.slice()),shared,fixed,{lo:m.lo,hi:m.hi,scale:wk==="none"}); if(G.error) return {fail:G.error};
+    const N=D.reduce((t,d)=>t+d.X.length,0), kSep=A.reduce((t,f)=>t+f.k,0), chiSep=A.reduce((t,f)=>t+f.chi2,0), kSh=G.stats.n-G.stats.dof, chiSh=G.stats.chi2;
+    const C=fitCompare([{name:"Each alone",n:N,k:kSep,chi2:chiSep},{name:test==="all"?"Every parameter shared":`${test} shared`,n:N,k:kSh,chi2:chiSh}],[[0,1]]), t=C.tests[0];
+    const rows=C.rows.map(r=>({name:r.name,k:r.k,chi2:r.chi2,aic:r.aic,aicc:r.aicc,bic:r.bic,w:r.w}));
+    const ch=wk==="none"?"Residual sum of squares":"χ²";
+    anaTab("",[["name","Fit"],["k","Parameters"],["chi2",ch],["aic","AIC"],["aicc","AICc"],["bic","BIC"],["w","Akaike's weight"]],rows,cols,[]);
+    anaTab("Fits",[["name","Fit"],["k","Parameters"],["chi2",ch],["w","Akaike's weight"]],rows,[],secs);
+    if(!t.fail) anaTab("F test",[["F","F"],["df","df"],["p","p"]],[{F:t.F,df:`${t.df1}, ${t.df2}`,p:t.p}],cols,secs,"ft");
+    m.params.forEach((pn,i)=>{ const pr=ins.map((q,k)=>({col:q.name,a:A[k].res.params[i],ae:A[k].res.errors[i],g:G.sets[k].params[i],ge:G.sets[k].errors[i]}));
+      anaTab(`${pn}${shared[i]?", shared":""}`,[["col","Column"],["a","Alone"],["ae","Its error"],["g","Shared fit"]],pr,cols,secs,`v${i}`); });
+    const method=`${m.name} fitted to ${ins.length} columns (${N} points), ${wk==="none"?"unweighted":wk==="yerr"?"weighted by 1/σ² from the Y errors":"weighted by counting statistics, 1/y"}: each alone, then all at once with ${test==="all"?"every free parameter":test} shared. F = ((χ²shared − χ²alone)/(k alone − k shared)) / (χ²alone/(N − k alone)); AIC = N ln(χ²/N) + 2(k + 1).`;
+    return {tables:[{cols}],report:{sections:secs,method},notes}; }};
 /* Best subsets (FIT2_SPEC 4.2): a response and up to 20 columns of numbers (some always in); every subset of them, the best few
    of each size by their residual sum, with R², adjusted R², Mallows' Cp, AIC and BIC, ordered by the criterion chosen. Over
    the rows complete in every column. */
@@ -18177,7 +18271,7 @@ const anaRowsOf=inp=>inp&&Array.isArray(inp.rows)&&inp.rows.length===2&&(inp.row
 /* The one input panel's reading (STATS_SPEC, the frame): each column's values through anaRead (or, for
    a kind that counts levels, its cells as categories), the rows chosen, listwise when asked (only rows
    with a value in every column), the groups of a column of groups; the notes say what was left out. */
-function anaInputs(a,cs,by,notes,K){ if(K&&K.cells) return anaCells(a,cs,notes);
+function anaInputs(a,cs,by,notes,K){ if(K&&K.cells) return anaCells(a,cs,notes); if(K&&K.pts) return anaPts(a,cs,notes);
   const rr=anaRowsOf(a.in), list=a.in.miss==="list"&&cs.length>1, lev0=!!(a.p&&a.p.levels);
   const inR=i=>!rr||(i>=0&&(rr[0]==null||i>=rr[0]-1)&&(rr[1]==null||i<=rr[1]-1));
   const rd=cs.map(c=>{ const r=anaRead(c,{read:(a.in.read||{})[c.id],masked:a.in.masked}), lev=!!(K&&K.cats&&(lev0||isCatCol(c)||textCount(c)>r.vals.length));
@@ -18209,6 +18303,25 @@ function anaInputs(a,cs,by,notes,K){ if(K&&K.cells) return anaCells(a,cs,notes);
       if(g.fail) notes.push(`${by.name||colRef(by)}: ${g.fail}`); else { q.groups=g.keys.map((k,j)=>[typeof k==="number"?fmt(k,8):k,g.by[j]]);
         const gr=distGroups(d.rows,keys,DIST_GMAX,{text:true,order:catOrderKeys(by)}); if(!gr.fail) q.grows=gr.by; } }
     return q; }); }
+/* The fit settings a comparison can choose among (FIT2_SPEC 4.3): the fit on screen (a curve fit), the project's and this
+   browser's saved settings, your functions, every built-in model from its own guess; [{key, name, set}] with group headings */
+function cmpCands(){ const out=[], p=P(), f=p?activeFit():null, FM=f?fitModel(f):null;
+  if(FM&&!FM.composite){ out.push({group:"On screen"},{key:"screen",name:`The fit on screen: ${FM.name}`,set:{model:f.model,fn:f.fn?clone(f.fn):null,init:f.params.slice(),fixed:(f.fixed||[]).slice(),lim:f.lim?clone(f.lim):null,cons:f.cons||"",ctl:f.ctl?clone(f.ctl):null}},{end:true}); }
+  const sv=projFitSets().map(s=>["p:"+s.id,s]).concat(fitSetLib().map(s=>["b:"+s.id,s]));
+  if(sv.length){ out.push({group:"Saved fit settings"}); sv.forEach(([k,s])=>out.push({key:k,name:s.name,set:clone(s)})); out.push({end:true}); }
+  const uf=p&&Array.isArray(p.userFns)?p.userFns:[]; if(uf.length){ out.push({group:"Your functions"}); uf.forEach(fn=>out.push({key:"u:"+fn.id,name:fn.name||"My function",set:{model:"u:"+fn.id,fn:clone(fn)}})); out.push({end:true}); }
+  MODEL_GROUPS.forEach(([g,ids])=>{ out.push({group:g}); ids.forEach(id=>{ if(id==="poly2") for(let k=2;k<=POLY_MAX;k++) out.push({key:"m:poly"+k,name:MODELS["poly"+k].name,set:{model:"poly"+k}}); else if(MODELS[id]) out.push({key:"m:"+id,name:MODELS[id].name,set:{model:id}}); }); out.push({end:true}); });
+  return out; }
+const cmpCommonHtml=p=>`<label for="aMw">Weights</label><select id="aMw">${CMP_WEIGHT.map(([k,t])=>`<option value="${k}"${k===(p.weight||"none")?" selected":""}>${t}</option>`).join("")}</select>
+      <label for="aMx0" class="tipd" title="Empty for all the points">X from</label><input id="aMx0" type="text" inputmode="decimal" value="${Number.isFinite(p.x0)?p.x0:""}">
+      <label for="aMx1">to</label><input id="aMx1" type="text" inputmode="decimal" value="${Number.isFinite(p.x1)?p.x1:""}">`;
+const cmpCommonRead=v=>{ const num=t=>{ const x=parseNum(String(t||"").trim()); return Number.isFinite(x)?x:null; }; return {weight:v.aMw||"none",x0:num(v.aMx0),x1:num(v.aMx1)}; };
+/* A fit comparison's inputs (FIT2_SPEC 4.3): each column's processed points, X and Y and each one's error, masked points out
+   unless asked for, in X's own units (xu) */
+function anaPts(a,cs,notes){ return cs.map(c=>{ const d=finalOf(c), mk=new Set(a.in.masked?[]:(c.mask||[])), x=[], y=[], e=[], rows=[]; let nm=0;
+    for(let k=0;k<d.x.length;k++){ const X=d.x[k], Y=d.y[k], i=d.idx?d.idx[k]:k; if(!Number.isFinite(X)||!Number.isFinite(Y)) continue; if(i>=0&&mk.has(i)){ nm++; continue; } x.push(X); y.push(Y); e.push(d.e&&d.e[k]!=null?d.e[k]:null); rows.push(i); }
+    if(nm) notes.push(`${nm} masked point${nm===1?"":"s"} of ${specName(c)} left out.`);
+    return {id:c.id,name:specName(c),ref:colRef(c),unit:c.unit||"",xu:d.xu||"",pts:{x,y,e,rows},nMasked:nm}; }); }
 /* A reshaping kind's inputs (SHEET_SPEC 3.5): every column's cells as the worksheet holds them (numbers and text,
    the original data or a formula's values, not processed), rows aligned across the columns; the rows chosen and a
    filter's conditions taken as its rows applied to all of them at once. */
@@ -18232,8 +18345,8 @@ function runAna(a,p,o){ o=o||{}; const K=ANA_KINDS[a.kind]; p=p||P(); if(!K||!p)
   const notes=[], ins=anaInputs(a,cs,by,notes,K);
   // A large one is worked out by the compute worker (1.3c), its result put in when it comes back
   // (anaDone), if what it read has not changed meanwhile; the page goes on.
-  const nv=ins.reduce((t,q)=>t+(q.vals||q.cells||[]).length,0);
-  if((nv>=ANA_BIG||K.heavy&&K.heavy(a.p||{},ins))&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({id:q.id,name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,cells:q.cells,sheet:q.sheet,role:q.role,order:q.order,rows:q.rows,groups:q.groups,grows:q.grows,missing:q.missing,cats:q.cats})),notes,sig); return "later"; }
+  const nv=ins.reduce((t,q)=>t+(q.vals||q.cells||(q.pts&&q.pts.x)||[]).length,0);
+  if((nv>=ANA_BIG||K.heavy&&K.heavy(a.p||{},ins))&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({id:q.id,name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,cells:q.cells,sheet:q.sheet,role:q.role,order:q.order,rows:q.rows,groups:q.groups,grows:q.grows,missing:q.missing,cats:q.cats,pts:q.pts,xu:q.xu})),notes,sig); return "later"; }
   let out; try{ out=anaRunKind(a.kind,ins,a.p||{}); }catch(e){ out={fail:String(e&&e.message||e)}; }
   return anaApply(a,p,out,notes,sig); }
 function anaApply(a,p,out,notes,sig){
@@ -18466,6 +18579,22 @@ const ANA_FORMS={
         fb.innerHTML=ids.filter(id=>id!==y&&id!==wv).map(id=>{ const c=colById(id), txt=isCatCol(c)||textCount(c)>0, on=txt||(keep.has(id)?keep.get(id):fac0.has(id)); return `<label class="chk"><input type="checkbox" id="aLf_${id}"${on?" checked":""}${txt?" disabled":""}> ${esc(colLetter(c)+" "+(c.name||""))}</label>`; }).join("")||`<span class="muted">The other columns ticked</span>`; }); },
     read(v){ return {y:v.aLy||null,fac:Object.keys(v).filter(k=>k.startsWith("aLf_")&&v[k]).map(k=>k.slice(4)),inter:v.aLi,pow:+v.aLp||1,coding:v.aLc==="effect"?"effect":"treat",ss:+v.aLs||3,conf:+v.aCf||0.95,icpt:!!v.aLn,resid:!!v.aLr,diag:!!v.aLd,pred:!!v.aLpr,w:v.aLw||null,contrasts:String(v.aLct||"").trim()}; },
     valid(v){ return !!v.aLy; }},
+  cmpmod:{noGroup:true, html(p){ const C=cmpCands(), keys=(Array.isArray(p.fits)?p.fits:[]).map(s=>s.key), def=[C.find(c=>c.key==="screen")?"screen":"m:linear","m:poly2"], opts=sel=>C.map(c=>c.group?`<optgroup label="${esc(c.group)}">`:c.end?"</optgroup>":`<option value="${esc(c.key)}"${c.key===sel?" selected":""}>${esc(c.name)}</option>`).join("");
+      return `<div class="grid2">${[0,1,2,3,4].map(i=>`<label for="aMm${i}">${i<2?`Setting ${i+1}`:`Setting ${i+1}, if any`}</label><select id="aMm${i}">${i>=2?`<option value="">—</option>`:""}${opts(keys[i]||(i<2?def[i]:""))}</select>`).join("")}
+      ${cmpCommonHtml(p)}</div>`; },
+    read(v){ const C=cmpCands(), fits=[0,1,2,3,4].map(i=>v["aMm"+i]).filter(Boolean).map(k=>C.find(c=>c.key===k)).filter(Boolean).map(c=>Object.assign(clone(c.set),{name:c.name,key:c.key}));
+      return Object.assign({fits},cmpCommonRead(v)); },
+    valid(v){ return [0,1,2,3,4].map(i=>v["aMm"+i]).filter(Boolean).length>=2; }},
+  cmpdata:{noGroup:true, html(p){ const C=cmpCands(), k0=p.set&&p.set.key||(C.find(c=>c.key==="screen")?"screen":"m:gauss");
+      return `<div class="grid2"><label for="aDs">Fit setting</label><select id="aDs">${C.map(c=>c.group?`<optgroup label="${esc(c.group)}">`:c.end?"</optgroup>":`<option value="${esc(c.key)}"${c.key===k0?" selected":""}>${esc(c.name)}</option>`).join("")}</select>
+      <label for="aDt" class="tipd" title="Every free parameter shared by the columns, or one, the others each column's own">Shared</label><select id="aDt" data-t="${esc(p.test||"all")}"></select>
+      ${cmpCommonHtml(p)}</div>`; },
+    wire(box){ const ss=box.querySelector("#aDs"), ts=box.querySelector("#aDt"); if(!ss||!ts) return;
+      const fill=()=>{ const c=cmpCands().find(q=>q.key===ss.value), m=c?fitDescModel(c.set):null, cur=ts.value||ts.dataset.t||"all";
+        ts.innerHTML=`<option value="all">Every parameter</option>`+(m?m.params.map(n=>`<option value="${esc(n)}"${n===cur?" selected":""}>${esc(n)} alone</option>`).join(""):""); };
+      ss.addEventListener("change",fill); fill(); },
+    read(v){ const c=cmpCands().find(q=>q.key===v.aDs); return Object.assign({set:c?Object.assign(clone(c.set),{name:c.name,key:c.key}):null,test:v.aDt||"all"},cmpCommonRead(v)); },
+    valid(v){ return !!v.aDs; }},
   subsets:{noGroup:true, html(p){ const cr=SUBSET_CRIT.some(e=>e[0]===p.crit)?p.crit:"ar2";
       return `<div class="grid2"><label for="aLy">Response</label><select id="aLy" data-y="${esc(p.y||"")}"></select></div>
       <p class="lab tipd" title="In every subset">Always in</p><div class="anastats" id="aBf" data-f="${esc((Array.isArray(p.force)?p.force:[]).join(","))}"></div>
@@ -25338,6 +25467,8 @@ function analyzeMenu(){
       "-",
       {label:"Multiple regression…", title:ANA_KINDS.lm.help, run:()=>anaDlg("lm",{two:true}), enabled:edit},
       {label:"Best subsets…", title:ANA_KINDS.subsets.help, run:()=>anaDlg("subsets",{two:true}), enabled:edit},
+      {label:"Compare models…", title:ANA_KINDS.cmpmod.help, run:()=>anaDlg("cmpmod"), enabled:edit},
+      {label:"Compare data sets…", title:ANA_KINDS.cmpdata.help, run:()=>anaDlg("cmpdata",{two:true}), enabled:edit&&yCols().length>1},
       "-",
       {label:"Fit", kbd:"Ctrl+Enter", run:fitNow, enabled:edit&&has},
       yCols().length>1?{label:"Fit every column…", run:openBatchDialog, enabled:edit&&!!f, title:f?"":"Fit the active column first: its fit is the template"}:null,
@@ -28115,7 +28246,7 @@ ${DL([["Area ± error","The trapezoidal sum over the points in the window, less 
 ${DL([["Net counts","The counts in the window less the continuum under them: a straight line through the mean of the channels at each edge (as many as the line baselines use). ± one standard deviation from counting: the counts' own and the continuum's."],["Detected","Above Currie's critical level, 95 %: on a continuum alone, one window in twenty is called detected. Below it, the level is shown."],["Emission, efficiency","Type the share of decays that give the line and the detector's efficiency at its energy, both in %."],["Activity","Net counts ÷ (live time × efficiency × emission), in becquerel, with the counting error. Not detected: the detection limit as an activity, the smallest that would be."]])}
 <p>Counting needs the counts as recorded: an energy calibration, a count rate or a crop keep them; smoothing or a subtracted background do not, and the part says so.</p>
 ${TIP("Overlapping bands are integrated separately, each within its own window. To divide overlapping bands between them, fit them.")}`},
-{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results multiple regression mlr weighted least squares wls vif variance inflation factor condition number leverage cook's distance cooks dffits studentized deleted residual influence prediction interval confidence limits partial residual component plus residual best subsets all subsets mallows cp aic bic statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size nonparametric non-parametric rank mann whitney wilcoxon rank sum signed rank sign test hodges lehmann shift pseudo-median kruskal wallis dunn friedman kendall w mood median test kolmogorov smirnov two-sample ks correlation correlation matrix pearson spearman rho kendall tau partial correlation fisher z scatter matrix counts contingency cross table crosstab cross-tabulation chi square chi-square independence expected counts likelihood ratio g test freeman halton mcnemar paired cramer cramér v linear model general linear model glm regression multiple regression ancova covariate factor interaction polynomial treatment coding effect coding type i type ii type iii sums of squares contrast estimable aliased qr two-way anova three-way anova factorial anova interaction plot main effects plot marginal means least squares means lsmeans emmeans simple effects partial eta squared repeated measures rm anova within subjects between subjects mixed anova split-plot sphericity mauchly greenhouse-geisser greenhouse geisser huynh-feldt huynh feldt epsilon profile plot wide long subject power sample size power analysis how many samples effect size cohen d cohen f cohen w noncentral t noncentral f noncentral chi-square g*power pss roc receiver operating characteristic area under the curve auc delong youden cut-off cutoff threshold sensitivity specificity diagnostic",
+{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results compare models model comparison aic aicc bic akaike weight extra sum of squares f test nested compare datasets data sets shared parameters global multiple regression mlr weighted least squares wls vif variance inflation factor condition number leverage cook's distance cooks dffits studentized deleted residual influence prediction interval confidence limits partial residual component plus residual best subsets all subsets mallows cp aic bic statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size nonparametric non-parametric rank mann whitney wilcoxon rank sum signed rank sign test hodges lehmann shift pseudo-median kruskal wallis dunn friedman kendall w mood median test kolmogorov smirnov two-sample ks correlation correlation matrix pearson spearman rho kendall tau partial correlation fisher z scatter matrix counts contingency cross table crosstab cross-tabulation chi square chi-square independence expected counts likelihood ratio g test freeman halton mcnemar paired cramer cramér v linear model general linear model glm regression multiple regression ancova covariate factor interaction polynomial treatment coding effect coding type i type ii type iii sums of squares contrast estimable aliased qr two-way anova three-way anova factorial anova interaction plot main effects plot marginal means least squares means lsmeans emmeans simple effects partial eta squared repeated measures rm anova within subjects between subjects mixed anova split-plot sphericity mauchly greenhouse-geisser greenhouse geisser huynh-feldt huynh feldt epsilon profile plot wide long subject power sample size power analysis how many samples effect size cohen d cohen f cohen w noncentral t noncentral f noncentral chi-square g*power pss roc receiver operating characteristic area under the curve auc delong youden cut-off cutoff threshold sensitivity specificity diagnostic",
  lead:"An analysis reads columns and writes what it finds into a result sheet of its own, worked out again when its data change.",
  body:`<h2>Statistics on columns</h2>
 <p>${MP("Analyze › Statistics › Descriptive › Statistics on columns…")}: tick the columns and the statistics, and each column gets a row of a new sheet. Ticked at first are N, the rows missing, mean, standard deviation, standard error of the mean, minimum, Q1, median, Q3, maximum and sum; besides them, the mean's interval, variance, coefficient of variation, range, IQR, MAD, robust SD, the mode and its count, skewness, kurtosis, the geometric and harmonic means, and any percentiles typed (<code>5, 95</code>). <em>Group by</em> a column of text or categories gives a row for each column and group.</p>
@@ -28161,6 +28292,10 @@ ${DL([["t tests","Difference and SD (of the differences for paired): the noncent
 <p>${MP("Analyze › Statistics › ANOVA › Linear model…")}, or ${MP("Analyze › Fit › Multiple regression…")}: a <em>Response</em> among the columns ticked, modelled by the others, over the rows with a value in every one. A column of numbers is a variable unless ticked under <em>Factors</em>; a column of text, or a categorical one, is a factor, each level an effect of its own.</p>
 ${DL([["Interactions","None; every pair of the columns; or every combination (A:B, A:C, B:C, A:B:C…). A factor in an interaction gives a column for each pair of its levels and the other's."],["Powers up to","Each number column's square, cube… as terms of their own (x^2, x^3), for a polynomial."],["Factor coding","Treatment: a coefficient for each level but the first, its difference from the first. Effect: a coefficient for each level but the last, its difference from the mean of the levels."],["Sums of squares","Type I: each term after those listed before it. Type II: each term after every other that does not contain it. Type III: each term after all the others, with effect coding (as SAS and Origin)."],["Contrasts","One a line, a sum of coefficients by the names the table gives them, each with a number before it if needed: <code>A[b] − A[c]</code>, <code>x + 2 x^2</code>, <code>A[b] = 1</code>. Its estimate, standard error, t, p and interval; refused where the data cannot separate it (a combination of aliased columns)."],["Weights","A column among those ticked whose values count each row, as 1/σ²: weighted least squares. A row with no weight, or none above zero, is left out and counted in the notes."],["Fitted values and residuals","Three columns on the result sheet: the row, the fitted value and the residual."],["Influence of each row","Beside them each row's standardized residual (over s), studentized (over s√(1 − h)) and studentized deleted residual (s from the fit without the row), its leverage h, Cook's distance and DFFITS; weighted, as the weighted fit sees them."],["Predictions","The rows with a value in every column but the response are predicted, and every row has its confidence limits (of the mean) and prediction limits (of one new value, of its own weight) at the level chosen."]])}
 <p>The report: the model (N, R², adjusted R², root MSE, F with its degrees of freedom and p), the coefficients with their standard errors, t, p and intervals, the analysis of variance, and the contrasts, then <em>Collinearity</em>: each coefficient's variance inflation factor (1/(1 − R²) of its column on the others; the sheet has it beside the coefficients) and the condition number of the design with its columns scaled to length 1. A column that is a combination of the columns before it (a factor's level missing from a cell, a column repeated) has no coefficient, and the notes name it. <em>Partial residual plots</em> under the report draws, for each column of numbers, the residuals plus that column's terms against it, with the line of those terms, a graph each in a figure (one undo step). The arithmetic is checked against exact rational arithmetic on NIST's Norris and Longley data, Wampler's polynomials and a polynomial of degree 10 as hard as NIST's Filip, and the weights, influence and predictions against statsmodels.</p>
+<h2 id="cmpmod">Compare models</h2>
+<p>${MP("Analyze › Fit › Compare models…")}: two to five fit settings (the fit on screen, saved fit settings, your functions, any built-in model from its own guess) fitted to the same points of one column, over the range typed or all of it, weighted alike. Each one's residual sum (χ² when weighted), reduced χ², R², AIC, AICc, BIC, ΔAICc from the smallest and Akaike's weight (from AICc); for each pair where one is a special case of the other (the same model with parameters fixed, a polynomial of a lower order, fewer exponential terms) the F test of the parameters the larger has beyond it; and each model's parameters. A setting that cannot be fitted to these points is named in the notes and left out. The numbers are Kurve's; which model to keep is yours.</p>
+<h2 id="cmpdata">Compare data sets</h2>
+<p>${MP("Analyze › Fit › Compare data sets…")}: one fit setting on two or more columns ticked. Each column is fitted alone, then all at once with every free parameter shared, or one chosen, the others each column's own; the F test of the shared fit against the columns alone, both fits' χ², AIC, AICc, BIC and Akaike's weights, and each parameter's values alone and in the shared fit side by side. A setting with constraints between parameters is refused.</p>
 <h2 id="subsets">Best subsets</h2>
 <p>${MP("Analyze › Fit › Best subsets…")}: a <em>Response</em> and up to 20 columns of numbers among those ticked, some <em>Always in</em>. Every subset is fitted (each step adds or takes out one column, so a million subsets take about a second), and the best of each size (1 to 10 of them, by their residual sum, which orders every criterion alike within a size) are listed with R², adjusted R², Mallows' Cp (from the full model's s²), AIC and BIC, ordered by the criterion chosen. Each listed subset is worked out again exactly. <em>Fit one of them…</em> under the report opens the linear model on the subset chosen. A column that is a combination of the others is refused: take it out first.</p>
 <h2 id="ranks">Nonparametric tests</h2>

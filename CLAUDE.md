@@ -1247,7 +1247,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   the singular values descending). `bestSubsets(X, y, {force, best, icpt})` (`SUBSET_MAX` 20; the centred cross products
   scaled to unit diagonal swept in Gray-code order (`sweep` and its reverse), swept afresh every 4096 steps, the best `best`
   of each size by residual sum, each refitted by `lsqFit`; `{rows:[{cols, rss, r2, ar2, cp, aic, bic}], n, sst, s2}` or
-  `{fail}`: a column a combination of others, too few rows). Kind `lm` grows `p.w` (a ticked column's id), `p.diag`, `p.pred`
+  `{fail}`: a column a combination of others, too few rows). A model is by `LM_MAXX` (50) columns at most, `LM_MAXV` (10) the
+  highest power; `lmTermCount(k, inter, pow)` refuses interactions past `LM_MAXC` before they are made. Kind `lm` grows `p.w` (a ticked column's id), `p.diag`, `p.pred`
   (the rows with every X and no Y), `p.partial` (columns `prx<v>` an X, `pry<v>`, `prl<v>` per column of numbers: the residual
   plus its terms' share about their mean), the coefficients' `vif` on the sheet and the report's *Collinearity*; the per-row
   table (`row`, `fit`, `res`, `std`, `stud`, `del`, `lev`, `cook`, `dffits`, `clo`, `chi`, `plo`, `phi`) in the input rows'
@@ -1257,6 +1258,21 @@ graph first, with the taskbar kept at the bottom of the screen.
   form `#aBf` (`aBf_<id>`), `#aBn`, `#aBc`, `#aLn`. Report actions `anaPartial(id)` (worked out again with `partial`, a graph a
   column, a figure, one undo step) and `anaSubsetFit(id)` (a `formDlg` of the subsets, `#bsP<i>`, then `anaDlg("lm", {cols, p})`;
   `anaDlg` takes `o.p`, a new analysis's starting settings). Analyze › Fit › Multiple regression… and Best subsets….
+  **Comparing fits** (FIT2_SPEC 4.3; before `lmPredict`): `fitDescModel(s)` (a fit setting's model: `MODELS[s.model]`, or a
+  function of yours from `s.fn.expr` by `compileExpr`, its guess `guessUserParams`), `fitByDesc(s, X, Y, E, wk)` (the setting's
+  starts or the model's guess, fixed, limits by `fitBounds`, constraints by `parseCons`/`consFit`, a polynomial by `polyLsq`;
+  weights by `fitWeights`; `{res, m, k, chi2, n}` or `{fail}` in words), `fitCompare(rows, pairs)` (each row's `aic` = n ln(χ²/n)
+  + 2(k + 1), `aicc`, `bic`, `daicc`, Akaike's weight `w` from AICc; each pair `[i, j]` (j nested in i) its `F`, `df1`, `df2`, `p`),
+  `nestedOf(a, b)` (the same model with more parameters fixed, `NEST_CHAIN`: polynomials by order, expdec ⊂ expdec2 ⊂ expdec3).
+  Kinds with `pts:true` read each column's processed points (`anaPts(a, cs, notes)` in `anaInputs`: `{pts: {x, y, e, rows}, xu}`,
+  masked out unless asked; counted and sent to the worker as such). Kind `cmpmod` (`p.fits`: two to five settings, each with
+  `name` and `key`; `p.weight` of `CMP_WEIGHT`; `p.x0`, `p.x1`; the sheet's a row a setting, `nt…` the nested pairs, `p<i>…`
+  each model's parameters; sections Models, Information criteria, Nested pairs, F test, Parameters, <name>) and `cmpdata`
+  (`p.set`, `p.test` "all" or a parameter's name; each alone by `fitByDesc`, then `globalFit` with that shared; sections Fits,
+  F test (`ft…`), a parameter each (`v<i>…`), alone and shared; constraints refused). `cmpPts`, `cmpParTab`. Forms:
+  `cmpCands()` (the fit on screen `screen`, saved settings `p:`/`b:`, your functions `u:`, every built-in model `m:<id>`, with
+  group headings), `#aMm0`…`#aMm4`, `#aDs`, `#aDt` (filled with the chosen model's parameters), `cmpCommonHtml`/`cmpCommonRead`
+  (`#aMw`, `#aMx0`, `#aMx1`). Analyze › Fit › Compare models… and Compare data sets….
   **Polynomials by QR** (FIT2_SPEC 4.1; after `lsqAlias`): `polyLsq(X, Y, W, k, {fixed, p0, scale, stream})` (order 1 to
   `POLY_MAX`, 10; lmFit's fields with `iter: 0` and `poly {c, s, b, V}`): in t = (x − c)/s, c the middle of X and s the power
   of two at or above half its range (t exact in double-double), the columns t^j in double-double and weighted, `lsqFit` and
@@ -3396,8 +3412,10 @@ reload), and 2.12 (Groups and Positive offered, each area, SE, interval, Youden'
 and rocCompare, the curve with the diagonal, a lower score positive, a third group refused, a reload), and FIT2_SPEC 4.2
 (Analyze › Fit's doors, the Weights list, a weighted fit's coefficients, VIFs, condition number, each row's influence and a
 row predicted against linModel and lmPredict, the planted outlier's Cook's distance, the partial residual figure and its undo,
-best subsets ordered by BIC against bestSubsets, Fit one of them…, 21 columns refused, a reload); `ONLY=2.11` runs one
-section.
+best subsets ordered by BIC against bestSubsets, Fit one of them…, 21 columns refused, a reload), and 4.3 (the doors, every
+model offered by kind, four models' χ², AICc and weights against fitByDesc and fitCompare, the nested pair's F test, no
+verdict, the fit on screen offered first, followed after a value typed, data sets with every parameter and the centre alone
+shared, refusals, a reload); `ONLY=2.11` runs one section.
 `node tools/stats-test.mjs [path]` checks the distributions' properties (the tails adding up to
 1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
 up to 1 and their tails being their sums, Cauchy's t, closed forms), and the descriptive statistics'
@@ -3422,7 +3440,9 @@ interval's coverage of a binormal area and its test's size, refusals), and resha
 sorted copy a sorted permutation, a pivot's totals adding up, a full join the inner and both sides' unmatched, one row a key after
 duplicates, refusals), and multiple regression's (leverages adding up to the coefficients, a deleted residual against refitting
 without the row, Cook's distance's definition, a VIF as 1/(1 − R²), weights doubled changing nothing, the 95 % prediction
-interval's coverage, best subsets against every subset fitted, a column forced in, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
+interval's coverage, best subsets against every subset fitted, a column forced in, refusals), and comparing fits' (the nested F
+test's size over 2 000 data sets, Akaike's weights adding up to 1, nesting by a fixed parameter, two columns from one model told
+apart about 5 % of the time, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
 ANA block.
 `node tools/sheet-drive.mjs [path]` (Playwright; `ONLY=3.1` runs one section) checks the worksheet as a table
 (`ux/spec/SHEET_SPEC.md`, wave 3): 3.1, formulas typed into the F(x)= row (an aggregate, rows of other rows, a running
@@ -5063,7 +5083,9 @@ Next, in order:
    the last digit, NIST's 27 nonlinear sets through Levenberg–Marquardt from both starts), done 14.11; slice 4.2, multiple
    regression (weights, variance inflation factors and the condition number, each row's influence, predictions with their
    limits, partial residual plots, best subsets of up to 20 columns; statsmodels and every subset enumerated agreeing to
-   1e-12), done 14.11
+   1e-12), done 14.11; slice 4.3, comparing fits (Compare models: two to five fit settings on one column's points, their
+   criteria and Akaike's weights, the F test of nested pairs; Compare data sets: one setting on several columns, alone and
+   shared; SciPy's curve_fit and statsmodels' compare_f_test agreeing to 1e-13, the tests' size by simulation), done 14.11
 
 ## Known gaps
 
@@ -5154,6 +5176,10 @@ Next, in order:
   a time (no joint F of several); the residual plots are the result sheet's columns plotted as any (partial residual plots
   apart); weights are a column's values only (no weights from the errors of a column); predictions are for the rows of the
   sheet with no response (not a sheet of new X); best subsets of numbers only (no factors), no stepwise selection
+- Comparing fits: curve-fit settings only (a peak fit is compared once written as a function); every setting fitted with the
+  same weights over the same points (a setting's own range and weights are not used); nesting is found for the same model with
+  parameters fixed, polynomials and the exponential decays (other special cases are not tested by F); Compare data sets shares
+  every parameter or one, without constraints, and its F test of nonlinear fits is approximate
 - Two- and three-way ANOVA: factors only (a covariate is the linear model's); the comparisons are of each factor's means
   (not of the cells, not Dunnett's or Games–Howell's); simple effects of one factor at the levels of another, averaged over a
   third; the interaction plot is of the first two factors ticked; a mean over an empty cell is left empty (no SAS-style

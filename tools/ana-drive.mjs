@@ -804,6 +804,56 @@ await page(async p => {
   check("after a reload both are there", JSON.stringify(r) === JSON.stringify([["lm", true], ["subsets", true]]), JSON.stringify(r));
 }, { name: "4.2" });
 
+console.log("4.3: comparing fits");
+await page(async p => {
+  // Three columns of one peak, the third wider; X from 0 to 10.
+  await p.evaluate(() => { const n = 121, x = [], c = [[], [], []]; let s = 9; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; };
+    for (let i = 0; i < n; i++) { const v = i / 12; x.push(v); [[2, 1.2], [2.1, 1.2], [1.9, 1.6]].forEach(([A, w], k) => c[k].push(+(0.2 + A * Math.exp(-(((v - 5) / w) ** 2)) + 0.03 * r()).toFixed(5))); }
+    const col = (nm, d) => Object.assign(makeCol("y", nm, ""), { data: d, pipe: [], mask: [] });
+    save({ cols: [Object.assign(makeCol("x", "X", ""), { data: x }), col("P1", c[0]), col("P2", c[1]), col("P3", c[2])], activeY: null }, "typed"); });
+  await p.waitForTimeout(400);
+  const ids = await p.evaluate(() => sheetCols(curSheet()).map(c => c.id));
+  let r = await p.evaluate(() => { const fit = menuItems("analyze").find(i => i && i.label === "Fit"); return (typeof fit.sub === "function" ? fit.sub() : fit.sub).filter(Boolean).map(i => i.label); });
+  check("Analyze › Fit has Compare models… and Compare data sets…", r.includes("Compare models…") && r.includes("Compare data sets…"), JSON.stringify(r));
+  await p.evaluate(ids => { anaDlg("cmpmod", { cols: [ids[1]] }); }, ids); await p.waitForSelector("#aMm0");
+  r = await p.evaluate(() => ({ g: [...document.querySelectorAll("#aMm0 optgroup")].map(o => o.label), ok: $("#formOk").disabled }));
+  check("the dialog offers every built-in model by kind", r.g.includes("Peaks") && r.g.includes("Lines and polynomials") && !r.ok, JSON.stringify(r));
+  await p.selectOption("#aMm0", "m:gauss"); await p.selectOption("#aMm1", "m:lorentz"); await p.selectOption("#aMm2", "m:poly2"); await p.selectOption("#aMm3", "m:poly4"); await p.click("#formOk");
+  await p.waitForFunction(() => { const a = anaList().find(x => x.kind === "cmpmod"); return a && a.res && (a.res.report || a.res.err); }, null, { timeout: 60000 });
+  r = await p.evaluate(id => { const a = anaList().find(x => x.kind === "cmpmod"), o = {}; P().cols.filter(c => c.ana === a.id).forEach(c => { o[c.ak] = c.txt ? c.data.map((v, i) => c.txt[i] != null ? c.txt[i] : v) : c.data.slice(); });
+    const d = finalOf(colById(id)), X = d.x.slice(), Y = d.y.slice(), E = X.map(() => null), F = ["gauss", "lorentz", "poly2", "poly4"].map(m => fitByDesc({ model: m }, X, Y, E, "none"));
+    const C = fitCompare(F.map(f => ({ n: f.n, k: f.k, chi2: f.chi2 })), [[3, 2]]); return { o, F: F.map(f => f.chi2), C, err: a.res.err, secs: a.res.report && a.res.report.sections.map(s => s.title), method: a.res.report && a.res.report.method }; }, ids[1]);
+  check("each model fitted to the same points: its χ², AICc, ΔAICc and Akaike's weight as fitByDesc and fitCompare give them", !r.err && r.o.chi2.every((v, i) => Math.abs(v - r.F[i]) <= 1e-12 * r.F[i]) && r.o.aicc.every((v, i) => Math.abs(v - r.C.rows[i].aicc) < 1e-9) && Math.abs(r.o.w.reduce((a, v) => a + v, 0) - 1) < 1e-12, JSON.stringify([r.o.chi2, r.F, r.err]));
+  check("the nested pair (order 2 inside order 4) has its F test; Gaussian and Lorentzian have none", r.o.ntF && r.o.ntF.length === 1 && Math.abs(r.o.ntF[0] - r.C.tests[0].F) < 1e-9 * r.C.tests[0].F && r.o.nta[0] === "Polynomial of order 4", JSON.stringify([r.o.nta, r.o.ntF, r.C.tests]));
+  check("the report: models, information criteria, the nested pairs, each model's parameters; no verdict", r.secs.join("|") === "Models|Information criteria|Nested pairs, F test|Parameters, Gaussian peak|Parameters, Lorentzian peak|Parameters, Polynomial of order 2|Parameters, Polynomial of order 4" && !/better|best|prefer|significant/i.test(JSON.stringify(r.secs) + r.method), JSON.stringify(r.secs));
+  // The fit on screen is a setting too.
+  await p.evaluate(() => { S.fitMode = "curve"; showTab("fit"); chooseModel("gauss"); runFit(); }); await p.waitForTimeout(400);
+  await p.evaluate(ids => { anaDlg("cmpmod", { cols: [ids[1]] }); }, ids); await p.waitForSelector("#aMm0");
+  r = await p.evaluate(() => ({ v: $("#aMm0").value, t: $("#aMm0").selectedOptions[0].textContent }));
+  check("the fit on screen comes first when there is one", r.v === "screen" && /The fit on screen: Gaussian/.test(r.t), JSON.stringify(r)); await p.click("#formCancel");
+  // Followed: a value typed into the column.
+  const before = await p.evaluate(() => anaList().find(x => x.kind === "cmpmod").res.report.sections[0].tables[0].rows[0][2]);
+  await p.evaluate(id => { const c = colById(id); pushUndo("t"); c.data = c.data.slice(); c.data[60] = 4; save({ cols: P().cols }, "typed"); }, ids[1]); await p.waitForTimeout(1500);
+  r = await p.evaluate(() => anaList().find(x => x.kind === "cmpmod").res.report.sections[0].tables[0].rows[0][2]);
+  check("worked out again by itself after a value is typed", r !== before && typeof r === "number", JSON.stringify([before, r]));
+  // Compare data sets: every parameter shared, then the centre alone.
+  for (const [test, kSh] of [["all", 4], ["xc", 10]]) {
+    await p.evaluate(ids => { anaDlg("cmpdata", { cols: ids.slice(1) }); }, ids); await p.waitForSelector("#aDs");
+    await p.selectOption("#aDs", "m:gauss"); await p.waitForTimeout(100); await p.selectOption("#aDt", test); await p.click("#formOk");
+    await p.waitForFunction(n => { const as = anaList().filter(x => x.kind === "cmpdata"); return as.length === n && as[n - 1].res && (as[n - 1].res.report || as[n - 1].res.err); }, test === "all" ? 1 : 2, { timeout: 60000 });
+    r = await p.evaluate(() => { const as = anaList().filter(x => x.kind === "cmpdata"), a = as[as.length - 1], o = {}; P().cols.filter(c => c.ana === a.id).forEach(c => { o[c.ak] = c.txt ? c.data.map((v, i) => c.txt[i] != null ? c.txt[i] : v) : c.data.slice(); }); return { o, err: a.res.err, secs: a.res.report && a.res.report.sections.map(s => s.title) }; });
+    const F = r.o.chi2 ? ((r.o.chi2[1] - r.o.chi2[0]) / (r.o.k[0] - r.o.k[1])) / (r.o.chi2[0] / (363 - r.o.k[0])) : null;
+    check(`data sets, ${test === "all" ? "every parameter" : "the centre alone"} shared: 12 parameters alone, ${kSh} shared, the shared fit no better, F from the two sums`, !r.err && r.o.k[0] === 12 && r.o.k[1] === kSh && r.o.chi2[1] >= r.o.chi2[0] && Math.abs(r.o.ftF[0] - F) <= 1e-9 * F, JSON.stringify([r.o.k, r.o.chi2, r.o.ftF, r.err]));
+  }
+  check("…the report gives each parameter's values side by side, the shared one marked", r.secs.includes("xc, shared") && r.secs.includes("w"), JSON.stringify(r.secs));
+  // Refused in words: neither of two settings can be fitted (a power of x through X = 0).
+  r = await p.evaluate(id => { const d = finalOf(colById(id)); return anaRunKind("cmpmod", [{ name: "P1", pts: { x: d.x, y: d.y, e: d.x.map(() => null), rows: d.x.map((_, i) => i) } }], { fits: [{ model: "power", name: "A" }, { model: "logarithm", name: "B" }] }); }, ids[1]);
+  check("two settings that cannot be fitted to these points: refused in words", /Fewer than two of the settings could be fitted/.test(r.fail || ""), JSON.stringify(r));
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  r = await p.evaluate(() => anaList().map(a => [a.kind, !!(a.res && a.res.report)]));
+  check("after a reload the three are there", JSON.stringify(r) === JSON.stringify([["cmpmod", true], ["cmpdata", true], ["cmpdata", true]]), JSON.stringify(r));
+}, { name: "4.3" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

@@ -68,6 +68,7 @@ const BUDGET = {
   "Polynomial: order 10, 10⁶ points": [1600, "the same on a million points, streamed a row at a time"],
   "Regression: 100 000 × 20, each row": [3000, "a response by twenty columns of numbers, 100 000 rows, with each row's leverage, residuals, Cook's distance and DFFITS (FIT2_SPEC 4.2; in the worker in the app)"],
   "Best subsets: 20 columns": [3000, "every subset of twenty columns on 500 rows, the best three of each size"],
+  "Compare models: 3 on 10 000 points": [2000, "a Gaussian, a Lorentzian and a Voigt fitted to the same 10 000 points, their criteria (FIT2_SPEC 4.3)"],
   "ANOVA: Tukey, 10 groups": [1100, "Tukey–Kramer's 45 pairs and its quantile (worked out in the worker in the app)"],
 };
 const got = {};
@@ -185,6 +186,8 @@ await withPage(async (p) => {
     const a = performance.now(), r = anaRunKind("lm", ins, { y: "y", diag: true }); if (r.fail) throw new Error(r.fail); return performance.now() - a; }));
   got["Best subsets: 20 columns"] = await best(() => p.evaluate(() => { const mb = mulberry32(6), n = 500, X = Array.from({ length: 20 }, () => Array.from({ length: n }, () => mb())), y = Array.from({ length: n }, (_, i) => X[0][i] + 0.5 * X[3][i] + 0.1 * mb());
     const a = performance.now(), r = bestSubsets(X, y, { best: 3 }); if (r.fail) throw new Error(r.fail); return performance.now() - a; }));
+  got["Compare models: 3 on 10 000 points"] = await best(() => p.evaluate(() => { const mb = mulberry32(8), n = 10000, x = Array.from({ length: n }, (_, i) => i / 1000), y = x.map(v => 0.2 + 2 * Math.exp(-(((v - 5) / 1.2) ** 2)) + 0.02 * (mb() - 0.5));
+    const a = performance.now(), r = anaRunKind("cmpmod", [{ name: "P", pts: { x, y, e: x.map(() => null), rows: x.map((_, i) => i) } }], { fits: [{ model: "gauss", name: "G" }, { model: "lorentz", name: "L" }, { model: "voigt", name: "V" }] }); if (r.fail) throw new Error(r.fail); return performance.now() - a; }));
   got["Correlation: 1M pairs"] = await best(() => p.evaluate(() => { const mb = mulberry32(10), n = 1000000, x = Array.from({ length: n }, () => mb()), rows = x.map((_, i) => i);
     const ins = [{ name: "A", vals: x, rows }, { name: "B", vals: x.map((v) => v + mb()), rows }];
     const a = performance.now(); anaRunKind("corr", ins, { methods: ["pearson", "spearman", "kendall"] }); return performance.now() - a; }));

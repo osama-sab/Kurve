@@ -398,6 +398,25 @@ const nistRead = (name) => { const txt = readFileSync(join(here, "ref", "nist", 
   }
 }
 
+/* ---- Comparing fits (FIT2_SPEC 4.3): each setting's χ² and parameters against SciPy's curve_fit (and statsmodels' OLS for
+   polynomials); AIC, AICc, BIC, ΔAICc and Akaike's weights in closed form; the nested F tests against compare_f_test; a
+   comparison of data sets against curve_fit on the columns laid end to end ---- */
+{
+  for (const c of fixtures.cmp.cases) {
+    const w = c.want;
+    if (c.fn === "fitByDesc") { const r = get("fitByDesc")(...c.args); if (r.fail) { note("cmp.fit", Infinity, c.name + ": " + r.fail); continue; }
+      const poly = !c.args[0].fn; note(poly ? "cmp.fit.poly" : "cmp.fit", relErr(r.chi2, w.chi2), c.name + " χ²");
+      w.params.forEach((v, i) => note(poly ? "cmp.fit.poly" : "cmp.fit.params", relErr(r.res.params[i], v, 1e-12 * Math.max(...w.params.map(Math.abs))), `${c.name} p${i}`)); continue; }
+    if (c.fn === "fitCompare") { const r = get("fitCompare")(...c.args);
+      r.rows.forEach((q, i) => { for (const k of ["aic", "aicc", "bic", "w"]) note("fitCompare", relErr(q[k], w.rows[i][k], 1e-13), `${c.name} ${q.name} ${k}`); note("fitCompare", Math.abs(q.daicc - w.rows[i].daicc) / Math.max(1, Math.abs(w.rows[i].aicc)), `${c.name} ${q.name} ΔAICc`); });
+      w.tests.forEach((t, i) => { const q = r.tests[i]; note("fitCompare", q && !q.fail ? Math.max(relErr(q.F, t.F), relErr(q.p, t.p), q.df1 === t.df1 && q.df2 === t.df2 ? 0 : 1) : Infinity, `${c.name} F test ${t.i}/${t.j}`); }); continue; }
+    if (c.fn === "anaRunKind") { const r = get("anaRunKind")(...c.args); if (r.fail) { note("cmp.data", Infinity, c.name + ": " + r.fail); continue; }
+      const t = Object.fromEntries(r.tables[0].cols.map((q) => [q.k, q.vals]));
+      note("cmp.data", Math.max(relErr(t.chi2[0], w.chiSep), relErr(t.chi2[1], w.chiSh)), c.name + " χ²"); note("cmp.data", t.k[0] === w.kSep && t.k[1] === w.kSh ? 0 : Infinity, c.name + " parameters");
+      note("cmp.data.F", Math.max(relErr(t.ftF[0], w.F), relErr(t.ftp[0], w.p)), c.name + " F and p"); }
+  }
+}
+
 /* ---- NIST's nonlinear sets: lmFit from both of NIST's starts, with the tolerance at 1e-15 (as Fit control can set it) ----
    Each parameter and its standard deviation against the certified values. From the first start four sets go to another
    minimum or none (as many fitters do): they are named, and a fifth would fail. Lanczos1's data are its function to 13
