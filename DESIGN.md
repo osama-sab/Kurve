@@ -898,6 +898,18 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-15: implicit fits (FIT2_SPEC 4.5)
+
+- **A curve through points measured in both coordinates is fitted by its distances.** A circle, an ellipse or a formula f(x, y)
+  = 0 counts x and y alike: each point's distance to its nearest place on the curve, not its offset in y, which is why a curve
+  that turns back on itself can be fitted at all. The sheet gives each point's signed distance and foot, so the fit can be read
+  point by point as a curve fit's residuals are.
+- **A formula asks for its starts.** Where a circle and an ellipse start from an algebraic fit of the points, a formula's zero
+  set can be many curves; the dialog asks for a start for each parameter and says why, rather than guessing a curve the user did
+  not mean.
+- **One dialog with the surface fit's parts.** X and Y, the curve, the formula when it applies, and the same parameter grid
+  (start, Fix, limits), so a fit of Analyze › Fit beyond the curve and peak fits looks the same whatever it fits.
+
 ### 2026-11-15: surface fits (FIT2_SPEC 4.4)
 
 - **A surface fit is an analysis, not a second Fit window.** It reads three columns or a matrix, writes its sheet and follows

@@ -1719,6 +1719,94 @@ Zs = [r6(g2(x, y, [0.5, -6, 0.5, -1, 2.5, 1.5, 60]) + float(e)) for x, y, e in z
 nlcase("a dip on scattered points", X2, Y2, Zs, "gauss2d", [0.45, -5.5, 0.6, -0.9, 2.3, 1.6, 55], g2, norm=tnorm)
 out["surf"] = cases
 
+# ---- Implicit fits (FIT2_SPEC 4.5): each curve fitted by orthogonal distance exactly, by least_squares on its parametric form
+# (each point's place on the curve an unknown of its own: Gander, Golub and Strebel's for a circle and an ellipse, a parabola's
+# x for a parabola), then polished on the distances themselves with each point's foot found globally and the exact Jacobian
+# (impl_ref.py: the parametric form can leave a point on the far side of a thin ellipse, and stops a little short), its
+# covariance s²(JᵀJ)⁻¹ over n − m degrees of freedom; and SciPy's odr in its implicit mode beside it, which reaches the same
+# curve by a penalty ----
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+from impl_ref import impl_polish
+def lsq_full(fun, q0, m, n):
+    r = optimize.least_squares(fun, q0, method="lm", xtol=1e-15, ftol=1e-15, gtol=1e-15, max_nfev=200000, x_scale="jac")
+    J = r.jac; rss = float(np.sum(r.fun ** 2)); C = np.linalg.inv(J.T @ J) * rss / (n - m)
+    return [float(v) for v in r.x[:m]], [float(math.sqrt(C[i, i])) for i in range(m)], rss
+def odr_impl(f, X, Y, b0):
+    o = odr.ODR(odr.Data(np.vstack([X, Y]), y=1), odr.Model(lambda b, x: f(b, x[0], x[1]), implicit=True), beta0=b0, maxit=5000, sstol=1e-15, partol=1e-15).run()
+    return [float(v) for v in o.beta]
+def tn(t): return ((t + 90) % 180 + 180) % 180 - 90
+def ell_case(name, X, Y, p0, theta=True, formula=None, start=None):
+    X, Y = np.asarray(X, float), np.asarray(Y, float); n = len(X)
+    def res(q):
+        xc, yc, a, b = q[:4]; th = q[4] if theta else 0.0; ph = q[5:] if theta else q[4:]; t = th * math.pi / 180; c, s = math.cos(t), math.sin(t)
+        u, v = a * np.cos(ph), b * np.sin(ph); return np.concatenate([X - (xc + u * c - v * s), Y - (yc + u * s + v * c)])
+    t0 = (p0[4] if theta else 0) * math.pi / 180
+    ph0 = [math.atan2((-(x - p0[0]) * math.sin(t0) + (y - p0[1]) * math.cos(t0)) / p0[3], ((x - p0[0]) * math.cos(t0) + (y - p0[1]) * math.sin(t0)) / p0[2]) for x, y in zip(X, Y)]
+    m = 5 if theta else 4; p, e, rss = lsq_full(res, list(p0[:m]) + ph0, m, n)
+    p, e, rss = impl_polish("ellipse" if theta else "ellipse0", X, Y, p)
+    p[2], p[3] = abs(p[2]), abs(p[3])
+    if theta:
+        if p[2] < p[3]: p[2], p[3] = p[3], p[2]; e[2], e[3] = e[3], e[2]; p[4] += 90
+        p[4] = tn(p[4])
+    def fe(b, x, y):
+        t = (b[4] if theta else 0) * math.pi / 180; c, s = math.cos(t), math.sin(t); u = (x - b[0]) * c + (y - b[1]) * s; v = -(x - b[0]) * s + (y - b[1]) * c
+        return (u / b[2]) ** 2 + (v / b[3]) ** 2 - 1
+    o = odr_impl(fe, X, Y, p[:m])
+    cases.append({"fn": "implFit", "name": name, "args": [X.tolist(), Y.tolist(), "formula" if formula else "ellipse", {"formula": formula, "start": start} if formula else {}],
+                  "want": {"params": p, "errors": e, "ss": rss, "odr": o}})
+def circ_case(name, X, Y, p0):
+    X, Y = np.asarray(X, float), np.asarray(Y, float); n = len(X)
+    ph0 = [math.atan2(y - p0[1], x - p0[0]) for x, y in zip(X, Y)]
+    res = lambda q: np.concatenate([X - (q[0] + q[2] * np.cos(q[3:])), Y - (q[1] + q[2] * np.sin(q[3:]))])
+    p, e, rss = lsq_full(res, list(p0) + ph0, 3, n); p, e, rss = impl_polish("circle", X, Y, p); p[2] = abs(p[2])
+    o = odr_impl(lambda b, x, y: (x - b[0]) ** 2 + (y - b[1]) ** 2 - b[2] ** 2, X, Y, p)
+    cases.append({"fn": "implFit", "name": name, "args": [X.tolist(), Y.tolist(), "circle", {}], "want": {"params": p, "errors": e, "ss": rss, "odr": o}})
+def parab_case(name, X, Y, p0, formula, start):
+    X, Y = np.asarray(X, float), np.asarray(Y, float); n = len(X)
+    res = lambda q: np.concatenate([X - q[3:], Y - (q[0] * q[3:] ** 2 + q[1] * q[3:] + q[2])])
+    p, e, rss = lsq_full(res, list(p0) + list(X), 3, n); p, e, rss = impl_polish("parab", X, Y, p)
+    o = odr_impl(lambda b, x, y: y - (b[0] * x * x + b[1] * x + b[2]), X, Y, p)
+    cases.append({"fn": "implFit", "name": name, "args": [X.tolist(), Y.tolist(), "formula", {"formula": formula, "start": start}], "want": {"params": p, "errors": e, "ss": rss, "odr": o}})
+cases = []
+rng = np.random.default_rng(20261117)
+circ_case("Gander, Golub and Strebel's circle", [1, 2, 5, 7, 9, 3], [7, 6, 8, 7, 5, 7], [4.7, 3.8, 4.1])
+cases[-1]["want"]["pub"] = [4.7398, 2.9835, 4.7142]   # as they print it, to four decimals
+th = rng.uniform(0.2, 0.2 + 2 * math.pi / 3, 40); circ_case("a third of a circle", [r6(12 + 30 * math.cos(t) + float(e)) for t, e in zip(th, rng.normal(0, 0.3, 40))], [r6(-5 + 30 * math.sin(t) + float(e)) for t, e in zip(th, rng.normal(0, 0.3, 40))], [12, -5, 30])
+ell_case("Gander, Golub and Strebel's ellipse", [1, 2, 5, 7, 9, 3, 6, 8], [7, 6, 8, 7, 5, 7, 2, 4], [2.7, 3.8, 6.5, 3.0, 20.6])
+cases[-1]["want"]["pub"] = [2.6996, 3.8160, 6.5187, 3.0319, 0.3596 * 180 / math.pi]   # their turn 0.3596 rad, to four decimals
+th = rng.uniform(0, 2 * math.pi, 60); T = 35 * math.pi / 180
+ex = [r6(3 + 8 * math.cos(t) * math.cos(T) - 3 * math.sin(t) * math.sin(T) + float(e)) for t, e in zip(th, rng.normal(0, 0.15, 60))]
+ey = [r6(1 + 8 * math.cos(t) * math.sin(T) + 3 * math.sin(t) * math.cos(T) + float(e)) for t, e in zip(th, rng.normal(0, 0.15, 60))]
+ell_case("a turned ellipse all round", ex, ey, [3, 1, 8, 3, 35])
+th = rng.uniform(0, 2 * math.pi, 50)
+fx = [r6(-2 + 5 * math.cos(t) + float(e)) for t, e in zip(th, rng.normal(0, 0.1, 50))]; fy = [r6(4 + 2 * math.sin(t) + float(e)) for t, e in zip(th, rng.normal(0, 0.1, 50))]
+ell_case("your formula: an ellipse along the axes", fx, fy, [-2, 4, 5, 2, 0], theta=False, formula="((x - xc)/a)^2 + ((y - yc)/b)^2 - 1", start={"xc": -1.8, "yc": 3.9, "a": 4.8, "b": 2.2})
+px = sorted(float(v) for v in rng.uniform(-3, 3, 45)); py = [r6(0.5 * x * x - x + 1 + float(e)) for x, e in zip(px, rng.normal(0, 0.1, 45))]; px = [r6(x + float(e)) for x, e in zip(px, rng.normal(0, 0.1, 45))]
+parab_case("your formula: a parabola with errors in x and y", px, py, [0.5, -1, 1], "y - (a*x^2 + b*x + c)", {"a": 0.45, "b": -0.9, "c": 1.1})
+# each distance of a point to an ellipse in 40 digits: the nearest of 2000 places on it narrowed by findroot on the squared distance's
+# derivative from each of the three nearest (the hard ones among them: near the curve, near the long axis inside a thin ellipse,
+# near the centre, far outside, a near circle, an ellipse 10⁴ times longer than wide)
+import mpmath
+def ell_ref(a, b, u, v):
+    g = np.linspace(0, 2 * math.pi, 2000, endpoint=False); D = (u - a * np.cos(g)) ** 2 + (v - b * np.sin(g)) ** 2; k = int(np.argmin(D))
+    with mpmath.workdps(40):
+        A, B, U, V = mpmath.mpf(a), mpmath.mpf(b), mpmath.mpf(u), mpmath.mpf(v); st = mpmath.mpf(2 * math.pi / 2000)
+        f = lambda t: (U - A * mpmath.cos(t)) ** 2 + (V - B * mpmath.sin(t)) ** 2
+        df = lambda t: 2 * (U - A * mpmath.cos(t)) * A * mpmath.sin(t) - 2 * (V - B * mpmath.sin(t)) * B * mpmath.cos(t)
+        best = min(f(mpmath.mpf(t)) for t in g[[(k - 1) % 2000, k, (k + 1) % 2000]])
+        for t0 in (g[(k - 1) % 2000], g[k], g[(k + 1) % 2000]):
+            try: best = min(best, f(mpmath.findroot(df, (mpmath.mpf(t0) - st, mpmath.mpf(t0) + st), solver="anderson")))
+            except Exception: pass
+        d = mpmath.sqrt(best); return float(-d if (U / A) ** 2 + (V / B) ** 2 < 1 else d)
+for kind in ["near", "axis", "centre", "far", "round", "thin", "any"]:
+    for _ in range(70):
+        a = float(10 ** rng.uniform(-2, 3)); b = a / float({"round": 1 + 10 ** rng.uniform(-9, -3), "thin": 10 ** rng.uniform(2, 4)}.get(kind, 1 + 20 * rng.random() ** 2)); t = float(rng.uniform(0, 2 * math.pi))
+        r = {"near": 1 + float(rng.choice([-1, 1])) * 10 ** float(rng.uniform(-9, -2)), "centre": 10 ** float(rng.uniform(-9, -2)), "far": 10 ** float(rng.uniform(0.5, 2))}.get(kind, float(rng.uniform(0, 2)))
+        u, v = r * a * math.cos(t), r * b * math.sin(t)
+        if kind == "axis": v *= 10 ** float(rng.uniform(-14, -6))
+        cases.append({"fn": "ellDist", "name": kind, "args": [a, b, u, v], "want": ell_ref(a, b, u, v)})
+out["implicit"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

@@ -159,6 +159,22 @@ const ACTIONS = [
     if (k < .85) { const b = await vis(".mxwin [data-mxmenu]"); if (!b.length) return "no button"; await clickAt(...mid(pick(b).b)); await pause(150, 300); const its = await vis(".menu .mi:not(:disabled)"); if (!its.length) return "empty"; await clickAt(...mid(pick(its).b)); await pause(200, 400);
       if (await page.isVisible("#formOk")) { if (R() < .6 && await page.isEnabled("#formOk")) await page.click("#formOk"); else await key("Escape"); } return "its menu"; }
     const tb = await vis(".mxwin .mxtabs [data-mxnew], .mxwin .mxtabs [data-mxs], .mxwin [data-mxplot]"); if (!tb.length) return "no tabs"; await clickAt(...mid(pick(tb).b)); await pause(150, 300); const its = await vis(".menu .mi:not(:disabled)"); if (its.length) await clickAt(...mid(pick(its).b)); return "tabs or plot"; }],
+  // Analyze › Fit (FIT2_SPEC, wave 4): an item of its submenu (the Fit window, multiple regression, best subsets, comparing models
+  // and data sets, surface and implicit fits…); a dialog's lists and ticks changed at random, junk typed into a field now and then,
+  // then run when it can be, else left by Escape.
+  [3, "Analyze › Fit", async () => { const ab = await vis('.menubar .mb[data-menu="analyze"]'); if (!ab.length) return "no menu bar"; await clickAt(...mid(ab[0].b)); await pause(150, 300);
+    const f = page.locator(".menu .mi", { hasText: /^Fit$/ }); if (!(await f.count())) { await key("Escape"); return "no Fit"; } await f.first().hover(); await pause(250, 400);
+    const its = await vis(".menu.sub .mi:not(:disabled)"); if (!its.length) { await key("Escape"); return "empty"; } const it = pick(its);
+    const t = ((await page.locator(".menu.sub .mi:not(:disabled)").nth(it.i).textContent().catch(() => "")) || "").trim().slice(0, 40); await clickAt(...mid(it.b)); await pause(300, 600);
+    if (!(await page.isVisible(".modal:not([hidden]) #formOk"))) return "no dialog";
+    await page.evaluate((seed) => { let s = seed; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+      const sel = [...document.querySelectorAll(".modal:not([hidden]) select")].filter(x => x.offsetParent && !x.disabled), box = [...document.querySelectorAll(".modal:not([hidden]) input[type=checkbox]")].filter(x => x.offsetParent && !x.disabled);
+      for (let k = 0; k < 3 && sel.length; k++) { const x = sel[Math.floor(r() * sel.length)], o = [...x.options].filter(q => !q.disabled); if (!o.length) continue; x.value = o[Math.floor(r() * o.length)].value; x.dispatchEvent(new Event("input", { bubbles: true })); x.dispatchEvent(new Event("change", { bubbles: true })); }
+      for (let k = 0; k < 2 && box.length; k++) { const x = box[Math.floor(r() * box.length)]; x.checked = !x.checked; x.dispatchEvent(new Event("input", { bubbles: true })); x.dispatchEvent(new Event("change", { bubbles: true })); } }, 1 + Math.floor(R() * 2147483646));
+    if (R() < .3) { const fs = await vis(".modal:not([hidden]) input[type=text]"); if (fs.length) { const fl = pick(fs); await clickAt(fl.b.x + 8, fl.b.y + fl.b.height / 2); await type(junk().slice(0, 12)); } }
+    await pause(150, 300);
+    if (R() < .75 && await page.isEnabled(".modal:not([hidden]) #formOk").catch(() => false)) { await page.click(".modal:not([hidden]) #formOk"); await pause(800, 2000); return "ran " + t; }
+    await key("Escape"); return "left " + t; }],
   [1, "coffee", async () => { const s = between(15, 90); await page.mouse.move(between(0, 50), between(0, 50)); await page.waitForTimeout(s * 1000); return Math.round(s) + " s"; }],
 ];
 // BIAS="label" makes the actions whose label holds it twenty times as likely, to watch one closely.

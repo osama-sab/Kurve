@@ -790,6 +790,26 @@
   "tol": 1e-5,
   "why": "their errors, s²(JᵀJ)⁻¹, from Jacobians by central and by SciPy's own differences"
  },
+ "implFit": {
+  "tol": 1e-5,
+  "why": "circles, ellipses and formulas by exact orthogonal distance against SciPy's least_squares on the parametric form, each point's place an unknown, polished on the distances with each foot found globally (impl_ref.py): the same optimum, each parameter's difference over its standard error (worst seen 1.2e-7) and the sum of squared distances"
+ },
+ "implFit.se": {
+  "tol": 1e-5,
+  "why": "their errors, s²(JᵀJ)⁻¹ over n − m: Kurve's from the distances' Jacobian by central differences, the reference's from the exact one (worst seen 1.6e-8)"
+ },
+ "ellDist": {
+  "tol": 1e-11,
+  "why": "a point's distance to an ellipse against 40 digits (near the curve, near the long axis inside, near the centre, far outside, near a circle, 10⁴ times longer than wide): relative to the distance, or to 1e-4 of the longer half axis for a point nearer the curve, whose distance is then right to a few parts in 10¹⁶ of the axis (worst seen 1.6e-12; near the long axis inside 2.1e-15)"
+ },
+ "implFit.pub": {
+  "tol": 1,
+  "why": "Gander, Golub and Strebel's (1994) circle and ellipse as they print them, to four decimals: each parameter within half a unit of the last place printed (1 means half a unit)"
+ },
+ "implFit.odr": {
+  "tol": 1e-2,
+  "why": "against SciPy's odr in its implicit mode, started from the optimum, which reaches the curve by a penalty and stops a few thousandths of an error from it (worst seen 2.7e-3)"
+ },
  "xps.shirley": {
   "tol": 1e-12,
   "why": "Shirley's background by Proctor and Sherwood's iteration against NumPy written from the paper, the same trapezoids and stop, the iterations counted the same"

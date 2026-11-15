@@ -8529,6 +8529,160 @@ function surfFormula(sv){ if(!sv||!Array.isArray(sv.params)) return null; const 
   if(sv.model==="formula"){ const m=surfUser(sv.formula||""); if(m.fail) return null; let src=String(sv.formula).replace(/^\s*z\s*=\s*/,"");
     m.params.forEach((nm,i)=>{ src=src.replace(new RegExp("(^|[^A-Za-z0-9_.])"+nm+"(?![A-Za-z0-9_(])","g"),(a,b)=>b+"("+String(p[i])+")"); }); return src.replace(/\s*\n\s*/g,"; "); }
   return null; }
+/* ---- Implicit fits (FIT2_SPEC 4.5): a curve f(x, y) = 0 through points with errors in both x and y alike ----
+   Fitted by orthogonal distance: each point's residual its signed distance to the curve (outside a circle or an ellipse above 0,
+   a formula's on the side where f is above 0), found exactly for each trial of the parameters (a circle's in closed form, an
+   ellipse's by Eberly's root (ellFoot), a formula's foot by Newton's projection onto f = 0), and the sum of their squares made least by
+   Levenberg–Marquardt with X a point's index, as ODRPACK's implicit mode does in the limit of its penalty. Starts from algebraic
+   fits: Kåsa's circle, Fitzgibbon's ellipse (Halír and Flusser's stable form). */
+// x² + y² + Dx + Ey + F = 0 by least squares (in the points' own centre and scale): [xc, yc, r] or null.
+function circleGuess(X,Y){ const n=X.length; if(n<3) return null; let mx=0, my=0; for(let i=0;i<n;i++){ mx+=X[i]; my+=Y[i]; } mx/=n; my/=n;
+  let sc=0; for(let i=0;i<n;i++) sc=Math.max(sc,Math.abs(X[i]-mx),Math.abs(Y[i]-my)); sc=sc||1;
+  const A=[[0,0,0],[0,0,0],[0,0,0]], b=[0,0,0]; for(let i=0;i<n;i++){ const u=(X[i]-mx)/sc, v=(Y[i]-my)/sc, r=[u,v,1], z=-(u*u+v*v); for(let j=0;j<3;j++){ b[j]+=r[j]*z; for(let k=0;k<3;k++) A[j][k]+=r[j]*r[k]; } }
+  const s=solve(A,b); if(!s) return null; const cu=-s[0]/2, cv=-s[1]/2, r2=cu*cu+cv*cv-s[2]; if(!(r2>0)) return null;
+  return [mx+cu*sc, my+cv*sc, Math.sqrt(r2)*sc]; }
+// A 3 × 3 matrix's real eigenvalues (the characteristic cubic's real roots) and a vector for each, from two rows of M − λI.
+function eig3(M){ const a=-(M[0][0]+M[1][1]+M[2][2]), b=M[0][0]*M[1][1]-M[0][1]*M[1][0]+M[0][0]*M[2][2]-M[0][2]*M[2][0]+M[1][1]*M[2][2]-M[1][2]*M[2][1];
+  const c=-(M[0][0]*(M[1][1]*M[2][2]-M[1][2]*M[2][1])-M[0][1]*(M[1][0]*M[2][2]-M[1][2]*M[2][0])+M[0][2]*(M[1][0]*M[2][1]-M[1][1]*M[2][0]));
+  const p=b-a*a/3, q=2*a*a*a/27-a*b/3+c, D=q*q/4+p*p*p/27, L=[];
+  if(D>0){ const u=Math.cbrt(-q/2+Math.sqrt(D)), w=Math.cbrt(-q/2-Math.sqrt(D)); L.push(u+w-a/3); }
+  else { const r=Math.sqrt(Math.max(0,-p*p*p/27)), ph=Math.acos(Math.max(-1,Math.min(1,r>0?-q/(2*r):0))), m=2*Math.cbrt(r); for(let k=0;k<3;k++) L.push(m*Math.cos((ph+2*Math.PI*k)/3)-a/3); }
+  return L.map(l=>{ const R=M.map((row,i)=>row.map((v,j)=>v-(i===j?l:0))), cr=(u,v)=>[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+    const cs=[cr(R[0],R[1]),cr(R[0],R[2]),cr(R[1],R[2])].map(v=>[v,Math.hypot(...v)]).sort((x,y)=>y[1]-x[1]); return {l,v:cs[0][1]>0?cs[0][0].map(t=>t/cs[0][1]):null}; }); }
+// A conic Ax² + Bxy + Cy² + Dx + Ey + F = 0 that is an ellipse, as [xc, yc, a, b, theta (degrees)], a the longer half axis; or null.
+function conicEllipse(A,B,C,D,E,F){ const den=B*B-4*A*C; if(!(den<0)) return null; const xc=(2*C*D-B*E)/den, yc=(2*A*E-B*D)/den;
+  const F0=A*xc*xc+B*xc*yc+C*yc*yc+D*xc+E*yc+F, tr=A+C, dt=Math.sqrt((A-C)**2+B*B), l1=(tr-dt)/2, l2=(tr+dt)/2;
+  if(!(-F0/l1>0&&-F0/l2>0)) return null; const a=Math.sqrt(-F0/l1), b=Math.sqrt(-F0/l2);   // l1 the smaller: the longer axis
+  let th=B!==0?Math.atan2(l1-A,B/2):A<=C?0:Math.PI/2;   // the longer axis: the eigenvector of the smaller eigenvalue
+  th=th*180/Math.PI; th=((th+90)%180+180)%180-90; return [xc,yc,a,b,th]; }
+// Fitzgibbon's direct fit (Halír and Flusser): the conic of least algebraic distance with 4AC − B² = 1, in the points' centre and scale.
+function ellipseGuess(X,Y){ const n=X.length; if(n<5) return null; let mx=0, my=0; for(let i=0;i<n;i++){ mx+=X[i]; my+=Y[i]; } mx/=n; my/=n;
+  let sc=0; for(let i=0;i<n;i++) sc=Math.max(sc,Math.abs(X[i]-mx),Math.abs(Y[i]-my)); sc=sc||1;
+  const S1=[[0,0,0],[0,0,0],[0,0,0]], S2=[[0,0,0],[0,0,0],[0,0,0]], S3=[[0,0,0],[0,0,0],[0,0,0]];
+  for(let i=0;i<n;i++){ const u=(X[i]-mx)/sc, v=(Y[i]-my)/sc, q=[u*u,u*v,v*v], l=[u,v,1]; for(let j=0;j<3;j++) for(let k=0;k<3;k++){ S1[j][k]+=q[j]*q[k]; S2[j][k]+=q[j]*l[k]; S3[j][k]+=l[j]*l[k]; } }
+  const S3i=inverse(S3); if(!S3i) return null; const T=[0,1,2].map(j=>[0,1,2].map(k=>-(S3i[j][0]*S2[k][0]+S3i[j][1]*S2[k][1]+S3i[j][2]*S2[k][2])));
+  const R=[0,1,2].map(j=>[0,1,2].map(k=>S1[j][k]+S2[j][0]*T[0][k]+S2[j][1]*T[1][k]+S2[j][2]*T[2][k]));
+  const Mm=[[R[2][0]/2,R[2][1]/2,R[2][2]/2],[-R[1][0],-R[1][1],-R[1][2]],[R[0][0]/2,R[0][1]/2,R[0][2]/2]];
+  const best=eig3(Mm).filter(e=>e.v&&4*e.v[0]*e.v[2]-e.v[1]*e.v[1]>0)[0]; if(!best) return null;
+  const a1=best.v, a2=[0,1,2].map(j=>T[j][0]*a1[0]+T[j][1]*a1[1]+T[j][2]*a1[2]), g=conicEllipse(a1[0],a1[1],a1[2],a2[0],a2[1],a2[2]); if(!g) return null;
+  return [mx+g[0]*sc,my+g[1]*sc,g[2]*sc,g[3]*sc,g[4]]; }
+// The distance of (u, v) from the ellipse u²/a² + v²/b² = 1 (a ≥ b > 0), outside above 0: Eberly's (2013), the first quadrant's
+// root of a decreasing function by bisection to the last bit.
+/* A point (u, v)'s signed distance to the ellipse (u/a)² + (v/b)² = 1, a ≥ b > 0 (outside positive), and its foot [d, fu, fv]: Eberly's
+   root s of (n0/(s + r0))² + (z1/(s + 1))² = 1, by Newton's method from the bracket's lower end, where the function is convex and
+   falling, so each step stays below the root (bisection after 200 steps); worked in s, which keeps its digits near 0 (a point near the
+   curve), and again in w = s + 1 when the root is below −½, as w keeps its digits where s nears −1 (a point near the long axis inside
+   a thin ellipse); the distance as |s|·|(y0/(s + r0), y1/(s + 1))|, which takes no difference of nearly equal numbers. */
+function ellRoot(h,lo,hi){ let x=lo, k=0;
+  for(;k<200;k++){ const [f,df]=h(x); if(!(f>0)) break; const nx=x-f/df; if(!(nx>x)||!(nx<hi)) break; x=nx; }
+  if(k===200) for(let i=0;i<1100;i++){ const m=(x+hi)/2; if(m===x||m===hi) break; if(h(m)[0]>0) x=m; else hi=m; }
+  return x; }
+function ellFoot(a,b,u,v){ const y0=Math.abs(u), y1=Math.abs(v), su=u<0?-1:1, sv=v<0?-1:1;
+  if(y1>0){ if(y0>0){ const z0=y0/a, z1=y1/b, g=z0*z0+z1*z1-1; if(g===0) return [0,u,v]; const r0=(a/b)**2, rm=(a-b)*(a+b)/(b*b), n0=r0*z0, top=g<0?1:Math.hypot(n0,z1);
+      // in s: (n0/(s + r0))² + (z1/(s + 1))² − 1 and its derivative
+      const s=ellRoot(x=>{ const q0=n0/(x+r0), q1=z1/(x+1); return [q0*q0+q1*q1-1,-2*(q0*q0/(x+r0)+q1*q1/(x+1))]; },z1-1,top-1);
+      if(s>=-0.5){ const e0=y0/(s+r0), e1=y1/(s+1), d=Math.abs(s)*Math.hypot(e0,e1); return [g<0?-d:d,su*r0*e0,sv*e1]; }
+      const w=ellRoot(x=>{ const q0=n0/(x+rm), q1=z1/x; return [q0*q0+q1*q1-1,-2*(q0*q0/(x+rm)+q1*q1/x)]; },z1,top);
+      const e0=y0/(w+rm), e1=y1/w, d=(1-w)*Math.hypot(e0,e1); return [g<0?-d:d,su*r0*e0,sv*e1]; }
+    return [y1-b,0,sv*b]; }
+  const den=(a-b)*(a+b); if(a*y0<den){ const t=a*y0/den, fv=b*Math.sqrt(Math.max(0,1-t*t)); return [-Math.hypot(y0*b*b/den,fv),su*a*t,fv]; }
+  return [y0-a,su*a,0]; }
+function ellDist(a,b,u,v){ return ellFoot(a,b,u,v)[0]; }
+// A formula's foot on f = 0 from (px, py): Newton's projection q ← p − ((f(q) − ∇f·(q − p))/|∇f|²)∇f, the gradient by central differences.
+function implFoot(f,px,py,h){ let qx=px, qy=py;
+  for(let it=0;it<60;it++){ const fv=f(qx,qy), gx=(f(qx+h,qy)-f(qx-h,qy))/(2*h), gy=(f(qx,qy+h)-f(qx,qy-h))/(2*h), g2=gx*gx+gy*gy; if(!(g2>0)||!Number.isFinite(fv)) return null;
+    const t=(fv-gx*(qx-px)-gy*(qy-py))/g2, nx=px-t*gx, ny=py-t*gy, mv=Math.hypot(nx-qx,ny-qy); qx=nx; qy=ny; if(mv<=1e-14*(Math.abs(qx)+Math.abs(qy)+h)) break; }
+  return [qx,qy]; }
+const IMPL_P={circle:["xc","yc","r"],ellipse:["xc","yc","a","b","theta"]};
+const IMPL_MODELS={
+  circle:{name:"Circle", params:IMPL_P.circle, mean:["its centre in x","its centre in y","its radius"], dim:["x","y","x"], formula:"(x − xc)² + (y − yc)² = r²",
+    guess:(X,Y)=>circleGuess(X,Y), lo:[-Infinity,-Infinity,0],
+    dist:(p,x,y)=>Math.hypot(x-p[0],y-p[1])-Math.abs(p[2]), foot:(p,x,y)=>{ const d=Math.hypot(x-p[0],y-p[1])||1e-300, r=Math.abs(p[2]); return [p[0]+(x-p[0])*r/d,p[1]+(y-p[1])*r/d]; },
+    curve:(p,n)=>Array.from({length:n},(_,k)=>{ const t=2*Math.PI*k/(n-1); return [p[0]+p[2]*Math.cos(t),p[1]+p[2]*Math.sin(t)]; })},
+  ellipse:{name:"Ellipse", params:IMPL_P.ellipse, mean:["its centre in x","its centre in y","its longer half axis","its shorter half axis","its longer axis's turn from x, in degrees"], dim:["x","y","x","x",""],
+    formula:"(u/a)² + (v/b)² = 1, u, v: x − xc, y − yc turned by θ", guess:(X,Y)=>ellipseGuess(X,Y), lo:[-Infinity,-Infinity,0,0,-Infinity],
+    dist:(p,x,y)=>{ const t=p[4]*Math.PI/180, c=Math.cos(t), s=Math.sin(t), dx=x-p[0], dy=y-p[1], u=dx*c+dy*s, v=-dx*s+dy*c, a=Math.abs(p[2]), b=Math.abs(p[3]); return a>=b?ellDist(a,b,u,v):ellDist(b,a,v,u); },
+    foot:(p,x,y)=>{ const t=p[4]*Math.PI/180, c=Math.cos(t), s=Math.sin(t), dx=x-p[0], dy=y-p[1], u=dx*c+dy*s, v=-dx*s+dy*c, a=Math.abs(p[2]), b=Math.abs(p[3]);
+      const q=a>=b?ellFoot(a,b,u,v):ellFoot(b,a,v,u), fu=a>=b?q[1]:q[2], fv=a>=b?q[2]:q[1]; return [p[0]+fu*c-fv*s,p[1]+fu*s+fv*c]; },
+    curve:(p,n)=>{ const t=p[4]*Math.PI/180, c=Math.cos(t), s=Math.sin(t); return Array.from({length:n},(_,k)=>{ const q=2*Math.PI*k/(n-1), u=p[2]*Math.cos(q), v=p[3]*Math.sin(q); return [p[0]+u*c-v*s,p[1]+u*s+v*c]; }); }}
+};
+// Your formula f(x, y) = 0: its distance through its foot, its sign f's; its curve the contour f = 0 over the data's box.
+function implUser(src){ let c; try{ c=surfCompile(String(src||"").replace(/=\s*0\s*$/,"")); }catch(e){ return {fail:e.message}; } const ps=c.params.filter(n=>n!=="y__"), yi=c.params.indexOf("y__");
+  if(!ps.length) return {fail:"The formula has no parameter to fit: every name but x and y is one."};
+  const at=ps.map(n=>c.params.indexOf(n)), q=new Array(c.params.length), fv=(x,y,p)=>{ for(let t=0;t<at.length;t++) q[at[t]]=p[t]; if(yi>=0) q[yi]=y; return c.f(x,q); };
+  let hs=1e-6; const m={name:"Your formula", params:ps, mean:ps.map(()=>""), dim:ps.map(()=>""), formula:String(src).trim().replace(/=\s*0\s*$/,"")+" = 0", user:true, f:fv,
+    setScale:(sx,sy)=>{ hs=1e-6*Math.max(sx,sy,1e-300); },
+    dist:(p,x,y)=>{ const F=(u,v)=>fv(u,v,p), r=implFoot(F,x,y,hs); if(!r) return NaN; const d=Math.hypot(x-r[0],y-r[1]); return F(x,y)>=0?d:-d; },
+    foot:(p,x,y)=>implFoot((u,v)=>fv(u,v,p),x,y,hs)};
+  return m; }
+function implModel(id,src){ if(id==="formula") return implUser(src); return IMPL_MODELS[id]||{fail:"That model is not known."}; }
+// The zero contour of f over a box, by marching squares on n × n cells: segments, each two points and a gap (nulls) after it.
+function zeroContour(f,x0,x1,y0,y1,n){ const X=[], Y=[], g=[]; for(let r=0;r<=n;r++){ const row=[]; for(let c=0;c<=n;c++) row.push(f(x0+(x1-x0)*c/n,y0+(y1-y0)*r/n)); g.push(row); }
+  const px=c=>x0+(x1-x0)*c/n, py=r=>y0+(y1-y0)*r/n, e=(r,c,r2,c2)=>{ const a=g[r][c], b=g[r2][c2], t=a/(a-b); return [px(c)+(px(c2)-px(c))*t,py(r)+(py(r2)-py(r))*t]; };
+  for(let r=0;r<n;r++) for(let c=0;c<n;c++){ const v=[g[r][c],g[r][c+1],g[r+1][c+1],g[r+1][c]]; if(!v.every(Number.isFinite)) continue; const s=v.map(x=>x>0);
+    const E=[[0,1,()=>e(r,c,r,c+1)],[1,2,()=>e(r,c+1,r+1,c+1)],[2,3,()=>e(r+1,c+1,r+1,c)],[3,0,()=>e(r+1,c,r,c)]].filter(([i,j])=>s[i]!==s[j]).map(t=>t[2]());
+    for(let k=0;k+1<E.length;k+=2){ X.push(E[k][0],E[k+1][0],null); Y.push(E[k][1],E[k+1][1],null); } }
+  return {x:X,y:Y}; }
+/* The fit: the model's own start (or the starts given by name), fixed and limited by name; {res (lmFit's, `dist` each point's signed
+   distance, `foot` [x, y] each), m, curve {x, y}} or {fail} in words. */
+function implFit(X,Y,id,o){ o=o||{}; const m=implModel(id,o.formula); if(m.fail) return {fail:m.fail}; const n=X.length;
+  for(let i=0;i<n;i++) if(!Number.isFinite(X[i])||!Number.isFinite(Y[i])) return {fail:"A point's x or y is not a number."};
+  const np=m.params.length, st=o.start||{}, fx=new Set(Array.isArray(o.fix)?o.fix:[]), lo0=o.lo||{}, hi0=o.hi||{};
+  if(m.params.every(nm=>fx.has(nm))) return {fail:"Every parameter is fixed. Unfix at least one to fit."};
+  const nf=m.params.filter(nm=>!fx.has(nm)).length; if(n<=nf) return {fail:`Need more points than free parameters (${nf}; have ${n}).`};
+  const ex=(Math.max(...X)-Math.min(...X))||1, ey=(Math.max(...Y)-Math.min(...Y))||1; if(m.setScale) m.setScale(ex,ey);
+  let g=null; try{ g=m.guess?m.guess(X,Y):null; }catch(e){ g=null; } if(!g&&m.guess&&!m.params.every(nm=>Number.isFinite(st[nm]))) return {fail:id==="circle"?"The points do not make a circle to start from: are they on a line?":"The points do not make an ellipse to start from (an algebraic fit gives a hyperbola or nothing): give starting values."};
+  if(!g) g=m.user?surfGuessNames(m.params,X,Y,X.map(()=>0)).map((v,i)=>/^(r|a|b|w)$/i.test(m.params[i])?Math.max(ex,ey)/2:v):m.params.map(()=>1);
+  const p0=m.params.map((nm,i)=>Number.isFinite(st[nm])?+st[nm]:Number.isFinite(g[i])?g[i]:1), fixed=m.params.map(nm=>fx.has(nm));
+  const lo=m.params.map((nm,i)=>Number.isFinite(lo0[nm])?+lo0[nm]:(m.lo?(m.lo[i]===0?1e-9*Math.max(ex,ey):m.lo[i]):-Infinity)), hi=m.params.map(nm=>Number.isFinite(hi0[nm])?+hi0[nm]:Infinity);
+  if(m.params.some((_,i)=>lo[i]>hi[i])) return {fail:"A parameter's lowest limit is above its highest."};
+  const pscale=m.params.map((nm,i)=>/^(xc|a|r)$/.test(nm)?ex:/^(yc|b)$/.test(nm)?ey:nm==="theta"?90:Math.abs(p0[i])||1);
+  /* a circle's or an ellipse's points are fitted about their mean, so a centre far from 0 settles as finely as one near it (lmFit's
+     test of a step is relative to each parameter's size); a formula sees x and y as they are */
+  const sh=!m.user, mx=sh?X.reduce((t,v)=>t+v,0)/n:0, my=sh?Y.reduce((t,v)=>t+v,0)/n:0, Xs=sh?X.map(v=>v-mx):X, Ys=sh?Y.map(v=>v-my):Y, off=i=>i===0?mx:i===1?my:0;
+  const I=Array.from({length:n},(_,i)=>i), f=(i,p)=>m.dist(p,Xs[i],Ys[i]);
+  const sb=(a,k)=>a.map((v,i)=>Number.isFinite(v)?v-k*off(i):v);
+  const r=lmFit(f,I,I.map(()=>0),I.map(()=>1),sb(p0.map((v,i)=>Math.min(hi[i],Math.max(lo[i],v))),1),fixed,{lo:sb(lo,1),hi:sb(hi,1),pscale,maxIter:o.maxIter||400,tol:1e-15});
+  if(r.error) return {fail:r.error}; if(!r.params.every(Number.isFinite)) return {fail:"The fit diverged: give it starting values nearer the curve."};
+  if(sh){ r.params=sb(r.params,-1); if(r.ci) r.ci=r.ci.map((q,i)=>Array.isArray(q)?q.map(v=>v+off(i)):q); }
+  // a residual here is the point's distance itself (lmFit fitted 0 − d): its R² means nothing, its sums do
+  if(id==="ellipse"){ const free=[2,3,4].every(i=>!fixed[i]&&!Number.isFinite(lo0[m.params[i]])&&!Number.isFinite(hi0[m.params[i]]));
+    if(free&&r.params[2]<r.params[3]){ const sw=a=>{ if(Array.isArray(a)&&a.length>3){ const t=a[2]; a[2]=a[3]; a[3]=t; } }; [r.params,r.errors,r.tval,r.pval,r.ci,r.dep,r.atBound].forEach(sw); if(Array.isArray(r.cov)){ sw(r.cov); r.cov.forEach(sw); } r.params[4]+=90; if(r.ci&&r.ci[4]) r.ci[4]=[r.ci[4][0]+90,r.ci[4][1]+90]; }
+    const t=r.params[4]; r.params[4]=((t+90)%180+180)%180-90; if(r.ci&&r.ci[4]){ const d=r.params[4]-t; r.ci[4]=[r.ci[4][0]+d,r.ci[4][1]+d]; } }
+  r.dist=X.map((x,i)=>m.dist(r.params,x,Y[i])); r.foot=X.map((x,i)=>m.foot(r.params,x,Y[i])||[NaN,NaN]);
+  let curve; if(m.curve){ const C=m.curve(r.params,361); curve={x:C.map(q=>q[0]),y:C.map(q=>q[1])}; }
+  else { const bx=[Math.min(...X)-0.1*ex,Math.max(...X)+0.1*ex], by=[Math.min(...Y)-0.1*ey,Math.max(...Y)+0.1*ey]; curve=zeroContour((u,v)=>m.f(u,v,r.params),bx[0],bx[1],by[0],by[1],160); }
+  return {res:r,m,curve}; }
+const IMPL_KINDS=[["circle","Circle"],["ellipse","Ellipse"],["formula","Your formula of x and y, = 0"]];
+ANA_KINDS.impl={label:"Implicit fit", base:"Implicit fit", typed:true, xs:true,
+  typedWhat:()=>"two columns",
+  help:"A curve f(x, y) = 0 through points whose x and y are both measured: a circle, an ellipse or your formula, fitted by orthogonal distance; each parameter with its error, t, p and interval, each point's distance and foot on the curve, and the curve's points.",
+  heavy(p,ins){ return p.model==="formula"&&ins.reduce((t,q)=>t+(q.vals||[]).length,0)>2000; },
+  run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[], conf=anaConf(p), id=IMPL_KINDS.some(e=>e[0]===p.model)?p.model:"circle";
+    const g=k=>ins.find(q=>q.id===p[k]), qx=g("x"), qy=g("y"); if(!qx||!qy) return {fail:"Choose the X and Y columns."}; if(qx.id===qy.id) return {fail:"X and Y are two different columns."};
+    if(qx.cats||qy.cats||qx.groups||qy.groups) return {fail:"X and Y are columns of numbers."};
+    const mp=q=>{ const m=new Map(); (q.rows||[]).forEach((r,i)=>{ const v=q.vals[i]; if(r>=0&&Number.isFinite(v)) m.set(r,v); }); return m; }, mx=mp(qx), my=mp(qy);
+    const rows=[...my.keys()].filter(r=>mx.has(r)).sort((a,b)=>a-b), out=new Set([...mx.keys(),...my.keys()]).size-rows.length;
+    if(out) notes.push(`${out} row${out===1?"":"s"} without a value in both columns left out.`);
+    const X=rows.map(r=>mx.get(r)), Y=rows.map(r=>my.get(r)); if(X.length<3) return {fail:"Fewer than three points."};
+    if((qx.unit||"")!==(qy.unit||"")&&qx.unit&&qy.unit) notes.push(`X is in ${qx.unit} and Y in ${qy.unit}: a distance adds the two as if they were one unit.`);
+    const F=implFit(X,Y,id,{formula:p.formula,start:p.start,fix:p.fix,lo:p.lo,hi:p.hi}); if(F.fail) return {fail:F.fail};
+    const r=F.res, m=F.m, dof=r.stats.dof, tq=dof>0?DIST.t.isf((1-conf)/2,dof):NaN, pc=anaPct(conf), fx=new Set(Array.isArray(p.fix)?p.fix:[]), u=qx.unit||qy.unit||"";
+    const P=m.params.map((pn,i)=>{ const e=r.errors[i], fixed=fx.has(pn), ab=r.atBound&&r.atBound[i], ok=!fixed&&!ab&&Number.isFinite(e)&&e>0;
+      return {name:pn+(fixed?" (fixed)":ab?" (at its limit)":""),unit:m.dim[i]==="x"?qx.unit||"":m.dim[i]==="y"?qy.unit||"":pn==="theta"?"°":"",v:r.params[i],se:ok?e:null,t:ok?r.params[i]/e:null,p:ok?tPvalue(r.params[i]/e,dof):null,lo:ok?r.params[i]-tq*e:null,hi:ok?r.params[i]+tq*e:null}; });
+    anaTab("",[["name","Parameter"],["unit","Unit"],["v","Value"],["se","Standard error"],["t","t"],["p","p"],["lo",`${pc} interval, from`],["hi","to"]],P,cols,[]);
+    anaTab("Parameters",[["name","Parameter"],["v","Value"],["se","Standard error"],["lo",`${pc} interval, from`],["hi","to"]],P,[],secs);
+    const ss=r.dist.reduce((t,d)=>t+d*d,0), S=[["Points",X.length],["Degrees of freedom",dof],["Sum of squared distances",ss],["Distance scatter, s",Math.sqrt(ss/dof)],["Iterations",r.stats.iter]].map(([k,v])=>({k,v}));
+    anaTab("Statistics",[["k","Statistic"],["v","Value"]],S,cols,secs,"st");
+    if(!r.stats.converged) notes.push("The fit had not settled when it stopped: give it starting values nearer the curve.");
+    anaTab("",[["x",qx.name],["y",qy.name],["d","Distance"],["fx","Foot, x"],["fy","Foot, y"]],X.map((x,i)=>({x,y:Y[i],d:r.dist[i],fx:r.foot[i][0],fy:r.foot[i][1]})),cols,[],"pt");
+    anaTab("",[["x",qx.name],["y",qy.name]],F.curve.x.map((x,i)=>({x,y:F.curve.y[i]})),cols,[],"cv");
+    /* the points' X and the curve's X are X columns, the points' Y and the curve's Y curves drawn against them, all in X's and Y's
+       units, so a graph of both is titled by Y's name */
+    const ux=qx.unit||"", uy=qy.unit||"", role={ptx:"x",pty:"y",cvx:"x",cvy:"y"}, unit={ptx:ux,pty:uy,ptd:ux===uy?ux:"",ptfx:ux,ptfy:uy,cvx:ux,cvy:uy};
+    cols.forEach(c=>{ if(role[c.k]) c.role=role[c.k]; if(c.k in unit) c.unit=unit[c.k]; });
+    const method=`${m.name}, ${m.formula}, fitted by orthogonal distance to ${X.length} points of ${qy.name} against ${qx.name}: each point's distance to the curve found exactly for each trial (${id==="circle"?"in closed form":id==="ellipse"?"by Eberly's root":"its foot by Newton's projection onto the curve"}), the sum of their squares made least by Levenberg–Marquardt from ${p.start&&Object.keys(p.start).length?"the starts given":id==="circle"?"Kåsa's algebraic circle":id==="ellipse"?"Fitzgibbon's algebraic ellipse":"the starts guessed from the names"} (${r.stats.iter} iterations); the errors from the distances' Jacobian, s² from their sum over ${dof} degrees of freedom; intervals at ${pc}.`;
+    return {tables:[{cols}],report:{sections:secs,method,impl:{model:id,x:qx.id,y:qy.id,params:r.params.slice()}},notes}; }};
 /* Σ (a − b)² of two fits' residuals: the sum of squares between nested models */
 function lsqSSBetween(A,B){ const n=A.rh.length, s=[]; for(let i=0;i<n;i++){ const d=(A.rh[i]-B.rh[i])+(A.rl[i]-B.rl[i]); s.push(d*d); } return neuSum(s); }
 /* Terms: each variable (and its powers to spec.pow), then their interactions two at a time, then three…; a term is [[variable, power]…] */
@@ -19562,6 +19716,38 @@ const ANA_FORMS={
         fb.innerHTML=ids.filter(id=>id!==y&&id!==wv).map(id=>{ const c=colById(id), txt=isCatCol(c)||textCount(c)>0, on=txt||(keep.has(id)?keep.get(id):fac0.has(id)); return `<label class="chk"><input type="checkbox" id="aLf_${id}"${on?" checked":""}${txt?" disabled":""}> ${esc(colLetter(c)+" "+(c.name||""))}</label>`; }).join("")||`<span class="muted">The other columns ticked</span>`; }); },
     read(v){ return {y:v.aLy||null,fac:Object.keys(v).filter(k=>k.startsWith("aLf_")&&v[k]).map(k=>k.slice(4)),inter:v.aLi,pow:+v.aLp||1,coding:v.aLc==="effect"?"effect":"treat",ss:+v.aLs||3,conf:+v.aCf||0.95,icpt:!!v.aLn,resid:!!v.aLr,diag:!!v.aLd,pred:!!v.aLpr,w:v.aLw||null,contrasts:String(v.aLct||"").trim(),boot:v.aLb?lmBootOf({boot:{kind:v.aLb,B:parseNum(String(v.aLbB||"")),seed:parseNum(String(v.aLbS||""))}}):null}; },
     valid(v){ return !!v.aLy; }},
+  // Implicit fit (FIT2_SPEC 4.5): X and Y columns, the curve, a formula, each parameter's start, fix and limits.
+  impl:{noGroup:true,
+    html(p){ const C=(S.anaCand||[]).filter(c=>anyVal(c.data)), id=IMPL_KINDS.some(e=>e[0]===p.model)?p.model:"circle";
+      const xd=p.x||rsFirst(c=>c.role==="x"), yd=p.y||rsFirst(c=>c.role==="y",[xd]);
+      return `<div class="grid2 impldlg">${rsSel("aJx","X",xd,null,C)}${rsSel("aJy","Y",yd,null,C)}
+        <label for="aJmod">Curve</label><select id="aJmod">${IMPL_KINDS.map(([k,t])=>`<option value="${k}"${k===id?" selected":""}>${esc(t)}</option>`).join("")}</select>
+        <label for="aJf" class="tipd" title="f(x, y), the curve where it is 0: every name but x and y is a parameter">Formula</label><input id="aJf" type="text" class="mono" value="${esc(p.formula||"")}" placeholder="((x - xc)/a)^2 + ((y - yc)/b)^2 - 1">
+        ${confSel(p)}</div><p class="lab">Parameters</p><div id="aSpar">${surfParHtml(id,p.formula,p,implModel)}</div><p class="note" id="aSmsg" aria-live="polite" hidden></p>`; },
+    wire(box){ const F=ANA_FORMS.impl, vals=()=>{ const r={}; box.querySelectorAll("input,select").forEach(el=>{ if(el.id) r[el.id]=el.type==="checkbox"?el.checked:el.value; }); return r; };
+      const show=()=>{ const f=$("#aJmod").value==="formula", e=box.querySelector("#aJf"), l=box.querySelector('label[for="aJf"]'); if(e) e.hidden=!f; if(l) l.hidden=!f; };
+      const msg=()=>{ const w=F.why(vals()), el=$("#aSmsg"); el.textContent=w; el.hidden=!w; };
+      const grid=()=>{ $("#aSpar").innerHTML=surfParHtml($("#aJmod").value,$("#aJf").value,F.read(vals()),implModel); };
+      box.addEventListener("change",e=>{ if(e.target.id==="aJmod"){ show(); grid(); } msg(); });
+      box.addEventListener("input",e=>{ if(e.target.id==="aJf") grid(); msg(); });
+      show(); msg(); },
+    read(v){ const id=IMPL_KINDS.some(e=>e[0]===v.aJmod)?v.aJmod:"circle", formula=String(v.aJf||"").trim(), m=implModel(id,formula), o={model:id,x:v.aJx||null,y:v.aJy||null};
+      if(v.aCf!=null) o.conf=+v.aCf; if(id==="formula") o.formula=formula;
+      if(!m.fail){ const st={}, lo={}, hi={}, fix=[], g=(k,nm)=>{ const t=String(v[k+nm]==null?"":v[k+nm]).trim(); if(!t) return null; const x=parseNum(t); return Number.isFinite(x)?x:NaN; };
+        m.params.forEach(nm=>{ const a=g("aSs_",nm), l=g("aSl_",nm), h=g("aSh_",nm); if(a!=null) st[nm]=a; if(l!=null) lo[nm]=l; if(h!=null) hi[nm]=h; if(v["aSk_"+nm]) fix.push(nm); });
+        if(Object.keys(st).length) o.start=st; if(fix.length) o.fix=fix; if(Object.keys(lo).length) o.lo=lo; if(Object.keys(hi).length) o.hi=hi; }
+      return o; },
+    why(r){ const o=ANA_FORMS.impl.read(r);
+      if(!o.x||!o.y) return "Choose the X and Y columns."; if(o.x===o.y) return "X and Y are two different columns.";
+      const m=implModel(o.model,o.formula); if(m.fail) return o.model==="formula"&&!o.formula?"Write the formula of x and y.":m.fail;
+      for(const [k,t] of [["start","start"],["lo","lowest limit"],["hi","highest limit"]]) for(const nm of Object.keys(o[k]||{})) if(!Number.isFinite(o[k][nm])) return `${nm}'s ${t} is not a number.`;
+      for(const nm of m.params) if(o.lo&&o.hi&&Number.isFinite(o.lo[nm])&&Number.isFinite(o.hi[nm])&&o.lo[nm]>o.hi[nm]) return `${nm}'s lowest limit is above its highest.`;
+      if(o.fix&&o.fix.length===m.params.length) return "Every parameter is fixed: unfix at least one.";
+      for(const nm of (o.fix||[])) if(!(o.start&&Number.isFinite(o.start[nm]))) return `${nm} is fixed: give its value as its start.`;
+      if(o.model==="formula"&&!m.params.every(nm=>o.start&&Number.isFinite(o.start[nm]))) return "A formula's curve needs a start for each parameter: the fit follows the curve nearest to them.";
+      return ""; },
+    valid(r){ return !ANA_FORMS.impl.why(r); },
+    extra(p){ return [p.x,p.y]; }},
   // Surface fit (FIT2_SPEC 4.4): three columns or a matrix, the model, a formula, each parameter's start, fix and limits.
   surf:{noGroup:true,
     html(p){ const C=(S.anaCand||[]).filter(c=>anyVal(c.data)), M=matAll(), src=p.src==="mat"&&M.length?"mat":"cols", id=SURF_KINDS.some(e=>e[0]===p.model)?p.model:"poly1";
@@ -19776,6 +19962,7 @@ function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&
   if(a.kind==="power") return [{key:"curve",label:"Power curve",title:"Power against size, on a graph",enabled:!ro,run:()=>anaPowerPlot(a.id)}];
   if(a.kind==="lm") return [{key:"partial",label:"Partial residual plots",title:"For each column of numbers, the residuals plus its terms' share against it, with the line of those terms, a graph each, in a figure",enabled:!ro&&(a.res.report.nums||0)>0,run:()=>anaPartial(a.id)}];
   if(a.kind==="subsets") return [{key:"fit",label:"Fit one of them…",title:"A linear model of the response by the columns of a subset listed",enabled:!ro&&!!(rep.subsets&&rep.subsets.length),run:()=>anaSubsetFit(a.id)}];
+  if(a.kind==="impl") return [{key:"plot",label:"Plot it over the data",title:"The points as symbols and the fitted curve through them, on a graph",enabled:!ro&&!!rep.impl,run:()=>implPlot(a.id)}];
   if(a.kind==="surf"){ const sv=rep.surf; return [{key:"fmat",label:"Fitted surface as a matrix",title:sv&&sv.mat?"The fitted surface on the matrix's own grid, as a matrix computed by its formula, drawn as a map":"The fitted surface on 101 × 101 points over the data's extent, as a matrix computed by its formula, drawn as a map",enabled:!ro&&!!sv,run:()=>surfToMatrix(a.id,"fit")}]
       .concat(sv&&sv.mat?[{key:"rmat",label:"Residuals as a matrix",title:"Each cell of the matrix less the fitted surface, as a matrix computed from it, drawn as a map",enabled:!ro,run:()=>surfToMatrix(a.id,"res")}]
         :sv?[{key:"rmap",label:"Residual map",title:"The points' X and Y coloured by their residual, on a graph",enabled:!ro,run:()=>surfResMap(a.id)}]:[]); }
@@ -19787,7 +19974,7 @@ function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&
   return []; }
 /* A surface fit's parameter grid (FIT2_SPEC 4.4): each of the model's parameters with its start (empty: guessed), Fix, and its
    lowest and highest (empty: none); a formula's parameters as it is typed. */
-function surfParHtml(id,formula,p){ p=p||{}; const m=surfModel(id,formula);
+function surfParHtml(id,formula,p,mod){ p=p||{}; const m=(mod||surfModel)(id,formula);   // mod: an implicit fit's models (FIT2_SPEC 4.5)
   if(m.fail) return `<p class="lab">${esc(id==="formula"&&!String(formula||"").trim()?"Write the formula: its parameters are listed here.":m.fail)}</p>`;
   const st=p.start||{}, fx=new Set(p.fix||[]), lo=p.lo||{}, hi=p.hi||{}, v=x=>Number.isFinite(x)?String(x):"";
   return `<table class="ptab surfpar"><thead><tr><th>Parameter</th><th>Start</th><th>Fix</th><th>Lowest</th><th>Highest</th></tr></thead><tbody>${m.params.map((nm,i)=>`<tr><td class="pn" title="${esc(m.mean[i]||nm)}">${esc(nm)}</td><td><input type="text" inputmode="decimal" id="aSs_${nm}" value="${v(st[nm])}" placeholder="guessed" aria-label="Start of ${esc(nm)}"></td><td class="fx"><input type="checkbox" id="aSk_${nm}"${fx.has(nm)?" checked":""} aria-label="Fix ${esc(nm)}"></td><td><input type="text" inputmode="decimal" id="aSl_${nm}" value="${v(lo[nm])}" placeholder="none" aria-label="Lowest ${esc(nm)}"></td><td><input type="text" inputmode="decimal" id="aSh_${nm}" value="${v(hi[nm])}" placeholder="none" aria-label="Highest ${esc(nm)}"></td></tr>`).join("")}</tbody></table>`; }
@@ -19807,6 +19994,12 @@ function surfToMatrix(id,kind){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly)
   save({mats:matBooks(p).concat([b]),graphs},`made ${what} of ${a.name} a matrix, ${s.name}, and ${g.name} its map`); xNew(["g:"+g.id]);
   const from=winOfGraph(S.gid)||null; renderAll(); splitInto(from,g.id); activateGraph(g.id);
   toast(`${s.name}: ${what} of ${a.name}, drawn on ${g.name}.`,{action:"Undo",run:undo}); }
+// An implicit fit's curve over its points: the points as symbols, the curve as a line, from the result sheet, on a graph.
+function implPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const y=p.cols.find(c=>c.ana===id&&c.ak==="pty"), cv=p.cols.find(c=>c.ana===id&&c.ak==="cvy");
+  if(!y||!cv){ toast("There is no curve to draw: Recalculate first."); return; }
+  const what=a.p&&a.p.model==="circle"?"Fitted circle":a.p&&a.p.model==="ellipse"?"Fitted ellipse":"Fitted curve";
+  plotCols([y.id,cv.id],{series:{[y.id]:{type:"scatter"},[cv.id]:{type:"line",label:what}},undo:"plotting the curve over the data",quiet:true});
+  toast(`Plotted the points of ${a.name} and its ${what.toLowerCase()} on a graph.`,{action:"Undo",run:undo}); }
 // From columns: the residuals as a map of the points' X and Y, coloured by the residual (a map from scattered points).
 function surfResMap(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const y=p.cols.find(c=>c.ana===id&&c.ak==="pty"), r=p.cols.find(c=>c.ana===id&&c.ak==="ptres");
   if(!y||!r){ toast("There are no residuals to draw: Recalculate first."); return; }
@@ -26681,6 +26874,7 @@ function analyzeMenu(){
       {label:"Compare models…", title:ANA_KINDS.cmpmod.help, run:()=>anaDlg("cmpmod"), enabled:edit},
       {label:"Compare data sets…", title:ANA_KINDS.cmpdata.help, run:()=>anaDlg("cmpdata",{two:true}), enabled:edit&&yCols().length>1},
       {label:"Surface fit…", title:ANA_KINDS.surf.help, run:()=>anaDlg("surf"), enabled:edit},
+      {label:"Implicit fit…", title:ANA_KINDS.impl.help, run:()=>anaDlg("impl"), enabled:edit},
       "-",
       {label:"Fit", kbd:"Ctrl+Enter", run:fitNow, enabled:edit&&has},
       yCols().length>1?{label:"Fit every column…", run:openBatchDialog, enabled:edit&&!!f, title:f?"":"Fit the active column first: its fit is the template"}:null,
@@ -29459,7 +29653,7 @@ ${DL([["Area ± error","The trapezoidal sum over the points in the window, less 
 ${DL([["Net counts","The counts in the window less the continuum under them: a straight line through the mean of the channels at each edge (as many as the line baselines use). ± one standard deviation from counting: the counts' own and the continuum's."],["Detected","Above Currie's critical level, 95 %: on a continuum alone, one window in twenty is called detected. Below it, the level is shown."],["Emission, efficiency","Type the share of decays that give the line and the detector's efficiency at its energy, both in %."],["Activity","Net counts ÷ (live time × efficiency × emission), in becquerel, with the counting error. Not detected: the detection limit as an activity, the smallest that would be."]])}
 <p>Counting needs the counts as recorded: an energy calibration, a count rate or a crop keep them; smoothing or a subtracted background do not, and the part says so.</p>
 ${TIP("Overlapping bands are integrated separately, each within its own window. To divide overlapping bands between them, fit them.")}`},
-{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results surface fit surface fitting 3d fit z x y paraboloid plane polynomial surface gaussian 2d lorentzian 2d gauss2d nonlinear surface matrix fit compare models model comparison aic aicc bic akaike weight extra sum of squares f test nested compare datasets data sets shared parameters global multiple regression mlr weighted least squares wls vif variance inflation factor condition number leverage cook's distance cooks dffits studentized deleted residual influence prediction interval confidence limits partial residual component plus residual best subsets all subsets mallows cp aic bic statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size nonparametric non-parametric rank mann whitney wilcoxon rank sum signed rank sign test hodges lehmann shift pseudo-median kruskal wallis dunn friedman kendall w mood median test kolmogorov smirnov two-sample ks correlation correlation matrix pearson spearman rho kendall tau partial correlation fisher z scatter matrix counts contingency cross table crosstab cross-tabulation chi square chi-square independence expected counts likelihood ratio g test freeman halton mcnemar paired cramer cramér v linear model general linear model glm regression multiple regression ancova covariate factor interaction polynomial treatment coding effect coding type i type ii type iii sums of squares contrast estimable aliased qr two-way anova three-way anova factorial anova interaction plot main effects plot marginal means least squares means lsmeans emmeans simple effects partial eta squared repeated measures rm anova within subjects between subjects mixed anova split-plot sphericity mauchly greenhouse-geisser greenhouse geisser huynh-feldt huynh feldt epsilon profile plot wide long subject power sample size power analysis how many samples effect size cohen d cohen f cohen w noncentral t noncentral f noncentral chi-square g*power pss roc receiver operating characteristic area under the curve auc delong youden cut-off cutoff threshold sensitivity specificity diagnostic",
+{id:"analyses", g:"Analysis", t:"Analyses and result sheets", kw:"analysis analyses result sheet results implicit fit implicit curve circle fit ellipse fit conic orthogonal distance geometric fit errors in x and y f(x,y)=0 surface fit surface fitting 3d fit z x y paraboloid plane polynomial surface gaussian 2d lorentzian 2d gauss2d nonlinear surface matrix fit compare models model comparison aic aicc bic akaike weight extra sum of squares f test nested compare datasets data sets shared parameters global multiple regression mlr weighted least squares wls vif variance inflation factor condition number leverage cook's distance cooks dffits studentized deleted residual influence prediction interval confidence limits partial residual component plus residual best subsets all subsets mallows cp aic bic statistics on columns descriptive recalculate recalculation auto manual lock read only processed original masked group by cut delete report quartile quantile percentile method type hyndman fan tukey hinges skewness kurtosis mad robust sd mode geometric harmonic mean confidence interval variance coefficient of variation listwise pairwise rows frequency counts frequencies table bins graphical summary normality normal test shapiro wilk lilliefors anderson darling dagostino k2 kolmogorov smirnov qq q-q probability plot outlier outliers grubbs dixon q test mask mark hypothesis t test ttest student welch paired one sample two sample mean difference effect size cohen d hedges g variance f test levene brown forsythe bartlett proportion binomial exact clopper pearson wilson newcombe fisher exact odds ratio 2x2 contingency alternative one-sided two-sided alpha significance level anova analysis of variance one-way one way welch tukey kramer hsd bonferroni holm sidak scheffe lsd games howell dunnett control multiple comparisons post hoc means plot eta squared omega squared effect size nonparametric non-parametric rank mann whitney wilcoxon rank sum signed rank sign test hodges lehmann shift pseudo-median kruskal wallis dunn friedman kendall w mood median test kolmogorov smirnov two-sample ks correlation correlation matrix pearson spearman rho kendall tau partial correlation fisher z scatter matrix counts contingency cross table crosstab cross-tabulation chi square chi-square independence expected counts likelihood ratio g test freeman halton mcnemar paired cramer cramér v linear model general linear model glm regression multiple regression ancova covariate factor interaction polynomial treatment coding effect coding type i type ii type iii sums of squares contrast estimable aliased qr two-way anova three-way anova factorial anova interaction plot main effects plot marginal means least squares means lsmeans emmeans simple effects partial eta squared repeated measures rm anova within subjects between subjects mixed anova split-plot sphericity mauchly greenhouse-geisser greenhouse geisser huynh-feldt huynh feldt epsilon profile plot wide long subject power sample size power analysis how many samples effect size cohen d cohen f cohen w noncentral t noncentral f noncentral chi-square g*power pss roc receiver operating characteristic area under the curve auc delong youden cut-off cutoff threshold sensitivity specificity diagnostic",
  lead:"An analysis reads columns and writes what it finds into a result sheet of its own, worked out again when its data change.",
  body:`<h2>Statistics on columns</h2>
 <p>${MP("Analyze › Statistics › Descriptive › Statistics on columns…")}: tick the columns and the statistics, and each column gets a row of a new sheet. Ticked at first are N, the rows missing, mean, standard deviation, standard error of the mean, minimum, Q1, median, Q3, maximum and sum; besides them, the mean's interval, variance, coefficient of variation, range, IQR, MAD, robust SD, the mode and its count, skewness, kurtosis, the geometric and harmonic means, and any percentiles typed (<code>5, 95</code>). <em>Group by</em> a column of text or categories gives a row for each column and group.</p>
@@ -29515,6 +29709,10 @@ ${DL([["Interactions","None; every pair of the columns; or every combination (A:
 <p>${MP("Analyze › Fit › Surface fit…")}: z as a function of x and y, from three columns of numbers (each row a point) or from a matrix (each cell a point, at its X and Y; empty cells left out).</p>
 ${DL([["Plane, Paraboloid, Cubic to Quintic surface","Every xⁱyʲ with i + j up to the order. Solved directly by least squares, in x and y centred and scaled, so far from x = y = 0 the coefficients keep their digits; they are reported in powers of x and y, each with its unit."],["Gaussian and Lorentzian surface","A peak (or a dip) on a level z0: its height A, centre xc and yc, FWHM wx and wy along its own axes, and theta, its first axis's turn from x in degrees (within ±90°). Started from the points above half its height."],["Your formula of x and y","As a function of yours is written: every name but x, y and the functions is a parameter, its start guessed from its name (z0 a level, A a height, xc and yc where z is largest, w a width) unless typed."]])}
 <p>Each parameter can be given a start, fixed at it, and kept between a lowest and a highest; a polynomial with any of these is fitted by Levenberg–Marquardt from its direct solution. The sheet holds each parameter with its unit, standard error, t, p and interval, the statistics, and each point's fitted value and residual. Under the report: <em>Fitted surface as a matrix</em> (on the matrix's own grid, or 101 × 101 over the data's extent; a matrix computed by the surface's formula with its numbers written in, drawn as a map), and <em>Residuals as a matrix</em> (from a matrix: each cell less the surface) or <em>Residual map</em> (from columns: the points' X and Y coloured by their residual).</p>
+<h2 id="impl">Implicit fit</h2>
+<p>${MP("Analyze › Fit › Implicit fit…")}: a curve f(x, y) = 0 through points whose x and y are both measured (a column for each, a row a point), fitted by orthogonal distance: the sum of each point's squared distance to its nearest place on the curve is made least, so x and y count alike and the curve may turn back on itself.</p>
+${DL([["Circle","Its centre xc, yc and radius r. Started from the algebraic circle through the points (Kåsa's)."],["Ellipse","Its centre, its axes a and b (a the longer) and theta, a's turn from x in degrees (within ±90°). Started from the algebraic ellipse (Fitzgibbon's, as Halír and Flusser solve it); a near circle has a turn barely determined at all. With points scattered by a good part of the shorter axis there can be more than one best ellipse nearby: give starts to choose."],["Your formula of x and y, = 0","Every name but x, y and the functions is a parameter, and each needs a start: the curve fitted is the one through the zero of the formula nearest the points from there. Each point's foot is found by Newton's projection on the formula."]])}
+<p>Each parameter can be given a start, fixed at it, and kept between a lowest and a highest. The sheet holds each parameter with its unit, standard error, t, p and interval (from s²(JᵀJ)⁻¹ of the distances), the statistics (the sum of squared distances, their scatter s), each point's signed distance (outside the curve positive) and its foot, and the curve's points. X and Y in different units are added as if they were one, which the notes say. <em>Plot it over the data</em> draws the points as symbols and the curve as a line on a new graph.</p>
 <h2 id="ranks">Nonparametric tests</h2>
 <p>${MP("Analyze › Statistics › Nonparametric")}: tests on ranks and signs, which assume no distribution. p is exact while the samples are small, untied and (for the signed-rank test) have no zeros, as R decides; else by the normal approximation with the tie and continuity corrections. <em>p</em> in the dialog forces either.</p>
 ${DL([["Mann–Whitney…","Two samples: U of the first, p, the shift (the median of every first − second difference, Hodges–Lehmann) with its interval, and the rank-biserial r (2U/(n₁n₂) − 1)."],["Wilcoxon signed-rank…","One sample against a value, or two columns paired by rows: T+ and T−, p, the pseudo-median (the median of the Walsh averages) with its interval. Zeros are dropped (Wilcoxon's) or ranked and then dropped (Pratt's)."],["Sign test…","The values above and below the value tested against, the exact binomial p, the median with an interval from order statistics, and that interval's own level."],["Kruskal–Wallis…","The groups of one factor: H corrected for ties, its df and p, ε², each group's mean rank; Dunn's comparisons of the mean ranks, adjusted by Holm or Bonferroni."],["Friedman…","Columns as treatments, rows as blocks (rows complete in every column): Q corrected for ties, p, Kendall's W, each column's rank sum."],["Mood's median test…","Each group's values above the grand median and not above it, and χ² of that table (Yates's correction with two groups)."],["Two-sample Kolmogorov–Smirnov…","The largest distance D between the two samples' distribution functions (or one side's), its p exact up to a million steps of the lattice, else asymptotic."]])}

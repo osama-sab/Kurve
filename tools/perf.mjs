@@ -76,6 +76,8 @@ const BUDGET = {
   "Self-deconvolution: 100 000 points": [160, "Fourier self-deconvolution of 100 000 points, Bessel apodisation, twice narrower (FIT2_SPEC 4.7)"],
   "Surface: quintic, 100 000 points": [1100, "a polynomial surface of order 5 (21 coefficients) on 100 000 points, solved directly in double-double (FIT2_SPEC 4.4)"],
   "Surface: Gaussian, 200 × 200 matrix": [800, "a turned Gaussian surface fitted to a matrix of 40 000 cells by Levenberg–Marquardt from its guess (FIT2_SPEC 4.4)"],
+  "Implicit: ellipse, 20 000 points": [1500, "a turned ellipse through 20 000 points by orthogonal distance, each point's foot by Eberly's root, from the algebraic ellipse (FIT2_SPEC 4.5)"],
+  "Implicit: formula, 500 points": [600, "a parabola written as y − (a x² + b x + c) = 0 through 500 points by orthogonal distance, each foot by Newton's projection (FIT2_SPEC 4.5)"],
   "ANOVA: Tukey, 10 groups": [1100, "Tukey–Kramer's 45 pairs and its quantile (worked out in the worker in the app)"],
 };
 const got = {};
@@ -211,6 +213,12 @@ await withPage(async (p) => {
   got["Surface: Gaussian, 200 × 200 matrix"] = await best(() => p.evaluate(() => { const mb = mulberry32(16), X = [], Y = [], Z = [], g = SURF_MODELS.gauss2d.f;
     for (let i = 0; i < 200; i++) for (let j = 0; j < 200; j++) { const x = i * 0.05, y = j * 0.05; X.push(x); Y.push(y); Z.push(g(x, y, [1, 8, 5, 4.5, 3, 1.5, 35]) + 0.05 * (mb() - 0.5)); }
     const a = performance.now(), F = surfFit(X, Y, Z, "gauss2d"); if (F.fail || !F.res.stats.converged) throw new Error(F.fail || "not settled"); return performance.now() - a; }));
+  got["Implicit: ellipse, 20 000 points"] = await best(() => p.evaluate(() => { const mb = mulberry32(17), T = 0.5, X = [], Y = [];
+    for (let i = 0; i < 20000; i++) { const t = 2 * Math.PI * mb(), u = 30 * Math.cos(t), v = 12 * Math.sin(t); X.push(500 + u * Math.cos(T) - v * Math.sin(T) + 0.3 * (mb() - 0.5)); Y.push(-80 + u * Math.sin(T) + v * Math.cos(T) + 0.3 * (mb() - 0.5)); }
+    const a = performance.now(), F = implFit(X, Y, "ellipse"); if (F.fail || !F.res.stats.converged) throw new Error(F.fail || "not settled"); return performance.now() - a; }));
+  got["Implicit: formula, 500 points"] = await best(() => p.evaluate(() => { const mb = mulberry32(18), X = [], Y = [];
+    for (let i = 0; i < 500; i++) { const x = -3 + 6 * mb(); X.push(x + 0.05 * (mb() - 0.5)); Y.push(0.5 * x * x - x + 1 + 0.05 * (mb() - 0.5)); }
+    const a = performance.now(), F = implFit(X, Y, "formula", { formula: "y - (a*x^2 + b*x + c)", start: { a: 0.4, b: -0.8, c: 1.2 } }); if (F.fail || !F.res.stats.converged) throw new Error(F.fail || "not settled"); return performance.now() - a; }));
   got["Bootstrap: 1000 resamples of a peak"] = await best(() => p.evaluate(() => { const mb = mulberry32(13), n = 300, X = Array.from({ length: n }, (_, i) => i / 30), Y = X.map(v => 0.2 + 2 * Math.exp(-0.5 * ((v - 5) / 1.2) ** 2) + 0.05 * (mb() - 0.5));
     const F = fitByDesc({ model: "gauss" }, X, Y, null, "none"); const a = performance.now(), r = bootFit({ set: { model: "gauss" }, X, Y, kind: "cases", B: 1000, seed: 1, p: F.res.params }); if (r.fail) throw new Error(r.fail); return performance.now() - a; }));
   got["Correlation: 1M pairs"] = await best(() => p.evaluate(() => { const mb = mulberry32(10), n = 1000000, x = Array.from({ length: n }, () => mb()), rows = x.map((_, i) => i);

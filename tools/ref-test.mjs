@@ -465,6 +465,28 @@ if (fixtures.surf) {
   }
 }
 
+/* ---- Implicit fits (FIT2_SPEC 4.5): circles, ellipses and formulas f(x, y) = 0 by exact orthogonal distance against SciPy's least_squares
+   on the curve's parametric form (each point's place on it an unknown of its own): the same optimum, each parameter's difference over
+   its standard error, the errors and the sum of squared distances; and against SciPy's odr in its implicit mode, which reaches the
+   same curve by a penalty ---- */
+if (fixtures.implicit) {
+  for (const c of fixtures.implicit.cases) {
+    // a distance to an ellipse in 40 digits: relative to itself, or to 1e-4 of the longer half axis for a point nearer the curve
+    // than that (whose distance its coordinates' last digits already decide)
+    if (c.fn === "ellDist") { const [a, b, u, v] = c.args; note("ellDist", Math.abs(get("ellDist")(a, b, u, v) - c.want) / Math.max(Math.abs(c.want), 1e-4 * a), `${c.name} (${a}, ${b}, ${u}, ${v})`); continue; }
+    const [X, Y, id, o] = c.args, w = c.want, F = get("implFit")(X, Y, id, o || {});
+    if (F.fail) { note("implFit", Infinity, c.name + ": " + F.fail); continue; }
+    // a formula's parameters are in the order they appear in it; the fixture lists them in the order of its starting values' names
+    const r = F.res, at = o && o.start ? Object.keys(o.start).map(nm => F.m.params.indexOf(nm)) : w.params.map((_, j) => j);
+    w.params.forEach((v, j) => note("implFit", Math.abs(r.params[at[j]] - v) / Math.max(w.errors[j], 1e-12 * Math.abs(v), 1e-300), `${c.name} p${j}`));
+    w.errors.forEach((v, j) => note("implFit.se", relErr(r.errors[at[j]], v), `${c.name} se${j}`));
+    note("implFit", relErr(r.dist.reduce((t, d) => t + d * d, 0), w.ss), c.name + " sum of squared distances");
+    w.odr.forEach((v, j) => note("implFit.odr", Math.abs(r.params[at[j]] - v) / Math.max(w.errors[j], 1e-300), `${c.name} odr p${j}`));
+    // their published values, to four decimals (the turn in radians): within half a unit of the last place
+    if (w.pub) w.pub.forEach((v, j) => note("implFit.pub", Math.abs(r.params[j] - v) / (j === 4 ? 0.00005 * 180 / Math.PI : 0.00005), `${c.name} p${j} against the paper`));
+  }
+}
+
 /* ---- Robust fits (FIT2_SPEC 4.8): robustFit (through robustPoly) on lines and polynomials against statsmodels' RLM at its fixed point: the
    parameters, their H1 errors, the scale and each point's weight ---- */
 {

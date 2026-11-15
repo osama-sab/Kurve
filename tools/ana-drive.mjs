@@ -974,6 +974,79 @@ await page(async p => {
   r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "surf"); return a && { ok: !!(a.res && a.res.report), mat: a.in.mat, stale: anaStale(a) }; });
   check("after a reload the analysis is there, reading its matrix", r && r.ok && typeof r.mat === "string" && !r.stale, JSON.stringify(r));
 }, { name: "4.4" });
+// FIT2_SPEC 4.5: implicit fits, a circle, an ellipse and a formula through points measured in x and y.
+console.log("4.5: implicit fits");
+await page(async p => {
+  // Points on a turned ellipse far from the origin, measured in both coordinates.
+  await p.evaluate(() => { const x = [], y = []; let s = 7; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; }, T = 30 * Math.PI / 180;
+    for (let i = 0; i < 48; i++) { const t = 2 * Math.PI * i / 48 + 0.05 * r(), u = 12 * Math.cos(t), v = 5 * Math.sin(t); x.push(+(250 + u * Math.cos(T) - v * Math.sin(T) + 0.1 * r()).toFixed(5)); y.push(+(-40 + u * Math.sin(T) + v * Math.cos(T) + 0.1 * r()).toFixed(5)); }
+    const col = (role, nm, u, d) => Object.assign(makeCol(role, nm, u), { data: d, pipe: [], mask: [] });
+    save({ cols: [col("x", "Position x", "mm", x), col("y", "Position y", "mm", y)], activeY: null }, "typed"); });
+  await p.waitForTimeout(300);
+  let r = await p.evaluate(() => { const fit = menuItems("analyze").find(i => i && i.label === "Fit"); return (typeof fit.sub === "function" ? fit.sub() : fit.sub).filter(Boolean).map(i => i.label); });
+  check("Analyze › Fit has Implicit fit… after Surface fit…", r.indexOf("Implicit fit…") === r.indexOf("Surface fit…") + 1, JSON.stringify(r));
+  await p.evaluate(() => { anaDlg("impl"); }); await p.waitForSelector("#aJmod");
+  r = await p.evaluate(() => ({ x: $("#aJx").selectedOptions[0].textContent, y: $("#aJy").selectedOptions[0].textContent, m: $("#aJmod").value, f: $("#aJf").hidden, par: [...document.querySelectorAll("#aSpar td.pn")].map(t => t.textContent).join(), ok: $("#formOk").disabled, msg: $("#aSmsg").hidden }));
+  check("the dialog: X and Y from their roles, a circle's three parameters, no formula, nothing to say", /Position x/.test(r.x) && /Position y/.test(r.y) && r.m === "circle" && r.f && r.par === "xc,yc,r" && !r.ok && r.msg, JSON.stringify(r));
+  const xv = await p.evaluate(() => $("#aJx").value), yv = await p.evaluate(() => $("#aJy").value);
+  await p.selectOption("#aJy", xv); await p.waitForTimeout(80);
+  r = await p.evaluate(() => ({ m: $("#aSmsg").textContent, ok: $("#formOk").disabled }));
+  check("one column for both is refused in words", /two different columns/.test(r.m) && r.ok, JSON.stringify(r));
+  await p.selectOption("#aJy", yv); await p.waitForTimeout(80);
+  await p.selectOption("#aJmod", "ellipse"); await p.waitForTimeout(100);
+  r = await p.evaluate(() => [...document.querySelectorAll("#aSpar td.pn")].map(t => t.textContent).join());
+  check("an ellipse's five parameters listed", r === "xc,yc,a,b,theta", r);
+  await p.click("#formOk");
+  await p.waitForFunction(() => { const a = anaList().find(x => x.kind === "impl"); return a && a.res && (a.res.report || a.res.err); }, null, { timeout: 30000 });
+  r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "impl"), o = {}; P().cols.filter(c => c.ana === a.id).forEach(c => { o[c.ak] = c.txt ? c.data.map((v, i) => c.txt[i] != null ? c.txt[i] : v) : c.data.slice(); });
+    const cs = sheetCols(sheetList()[0].id), F = implFit(cs[0].data, cs[1].data, "ellipse");
+    return { o, err: a.res.err, want: F.res.params, se: F.res.errors, dist: F.res.dist, method: a.res.report.method, secs: a.res.report.sections.map(s => s.title), log: P().log.slice(-1)[0].text }; });
+  check("its parameters and errors as implFit gives them", !r.err && r.o.v.every((v, i) => v === r.want[i]) && r.o.se.every((v, i) => v === r.se[i]), JSON.stringify([r.o.v, r.want]));
+  check("…the ellipse drawn within a few errors of the truth (250, −40, 12, 5, 30°)", [250, -40, 12, 5, 30].every((w, i) => Math.abs(r.want[i] - w) < 4 * r.se[i]), JSON.stringify(r.want));
+  check("each parameter's unit: mm for the centre and the axes, ° for the turn", JSON.stringify(r.o.unit) === JSON.stringify(["mm", "mm", "mm", "mm", "°"]), JSON.stringify(r.o.unit));
+  check("each point's signed distance and foot on the sheet, the statistics, the method by orthogonal distance", r.o.ptd.length === 48 && r.o.ptd.every((d, i) => d === r.dist[i]) && Math.abs(Math.hypot(r.o.ptx[3] - r.o.ptfx[3], r.o.pty[3] - r.o.ptfy[3]) - Math.abs(r.o.ptd[3])) < 1e-9
+    && r.o.stk.includes("Sum of squared distances") && /orthogonal distance/i.test(r.method) && r.secs.join("|") === "Parameters|Statistics" && !/significant|good fit|adequate/i.test(JSON.stringify(r.o.stk)), JSON.stringify([r.secs, r.method, r.o.stk]));
+  check("the curve's points on the sheet, on the ellipse", r.o.cvx.length > 100 && r.o.cvx.every((x, i) => { const [xc, yc, a, b, th] = r.want, T = th * Math.PI / 180, u = (x - xc) * Math.cos(T) + (r.o.cvy[i] - yc) * Math.sin(T), v = -(x - xc) * Math.sin(T) + (r.o.cvy[i] - yc) * Math.cos(T); return Math.abs((u / a) ** 2 + (v / b) ** 2 - 1) < 1e-9; }), r.o.cvx.length);
+  // Plotted over the data, in one undo step.
+  const ng = await p.evaluate(() => (P().graphs || []).length);
+  await p.evaluate(() => { const a = anaList().find(x => x.kind === "impl"); anaActs(a).find(t => t.key === "plot").run(); }); await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const g = graphOf(GID()), s = g.plot.series || {}; return { n: (P().graphs || []).length, ks: g.cols.map(id => colById(id).ak), t: g.cols.map(id => s[id] && s[id].type) }; });
+  check("Plot it over the data: the points as symbols and the curve as a line on a new graph", r.n === ng + 1 && r.ks.join() === "pty,cvy" && r.t.join() === "scatter,line", JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(250);
+  r = await p.evaluate(() => (P().graphs || []).length);
+  check("…one undo takes the graph away", r === ng, r);
+  // Followed: a value typed.
+  const before = await p.evaluate(() => anaList().find(x => x.kind === "impl").res.report.impl.params[0]);
+  await p.evaluate(() => { const c = sheetCols(sheetList()[0].id)[0]; pushUndo("t"); c.data = c.data.slice(); c.data[5] += 3; save({ cols: P().cols }, "typed"); }); await p.waitForTimeout(1200);
+  r = await p.evaluate(() => anaList().find(x => x.kind === "impl").res.report.impl.params[0]);
+  check("worked out again by itself after a value is typed", r !== before, JSON.stringify([before, r]));
+  // A formula: without starts refused, with them fitted; a formula with no parameter refused.
+  await p.evaluate(() => { const a = anaList().find(x => x.kind === "impl"); anaDlg("impl", { id: a.id }); }); await p.waitForSelector("#aJmod");
+  await p.selectOption("#aJmod", "formula"); await p.waitForTimeout(80);
+  r = await p.evaluate(() => ({ f: $("#aJf").hidden, m: $("#aSmsg").textContent, ok: $("#formOk").disabled }));
+  check("a formula asked for once chosen", !r.f && /Write the formula/.test(r.m) && r.ok, JSON.stringify(r));
+  await p.fill("#aJf", "x^2 + y^2 - 1"); await p.dispatchEvent("#aJf", "input"); await p.waitForTimeout(80);
+  r = await p.evaluate(() => $("#aSmsg").textContent);
+  check("a formula with no parameter is refused in words", /no parameter to fit/.test(r), r);
+  await p.fill("#aJf", "((x - xc)/a)^2 + ((y - yc)/b)^2 - 1 = 0"); await p.dispatchEvent("#aJf", "input"); await p.waitForTimeout(80);
+  r = await p.evaluate(() => ({ par: [...document.querySelectorAll("#aSpar td.pn")].map(t => t.textContent).join(), m: $("#aSmsg").textContent, ok: $("#formOk").disabled }));
+  check("its parameters listed as typed, and a start asked for each", r.par === "xc,a,yc,b" && /needs a start for each parameter/.test(r.m) && r.ok, JSON.stringify(r));
+  for (const [k, v] of [["xc", "250"], ["a", "11"], ["yc", "-40"], ["b", "6"]]) { await p.fill("#aSs_" + k, v); await p.dispatchEvent("#aSs_" + k, "input"); }
+  await p.waitForTimeout(80); await p.click("#formOk"); await p.waitForTimeout(800);
+  r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "impl"), cs = sheetCols(sheetList()[0].id), F = implFit(cs[0].data, cs[1].data, "formula", { formula: "((x - xc)/a)^2 + ((y - yc)/b)^2 - 1 = 0", start: { xc: 250, a: 11, yc: -40, b: 6 } });
+    return { err: a.res.err, v: a.res.report && a.res.report.impl.params, want: F.res.params, n: (P().cols.find(c => c.ana === a.id && c.ak === "cvx") || { data: [] }).data.filter(v => v != null).length }; });
+  check("an ellipse along the axes as a formula, fitted as implFit gives it, its curve from the zero contour", !r.err && r.v && r.v.every((v, i) => v === r.want[i]) && r.n > 50, JSON.stringify(r).slice(0, 300));
+  // A circle refused for points on a line.
+  await p.evaluate(() => { const c = sheetCols(sheetList()[0].id), x = c[0].data.map((_, i) => i), y = x.map(v => 2 * v + 1); pushUndo("t"); c[0].data = x; c[1].data = y; save({ cols: P().cols }, "typed"); });
+  await p.waitForTimeout(300);
+  await p.evaluate(() => { const a = anaList().find(x => x.kind === "impl"); pushUndo("set"); save({ ana: P().ana.map(q => q.id === a.id ? Object.assign({}, q, { p: { model: "circle", x: q.p.x, y: q.p.y } }) : q) }, "set"); }); await p.waitForTimeout(1200);
+  r = await p.evaluate(() => anaList().find(x => x.kind === "impl").res.err);
+  check("points on a line give no circle, said in words", /are they on a line/.test(r || ""), r);
+  await p.evaluate(() => undo()); await p.evaluate(() => undo()); await p.waitForTimeout(600);
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "impl"); return a && { ok: !!(a.res && a.res.report), model: a.p.model, stale: anaStale(a) }; });
+  check("after a reload the analysis is there, up to date", r && r.ok && r.model === "formula" && !r.stale, JSON.stringify(r));
+}, { name: "4.5" });
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

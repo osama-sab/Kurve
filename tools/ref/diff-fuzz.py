@@ -920,6 +920,74 @@ def surf_post(c, out):
     return e, f"residuals {e:.2e}"
 POST["surfFit"] = surf_post
 
+# Implicit fits (FIT2_SPEC 4.5): random arcs of circles and turned ellipses with noise below a twentieth of the smaller axis (more,
+# and points near the major axis make several minima), against SciPy's least_squares on the parametric form from the truth (each
+# point's place an unknown of its own), polished on the distances with each foot found globally (impl_ref.py); Kurve starts from its
+# own algebraic guess: the sum of squared distances relatively, and each parameter's difference over its standard error.
+from impl_ref import impl_polish
+@gen("implFit", 1e-5, 0.3)
+def _():
+    from scipy import optimize
+    circle = rng.random() < 0.5; n = int(rng.integers(12, 150)); xc, yc = float(rng.choice([0, 3, -40, 1000])), float(rng.choice([0, -2, 250]))
+    a = float(lognum(-1, 2)); b = a if circle else a / float(rng.uniform(1.2, 5)); th = 0.0 if circle else float(rng.uniform(-89, 89)); sd = b * float(lognum(-3, -1.3))
+    span = float(rng.uniform(0.4, 1)) * 2 * math.pi if circle else float(rng.uniform(0.75, 1)) * 2 * math.pi; t0 = float(rng.uniform(0, 2 * math.pi))
+    T = math.radians(th); c, s = math.cos(T), math.sin(T); ph = rng.uniform(t0, t0 + span, n)
+    X = [float(round(xc + a * math.cos(q) * c - b * math.sin(q) * s + float(rng.normal(0, sd)), 9)) for q in ph]
+    Y = [float(round(yc + a * math.cos(q) * s + b * math.sin(q) * c + float(rng.normal(0, sd)), 9)) for q in ph]
+    Xa, Ya = np.array(X), np.array(Y); m = 3 if circle else 5
+    if circle: res = lambda q: np.concatenate([Xa - (q[0] + q[2] * np.cos(q[3:])), Ya - (q[1] + q[2] * np.sin(q[3:]))]); q0 = [xc, yc, a] + list(ph)
+    else:
+        def res(q):
+            t = math.radians(q[4]); cc, ss = math.cos(t), math.sin(t); u, v = q[2] * np.cos(q[5:]), q[3] * np.sin(q[5:])
+            return np.concatenate([Xa - (q[0] + u * cc - v * ss), Ya - (q[1] + u * ss + v * cc)])
+        q0 = [xc, yc, a, b, th] + list(ph)
+    r = optimize.least_squares(res, q0, method="lm", xtol=1e-15, ftol=1e-15, gtol=1e-15, max_nfev=200000, x_scale="jac")
+    P, E, rss = impl_polish("circle" if circle else "ellipse", X, Y, [float(v) for v in r.x[:m]])
+    P[2] = abs(P[2])
+    if not circle:
+        P[3] = abs(P[3])
+        if P[2] < P[3]: P[2], P[3] = P[3], P[2]; E[2], E[3] = E[3], E[2]; P[4] += 90
+        P[4] = ((P[4] + 90) % 180 + 180) % 180 - 90
+    return [X, Y, "circle" if circle else "ellipse", {}], {"params": P, "errors": E, "ss": rss}
+def impl_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or "res" not in out or not out["res"]: return float("inf"), f"no fit: {str(out)[:120]}"
+    R = out["res"]; ss = sum(d * d for d in R["dist"]); e1 = abs(ss - w["ss"]) / max(w["ss"], 1e-300)
+    e2 = 0.0
+    for j, (v, se) in enumerate(zip(w["params"], w["errors"])):
+        d = abs(R["params"][j] - v)
+        if j == 4: d = min(d, abs(d - 180))   # a turn of ±90° is one turn
+        e2 = max(e2, d / max(se, 1e-12 * abs(v), 1e-300))
+    return max(e1, e2), f"squared distances {e1:.2e}, parameters {e2:.2e} of an error"
+POST["implFit"] = impl_post
+# A point's distance to an ellipse against 40 digits (the nearest of 2000 places narrowed by findroot), the point near the curve, near the
+# long axis inside, near the centre, far outside, the ellipse near a circle or very thin: relative to the distance, or to 1e-4 of the
+# longer half axis for a point nearer the curve than that.
+@gen("ellDist", 1e-11, 0.5)
+def _():
+    import mpmath as mpm
+    kind = str(rng.choice(["near", "axis", "centre", "far", "round", "thin", "any"]))
+    a = float(10 ** rng.uniform(-2, 3)); b = a / float({"round": 1 + 10 ** rng.uniform(-9, -3), "thin": 10 ** rng.uniform(2, 4)}.get(kind, 1 + 20 * rng.random() ** 2)); t = float(rng.uniform(0, 2 * math.pi))
+    r = {"near": 1 + float(rng.choice([-1, 1])) * 10 ** float(rng.uniform(-9, -2)), "centre": 10 ** float(rng.uniform(-9, -2)), "far": 10 ** float(rng.uniform(0.5, 2))}.get(kind, float(rng.uniform(0, 2)))
+    u, v = r * a * math.cos(t), r * b * math.sin(t)
+    if kind == "axis": v *= 10 ** float(rng.uniform(-14, -6))
+    g = np.linspace(0, 2 * math.pi, 2000, endpoint=False); k = int(np.argmin((u - a * np.cos(g)) ** 2 + (v - b * np.sin(g)) ** 2))
+    with mpm.workdps(40):
+        A, B, U, V = mpm.mpf(a), mpm.mpf(b), mpm.mpf(u), mpm.mpf(v); st = mpm.mpf(2 * math.pi / 2000)
+        f = lambda q: (U - A * mpm.cos(q)) ** 2 + (V - B * mpm.sin(q)) ** 2
+        df = lambda q: 2 * (U - A * mpm.cos(q)) * A * mpm.sin(q) - 2 * (V - B * mpm.sin(q)) * B * mpm.cos(q)
+        best = min(f(mpm.mpf(q)) for q in g[[(k - 1) % 2000, k, (k + 1) % 2000]])
+        for q0 in (g[(k - 1) % 2000], g[k], g[(k + 1) % 2000]):
+            try: best = min(best, f(mpm.findroot(df, (mpm.mpf(q0) - st, mpm.mpf(q0) + st), solver="anderson")))
+            except Exception: pass
+        d = mpm.sqrt(best); d = float(-d if (U / A) ** 2 + (V / B) ** 2 < 1 else d)
+    return [a, b, u, v], {"d": d, "a": a}
+def elld_post(c, out):
+    w = c["want"]
+    if not isinstance(out, (int, float)): return float("inf"), f"no distance: {str(out)[:80]}"
+    e = abs(out - w["d"]) / max(abs(w["d"]), 1e-4 * w["a"]); return e, f"distance {e:.2e}"
+POST["ellDist"] = elld_post
+
 cases = []
 ONLY = os.environ.get("ONLY")  # ONLY=name,name: those generators alone
 for name, (f, tol) in GEN.items():

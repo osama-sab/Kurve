@@ -691,5 +691,45 @@ check("binomial with p = 0 or 1", D.binom.cdf(0, 10, 0) === 1 && D.binom.sf(9, 1
   { const [X, Y, Z] = grid((x, y) => 1 + 2 * x - y + 0.01 * x * y, 0.01), F = sf(X, Y, Z, "poly2", { fix: ["c11"], start: { c11: 0.01 } });
     check("surface: a polynomial with a coefficient fixed is fitted iteratively, the fixed one held", !F.fail && F.res.params[4] === 0.01 && F.res.stats.iter > 0, F.fail); }
 }
+// Implicit fits (FIT2_SPEC 4.5): circles, ellipses and formulas recovered within four errors; a shift and a turn of the points moving the
+// curve with them and changing no size; each point's distance the true one (a circle's in closed form, an ellipse's against a dense
+// sampling of it); the radius's error against its spread over repeats; refusals in words.
+{
+  const fit = get("implFit"), ed = get("ellDist"), mc = get("mulberry32")(45), gs = () => { let u = 0; for (let k = 0; k < 12; k++) u += mc(); return u - 6; };
+  const circ = (xc, yc, r, n, sd, a0 = 0, a1 = 2 * Math.PI) => { const X = [], Y = []; for (let i = 0; i < n; i++) { const t = a0 + (a1 - a0) * mc(); X.push(xc + r * Math.cos(t) + sd * gs()); Y.push(yc + r * Math.sin(t) + sd * gs()); } return [X, Y]; };
+  const ell = (xc, yc, a, b, th, n, sd) => { const X = [], Y = [], T = th * Math.PI / 180, c = Math.cos(T), s = Math.sin(T); for (let i = 0; i < n; i++) { const t = 2 * Math.PI * mc(), u = a * Math.cos(t), v = b * Math.sin(t); X.push(xc + u * c - v * s + sd * gs()); Y.push(yc + u * s + v * c + sd * gs()); } return [X, Y]; };
+  { const [X, Y] = circ(3, -2, 7, 40, 0.1), F = fit(X, Y, "circle");
+    check("implicit circle: every parameter within four errors of the truth", !F.fail && [3, -2, 7].every((v, i) => Math.abs(F.res.params[i] - v) < 4 * F.res.errors[i]), F.fail || JSON.stringify(F.res.params));
+    check("implicit circle: each point's distance the radial one, |r_i − r|, signed outward", !F.fail && X.every((x, i) => { const [xc, yc, r] = F.res.params; return Math.abs(F.res.dist[i] - (Math.hypot(x - xc, Y[i] - yc) - r)) < 1e-12 * r; }));
+    const T = 0.7, c = Math.cos(T), s = Math.sin(T), X2 = X.map((x, i) => 1e3 + x * c - Y[i] * s), Y2 = X.map((x, i) => -50 + x * s + Y[i] * c), G = fit(X2, Y2, "circle");
+    check("implicit circle: a shift and a turn of the points move the centre with them and keep the radius and its error", !G.fail && Math.abs(G.res.params[2] - F.res.params[2]) < 1e-9 * F.res.params[2] && Math.abs(G.res.errors[2] / F.res.errors[2] - 1) < 1e-5
+      && Math.hypot(G.res.params[0] - (1e3 + F.res.params[0] * c - F.res.params[1] * s), G.res.params[1] - (-50 + F.res.params[0] * s + F.res.params[1] * c)) < 1e-8, G.fail); }
+  { const [X, Y] = circ(0, 0, 10, 25, 0.2, 0.3, 1.9), F = fit(X, Y, "circle");
+    check("implicit circle: an arc of a quarter recovered within four errors", !F.fail && [0, 0, 10].every((v, i) => Math.abs(F.res.params[i] - v) < 4 * F.res.errors[i]), F.fail || JSON.stringify(F.res.params)); }
+  { const rs = [], es = []; for (let k = 0; k < 300; k++) { const [X, Y] = circ(0, 0, 5, 30, 0.1), F = fit(X, Y, "circle"); if (!F.fail) { rs.push(F.res.params[2]); es.push(F.res.errors[2]); } }
+    const m = rs.reduce((t, v) => t + v, 0) / rs.length, sd = Math.sqrt(rs.reduce((t, v) => t + (v - m) ** 2, 0) / (rs.length - 1)), me = es.reduce((t, v) => t + v, 0) / es.length;
+    check("implicit circle: the radius's standard error within 15 % of its spread over 300 repeats", rs.length === 300 && Math.abs(me / sd - 1) < 0.15, `${me} against ${sd}`); }
+  { const [X, Y] = ell(2, 1, 8, 3, 35, 60, 0.1), F = fit(X, Y, "ellipse");
+    check("implicit ellipse: every parameter within four errors of the truth, the first axis the longer", !F.fail && [2, 1, 8, 3, 35].every((v, i) => Math.abs(F.res.params[i] - v) < 4 * F.res.errors[i]) && F.res.params[2] >= F.res.params[3], F.fail || JSON.stringify(F.res.params));
+    const [xc, yc, a, b, th] = F.res.params, T = th * Math.PI / 180, c = Math.cos(T), s = Math.sin(T); let worst = 0;
+    X.forEach((x, i) => { const D = t => { const u = a * Math.cos(t), v = b * Math.sin(t); return Math.hypot(x - (xc + u * c - v * s), Y[i] - (yc + u * s + v * c)); };
+      let k0 = 0, best = Infinity; for (let k = 0; k < 20000; k++) { const d = D(2 * Math.PI * k / 20000); if (d < best) { best = d; k0 = k; } }
+      let lo = 2 * Math.PI * (k0 - 1) / 20000, hi = 2 * Math.PI * (k0 + 1) / 20000; for (let it = 0; it < 200; it++) { const m1 = lo + (hi - lo) / 3, m2 = hi - (hi - lo) / 3; if (D(m1) < D(m2)) hi = m2; else lo = m1; }
+      worst = Math.max(worst, Math.abs(Math.abs(F.res.dist[i]) - D((lo + hi) / 2))); });
+    check("implicit ellipse: each point's distance the nearest of 20 000 points of the curve, narrowed by ternary search", worst < 1e-12 * a, worst);
+    check("implicit ellipse: the distance of a point inside a flat ellipse, and of its centre", Math.abs(ed(5, 1, 0, 0) + 1) < 1e-14 && Math.abs(ed(5, 1, 3, 0) + Math.sqrt(0.625)) < 1e-14, [ed(5, 1, 0, 0), ed(5, 1, 3, 0)]);
+    const X2 = X.map(x => x - 400), Y2 = Y.map(y => y + 77), G = fit(X2, Y2, "ellipse");
+    check("implicit ellipse: shifted points give the same axes and turn", !G.fail && [2, 3, 4].every(i => Math.abs(G.res.params[i] - F.res.params[i]) < 1e-7 * (1 + Math.abs(F.res.params[i]))), G.fail); }
+  { const [X, Y] = ell(0, 0, 4, 4.0001, 0, 50, 0.05), F = fit(X, Y, "ellipse");
+    check("implicit ellipse: a near circle still fitted, its turn barely determined", !F.fail && Math.abs(F.res.params[2] - 4) < 4 * F.res.errors[2], F.fail); }
+  { const X = [], Y = []; for (let i = 0; i < 45; i++) { const x = -3 + 6 * mc(); X.push(x + 0.05 * gs()); Y.push(0.5 * x * x - x + 1 + 0.05 * gs()); }
+    const F = fit(X, Y, "formula", { formula: "y - (a*x^2 + b*x + c) = 0", start: { a: 0.4, b: -0.8, c: 1.2 } });
+    check("implicit formula: a parabola with errors in x and y within four errors", !F.fail && [0.5, -1, 1].every((v, i) => Math.abs(F.res.params[i] - v) < 4 * F.res.errors[i]), F.fail || JSON.stringify(F.res.params)); }
+  check("implicit: points on a line refused for a circle", /are they on a line/.test(fit([0, 1, 2, 3, 4], [0, 2, 4, 6, 8], "circle").fail || ""));
+  check("implicit: fewer points than free parameters refused", /Need more points than free parameters/.test(fit([0, 1, 2], [0, 1, 0], "circle").fail || ""));
+  check("implicit: every parameter fixed refused", /Every parameter is fixed/.test(fit([0, 1, 2, 3], [0, 1, 0, 1], "circle", { fix: ["xc", "yc", "r"] }).fail || ""));
+  check("implicit: a formula with no parameter refused", /no parameter to fit/.test(fit([0, 1, 2, 3], [0, 1, 0, 1], "formula", { formula: "x^2 + y^2 - 1" }).fail || ""));
+  check("implicit: a point that is not a number refused", /not a number/.test(fit([0, 1, NaN, 3], [0, 1, 0, 1], "circle").fail || ""));
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

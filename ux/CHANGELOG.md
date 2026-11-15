@@ -1024,6 +1024,24 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 4, slice 4.5: implicit fits (2026-11-15)
+
+- **Analyze › Fit › Implicit fit…**: a curve f(x, y) = 0 through points whose x and y are both measured, fitted by orthogonal
+  distance (each point's distance to its nearest place on the curve): a circle (centre and radius, started from the algebraic
+  circle), an ellipse (centre, the longer and shorter half axes, the turn in degrees, started from the algebraic ellipse) or your
+  formula of x and y, with a start for each parameter; each parameter's start, fix and limits in the dialog.
+- **The result sheet**: each parameter with its unit, standard error, t, p and interval, the statistics (the sum of squared
+  distances, their scatter), each point's signed distance and its foot on the curve, and the curve's points; it follows its
+  columns. *Plot it over the data* draws the points and the curve on a new graph.
+- **An ellipse's distance**: Eberly's root by Newton's method, in s near the curve and in s + 1 near the long axis inside a thin
+  ellipse, where each keeps its digits: right to 2 × 10⁻¹⁵ near that axis and to a few parts in 10¹⁶ of the axis near the curve,
+  twice as fast as bisection.
+- **Checked**: Gander, Golub and Strebel's circle and ellipse to every digit they print; those and four more against SciPy's
+  least_squares on the parametric form polished on the exact distances (1.2e-7 of an error) and SciPy's odr in its implicit mode;
+  490 distances to ellipses against 40-digit arithmetic; a fuzzer of random arcs and of distances; recovery, a shift and a turn,
+  distances against a sampled curve, the radius's error against its spread over 300 repeats, refusals; in the browser, the
+  dialog, an ellipse, a formula, the plot, a reload; two perf budgets.
+
 ## Closing the gap with Origin, wave 4, slice 4.4: surface fits (2026-11-15)
 
 - **Analyze › Fit › Surface fit…**: z as a function of x and y, from three columns or a matrix; a plane and polynomial surfaces

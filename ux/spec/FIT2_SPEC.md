@@ -339,6 +339,17 @@ and its map, the residual map, a formula of x and y, a refusal, a reload); `perf
 
 ## 4.5 Implicit fits
 
+Done 15.11, as below, with these changes of plan: each point's distance is the exact one to its nearest place on the curve,
+not ODRPACK's penalty (a circle's in closed form, an ellipse's by Eberly's root worked by Newton's method in s and, below −½, in
+s + 1, a formula's foot by Newton's projection), and Levenberg–Marquardt fits the parameters to those distances (a circle's and an
+ellipse's points about their mean), so `odrFit` is unchanged; the fit is an analysis kind, `impl`, whose dialog has X, Y, the
+curve, the formula and the parameter grid (start, Fix, limits), a formula needing a start for each parameter; an ellipse is
+described one way (a the longer, θ within ±90°); the sheet has each point's signed distance and foot; Kåsa's circle starts the
+circle; the reference is SciPy's least_squares on the parametric form polished on the distances with each foot found globally
+(`impl_ref.py`: the parametric form alone left a point on the far side of a thin ellipse and stopped short), with SciPy's `odr`
+in its implicit mode beside it, 40-digit distances to ellipses, and Gander, Golub and Strebel's circle and ellipse to every
+digit they print.
+
 **What.** Analyze › Fit › Implicit fit…: X and Y columns; a circle (centre and radius), an ellipse
 (centre, half axes, turn) or your formula in x and y equal to zero; fitted by orthogonal distance;
 the parameters with their errors; the curve's points into result columns (a circle's and an

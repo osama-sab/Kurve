@@ -1385,6 +1385,25 @@ graph first, with the taskbar kept at the bottom of the screen.
   `surfToMatrix(id, "fit"|"res")` (a matrix computed by `surfFormula`'s text, on the matrix's grid or 101 × 101 over the extent, the
   residuals `<matrix> - (…)`, and its map: one undo step) and `surfResMap(id)` (from columns: `pty` against `ptx` as a `tmap` curve
   coloured by `ptres`). Analyze › Fit › Surface fit….
+  **Implicit fits** (FIT2_SPEC 4.5; after the surface fits): `circleGuess(X, Y)` (Kåsa's algebraic circle, about the mean and scaled),
+  `eig3`, `conicEllipse`, `ellipseGuess(X, Y)` (Fitzgibbon's ellipse as Halír and Flusser solve it; null for a hyperbola or nothing),
+  `ellFoot(a, b, u, v)` (a ≥ b: `[d, fu, fv]`, the signed distance, outside positive, and the foot; Eberly's root by `ellRoot(h, lo, hi)`,
+  Newton's method from the bracket's lower end on a convex falling function, bisection after 200 steps, worked in s and, when the root is
+  below −½, again in w = s + 1; the distance |s|·|(y0/(s + r0), y1/(s + 1))|), `ellDist` (its distance), `implFoot(f, px, py, h)`
+  (a formula's foot by Newton's projection, the gradient by central differences), `IMPL_P`, `IMPL_MODELS` (`circle` `[xc, yc, r]`,
+  `ellipse` `[xc, yc, a, b, theta]`, each `{name, params, mean, dim, formula, guess, lo, dist(p, x, y), foot, curve(p, n)}`),
+  `implUser(src)` (your formula of x and y, `= 0` dropped, y read as `y__`; its dist through `implFoot`, `setScale` the step),
+  `implModel(id, formula)`, `zeroContour(f, x0, x1, y0, y1, n)` (marching squares, segments with gaps), `implFit(X, Y, id, {formula,
+  start, fix, lo, hi, maxIter})` (lmFit on each point's distance, tol 1e-15; a circle's or an ellipse's points about their mean; an
+  ellipse described one way, a the longer and theta within ±90°; `{res (lmFit's, `dist`, `foot`), m, curve {x, y}}` or `{fail}` in
+  words: points on a line, no ellipse to start from, too few points, every parameter fixed, a point not a number), `IMPL_KINDS`. Kind
+  `impl` (`typed`, `xs`; `p.x`, `p.y` column ids, `model`, `formula`, `start`, `fix`, `lo`, `hi`, `conf`; the sheet each parameter
+  (`name`, `unit`, `v`, `se`, `t`, `p`, `lo`, `hi`), the statistics (`stk`, `stv`: points, degrees of freedom, the sum of squared
+  distances, s, iterations), each point's `ptx` (an X), `pty`, `ptd`, `ptfx`, `ptfy`, the curve's `cvx` (an X), `cvy`; `report.impl
+  {model, x, y, params}`; X and Y in different units said). Form `ANA_FORMS.impl` (`#aJx`, `#aJy`, `#aJmod`, `#aJf` shown for a
+  formula, `#aCf`, `#aSpar` by `surfParHtml(id, formula, p, implModel)`, `#aSmsg`; a formula needs a start for each parameter);
+  `implPlot(id)` (the report's *Plot it over the data*: `pty` as symbols and `cvy` as a line, one undo step). Analyze › Fit ›
+  Implicit fit….
   **Rows of a model and two- and three-way ANOVA** (STATS_SPEC 2.6): `linModel` returns `vars`, `termList` and `spec`;
   `lmCell(M, codes)` (a cell's design row, memoised per model in `LMCELL`), `lmEstOk(M, L)` (estimable: each aliased
   column's entry what the kept ones make it), `lmEst(M, L)` (`{est, v, se}`, b in double-double; `lmContrast` is on it),
@@ -3541,7 +3560,10 @@ as the kind gives them with that seed, the report's section and method, followed
 fit…, X, Y and Z from their roles and one column twice refused, a paraboloid's coefficients, errors and units against surfFit,
 the fitted surface as a matrix and its map in one undo step, the residual map, followed, a formula's parameters listed as typed
 and a fixed one refused without a value, a turned Gaussian from a matrix, its residuals as a matrix, the matrix deleted, a
-reload); `ONLY=2.11` runs one section.
+reload), and 4.5 (Analyze › Fit's Implicit fit…, X and Y from their roles and one column for both refused, a circle's and an
+ellipse's parameters listed, an ellipse's errors, units, distances, feet and curve against implFit, Plot it over the data
+and its undo, followed, a formula asked for, refused without parameters and without starts, fitted, points on a line refused,
+a reload); `ONLY=2.11` runs one section.
 `node tools/stats-test.mjs [path]` checks the distributions' properties (the tails adding up to
 1, each quantile giving back its value, symmetry, rising, the limits, counts' probabilities adding
 up to 1 and their tails being their sums, Cauchy's t, closed forms), and the descriptive statistics'
@@ -3571,8 +3593,10 @@ test's size over 2 000 data sets, Akaike's weights adding up to 1, nesting by a 
 apart about 5 % of the time, refusals), and honest intervals' (a robust line not pulled by planted outliers, Huber's efficiency,
 its H1 error against its spread, the bootstrap interval's coverage of a known slope, a seed's numbers again, a linear model's
 bootstrap, refusals), and surface fits' (each model recovered within four errors, a polynomial's fitted values whatever the
-origin of x and y, a coefficient fixed, refusals); run it, ref-test and a fuzzer seed after touching the STATS or
-ANA block.
+origin of x and y, a coefficient fixed, refusals), and implicit fits' (a circle, an arc, an ellipse and a formula
+recovered within four errors, a shift and a turn moving the curve with the points, each distance the radial one or the nearest
+of a sampled ellipse, the radius's error against its spread over 300 repeats, refusals); run it, ref-test and a fuzzer seed
+after touching the STATS or ANA block.
 `node tools/sheet-drive.mjs [path]` (Playwright; `ONLY=3.1` runs one section) checks the worksheet as a table
 (`ux/spec/SHEET_SPEC.md`, wave 3): 3.1, formulas typed into the F(x)= row (an aggregate, rows of other rows, a running
 sum, text compared, `=` as equality, another sheet by a name with its spaces left out, that sheet renamed and a column
@@ -5238,7 +5262,9 @@ Next, in order:
    written from the papers agreeing to 1.2e-13), done 15.11;
    slice 4.4, surface fits (a plane, polynomial surfaces to order 5 solved directly, turned Gaussian and Lorentzian surfaces and
    your formula of x and y, from three columns or a matrix; the fitted surface and the residuals as matrices drawn as maps), done
-   15.11
+   15.11; slice 4.5, implicit fits (a circle, an ellipse or a formula f(x, y) = 0 through points measured in both coordinates, by
+   each point's exact distance to the curve; SciPy polished on the exact distances agreeing to 1.2e-7 of an error, distances to
+   ellipses against 40 digits to 2e-15 near the long axis and a few parts in 10¹⁶ of the axis near the curve), done 15.11
 
 ## Known gaps
 
@@ -5469,6 +5495,11 @@ Next, in order:
 - Surface fits: equal weights only (no weights from a column or a matrix), no X or Y errors, no bootstrap or robust surface;
   your formula of x and y with lines naming values is written into a matrix's formula on one line; the fitted surface as a
   matrix is a copy made when asked (a later fit does not change it); no 3D drawing yet (PARITY_SPEC 7.8: a map instead)
+- Implicit fits: equal weights only (no weights, no errors per point in x or y), a circle, an ellipse or one formula (no conic
+  in general, no implicit surface); an ellipse starts from the algebraic ellipse, and with points scattered by a good part of
+  its shorter axis there can be a lower minimum nearby (give starts); a formula's foot is Newton's projection from the point,
+  so for a curve that folds near a point the foot found may not be the nearest; a formula's curve is drawn by contouring over
+  the points' box, 160 cells a side
 - Shirley and Tougaard: in the peak fit worked out from the points in its range (a fit of every
   column from each column's own; refused when fitting every column together), Tougaard's from at most
   8000 points; the universal and three-parameter cross-sections only; no active Shirley–Proctor, no
