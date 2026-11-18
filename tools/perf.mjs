@@ -86,6 +86,7 @@ const BUDGET = {
   "Grid: thin plate, 2000 points": [6000, "2000 scattered points onto 200 × 200 by a thin-plate spline, its system of 2003 by blocked LU (in the worker in the app; SIGNAL_SPEC 5.7)"],
   "Envelope: 2^20 points": [600, "the analytic signal's amplitude of 1 048 576 points, two transforms (SIGNAL_SPEC 5.4)"],
   "Filter: order 20, 10^6 points": [300, "a Butterworth high-pass of order 20 designed, then run forwards and backwards over a million values (SIGNAL_SPEC 5.2)"],
+  "Smooth: LOWESS, 10^5 points": [1200, "the Smooth step by LOWESS over 100 000 points, a fraction of 0.3 and three robust rounds, with its checks (SIGNAL_SPEC 5.8)"],
 };
 const got = {};
 const best = async (fn) => { let m = Infinity; for (let i = 0; i < RUNS; i++) m = Math.min(m, await fn()); return m; };
@@ -245,6 +246,9 @@ await withPage(async (p) => {
     const a = performance.now(); envelope(x, y, { out: "env" }); return performance.now() - a; }));
   got["Filter: order 20, 10^6 points"] = await best(() => p.evaluate(() => { const mb = mulberry32(24), y = Float64Array.from({ length: 1e6 }, () => mb());
     const a = performance.now(); sosfiltfilt(iirDesign({ kind: "butter", band: "high", order: 20, w1: 0.1 }).sos, y); return performance.now() - a; }));
+  got["Smooth: LOWESS, 10^5 points"] = await best(() => p.evaluate(() => { const mb = mulberry32(26), n = 1e5, x = Array.from({ length: n }, (_, i) => i * 0.01), y = x.map((v) => Math.sin(v / 20) + 0.1 * mb());
+    const d = { x, y, e: null, idx: x.map((_, i) => i), xn: "Time", xu: "s", yn: "Signal", yu: "V" };
+    const a = performance.now(); PIPE_OPS.smooth.run(d, { method: "lowess", frac: 0.3, it: 3 }, {}); return performance.now() - a; }));
 });
 
 await browser.close(); server.close();

@@ -1679,7 +1679,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   `areaBetween(xa, ya, xb, yb, {x0, x1})` (`{area, abs, cross, n}`), `lowess(x, y, {frac, it, delta, deg, k})` (statsmodels' exactly,
   `deg` 2 Cleveland and Devlin's LOESS), `GK15`, `gk15`, `integrateFn(f, a, b, tol)` (adaptive Gauss–Kronrod); for the bench `ruleOn`,
   `lowessY`. Kinds `integ` (`x0`, `x1`; `trap`, `etrap`, `simp`, `esimp`, `abs`, `cen`, `n`) and `between` (`what`, `val`, `cx`), forms
-  `#aIr0`/`#aIr1`; Smooth's `lowess`/`loess` (`frac`, `it`, `smLocal`); `fitIntegral(f, a, b)` (through `fitView`, the error by
+  `#aIr0`/`#aIr1`; Smooth's `lowess`/`loess` (`frac`, `it`, `smLocal`; fitted at points a hundredth of X's range apart at most, a tenth of the fraction's share when
+  smaller, as R's `delta`; its band check on the band and the neighbours scaled to 60 points together, with no robust rounds); `fitIntegral(f, a, b)` (through `fitView`, the error by
   central differences through the covariance) and `fitIntegralDlg` (Analyze › Fit › Integrate the fitted curve…: `#fiA`, `#fiB`,
   `#fiOut`; a log line and a toast with Copy). Analyze › Calculus › Integrate as an analysis…, Area between two curves….
 - **Worksheet** (`renderWs`, `setupWs`): a spreadsheet grid as in Excel, with Origin's label

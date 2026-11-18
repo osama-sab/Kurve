@@ -265,6 +265,13 @@ console.log("5.8 calculus, further");
   const l1 = lowess(xs, ys, { frac: 0.2 }).y, l2 = lowess(perm.map((i) => xs[i]), perm.map((i) => ys[i]), { frac: 0.2 }).y; ok(perm.every((i, j) => Math.abs(l2[j] - l1[i]) < 1e-14), "LOWESS does not depend on the rows' order");
   const g = integrateFn((t) => Math.exp(-t * t), -6, 6); ok(Math.abs(g.v - Math.sqrt(Math.PI)) < 1e-14, `Gauss–Kronrod: ∫e^(−x²) over ±6 is √π to ${Math.abs(g.v - Math.sqrt(Math.PI)).toExponential(1)}`);
   const pts = (x, y) => ({ x, y, e: x.map(() => null), rows: x.map((_, i) => i) }), R = anaRunKind("integ", [{ id: "a", name: "C", unit: "V", xu: "s", pts: pts(x, c) }], {});
+  { const sop = get("PIPE_OPS").smooth, n = 1e5, xx = Array.from({ length: n }, (_, i) => i * 0.01), yy = xx.map((v, i) => Math.sin(v / 20) + 0.1 * Math.sin(i * 12.9898)), d = { x: xx, y: yy, e: null, idx: xx.map((_, i) => i), xn: "Time", xu: "s", yn: "V", yu: "V" };
+    const t0 = performance.now(), r = sop.run(d, { method: "lowess", frac: 0.3, it: 3 }, {}), ms = performance.now() - t0, ex = lowess(xx.slice(0, 2000), yy.slice(0, 2000), { frac: 0.3, it: 3 }).y;
+    const r2 = sop.run({ x: xx.slice(0, 2000), y: yy.slice(0, 2000), e: null, idx: xx.slice(0, 2000).map((_, i) => i), xu: "s" }, { method: "lowess", frac: 0.3, it: 3 }, {}); let dev = 0; ex.forEach((v, i) => { dev = Math.max(dev, Math.abs(v - r2.d.y[i])); });
+    ok(ms < 3000 && r.d.y.length === n && dev < 0.01 && !(r2.warn || []).some((w) => /spacing/.test(w)), `the Smooth step's LOWESS over 10⁵ points in ${Math.round(ms)} ms (R's delta: within ${dev.toExponential(1)} of every point fitted on 2000), no warning about spacing`); }
+  { const sop = get("PIPE_OPS").smooth, xx = Array.from({ length: 1000 }, (_, i) => i), yy = xx.map((v, i) => 10 / (1 + ((v - 500) / 15) ** 2) + 0.05 * Math.sin(i * 12.9898)), d = { x: xx, y: yy, e: null, idx: xx.slice(), xu: "s" };
+    const wide = sop.run(d, { method: "lowess", frac: 0.3, it: 3 }, {}), narrow = sop.run(d, { method: "lowess", frac: 0.01, it: 3 }, {});
+    ok((wide.warn || []).some((w) => /lowers the band at 500/.test(w)) && !(narrow.warn || []).some((w) => /lowers the band/.test(w)), "LOWESS over 30% of the points says it lowers a band 30 points wide; over 1% it does not", JSON.stringify(wide.warn)); }
   ok(Math.abs(R.tables[0].cols.find((q) => q.k === "simp").vals[0] - 2400) < 1e-9 && R.tables[0].cols.find((q) => q.k === "trap").unit === "V·s", "Integrate as an analysis: Simpson's 2400 beside the trapezoid's, in V·s");
 }
 console.log(`\n${pass} passed, ${fail} failed`);
