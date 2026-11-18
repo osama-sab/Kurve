@@ -51,6 +51,9 @@ TERMS = {
 }
 # Senses of a word the glossary keeps: (term, context regex, text regex around the word).
 SENSE = {
+    # the transform's spectrum (SIGNAL_SPEC, wave 5): signal processing's own word, not a column called a spectrum
+    "spectrum": (re.compile(r"^DOC:signal$"),
+                 re.compile(r"[Pp]ower spectr(?:um|al)|spectral density|[Pp]lot the spectrum|needed for a spectrum|A spectrum's real|sides? of the spectrum|SciPy's \"spectrum\"|Spectrum: per bin", re.I)),
     "panels (windows)": (re.compile(r"fig|Fig|panel|Panel|unshut|renderGraphHeads|dropText|xRows|gDropAt|graphTitle|newGraphItems|deleteFigure|wireWin|syncGraphWins|graphsMenuItems|DOC:(?:panels|graphs|style|export|plotting|keys)"),
                          re.compile(r"residual panel|panel (?:under|of the residuals)|panels? of (?:a|the) figure|stacked panels|Stacked panels|a panel per|panel for each|in panels|panel's|Panels…", re.I)),
 }

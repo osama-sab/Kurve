@@ -228,6 +228,14 @@ the page for more than 100 ms. `perf.mjs` gains each.
 
 ## 5.1 The transform, with its output
 
+Done 18.11, as below, with these changes of plan: no Welch window (SciPy has none, and its definitions differ), so ten
+windows; a prime length of 10⁶ takes about a second (three transforms of 2²¹ by Bluestein's chirp), so a column past
+400 000 points is transformed in the worker, the page never waiting, and the budget is a power of two of 10⁶ in 0.2 s and
+any length in 1.5 s in the worker; a kind may read another analysis's result columns (`resIn`: the inverse reads an FFT's
+real and imaginary parts), never its own or those of an analysis that reads it; the phase is judged against NumPy where
+the bin holds at least 1 % of the largest magnitude (elsewhere its error is rounding over a small modulus; the real and
+imaginary parts are held to 1e-12 everywhere).
+
 **What.** Analyze › Signal processing › *FFT…*, *Power spectrum (Welch)…* and *Inverse FFT…*. The
 FFT analysis reads one column's points (several ticked: each its own block of columns), checks the
 spacing (decision 2), takes the trend off if asked (none, the mean, a straight line, as

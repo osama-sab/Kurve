@@ -1024,6 +1024,27 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 5, slice 5.1: the transform, with its output (2026-11-18)
+
+- **Analyze › Signal processing › FFT…**: the discrete Fourier transform of each column ticked, at any length (Bluestein's
+  chirp where it is not a power of two), into a result sheet: frequency (in the reciprocal of X's unit: Hz for seconds, cm for
+  cm⁻¹) and the columns chosen, amplitude, power, power spectral density, phase (unwrapped, degrees), real and imaginary
+  parts, power in dB. Ten windows (rectangle, Hann, Hamming, Blackman, Blackman–Harris, flat top, Kaiser β, Tukey α,
+  Bartlett, Gaussian σ), a trend taken off, padding, one or two sides (shifted from −fs/2). A sine of amplitude A reads A, its
+  power A²/2, and the density integrates to the mean square, with any window; the report says so, with the window's gains
+  and the frequency of the largest amplitude.
+- **Power spectrum (Welch)…**: SciPy's `welch` (segments, overlap, detrend, density or spectrum, mean or median).
+- **Inverse FFT…**: a real and an imaginary column back to the signal, both sides or one (irfft); it can read an FFT's own
+  result columns.
+- X out of order is sorted, uneven X read on an even grid, each said; a refusal is in words. Past 400 000 points the worker.
+- The tab's menu: *Plot the spectrum*. Help: *Signal processing*.
+
+Checked: 138 new reference checks against NumPy and SciPy (`tools/ref/sig_fixtures.py`: the FFT at 56 lengths to 1.7e-15,
+every window to 7e-16, the periodogram and Welch to 1e-15, SciPy's refusals refused); `tools/sig-test.mjs` (40: Parseval, a prime
+length of 1 000 003 against a closed form, a sine's amplitude with four windows, Welch on white noise, the units, the inverse
+round trip); `tools/sig-drive.mjs` (24: the menu path, every control of the three dialogs, Plot, recalculation and undo, the
+worker at 500 000 points).
+
 ## Closing the gap with Origin, wave 4's end (2026-11-15)
 
 - **The suite** green on the last slice: every node test, the bench (231 checks), the fuzzer, every drive, the menus and 47 speed

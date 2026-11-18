@@ -1592,6 +1592,33 @@ graph first, with the taskbar kept at the bottom of the screen.
   the picture's chip names the matrix; `helpFor` gives `matrices`. Storage: `projArrs`, `matsMapZ` (IdbStore's
   `toRec`, `fromRec`, `recKeys`, `known` and its sweep of unused arrays), `pfDoc`/`pfCheck` (`$f64`). The Explorer
   (`mx:<book id>`, kind `mat`).
+- **Signal processing and mathematics** (SIGNAL_SPEC, wave 5): the pure `==SIG:START/END==` block (after MAT; loaded by
+  the compute worker, `tools/ref/run.mjs`, `tools/sig-test.mjs`). **5.1**: `fftAny(re, im, inv)` (in place on Float64Arrays: a
+  power of two by `fftInPlace`, any other n by Bluestein's chirp, `bluePlan(n)` kept in `BLU`: c_m = exp(−πi m²/n) with m²
+  carried modulo 2n as an integer, the convolution by radix 2 at M ≥ 2n − 1; the inverse divides by n), `fftC(re, im, N, inv)`
+  (numpy.fft.fft/ifft at length N), `rfft`, `irfft` (Hermitian, the imaginary parts at 0 and N/2 unused), `fftFreq(N, d,
+  one)`, `fftShift(a, inv)`; windows `SIG_WINDOWS` (`[key, name, parameter, default, hint]`: boxcar, hann, hamming,
+  blackman, blackmanharris, flattop, bartlett, kaiser β, tukey α, gaussian σ), `SIG_WIN`, `SIG_COS` (the cosine sums, as
+  SciPy's `general_cosine` over `linspaceV(−π, π)`), `sigWindow(kind, M, par, sym)` (periodic by default, one longer and
+  cut, as `get_window`'s fftbins), `besselI0` (Cephes' `I0A`/`I0B` through `chbevl`, as NumPy), `winGains(w)` (`s1`, `s2`,
+  coherent gain, noise bandwidth); `detrendV(y, "none"|"constant"|"linear")`, `npMod`, `unwrapV` (numpy.unwrap);
+  `sigEven(x, y, min)` (finite pairs, sorted if not, resampled by straight lines onto as many evenly spaced points when a
+  step differs from the median by 1e-6 of it, each said in `notes`; a repeated X or too few points refused);
+  `spectrum(y, fs, {win, wpar, nfft, detrend, sides, shift})` (scipy.signal.periodogram with the FFT's other outputs: `f`,
+  `re`/`im` unscaled, `amp` 2|X|/Σw one-sided, `pow` |X|²/(Σw)², `psd` |X|²/(fs·Σw²), `phase`, the gains); `medianBias`,
+  `welchSegs`, `welch(y, fs, {win, wpar, nseg, over, nfft, detrend, scaling, avg, sides, shift})` (scipy.signal.welch).
+  The ANA block's kinds: `sigRecip(u)` (a frequency's unit: s → Hz, ms → kHz, cm⁻¹ → cm, m → m⁻¹, m/s → 1/(m/s)),
+  `sigSq`, `sigPer`, `sigDb`, `FFT_OUTS`, `SIG_DETREND`, `sigWinName`, `sigPadN`; `ANA_KINDS.fft` (`p.win`, `wpar`,
+  `detrend`, `pad` "none"|"pow2"|a length, `sides`, `shift`, `unwrap`, `deg`, `outs`; per column `f<t>` (X), `amp<t>` (Y)
+  and the others, the report's Transform and window tables, past 400 000 points `heavy`), `ANA_KINDS.psd` (`nseg`, `over`,
+  `nfft`, `detrend`, `scaling`, `avg`, `sides`, `db`; `f<t>`, `p<t>`, `db<t>`), `ANA_KINDS.ifft` (`typed`, `xs`, `resIn`:
+  `p.re`, `p.im` column ids, `sides`, `odd`; `t`, `re`, `im`). A kind with `resIn` is offered result columns in `anaDlg`
+  (the result sheet in front is its sheet), never its own or an analysis's that reads it (`anaReads`, `anaResOk`). Forms:
+  `sigWinHtml`/`sigWinWire`/`sigWinRead`/`sigWinOk` (`#aWw`, `#aWp`, `#aWpL`), `ANA_FORMS.fft` (`#aFd`, `#aFp`, `#aFpn`,
+  `#aFs`, `#aFsh`, `#aFo_<key>`, `#aFu`, `#aFg`), `.psd` (`#aWn`, `#aWo`, `#aWs`, `#aWa`, `#aWdb`), `.ifft` (`#aIr`,
+  `#aIi`, `#aIs`, `#aIo`). `SIG_PLOT`/`sigPlot(id)` (the tab's *Plot the spectrum*: the sheet's Y columns on a new graph).
+  Analyze › Signal processing › FFT…, Power spectrum (Welch)…, Inverse FFT…; Help `signal`. References:
+  `tools/ref/sig_fixtures.py` → `fixtures/sig-fft.json`, judged in `ref-test.mjs`'s Signal processing section.
 - **Worksheet** (`renderWs`, `setupWs`): a spreadsheet grid as in Excel, with Origin's label
   rows. Columns have fixed widths (`WS_W`, 100 px; `p.wsw[colId]` when dragged or autofitted by
   a double click on the header's edge, `wsSetWidth`, `wsAutofit`), never stretched to the
@@ -5285,7 +5312,9 @@ Next, in order:
    names from wave 10's identity, comments on every kind of thing, tracked changes shown where they were made with Simple, All, No markup and Original, Accept and
    Reject, the round trip of a reviewed file back into its project, Compare and Combine, Restrict and Inspect; a Review menu,
    a Review tool window, the toolbar and the status bar), its eight slices in `ux/spec/PARITY_SPEC.md`. Wave 5's plan is `ux/spec/SIGNAL_SPEC.md` (signal processing and
-   mathematics, eight slices in the order 5.1, 5.2, 5.3, 5.7, 5.4, 5.5, 5.6, 5.8; its eleven decisions, 18.11)
+   mathematics, eight slices in the order 5.1, 5.2, 5.3, 5.7, 5.4, 5.5, 5.6, 5.8; its eleven decisions, 18.11); slice 5.1, the
+   transform with its output (FFT of any length into a result sheet, ten windows, Welch's spectrum, the inverse; NumPy and
+   SciPy agreeing to 2e-15), done 18.11
 
 ## Known gaps
 

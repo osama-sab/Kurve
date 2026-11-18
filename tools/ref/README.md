@@ -41,6 +41,19 @@ Pontius, Filip, Longley, Wampler 1–5, NoInt1–2), the univariate ones (Lew, L
 NumAcc1–4, PiDigits), the ANOVA ones (SiRstv, SmLs01–09, AtmWtAg) and the 27 nonlinear ones (Misra1a
 to Bennett5), each read by the tests as NIST wrote it.
 
+## Wave 5's references
+
+`tools/ref/sig_fixtures.py` makes `fixtures/sig-*.json` (signal processing and mathematics, `ux/spec/SIGNAL_SPEC.md`) from
+NumPy, SciPy and PyWavelets, apart from `make-fixtures.py` so a slice's references are made in seconds; `--check` and
+`--only` as there. It needs PyWavelets beside the others (`pip install --target "$PYREF" PyWavelets`). First made with Python
+3.13.18, NumPy 2.5.5, SciPy 1.18.1 and PyWavelets 1.8.0. `ref-test.mjs` judges each array by its worst error over the
+reference's largest |value| (a `scale` given where the answer is rounding, as a detrended residual), a complex one over its
+largest modulus, a refusal of SciPy's as one of Kurve's.
+
+The suite's menu crawl (`tools/ux/crawl.py`) needs Python's `playwright` package of the same version as node's (1.63.0 on
+18.11: `pip install --target "$PYREF" playwright==1.63.0`; the browser already installed is used, nothing is downloaded).
+`tools/suite.sh` puts `$PYREF` on its path.
+
 ## The fuzzer
 
 ```sh

@@ -783,19 +783,19 @@
   "why": "polynomial surfaces of order 1 to 5 against the same least squares in exact rationals: each coefficient over its conditioning (powers of x and y about their centre carried back), the centred coefficients, the fitted values and the errors"
  },
  "surfFit.nl": {
-  "tol": 1e-5,
+  "tol": 1e-05,
   "why": "Gaussian, Lorentzian and formula surfaces against SciPy's least_squares (a peak from Kurve's own guess, a formula from SciPy's starts): the same optimum, each parameter's difference over its standard error (worst seen 1.5e-6, a round peak's turn, whose error is 18°)"
  },
  "surfFit.nl.se": {
-  "tol": 1e-5,
+  "tol": 1e-05,
   "why": "their errors, s²(JᵀJ)⁻¹, from Jacobians by central and by SciPy's own differences"
  },
  "implFit": {
-  "tol": 1e-5,
+  "tol": 1e-05,
   "why": "circles, ellipses and formulas by exact orthogonal distance against SciPy's least_squares on the parametric form, each point's place an unknown, polished on the distances with each foot found globally (impl_ref.py): the same optimum, each parameter's difference over its standard error (worst seen 1.2e-7) and the sum of squared distances"
  },
  "implFit.se": {
-  "tol": 1e-5,
+  "tol": 1e-05,
   "why": "their errors, s²(JᵀJ)⁻¹ over n − m: Kurve's from the distances' Jacobian by central differences, the reference's from the exact one (worst seen 1.6e-8)"
  },
  "ellDist": {
@@ -807,7 +807,7 @@
   "why": "Gander, Golub and Strebel's (1994) circle and ellipse as they print them, to four decimals: each parameter within half a unit of the last place printed (1 means half a unit; worst seen 0.87)"
  },
  "implFit.odr": {
-  "tol": 1e-2,
+  "tol": 0.01,
   "why": "against SciPy's odr in its implicit mode, started from the optimum, which reaches the curve by a penalty and stops a few thousandths of an error from it (worst seen 2.7e-3); left out where ODRPACK does not say it converged (Gander, Golub and Strebel's ellipse, where it runs off to its iteration limit)"
  },
  "xps.shirley": {
@@ -825,5 +825,59 @@
  "models": {
   "tol": 1e-13,
   "why": "each new curve-fit model's function against its formula in 30-digit mpmath (worst seen 3.7e-14: a sum of two sines near a zero); Debye's and Bloch–Grüneisen's integrals by Gauss–Legendre, Pearson IV's complex gamma by Stirling's series"
+ },
+ "fftC": {
+  "tol": 1e-13
+ },
+ "rfft": {
+  "tol": 1e-13
+ },
+ "irfft": {
+  "tol": 1e-13
+ },
+ "fftFreq": {
+  "tol": 1e-15
+ },
+ "sigWindow": {
+  "tol": 1e-14
+ },
+ "besselI0": {
+  "tol": 1e-14
+ },
+ "detrendV": {
+  "tol": 1e-13
+ },
+ "unwrapV": {
+  "tol": 1e-15
+ },
+ "spectrum.f": {
+  "tol": 1e-15
+ },
+ "spectrum.psd": {
+  "tol": 1e-12
+ },
+ "spectrum.pow": {
+  "tol": 1e-12
+ },
+ "spectrum.amp": {
+  "tol": 1e-12
+ },
+ "spectrum.re": {
+  "tol": 1e-12
+ },
+ "spectrum.im": {
+  "tol": 1e-12
+ },
+ "spectrum.phase": {
+  "tol": 1e-12
+ },
+ "welch.f": {
+  "tol": 1e-15
+ },
+ "welch.p": {
+  "tol": 1e-12
+ },
+ "welch.fail": {
+  "tol": 0
  }
 }

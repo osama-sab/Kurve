@@ -9670,6 +9670,92 @@ function cfText(r,name){ if(!r) return ""; if(r.kind==="scale"){ const ends=Numb
 // Several columns' conditions in words, joined by and; a column's own "or" in brackets so the words read one way.
 function filtAll(conds,nameOf){ const ids=Object.keys(conds||{}), parts=ids.map(id=>filtText(conds[id],nameOf(id)));
   return parts.map(t=>ids.length>1&&/ or /.test(t)?`(${t})`:t).join(" and "); }
+/* ---- Signal processing (SIGNAL_SPEC, wave 5): the transform's analyses (5.1). Each reads a column's points, makes them
+   evenly spaced if they are not (sigEven, said in the notes) and writes its result columns on a sheet of their own,
+   the frequency an X column. Units: a frequency is the reciprocal of X's unit (sigRecip), power and density squares. ---- */
+function sigRecip(u){ u=String(u||"").trim(); if(!u) return "";
+  const R={s:"Hz",ms:"kHz","µs":"MHz",us:"MHz",ns:"GHz",ps:"THz",Hz:"s",kHz:"ms",MHz:"µs",GHz:"ns"}; if(R[u]) return R[u];
+  let m=/^(.+?)\s*(?:⁻¹|\^-1|\^\(-1\)|-1)$/.exec(u); if(m) return m[1]; m=/^1\s*\/\s*(.+)$/.exec(u); if(m) return m[1];
+  return /^[^\s/·*]+$/.test(u)?`${u}⁻¹`:`1/(${u})`; }
+function sigSq(u){ u=String(u||"").trim(); return !u?"":/^[^\s/·*²³⁻¹]+$/.test(u)?`${u}²`:`(${u})²`; }
+function sigPer(a,b){ return !a||!b?"":`${a}/${b}`; }
+const sigDb=v=>v>0?10*Math.log10(v):null;
+const FFT_OUTS=[["re","Real part"],["im","Imaginary part"],["amp","Amplitude"],["pow","Power"],["psd","Power spectral density"],["phase","Phase"],["db","Power in dB"]];
+const SIG_DETREND=[["none","Nothing"],["constant","The mean"],["linear","A straight line"]];
+const sigWinName=(k,par)=>{ const w=SIG_WIN[k]; if(!w) return k; return w[2]&&Number.isFinite(+par)?`${w[1]} (${w[2]} = ${+par})`:w[1]; };
+function sigPadN(n,pad){ if(pad==="pow2"){ let N=1; while(N<n) N<<=1; return N; } const t=Math.round(+pad); return t>0?t:n; }
+// The settings every transform shares, as its report states them.
+function sigCommon(ev,q){ return [["Points",ev.x.length],["Spacing",`${fmt(Math.abs(ev.dx),6)}${q.xu?" "+q.xu:""}`]]; }
+ANA_KINDS.fft={label:"FFT", base:"FFT", pts:true,
+  help:"The discrete Fourier transform of a column, as a sheet: frequency, amplitude (a sine of amplitude A reads A), power, the power spectral density, phase, real and imaginary parts. A window, a trend taken off and padding as chosen.",
+  heavy(p,ins){ return ins.reduce((t,q)=>t+(q.pts?q.pts.x.length:0),0)>400000; },
+  run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[]; if(!ins.length) return {fail:"No column chosen."};
+    const outs=Array.isArray(p.outs)&&p.outs.length?p.outs.filter(k=>FFT_OUTS.some(e=>e[0]===k)):["amp","phase"];
+    const win=SIG_WIN[p.win]?p.win:"boxcar", sides=p.sides===2?2:1, det=SIG_DETREND.some(e=>e[0]===p.detrend)?p.detrend:"none", deg=!!p.deg, unwrap=!!p.unwrap;
+    const rows=[]; let ok=0;
+    ins.forEach((q,t)=>{ const nm=ins.length>1?`${q.name}: `:"", ev=sigEven(q.pts.x,q.pts.y,2); if(ev.fail){ notes.push(`${q.name}: ${ev.fail}`); return; }
+      ev.notes.forEach(s=>notes.push(ins.length>1?`${q.name}: ${s}`:s));
+      const n=ev.x.length, N=sigPadN(n,p.pad), fs=1/Math.abs(ev.dx), r=spectrum(ev.y,fs,{win,wpar:p.wpar,nfft:N,detrend:det,sides,shift:!!p.shift});
+      if(r.fail){ notes.push(`${q.name}: ${r.fail}`); return; } ok++;
+      const fu=sigRecip(q.xu), yu=q.unit||"", h=r.f.length, A=x=>Array.from(x,anaNum);
+      let ph=r.phase; if(unwrap) ph=unwrapV(ph); if(deg) ph=ph.map(v=>v*(180/Math.PI));
+      cols.push({k:`f${t}`,name:`${nm}Frequency`,unit:fu,role:"x",vals:A(r.f)});
+      const put={re:[`${nm}Real part`,yu,r.re],im:[`${nm}Imaginary part`,yu,r.im],amp:[`${nm}Amplitude`,yu,r.amp],pow:[`${nm}Power`,sigSq(yu),r.pow],
+        psd:[`${nm}Power spectral density`,sigPer(sigSq(yu),fu),r.psd],phase:[`${nm}Phase`,deg?"°":"rad",ph],db:[`${nm}Power in dB`,"dB",Array.from(r.pow,sigDb)]};
+      const main=outs.includes("amp")?"amp":outs[0];
+      outs.forEach(k=>{ const [name,unit,v]=put[k]; cols.push({k:`${k}${t}`,name,unit,role:k===main?"y":"ignore",vals:A(v)}); });
+      // the largest amplitude away from 0 (the mean's own bin), a number to read, not a finding
+      let kb=-1; for(let k=0;k<h;k++){ if(r.f[k]===0) continue; if(kb<0||r.amp[k]>r.amp[kb]) kb=k; }
+      rows.push([q.name,n,`${fmt(Math.abs(ev.dx),6)}${q.xu?" "+q.xu:""}`,`${fmt(fs,6)}${fu?" "+fu:""}`,N,`${fmt(r.df,6)}${fu?" "+fu:""}`,kb>=0?`${fmt(r.f[kb],6)}${fu?" "+fu:""}`:"",kb>=0?anaNum(r.amp[kb]):null]);
+      if(t===0) secs.push({title:"The window",tables:[{head:["Window","Coherent gain Σw/n","Noise bandwidth (bins)"],rows:[[sigWinName(win,p.wpar),anaNum(r.cg),anaNum(r.enbw)]]}]}); });
+    if(!ok) return {fail:notes.length?notes.join(" "):"No column could be transformed."};
+    secs.unshift({title:"Transform",tables:[{head:["Column","Points","Spacing","Sampling rate","Length transformed","Frequency step","Largest amplitude at","Its amplitude"],rows}]});
+    const method=`The discrete Fourier transform X_k = Σ x_j e^(−2πi jk/N) of each column's values${det!=="none"?` less ${det==="constant"?"their mean":"their least-squares straight line"}`:""}, multiplied by the ${sigWinName(win,p.wpar)} window (periodic, as SciPy's get_window)${p.pad&&p.pad!=="none"?`, with zeros added to ${p.pad==="pow2"?"the next power of two":`${Math.round(+p.pad)} points`}`:""}, at any length (Bluestein's algorithm where it is not a power of two). ${sides===1?"One side: frequencies from 0 to half the sampling rate, every value but those at 0 and (N even) at half the rate doubled":"Two sides: every frequency"+(p.shift?", from −fs/2":", in NumPy's order (0, the positive frequencies, then the negative)")}. The real and imaginary parts are the transform as NumPy gives it, unscaled; amplitude ${sides===1?"2":""}|X|/Σw, so a sine of amplitude A reads A; power |X|²/(Σw)² (SciPy's "spectrum"), so it reads A²/2, the sine's mean square; power spectral density |X|²/(fs·Σw²) (SciPy's "density"), which integrates over frequency to the mean square; phase atan2(Im, Re)${unwrap?", unwrapped":""} in ${deg?"degrees":"radians"}; dB as 10·log₁₀ of the power, relative to 1.`;
+    return {tables:[{cols}],report:{sections:secs,method},notes}; }};
+ANA_KINDS.psd={label:"Power spectrum (Welch)", base:"Spectrum", pts:true,
+  help:"The power spectral density by Welch's method: the periodograms of overlapping windowed segments averaged, which trades frequency resolution for a steadier estimate. As scipy.signal.welch.",
+  heavy(p,ins){ return ins.reduce((t,q)=>t+(q.pts?q.pts.x.length:0),0)>400000; },
+  run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[], rows=[]; if(!ins.length) return {fail:"No column chosen."}; let ok=0;
+    const win=SIG_WIN[p.win]?p.win:"hann", det=SIG_DETREND.some(e=>e[0]===p.detrend)?p.detrend:"constant", sc=p.scaling==="spectrum"?"spectrum":"density", sides=p.sides===2?2:1;
+    ins.forEach((q,t)=>{ const nm=ins.length>1?`${q.name}: `:"", ev=sigEven(q.pts.x,q.pts.y,2); if(ev.fail){ notes.push(`${q.name}: ${ev.fail}`); return; }
+      ev.notes.forEach(s=>notes.push(ins.length>1?`${q.name}: ${s}`:s));
+      const fs=1/Math.abs(ev.dx), r=welch(ev.y,fs,{win,wpar:p.wpar,nseg:p.nseg,over:p.over,nfft:p.nfft,detrend:det,scaling:sc,avg:p.avg,sides,shift:!!p.shift});
+      if(r.fail){ notes.push(`${q.name}: ${r.fail}`); return; } ok++; r.notes.forEach(s=>notes.push(ins.length>1?`${q.name}: ${s}`:s));
+      const fu=sigRecip(q.xu), yu=q.unit||"";
+      cols.push({k:`f${t}`,name:`${nm}Frequency`,unit:fu,role:"x",vals:Array.from(r.f,anaNum)});
+      cols.push({k:`p${t}`,name:`${nm}${sc==="density"?"Power spectral density":"Power"}`,unit:sc==="density"?sigPer(sigSq(yu),fu):sigSq(yu),role:"y",vals:Array.from(r.p,anaNum)});
+      if(p.db) cols.push({k:`db${t}`,name:`${nm}${sc==="density"?"Density":"Power"} in dB`,unit:"dB",role:"ignore",vals:Array.from(r.p,sigDb)});
+      rows.push([q.name,ev.x.length,`${fmt(fs,6)}${fu?" "+fu:""}`,r.nseg,r.over,r.nfft,r.k,`${fmt(r.fs/r.nfft,6)}${fu?" "+fu:""}`,anaNum(r.enbw*r.fs/r.nfft)]); });
+    if(!ok) return {fail:notes.length?notes.join(" "):"No column could be transformed."};
+    secs.push({title:"Segments",tables:[{head:["Column","Points","Sampling rate","Segment","Overlap","Length transformed","Segments averaged","Frequency step","Noise bandwidth"],rows}]});
+    const method=`Welch's method, as scipy.signal.welch: segments of the column's values, each ${det==="none"?"as it is":det==="constant"?"less its mean":"less its least-squares straight line"}, multiplied by the ${sigWinName(win,p.wpar)} window (periodic) and transformed; ${sc==="density"?"|X|²/(fs·Σw²), the power spectral density, which integrates over frequency to the mean square":"|X|²/(Σw)², the power spectrum, in which a sine of amplitude A reads A²/2"}; ${sides===1?"one side, every value but those at 0 and (N even) at half the sampling rate doubled":"two sides"}; the segments ${p.avg==="median"?"put together by their median, divided by the median's bias for a χ² of two degrees of freedom":"averaged"}.${p.db?" dB as 10·log₁₀, relative to 1.":""}`;
+    return {tables:[{cols}],report:{sections:secs,method},notes}; }};
+/* The inverse transform: a real part and an imaginary part (or none) read against their frequency, back to a sequence.
+   Two sides (numpy.fft.ifft, a centred frequency axis put back in NumPy's order first) or one (numpy.fft.irfft, the
+   length 2(m − 1) or 2m − 1). The time step 1/(N·Δf). */
+ANA_KINDS.ifft={label:"Inverse FFT", base:"IFFT", pts:true, typed:true, xs:true, resIn:true,
+  typedWhat:p=>"the real and imaginary parts chosen",
+  help:"A spectrum's real and imaginary parts, read against their frequency, transformed back: the signal they describe, with its time step 1/(N·Δf).",
+  run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[]; const qr=ins.find(q=>q.id===p.re), qi=p.im?ins.find(q=>q.id===p.im):null;
+    if(!qr) return {fail:"Choose the column of real parts."}; if(p.im&&!qi) return {fail:"The column of imaginary parts is not there."};
+    const f=qr.pts.x, R=qr.pts.y, n=f.length; if(n<2) return {fail:"At least two values are needed."};
+    let I=null; if(qi){ const m=new Map(); qi.pts.x.forEach((x,i)=>m.set(x,qi.pts.y[i])); I=f.map(x=>m.has(x)?m.get(x):NaN);
+      const miss=I.filter(v=>!Number.isFinite(v)).length; if(miss) return {fail:`${miss} of the real parts' frequencies have no imaginary part beside them: the two columns must share their frequencies.`}; }
+    const st=[]; for(let i=1;i<n;i++) st.push(f[i]-f[i-1]); const s=Float64Array.from(st).sort(), df=s[s.length>>1];
+    if(!(df>0)) return {fail:"The frequencies must rise, evenly spaced."};
+    if(st.some(v=>Math.abs(v-df)>1e-6*df)) return {fail:"The frequencies are not evenly spaced: an inverse transform needs every bin."};
+    const one=p.sides===1; let re=R.slice(), im=I?I.slice():R.map(()=>0);
+    if(!one&&f[0]<0){ re=Array.from(fftShift(re,true)); im=Array.from(fftShift(im,true)); notes.push("The frequencies run from below 0: they were put back in the transform's own order (0 first) before the inverse."); }
+    if(one&&f[0]!==0) return {fail:"One side starts at frequency 0: the first row's frequency is not 0."};
+    let out; const N=one?(p.odd?2*n-1:2*(n-1)):n;
+    if(one){ out={re:irfft(re,im,N),im:null}; } else { const r=fftC(re,im,n,true); out={re:r.re,im:r.im}; }
+    const dt=1/(N*df), xu=sigRecip(qr.xu), yu=qr.unit||"";
+    cols.push({k:"t",name:"Time",unit:xu,role:"x",vals:Array.from({length:N},(_,k)=>k*dt)});
+    cols.push({k:"re",name:"Real part",unit:yu,role:"y",vals:Array.from(out.re,anaNum)});
+    if(out.im) cols.push({k:"im",name:"Imaginary part",unit:yu,role:"ignore",vals:Array.from(out.im,anaNum)});
+    secs.push({title:"Inverse transform",tables:[{head:["Real parts","Imaginary parts","Values","Length","Frequency step","Time step"],rows:[[qr.name,qi?qi.name:"none (0)",n,N,`${fmt(df,6)}${qr.xu?" "+qr.xu:""}`,`${fmt(dt,6)}${xu?" "+xu:""}`]]}]});
+    const method=one?`numpy.fft.irfft: the values taken as the non-negative half of a Hermitian transform (the imaginary parts at 0${N%2===0?" and at the last frequency":""} not used), the real sequence of ${N} values x_j = (1/N) Σ X_k e^(2πi jk/N).`:`numpy.fft.ifft: x_j = (1/N) Σ X_k e^(2πi jk/N) over the ${n} values, real and imaginary parts.`;
+    return {tables:[{cols}],report:{sections:secs,method:`${method} The time step is 1/(N·Δf).`},notes}; }};
 /* ==ANA:END== */
 /* ==MAT:START== Matrices (ux/spec/SHEET_SPEC.md, slice 3.6), pure: a grid of Z with its X and Y.
    A matrix is {nx, ny, x, y, z}: `z` row major (z[r*nx + c], a row a Y, a column an X), null for a
@@ -9802,6 +9888,153 @@ function matText(m){ const {nx,ny,z}=m, s=v=>v==null?"":String(v), lines=new Arr
   for(let r=0;r<ny;r++){ const o=r*nx; let l=s(z[o]); for(let c=1;c<nx;c++) l+=","+s(z[o+c]); lines[r]=l; }
   return ny?lines.join("\n")+"\n":""; }
 /* ==MAT:END== */
+/* ==SIG:START== Signal processing and mathematics (ux/spec/SIGNAL_SPEC.md, wave 5), pure: the transform of any
+   length, windows and spectra (5.1); the later slices' filters, correlation, envelopes, wavelets, interpolation and
+   calculus beside them. Plain arrays in and out, a refusal {fail} in words, nothing read from the page; loaded by
+   the compute worker, tools/ref/run.mjs and tools/sig-test.mjs. The conventions are NumPy's, SciPy's and
+   PyWavelets' (SIGNAL_SPEC decision 3), so a difference from them is rounding, not a choice. */
+/* The FFT of any length, in place on two Float64Arrays: a power of two by fftInPlace (radix 2), any other n by
+   Bluestein's chirp, X_k = c_k·Σ_j (x_j·c_j)·conj(c_{k−j}) with c_m = exp(−πi·m²/n), the convolution by radix 2 at
+   a length M ≥ 2n − 1. m² is carried modulo 2n as an integer (m² = (m − 1)² + 2m − 1), so the chirp's angle is exact
+   however long the transform. The inverse divides by n, as numpy.fft.ifft does. */
+const BLU=new Map();
+function bluePlan(n){ let P=BLU.get(n); if(P) return P; let M=1; while(M<2*n-1) M<<=1;
+  const cr=new Float64Array(n), ci=new Float64Array(n), n2=2*n; let q=0;
+  for(let m=0;m<n;m++){ if(m){ q+=2*m-1; q%=n2; } const a=Math.PI*q/n; cr[m]=Math.cos(a); ci[m]=-Math.sin(a); }
+  const br=new Float64Array(M), bi=new Float64Array(M);
+  for(let m=0;m<n;m++){ br[m]=cr[m]; bi[m]=-ci[m]; if(m){ br[M-m]=cr[m]; bi[M-m]=-ci[m]; } }
+  fftInPlace(br,bi,false); P={M,cr,ci,br,bi}; if(BLU.size>3) BLU.clear(); BLU.set(n,P); return P; }
+function fftAny(re,im,inv){ const n=re.length; if(n<=1) return; if((n&(n-1))===0){ fftInPlace(re,im,inv); return; }
+  const P=bluePlan(n), M=P.M, cr=P.cr, ci=P.ci, ar=new Float64Array(M), ai=new Float64Array(M), s=inv?-1:1;
+  for(let j=0;j<n;j++){ const xr=re[j], xi=s*im[j]; ar[j]=xr*cr[j]-xi*ci[j]; ai[j]=xr*ci[j]+xi*cr[j]; }
+  fftInPlace(ar,ai,false);
+  const br=P.br, bi=P.bi; for(let k=0;k<M;k++){ const r=ar[k]*br[k]-ai[k]*bi[k]; ai[k]=ar[k]*bi[k]+ai[k]*br[k]; ar[k]=r; }
+  fftInPlace(ar,ai,true);
+  for(let k=0;k<n;k++){ const r=ar[k]*cr[k]-ai[k]*ci[k], i=ar[k]*ci[k]+ai[k]*cr[k]; if(inv){ re[k]=r/n; im[k]=-i/n; } else { re[k]=r; im[k]=i; } } }
+// numpy.fft.fft and ifft of a complex sequence (im may be null), at length N (zeros added or the end cut, as NumPy's n).
+function fftC(re,im,N,inv){ const n=re.length; N=N>0?Math.round(N):n; const R=new Float64Array(N), I=new Float64Array(N), m=Math.min(N,n);
+  for(let i=0;i<m;i++){ R[i]=+re[i]||0; I[i]=im?+im[i]||0:0; } fftAny(R,I,!!inv); return {re:R,im:I}; }
+// numpy.fft.rfft: the first ⌊N/2⌋ + 1 values of a real sequence's transform.
+function rfft(y,N){ const r=fftC(y,null,N,false), h=(r.re.length>>1)+1; return {re:r.re.slice(0,h),im:r.im.slice(0,h)}; }
+/* numpy.fft.irfft: a real sequence of length N (2(m − 1) by default) from the first ⌊N/2⌋ + 1 values of a Hermitian
+   transform (more cut, fewer padded with zeros); the imaginary parts at 0 and, N even, at N/2 are not used. */
+function irfft(re,im,N){ const m=re.length; N=N>0?Math.round(N):2*(m-1); if(N<1) return new Float64Array(0); const R=new Float64Array(N), I=new Float64Array(N), h=(N>>1)+1;
+  for(let k=0;k<h&&k<m;k++){ R[k]=+re[k]||0; I[k]=k===0||2*k===N?0:+(im?im[k]:0)||0; }
+  for(let k=1;2*k<N;k++){ R[N-k]=R[k]; I[N-k]=-I[k]; }
+  fftAny(R,I,true); return R; }
+// numpy.fft.fftfreq and rfftfreq: k·(1/(N·d)), k = 0, 1, …, then −⌊N/2⌋, … for both sides.
+function fftFreq(N,d,one){ const v=1/(N*d), h=one?(N>>1)+1:N, out=new Float64Array(h);
+  if(one){ for(let k=0;k<h;k++) out[k]=k*v; return out; }
+  const p=((N-1)>>1)+1; for(let k=0;k<p;k++) out[k]=k*v; for(let k=p;k<N;k++) out[k]=(k-N)*v; return out; }
+// numpy.fft.fftshift and its inverse, of any array.
+function fftShift(a,inv){ const n=a.length, s=inv?(n>>1):n-(n>>1), out=new (a.constructor===Array?Array:a.constructor)(n); for(let i=0;i<n;i++) out[(i+n-s)%n]=a[i]; return out; }
+
+/* ---- windows: scipy.signal.get_window's, periodic for a spectrum (fftbins, as periodogram and welch take them) or
+   symmetric (a filter's), each as SciPy writes it so the values agree to the last bit or two ---- */
+// The modified Bessel function I₀, as NumPy and SciPy (Cephes' Chebyshev series in two ranges).
+const I0A=[-4.4153416464793395e-18,3.3307945188222384e-17,-2.431279846547955e-16,1.715391285555133e-15,-1.1685332877993451e-14,7.676185498604936e-14,-4.856446783111929e-13,2.95505266312964e-12,-1.726826291441556e-11,9.675809035373237e-11,-5.189795601635263e-10,2.6598237246823866e-09,-1.300025009986248e-08,6.046995022541919e-08,-2.670793853940612e-07,1.1173875391201037e-06,-4.4167383584587505e-06,1.6448448070728896e-05,-5.754195010082104e-05,0.00018850288509584165,-0.0005763755745385824,0.0016394756169413357,-0.004324309995050576,0.010546460394594998,-0.02373741480589947,0.04930528423967071,-0.09490109704804764,0.17162090152220877,-0.3046826723431984,0.6767952744094761];
+const I0B=[-7.233180487874754e-18,-4.830504485944182e-18,4.46562142029676e-17,3.461222867697461e-17,-2.8276239805165836e-16,-3.425485619677219e-16,1.7725601330565263e-15,3.8116806693526224e-15,-9.554846698828307e-15,-4.150569347287222e-14,1.54008621752141e-14,3.8527783827421426e-13,7.180124451383666e-13,-1.7941785315068062e-12,-1.3215811840447713e-11,-3.1499165279632416e-11,1.1889147107846439e-11,4.94060238822497e-10,3.3962320257083865e-09,2.266668990498178e-08,2.0489185894690638e-07,2.8913705208347567e-06,6.889758346916825e-05,0.0033691164782556943,0.8044904110141088];
+function chbevl(x,v){ let b0=v[0], b1=0, b2=0; for(let i=1;i<v.length;i++){ b2=b1; b1=b0; b0=x*b1-b2+v[i]; } return 0.5*(b0-b2); }
+function besselI0(x){ x=Math.abs(x); return x<=8?Math.exp(x)*chbevl(x/2-2,I0A):Math.exp(x)*chbevl(32/x-2,I0B)/Math.sqrt(x); }
+// [key, name, its parameter's name (or null), the parameter's default, the parameter's hint]
+const SIG_WINDOWS=[["boxcar","Rectangle",null],["hann","Hann",null],["hamming","Hamming",null],["blackman","Blackman",null],
+  ["blackmanharris","Blackman–Harris",null],["flattop","Flat top",null],["bartlett","Bartlett (triangle)",null],
+  ["kaiser","Kaiser","β",8.6,"0 is the rectangle; 5 is close to Hamming, 8.6 to Blackman"],["tukey","Tukey","α",0.5,"The tapered fraction: 0 is the rectangle, 1 is Hann"],
+  ["gaussian","Gaussian","σ",null,"The standard deviation, in points (an eighth of the length when left empty)"]];
+const SIG_WIN={}; SIG_WINDOWS.forEach(w=>{ SIG_WIN[w[0]]=w; });
+const SIG_COS={hann:[0.5,0.5],hamming:[0.54,1-0.54],blackman:[0.42,0.50,0.08],blackmanharris:[0.35875,0.48829,0.14128,0.01168],flattop:[0.21557895,0.41663158,0.277263158,0.083578947,0.006947368]};
+// numpy.linspace(a, b, n): k·step + a, the last b exactly.
+function linspaceV(a,b,n){ const out=new Float64Array(n); if(n===1){ out[0]=a; return out; } const st=(b-a)/(n-1); for(let k=0;k<n;k++) out[k]=k*st+a; out[n-1]=b; return out; }
+/* A window of M points: `kind` one of SIG_WINDOWS, `par` its parameter, `sym` the symmetric form (else periodic,
+   one point longer and cut, as SciPy's _extend and _truncate). {fail} for a kind it does not know. */
+function sigWindow(kind,M,par,sym){ M=Math.round(M); if(!(M>=0)) return {fail:"A window needs a length."}; if(!SIG_WIN[kind]) return {fail:`There is no window called ${kind}.`};
+  if(M<=1) return Float64Array.from({length:M},()=>1);
+  const L=sym?M:M+1, w=new Float64Array(L);
+  if(SIG_COS[kind]){ const a=SIG_COS[kind], fac=linspaceV(-Math.PI,Math.PI,L); for(let k=0;k<a.length;k++) for(let i=0;i<L;i++) w[i]+=a[k]*Math.cos(k*fac[i]); }
+  else if(kind==="boxcar") w.fill(1);
+  else if(kind==="bartlett"){ for(let i=0;i<L;i++) w[i]=i<=(L-1)/2?2*i/(L-1):2-2*i/(L-1); }
+  else if(kind==="kaiser"){ const b=Number.isFinite(+par)?+par:8.6, al=(L-1)/2, d=besselI0(b); for(let i=0;i<L;i++) w[i]=besselI0(b*Math.sqrt(1-((i-al)/al)**2))/d; }
+  else if(kind==="gaussian"){ const sd=+par>0?+par:L/8, s2=2*sd*sd; for(let i=0;i<L;i++){ const t=i-(L-1)/2; w[i]=Math.exp(-(t*t)/s2); } }
+  else if(kind==="tukey"){ const al=Number.isFinite(+par)?+par:0.5;
+    if(al<=0) w.fill(1); else if(al>=1) return sigWindow("hann",M,null,sym);
+    else { const wd=Math.floor(al*(L-1)/2); for(let i=0;i<L;i++){ if(i<=wd) w[i]=0.5*(1+Math.cos(Math.PI*(-1+2*i/al/(L-1)))); else if(i<L-wd-1) w[i]=1; else w[i]=0.5*(1+Math.cos(Math.PI*(-2/al+1+2*i/al/(L-1)))); } } }
+  return sym?w:w.slice(0,M); }
+// A window's coherent gain Σw/n and equivalent noise bandwidth n·Σw²/(Σw)², in bins.
+function winGains(w){ let s1=0, s2=0; for(const v of w){ s1+=v; s2+=v*v; } const n=w.length; return {s1,s2,cg:s1/n,enbw:n*s2/(s1*s1)}; }
+
+/* scipy.signal.detrend of one sequence: "constant" the mean taken off, "linear" the least-squares straight line in the
+   index (worked about the middle index, which is the same line), "none" as it is. */
+function detrendV(y,kind){ const n=y.length, out=Float64Array.from(y); if(!n||kind==="none"||!kind) return out;
+  let m=0; for(let i=0;i<n;i++) m+=out[i]; m/=n;
+  if(kind!=="linear"||n<2){ for(let i=0;i<n;i++) out[i]-=m; return out; }
+  const c=(n-1)/2; let sxy=0, sxx=0; for(let i=0;i<n;i++){ const t=i-c; sxy+=t*(out[i]-m); sxx+=t*t; } const b=sxy/sxx;
+  for(let i=0;i<n;i++) out[i]=out[i]-m-b*(i-c); return out; }
+// numpy.mod for floats (the sign of the divisor) and numpy.unwrap of a phase in radians (period 2π, discont π).
+function npMod(a,b){ let m=a%b; if(m!==0){ if((b<0)!==(m<0)) m+=b; } else m=b<0?-0:0; return m; }
+function unwrapV(p){ const n=p.length, out=Float64Array.from(p); if(n<2) return out; const P=2*Math.PI, hi=Math.PI, lo=-hi; let cum=0;
+  for(let i=1;i<n;i++){ const dd=p[i]-p[i-1]; let dm=npMod(dd-lo,P)+lo; if(dm===lo&&dd>0) dm=hi; let pc=dm-dd; if(Math.abs(dd)<hi) pc=0; cum+=pc; out[i]=p[i]+cum; } return out; }
+
+/* A column's points made ready for a transform (SIGNAL_SPEC decision 2): finite pairs, sorted by X if they were not, and
+   when the steps differ from their median by more than 1e-6 of it, resampled by straight lines onto as many evenly
+   spaced points over the same range. {x, y, dx (signed as the data run), notes} or {fail}. */
+function sigEven(x,y,min){ const P=[]; for(let i=0;i<Math.min(x.length,y.length);i++){ const a=x[i], b=y[i]; if(typeof a==="number"&&Number.isFinite(a)&&typeof b==="number"&&Number.isFinite(b)) P.push([a,b]); }
+  const n=P.length, need=min||2; if(n<need) return {fail:`${n?`Only ${n} point${n===1?"":"s"}`:"No points"} with both X and Y: at least ${need} are needed.`};
+  const notes=[]; let up=0, dn=0; for(let i=1;i<n;i++){ if(P[i][0]>P[i-1][0]) up++; else if(P[i][0]<P[i-1][0]) dn++; }
+  const desc=dn>0&&up===0; if(up&&dn){ P.sort((a,b)=>a[0]-b[0]); notes.push("X was not in order: the points were sorted by X first."); }
+  let X=P.map(q=>q[0]), Y=P.map(q=>q[1]);
+  const st=[]; for(let i=1;i<n;i++) st.push(X[i]-X[i-1]); const s=Float64Array.from(st).sort(), med=s[s.length>>1];
+  if(!(med!==0)) return {fail:"Every point has the same X: there is no spacing to transform over."};
+  if(st.some(v=>v===0)){ const k=st.filter(v=>v===0).length; return {fail:`${k} point${k===1?" repeats":"s repeat"} the X before ${k===1?"it":"them"}: average duplicate X first (Data › Clean).`}; }
+  let worst=0; for(const v of st) worst=Math.max(worst,Math.abs(v-med)); 
+  if(worst>1e-6*Math.abs(med)){ const a=X[0], b=X[n-1], gx=linspaceV(a,b,n), gy=new Float64Array(n); let j=0;
+    for(let k=0;k<n;k++){ const v=gx[k]; if(desc){ while(j<n-2&&X[j+1]>v) j++; } else { while(j<n-2&&X[j+1]<v) j++; } const t=(v-X[j])/(X[j+1]-X[j]); gy[k]=Y[j]+(Y[j+1]-Y[j])*Math.max(0,Math.min(1,t)); }
+    notes.push(`X was not evenly spaced (the steps differ by up to ${+(worst/Math.abs(med)*100).toPrecision(2)}% of the median step): the ${n} points were read on an even grid over the same range by straight lines.`);
+    X=Array.from(gx); Y=Array.from(gy); return {x:X,y:Y,dx:(b-a)/(n-1),notes,resampled:true}; }
+  return {x:X,y:Y,dx:(X[n-1]-X[0])/(n-1),notes,resampled:false}; }
+
+/* The periodogram of one evenly sampled sequence, as scipy.signal.periodogram makes it with a window and the FFT's
+   other outputs beside it. o: {win, wpar, nfft (≥ n, zeros added), detrend "none"|"constant"|"linear", sides 1|2,
+   shift (two sides from −fs/2)}. Out: f; re, im the transform of the detrended, windowed, padded sequence as numpy.fft
+   gives it (unscaled); amp (a sine of amplitude A reads A at its bin: one side 2|X|/Σw, the ends not doubled; two sides
+   |X|/Σw); pow (SciPy's "spectrum": |X|²/(Σw)², one side doubled but at the ends, so a sine reads A²/2, its mean
+   square); psd (SciPy's "density": |X|²/(fs·Σw²), doubled the same way, integrating to the mean square); phase
+   (radians, atan2 of the transform); and the window's gains. */
+function spectrum(y,fs,o){ o=o||{}; const n=y.length; if(n<2) return {fail:"At least two points are needed for a spectrum."};
+  if(!(fs>0)||!Number.isFinite(fs)) return {fail:"The sampling rate must be a positive number."};
+  const N=o.nfft>0?Math.round(o.nfft):n; if(N<n) return {fail:`The transform's length (${N}) is shorter than the data (${n} points).`};
+  if(N>1<<26) return {fail:"A transform of more than 67 million points is past what this page can hold."};
+  const w=sigWindow(o.win||"boxcar",n,o.wpar,false); if(w.fail) return w; const g=winGains(w);
+  const d=detrendV(y,o.detrend||"none"), R=new Float64Array(N), I=new Float64Array(N); for(let i=0;i<n;i++) R[i]=d[i]*w[i];
+  fftAny(R,I,false);
+  const one=(o.sides||1)!==2, h=one?(N>>1)+1:N, F=fftFreq(N,1/fs,one), re=R.slice(0,h), im=I.slice(0,h);
+  const amp=new Float64Array(h), pow=new Float64Array(h), psd=new Float64Array(h), ph=new Float64Array(h), ka=1/g.s1, kp=1/(g.s1*g.s1), kd=1/(fs*g.s2);
+  for(let k=0;k<h;k++){ const r=re[k], i=im[k], m2=r*r+i*i, dbl=one&&k>0&&!(N%2===0&&k===N/2)?2:1; amp[k]=Math.sqrt(m2)*ka*dbl; pow[k]=m2*kp*dbl; psd[k]=m2*kd*dbl; ph[k]=Math.atan2(i,r); }
+  let out={f:F,re,im,amp,pow,psd,phase:ph};
+  if(!one&&o.shift){ const s={}; for(const k in out) s[k]=fftShift(out[k]); out=s; }
+  return Object.assign(out,{n,N,fs,df:fs/N,win:o.win||"boxcar",s1:g.s1,s2:g.s2,cg:g.cg,enbw:g.enbw,sides:one?1:2}); }
+
+/* scipy.signal.welch: the periodograms of segments of nseg points (256 by default, all of them when fewer), each
+   started nseg − over points after the last (over = ⌊nseg/2⌋ by default), each detrended ("constant" by default) and
+   windowed (Hann), transformed at nfft (nseg), scaled as "density" |X|²/(fs·Σw²) or "spectrum" |X|²/(Σw)², one side
+   doubled but at its ends, then averaged: the mean, or the median divided by its bias for a χ²₂ variable. */
+function medianBias(n){ let s=0; for(let k=1;k<=((n-1)>>1);k++){ const i2=2*k; s+=1/(i2+1)-1/i2; } return 1+s; }
+function welchSegs(n,nseg,over){ const st=nseg-over; return st>0?Math.floor((n-over)/st):0; }
+function welch(y,fs,o){ o=o||{}; const n=y.length; if(n<2) return {fail:"At least two points are needed for a spectrum."};
+  if(!(fs>0)||!Number.isFinite(fs)) return {fail:"The sampling rate must be a positive number."};
+  let L=o.nseg>0?Math.round(o.nseg):256; const notes=[]; if(L>n){ L=n; notes.push(`The segment is the whole column (${n} points), shorter than the ${o.nseg>0?Math.round(o.nseg):256} asked for.`); }
+  const ov=o.over!=null&&o.over!==""&&Number.isFinite(+o.over)?Math.round(+o.over):L>>1; if(ov<0||ov>=L) return {fail:`The overlap (${ov} points) must be at least 0 and less than the segment (${L}).`};
+  const N=o.nfft>0?Math.round(o.nfft):L; if(N<L) return {fail:`The transform's length (${N}) is shorter than the segment (${L}).`};
+  const w=sigWindow(o.win||"hann",L,o.wpar,false); if(w.fail) return w; const g=winGains(w), K=welchSegs(n,L,ov), step=L-ov;
+  if(K<1) return {fail:"No whole segment fits in the data."};
+  const one=(o.sides||1)!==2, h=one?(N>>1)+1:N, scale=o.scaling==="spectrum"?1/(g.s1*g.s1):1/(fs*g.s2), med=o.avg==="median", P=med?Array.from({length:h},()=>new Float64Array(K)):null, S=new Float64Array(h);
+  const R=new Float64Array(N), I=new Float64Array(N);
+  for(let s=0;s<K;s++){ const seg=detrendV(y.slice(s*step,s*step+L),o.detrend==null?"constant":o.detrend); R.fill(0); I.fill(0); for(let i=0;i<L;i++) R[i]=seg[i]*w[i]; fftAny(R,I,false);
+    for(let k=0;k<h;k++){ const v=(R[k]*R[k]+I[k]*I[k])*scale*(one&&k>0&&!(N%2===0&&k===N/2)?2:1); if(med) P[k][s]=v; else S[k]+=v; } }
+  if(med){ const b=medianBias(K); for(let k=0;k<h;k++){ const a=P[k].sort(); S[k]=(K%2?a[K>>1]:(a[K/2-1]+a[K/2])/2)/b; } }
+  else for(let k=0;k<h;k++) S[k]/=K;
+  let f=fftFreq(N,1/fs,one), p=S; if(!one&&o.shift){ f=fftShift(f); p=fftShift(p); }
+  return {f,p,nseg:L,over:ov,nfft:N,k:K,fs,win:o.win||"hann",s1:g.s1,s2:g.s2,enbw:g.enbw,sides:one?1:2,scaling:o.scaling==="spectrum"?"spectrum":"density",avg:med?"median":"mean",notes}; }
+/* ==SIG:END== */
 
 /* ============================================================
    Formatting helpers
@@ -19585,6 +19818,14 @@ const RS_FORMS={
       <div class="grid2"><label for="aAb">Columns matched</label><select id="aAb"><option value="name">By name</option><option value="pos"${p.by==="pos"?" selected":""}>By position</option></select></div><label class="chk"><input type="checkbox" id="aAc"${p.src===false?"":" checked"}> A column naming each row's sheet</label>`:`<p class="lab">There is no other sheet to append.</p>`; },
     read(v){ const ss=sheetList().filter(s=>v["aAs_"+s.id]).map(s=>s.id), sn={}; sheetList().forEach(s=>{ sn[s.id]=s.name; }); return {sheets:ss,by:v.aAb,src:!!v.aAc,sheetNames:sn}; },
     valid(v){ return sheetList().some(s=>v["aAs_"+s.id]); }, extra(p){ return (p.sheets||[]).flatMap(s=>sheetCols(s).filter(hasVals).map(c=>c.id)); }}};
+/* The window chooser the transforms share (SIGNAL_SPEC 5.1): a kind and, for Kaiser, Tukey and Gaussian, its parameter. */
+const sigWinHtml=(p,def)=>{ const k=SIG_WIN[p.win]?p.win:def, w=SIG_WIN[k];
+  return `<label for="aWw" class="tipd" title="Multiplies the values before the transform, so the ends meet at zero instead of jumping: less leakage from a strong peak into its neighbours, a slightly wider peak">Window</label><select id="aWw">${SIG_WINDOWS.map(e=>`<option value="${e[0]}"${e[0]===k?" selected":""}>${esc(e[1])}</option>`).join("")}</select>
+  <label for="aWp" id="aWpL" class="tipd" title="${esc(w[4]||"")}">${esc(w[2]||"Parameter")}</label><input type="text" id="aWp" inputmode="decimal" value="${Number.isFinite(+p.wpar)&&p.wpar!==null&&p.wpar!==""?+p.wpar:""}" placeholder="${w[3]!=null?w[3]:"automatic"}">`; };
+function sigWinWire(box){ const s=box.querySelector("#aWw"), e=box.querySelector("#aWp"), l=box.querySelector("#aWpL"); if(!s||!e) return; const w=SIG_WIN[s.value]||SIG_WIN.boxcar;
+  e.hidden=l.hidden=!w[2]; if(w[2]){ l.textContent=w[2]; l.title=w[4]||""; e.placeholder=w[3]!=null?String(w[3]):"automatic"; } }
+function sigWinRead(v){ const k=SIG_WIN[v.aWw]?v.aWw:"boxcar", t=String(v.aWp||"").trim(), x=parseNum(t); return {win:k,wpar:SIG_WIN[k][2]&&t!==""&&Number.isFinite(x)?x:null}; }
+function sigWinOk(v){ const k=v.aWw, t=String(v.aWp||"").trim(); if(!SIG_WIN[k]||!SIG_WIN[k][2]||!t) return true; const x=parseNum(t); return Number.isFinite(x)&&(k!=="gaussian"||x>0)&&(k!=="tukey"||x>=0&&x<=1); }
 const ANA_FORMS={
   desc:{html(p){ const want=new Set(descKeys(p)), qt=qtOk(p.qtype)?p.qtype:7, conf=p.conf>0&&p.conf<1?p.conf:0.95;
       const tip={n:"The values counted",miss:"Rows read that hold no number",sd:"Standard deviation",se:"The standard error of the mean, SD / √N",ci:"The interval the mean lies in, at the level below (Student's t)",
@@ -19786,6 +20027,38 @@ const ANA_FORMS={
     valid(r){ return !ANA_FORMS.surf.why(r); },
     extra(p){ return p.src==="mat"?[]:[p.x,p.y,p.z]; },
     inp(p,inp){ if(p.src==="mat"&&p.mat) inp.mat=p.mat; else delete inp.mat; }},
+  fft:{noGroup:true, html(p){ return `<div class="grid2">${sigWinHtml(p,"boxcar")}
+      <label for="aFd" class="tipd" title="Taken off before the window: a mean or a slope otherwise puts its own large values near frequency 0">Take off</label><select id="aFd">${SIG_DETREND.map(([k,t])=>`<option value="${k}"${k===(p.detrend||"none")?" selected":""}>${t}</option>`).join("")}</select>
+      <label for="aFp" class="tipd" title="Zeros added at the end: a finer frequency step to read, no new information">Padding</label><span class="anarows"><select id="aFp"><option value="none">None</option><option value="pow2"${p.pad==="pow2"?" selected":""}>To the next power of 2</option><option value="n"${Number.isFinite(+p.pad)&&+p.pad>0?" selected":""}>To a length…</option></select><input type="text" id="aFpn" inputmode="numeric" aria-label="Length to pad to" value="${Number.isFinite(+p.pad)&&+p.pad>0?Math.round(+p.pad):""}" placeholder="points"></span>
+      <label for="aFs">Sides</label><select id="aFs"><option value="1">One: 0 to half the sampling rate</option><option value="2"${p.sides===2?" selected":""}>Two: negative frequencies too</option></select></div>
+      <label class="chk" id="aFshL"><input type="checkbox" id="aFsh"${p.shift?" checked":""}> From −fs/2 to fs/2 (shifted)</label>
+      <p class="lab">Columns written</p><div class="anastats">${FFT_OUTS.map(([k,t])=>`<label class="chk"><input type="checkbox" id="aFo_${k}"${(Array.isArray(p.outs)&&p.outs.length?p.outs:["amp","phase"]).includes(k)?" checked":""}> ${t}</label>`).join("")}</div>
+      <div class="grid2" id="aFph"><label class="chk"><input type="checkbox" id="aFu"${p.unwrap?" checked":""}> Phase unwrapped</label><label class="chk"><input type="checkbox" id="aFg"${p.deg?" checked":""}> Phase in degrees</label></div>`; },
+    wire(box){ const on=()=>{ sigWinWire(box); const pd=box.querySelector("#aFp"), pn=box.querySelector("#aFpn"); if(pd&&pn) pn.hidden=pd.value!=="n";
+        const two=box.querySelector("#aFs").value==="2"; box.querySelector("#aFshL").hidden=!two; box.querySelector("#aFph").hidden=!box.querySelector("#aFo_phase").checked; };
+      box.addEventListener("change",on); on(); },
+    read(v){ const o=Object.assign(sigWinRead(v),{detrend:v.aFd||"none",sides:v.aFs==="2"?2:1,shift:v.aFs==="2"&&!!v.aFsh,unwrap:!!v.aFu,deg:!!v.aFg,outs:FFT_OUTS.map(e=>e[0]).filter(k=>v["aFo_"+k])});
+      o.pad=v.aFp==="pow2"?"pow2":v.aFp==="n"?Math.round(parseNum(String(v.aFpn||"")))||"none":"none"; return o; },
+    valid(v){ return FFT_OUTS.some(e=>v["aFo_"+e[0]])&&sigWinOk(v)&&(v.aFp!=="n"||parseNum(String(v.aFpn||""))>=2); }},
+  psd:{noGroup:true, html(p){ return `<div class="grid2">${sigWinHtml(p,"hann")}
+      <label for="aWn" class="tipd" title="Points in each segment: longer gives a finer frequency step and a noisier estimate (256, or the whole column when shorter)">Segment</label><input type="text" id="aWn" inputmode="numeric" value="${p.nseg>0?Math.round(p.nseg):""}" placeholder="256 points">
+      <label for="aWo" class="tipd" title="Points each segment shares with the one before (half the segment when left empty)">Overlap</label><input type="text" id="aWo" inputmode="numeric" value="${Number.isFinite(+p.over)&&p.over!==""&&p.over!=null?Math.round(+p.over):""}" placeholder="half the segment">
+      <label for="aFd">Take off</label><select id="aFd">${SIG_DETREND.map(([k,t])=>`<option value="${k}"${k===(p.detrend||"constant")?" selected":""}>${t} of each segment</option>`).join("")}</select>
+      <label for="aWs" class="tipd" title="Density: per unit of frequency, integrating to the mean square. Spectrum: per bin, a sine of amplitude A reading A²/2">Scaling</label><select id="aWs"><option value="density">Power spectral density</option><option value="spectrum"${p.scaling==="spectrum"?" selected":""}>Power spectrum</option></select>
+      <label for="aWa" class="tipd" title="The median is little moved by a segment holding a burst; it is divided by its bias so a steady signal reads the same">Average</label><select id="aWa"><option value="mean">Mean</option><option value="median"${p.avg==="median"?" selected":""}>Median</option></select>
+      <label for="aFs">Sides</label><select id="aFs"><option value="1">One: 0 to half the sampling rate</option><option value="2"${p.sides===2?" selected":""}>Two: negative frequencies too</option></select></div>
+      <label class="chk"><input type="checkbox" id="aWdb"${p.db?" checked":""}> A column in dB as well</label>`; },
+    wire(box){ const on=()=>sigWinWire(box); box.addEventListener("change",on); on(); },
+    read(v){ const n=parseNum(String(v.aWn||"")), o=parseNum(String(v.aWo||"")); return Object.assign(sigWinRead(v),{nseg:n>0?Math.round(n):null,over:Number.isFinite(o)&&String(v.aWo||"").trim()!==""?Math.round(o):null,detrend:v.aFd||"constant",scaling:v.aWs==="spectrum"?"spectrum":"density",avg:v.aWa==="median"?"median":"mean",sides:v.aFs==="2"?2:1,db:!!v.aWdb}); },
+    valid(v){ const n=String(v.aWn||"").trim(), o=String(v.aWo||"").trim(); return sigWinOk(v)&&(!n||parseNum(n)>=2)&&(!o||parseNum(o)>=0); }},
+  ifft:{noGroup:true, html(p){ const C=S.anaCand||[], re=p.re||rsFirst(c=>/real/i.test(c.name||"")), im=p.im===undefined?(C.find(c=>/imag/i.test(c.name||""))||{}).id||"":p.im||"";
+      return `<div class="grid2">${rsSel("aIr","Real parts",re,null,C)}${rsSel("aIi","Imaginary parts",im,"None (all 0)",C)}
+      <label for="aIs" class="tipd" title="Two sides: every frequency given, as an FFT with two sides writes them. One side: 0 and the positive frequencies of a real signal's transform">The values are</label><select id="aIs"><option value="2">Both sides of the spectrum</option><option value="1"${p.sides===1?" selected":""}>One side, of a real signal</option></select></div>
+      <label class="chk" id="aIoL"><input type="checkbox" id="aIo"${p.odd?" checked":""}> The signal had an odd number of points</label>`; },
+    wire(box){ const on=()=>{ box.querySelector("#aIoL").hidden=box.querySelector("#aIs").value!=="1"; }; box.addEventListener("change",on); on(); },
+    read(v){ return {re:v.aIr||null,im:v.aIi||null,sides:v.aIs==="1"?1:2,odd:v.aIs==="1"&&!!v.aIo}; },
+    valid(v){ return !!v.aIr&&v.aIr!==v.aIi; },
+    extra(p){ return [p.re,p.im].filter(Boolean); }},
   cmpmod:{noGroup:true, html(p){ const C=cmpCands(), keys=(Array.isArray(p.fits)?p.fits:[]).map(s=>s.key), def=[C.find(c=>c.key==="screen")?"screen":"m:linear","m:poly2"], opts=sel=>C.map(c=>c.group?`<optgroup label="${esc(c.group)}">`:c.end?"</optgroup>":`<option value="${esc(c.key)}"${c.key===sel?" selected":""}>${esc(c.name)}</option>`).join("");
       return `<div class="grid2">${[0,1,2,3,4].map(i=>`<label for="aMm${i}">${i<2?`Setting ${i+1}`:`Setting ${i+1}, if any`}</label><select id="aMm${i}">${i>=2?`<option value="">—</option>`:""}${opts(keys[i]||(i<2?def[i]:""))}</select>`).join("")}
       ${cmpCommonHtml(p)}</div>`; },
@@ -19888,9 +20161,14 @@ Object.assign(ANA_FORMS,RS_FORMS);
 // The dialog: the inputs (each column with what it reads and, with steps, a switch to the original
 // values; a column of groups; which rows; pairwise or listwise; masked points), the kind's own
 // settings, how it recalculates. o.id changes an analysis; o.cols starts with those columns ticked.
+function anaReads(x,y,seen){ seen=seen||new Set(); if(!x||seen.has(x)) return false; seen.add(x); const a=anaOf(x); if(!a) return false;
+  return (a.in.cols||[]).some(id=>{ const c=colById(id); return c&&c.ana&&(c.ana===y||anaReads(c.ana,y,seen)); }); }
+function anaResOk(c,a0){ return !a0||(c.ana!==a0.id&&!anaReads(c.ana,a0.id)); }
 async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[kind]||{}, p=P(); if(!K||!p||S.readOnly) return; if(S.ws&&S.ws.edit) wsCommit(0,0,true);
-  const a0=o.id?anaOf(o.id):null, sid=a0?sheetOf(colById(a0.in.cols[0])||{})||curSheet():anaOfSheet(curSheet())?SHEET0.id:curSheet();
-  const cand=K.cells?sheetCols(sid).filter(c=>hasVals(c)):sheetCols(sid).filter(c=>!c.ana&&(c.role==="y"||c.role==="ignore"||K.xs&&c.role==="x")&&(anyVal(c.data)||(K.cats&&hasVals(c)))).concat(yCols().filter(c=>c.src&&!sheetCols(sid).includes(c)));
+  const a0=o.id?anaOf(o.id):null, sid=a0?sheetOf(colById(a0.in.cols[0])||{})||curSheet():anaOfSheet(curSheet())&&!K.resIn?SHEET0.id:curSheet();
+  // A kind that takes another analysis's results (resIn: an inverse FFT reads an FFT's) offers them, but never its own
+  // or those of an analysis that reads it, so no circle can be made.
+  const cand=K.cells?sheetCols(sid).filter(c=>hasVals(c)):sheetCols(sid).filter(c=>(!c.ana||K.resIn&&anaResOk(c,a0))&&(c.role==="y"||c.role==="ignore"||K.xs&&c.role==="x")&&(anyVal(c.data)||(K.cats&&hasVals(c)))).concat(yCols().filter(c=>c.src&&!sheetCols(sid).includes(c)));
   S.anaCand=cand; S.anaSid=sid;
   if(!cand.length&&!K.typed){ toast(K.cats?"There is no column with values on this sheet to count.":"There is no column of numbers on this sheet to work out."); return; }
   const sel=new Set(a0?a0.in.cols:(o.cols||(wsSelColIds?wsSelColIds():[])).filter(id=>cand.some(c=>c.id===id)));
@@ -19953,8 +20231,14 @@ function graphSummary(cid){ const p=P(); if(!p||S.readOnly) return;
 // The result sheet's menu (its tab's), before the sheet's own items.
 /* What an analysis's result offers beside its report (STATS_SPEC 2.2): a normality test's Q–Q plot, the
    outliers masked or marked. The report's buttons (Results, the History) and the tab menu list them. */
+// A signal analysis's result plotted (SIGNAL_SPEC, wave 5): each Y column of its sheet against its X, on a new graph.
+const SIG_PLOT={fft:"Plot the spectrum",psd:"Plot the spectrum",ifft:"Plot the signal"};
+function sigPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const ys=p.cols.filter(c=>c.ana===id&&c.role==="y");
+  if(!ys.length){ toast("There is nothing to plot: Recalculate first."); return; }
+  plotCols(ys.map(c=>c.id),{series:Object.fromEntries(ys.map(c=>[c.id,{type:"line"}])),undo:`plotting ${a.name}`,say:a.name}); }
 function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&rep.marks?rep.marks.length:0;
   if(!rep) return [];
+  if(SIG_PLOT[a.kind]) return [{key:"plot",label:SIG_PLOT[a.kind],title:"The result's main column against its X, on a new graph",enabled:!ro,run:()=>sigPlot(a.id)}];
   if(a.kind==="corr") return [{key:"scatter",label:"Scatter matrix",title:"Each pair's values against each other, a graph a pair, in a figure",enabled:!ro&&(a.in.cols||[]).length>1,run:()=>anaScatter(a.id)}];
   if(a.kind==="anovan") return [{key:"inter",label:"Interaction plot",title:"The cells' means by the first factor, a line for each level of the second, with their intervals, on a graph",enabled:!ro,run:()=>anaInterPlot(a.id)},
     {key:"mains",label:"Main effects plot",title:"Each factor's means with their intervals, a graph each, in a figure",enabled:!ro,run:()=>anaMainsPlot(a.id)}];
@@ -26891,7 +27175,10 @@ function analyzeMenu(){
     {label:"Peaks…", title:"Find, mark and label peaks, without fitting them", run:()=>openPeakFinder(), enabled:!!p&&has},
     {label:"Integrate…", title:"Areas between windows you drag on the graph, each over a local baseline, without a fit", run:()=>openIntegrate(), enabled:!!p&&has},
     "-",
-    {label:"Signal processing", sub:()=>[t("smooth"), t("fft")]},
+    {label:"Signal processing", sub:()=>[t("smooth"), t("fft"), "-",
+      {label:"FFT…", title:ANA_KINDS.fft.help, run:()=>anaDlg("fft"), enabled:!S.readOnly&&!!P()},
+      {label:"Power spectrum (Welch)…", title:ANA_KINDS.psd.help, run:()=>anaDlg("psd"), enabled:!S.readOnly&&!!P()},
+      {label:"Inverse FFT…", title:ANA_KINDS.ifft.help, run:()=>anaDlg("ifft"), enabled:!S.readOnly&&!!P()}]},
     {label:"Calculus", sub:()=>[t("deriv"),
       {label:"Derivative, as a new column…", title:"Keeps this column and adds its derivative beside it", run:()=>{ const id=newDerived("final",{quiet:true,name:`d/dx ${specName(activeYCol())}`}); if(id) openTool("deriv",{col:id}); }, enabled:edit&&has},
       t("cumint")]},
@@ -29730,6 +30017,19 @@ ${DL([["Pearson's r","p by t on N − 2 degrees of freedom; its interval by Fish
 <p>Its tab carries a lock: the sheet is read only, since its values are worked out. Its columns can be plotted, read by a formula and copied; one moved to another sheet becomes a copy, cut from the analysis. The results are not original data, so they leave the check code alone.</p>
 <h2 id="recalc">Recalculating</h2>
 <p>Right-click its tab: ${DL([["Report","What it found, with its notes."],["Change settings…","The dialog again."],["Recalculate","When it is out of date."],["Recalculate by itself","The default: worked out again whenever a value, a step or a mask of what it reads changes, with a line in the log."],["Only when asked","A change marks its tab out of date instead, with the reason in its tooltip."],["Cut from its data","The values stay as an ordinary sheet; the analysis goes."],["Delete the analysis…","With its sheet."]])} Each is one undo step.</p>`},
+{id:"signal", g:"Analysis", t:"Signal processing", kw:"signal processing fft fourier transform discrete spectrum frequency amplitude power phase real imaginary periodogram power spectral density psd welch segments overlap window hann hanning hamming blackman harris flat top kaiser tukey bartlett gaussian rectangle boxcar leakage padding zero padding detrend nyquist sampling rate inverse ifft irfft bluestein db decibel unwrap",
+ lead:"The Fourier transform of a column, its power spectrum by Welch's method, and the inverse, each as a sheet of results worked out again when its data change.",
+ body:`<h2 id="fft">FFT</h2>
+<p>${MP("Analyze › Signal processing › FFT…")}: the discrete Fourier transform of each column ticked, at any length (a prime length too, by Bluestein's algorithm). The columns written are chosen: frequency always, then amplitude, power, the power spectral density, phase, the real and imaginary parts, power in dB. One side runs from 0 to half the sampling rate; two sides add the negative frequencies, in NumPy's order or from −fs/2 when shifted. The normalisations are stated in the report: a sine of amplitude A reads A in the amplitude and A²/2 in the power (its mean square), and the density integrates over frequency to the mean square, so a window does not change what a peak reads. The real and imaginary parts are the transform unscaled, as NumPy gives it, so the inverse takes them back.</p>
+<p>The sampling interval is the column's X step, and the frequency is in the reciprocal of X's unit (Hz for seconds, cm for cm⁻¹). X out of order is sorted first; X not evenly spaced (steps differing by more than a millionth) is read on an even grid by straight lines; both are said in the notes. A trend taken off (the mean, or a straight line) keeps a large value at frequency 0 from leaking into its neighbours; padding with zeros gives a finer frequency step to read, not new information.</p>
+<h2 id="windows">Windows</h2>
+<p>A window multiplies the values so the ends meet at zero instead of jumping. ${DL([["Rectangle","No window: the narrowest peaks, the most leakage."],["Hann, Hamming","The usual compromise."],["Blackman, Blackman–Harris","Less leakage, wider peaks."],["Flat top","The most accurate amplitude for a peak between two bins."],["Kaiser (β)","From the rectangle (0) to Blackman's shape (8.6) and beyond."],["Tukey (α)","Flat in the middle, tapered over the fraction α."],["Bartlett, Gaussian (σ)","A triangle; a Gaussian of σ points."]])} The report gives the window's coherent gain and its noise bandwidth in bins.</p>
+<h2 id="psd">Power spectrum (Welch)</h2>
+<p>${MP("Analyze › Signal processing › Power spectrum (Welch)…")}: the column cut into overlapping segments (256 points and half of that by default), each detrended, windowed (Hann) and transformed, their periodograms averaged, as SciPy's <code>welch</code>. A steadier estimate than one transform, at a coarser frequency step. The median instead of the mean is little moved by a segment holding a burst. Density or power spectrum, one or two sides, a column in dB if asked.</p>
+<h2 id="ifft">Inverse FFT</h2>
+<p>${MP("Analyze › Signal processing › Inverse FFT…")}: a column of real parts and one of imaginary parts (or none), read against their frequency, transformed back. Both sides (an FFT with two sides: shifted or not, it is put back in order) or one side of a real signal (its length 2(m − 1), or 2m − 1 when the signal had an odd number of points). The time step is 1/(N·Δf).</p>
+<h2>The results</h2>
+<p>Each is a result sheet (see ${DA("analyses","Analyses and result sheets")}): read only, worked out again when its column changes, its report giving the settings and, for the FFT, the frequency of the largest amplitude away from 0. Right-click its tab › <em>Plot</em> draws the main column against frequency. Past 400 000 points the work is done in the background, with Stop.</p>`},
 {id:"stats", g:"Analysis", t:"Statistics", win:"stats", kw:"statistics quick statistics descriptive n count mean median sd se standard error spectral measures noise signal to noise area centroid correlation pearson integrate visible range",
  lead:"Quick statistics of every column, the integral of the visible range, and how alike the columns are. For statistics kept in a sheet, see "+DA("analyses","Statistics on columns")+".",
  body:`<h2>Descriptive statistics</h2>
@@ -30950,7 +31250,7 @@ function computeWorker(){
   try{ if(typeof Worker==="undefined"||typeof Blob==="undefined") throw new Error("no workers");
     const sc=[...document.scripts].find(s=>!s.src&&s.textContent.indexOf("==NUMERICS"+":START==")>=0), txt=sc?sc.textContent:"";
     const grab=tag=>{ const m=txt.match(new RegExp("=="+tag+":START==[\\s\\S]*?\\*\\/([\\s\\S]*?)\\/\\* =="+tag+":END==")); if(!m) throw new Error("no "+tag+" block"); return m[1]; };
-    const url=URL.createObjectURL(new Blob([["NUMERICS","PEAKS","PIPE","MODELS","STATS","ANA","MAT"].map(grab).join("\n")+"\n"+COMPUTE_TAIL],{type:"text/javascript"}));
+    const url=URL.createObjectURL(new Blob([["NUMERICS","PEAKS","PIPE","MODELS","STATS","ANA","MAT","SIG"].map(grab).join("\n")+"\n"+COMPUTE_TAIL],{type:"text/javascript"}));
     const w=new Worker(url), me={w,n:0,wait:new Map(),url};
     w.onmessage=e=>{ const d=e.data, h=me.wait.get(d&&d.id); if(!h) return;
       if(d.progress!==undefined){ if(h.prog) try{ h.prog(d.progress); }catch(_){} return; }

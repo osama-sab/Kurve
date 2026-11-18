@@ -29,7 +29,7 @@ run() { # name, timeout in seconds, command…
   pids+=($!); names+=("$n")
 }
 # The quick ones first, one after another (they take seconds).
-for t in fit pipe parser tex ref stats; do
+for t in fit pipe parser tex ref stats sig; do
   timeout 300 node "tools/$t-test.mjs" "$html" > "$logs/$t.log" 2>&1; echo $? > "$logs/$t.code"
   names+=("$t")
 done
@@ -44,10 +44,11 @@ run countdrive 900 node tools/count-drive.mjs "$html"
 run filedrive 900 node tools/file-drive.mjs "$html"
 run textdrive 900 node tools/text-drive.mjs "$html"
 run anadrive 900 node tools/ana-drive.mjs "$html"
+run sigdrive 900 node tools/sig-drive.mjs "$html"
 run sheetdrive 900 node tools/sheet-drive.mjs "$html"
 run sheetfuzz 900 node tools/sheet-fuzz.mjs "$html" 9 150
 if command -v python3.13 > /dev/null; then
-  run menus 900 bash -c "PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers python3.13 tools/ux/crawl.py '$html' > '$logs/crawl.json' 2>/dev/null && python3.13 tools/ux/menucheck.py '$logs/crawl.json'"
+  run menus 900 bash -c "PYTHONPATH=${PYREF:-} PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers python3.13 tools/ux/crawl.py '$html' > '$logs/crawl.json' 2>/dev/null && python3.13 tools/ux/menucheck.py '$logs/crawl.json'"
   if [ -n "${PYREF:-}" ]; then run diff-fuzz 900 python3.13 -I tools/ref/diff-fuzz.py 1 1000
   else echo "diff-fuzz not run: \$PYREF, the reference packages, is needed (tools/ref/README.md)"; fi
 else

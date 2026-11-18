@@ -241,6 +241,9 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
   Signal processing  ## ~ "Smooth and filter"
     Smooth…
     FFT filter…
+    FFT…  ## + (SIGNAL_SPEC 5.1): an analysis into a result sheet: frequency, amplitude, power, density, phase, real and imaginary parts
+    Power spectrum (Welch)…  ## + (SIGNAL_SPEC 5.1)
+    Inverse FFT…  ## + (SIGNAL_SPEC 5.1)
   Calculus  ## ← Analysis › Mathematics (DS2)
     Derivative…  ## + "Derivative, as a new spectrum…": a choice in the tool
     Cumulative integral…

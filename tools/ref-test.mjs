@@ -553,6 +553,38 @@ if (fixtures.implicit) {
   [...HARD1].filter((n) => !miss1.includes(n)).forEach((n) => console.log("  " + n + " is now right from NIST's first start too"));
 }
 
+/* ---- Signal processing (SIGNAL_SPEC, wave 5): every tools/ref/fixtures/sig-*.json, made by NumPy, SciPy and PyWavelets
+   (tools/ref/sig_fixtures.py). An array is judged by its worst error over the reference's largest |value| (a complex one
+   over its largest modulus), so a value near zero beside large ones is held to the scale of the whole; an object's keys
+   each so under `fn.key`; a refusal of SciPy's must be a refusal ({fail} in words) of Kurve's. ---- */
+{
+  const mx = (a) => { let m = 0; for (const v of a) if (Number.isFinite(v)) m = Math.max(m, Math.abs(v)); return m; };
+  // `scale` the size errors are judged against (the reference's largest |value| unless given); `wrap` a phase, compared
+  // modulo 2π; a null in the reference a value it does not judge (a phase where the transform is rounding).
+  const vecErr = (got, want, scale, wrap) => { if (!got || got.length !== want.length) return Infinity; const big = scale || mx(want) || 1; let e = 0;
+    for (let i = 0; i < want.length; i++) { const w = want[i], g = got[i]; if (w === null) continue;
+      if (wrap && Number.isFinite(w) && Number.isFinite(g)) { const d = Math.abs(((g - w) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI); e = Math.max(e, d / big); continue; }
+      if (!Number.isFinite(w)) { if (!(Object.is(w, g) || (Number.isNaN(w) && Number.isNaN(g)) || (w === null && g === null))) return Infinity; continue; }
+      if (typeof g !== "number" || !Number.isFinite(g)) return Infinity; e = Math.max(e, Math.abs(g - w) / big); } return e; };
+  const cErr = (got, want) => { if (!got || !got.re || got.re.length !== want.re.length) return Infinity; let big = 0;
+    for (let i = 0; i < want.re.length; i++) big = Math.max(big, Math.hypot(want.re[i], want.im[i])); big = big || 1; let e = 0;
+    for (let i = 0; i < want.re.length; i++) e = Math.max(e, Math.hypot(got.re[i] - want.re[i], got.im[i] - want.im[i]) / big); return e; };
+  for (const [set, fx] of Object.entries(fixtures).filter(([k]) => k.startsWith("sig-"))) {
+    for (const c of fx.cases) {
+      let r; try { r = get(c.fn)(...c.args); } catch (e) { note(c.fn, Infinity, `${c.name}: threw ${e.message}`); continue; }
+      if (c.kind === "fail") { note(`${c.fn}.fail`, r && r.fail ? 0 : Infinity, `${c.name}: SciPy refused (${c.want.fail}), Kurve did not`); continue; }
+      if (r && r.fail) { note(c.fn, Infinity, `${c.name}: refused, ${r.fail}`); continue; }
+      if (c.kind === "vec") note(c.fn, vecErr(r, c.want, c.scale), c.name);
+      else if (c.kind === "cvec") note(c.fn, cErr(r, c.want), c.name);
+      else if (c.kind === "rel") note(c.fn, relErr(r, c.want), c.name);
+      else if (c.kind === "obj") for (const [k, w] of Object.entries(c.want)) {
+        const name = `${c.fn}.${k}`;
+        note(name, Array.isArray(w) ? vecErr(r[k] && Array.from(r[k]), w, c.scale, k === "phase") : typeof w === "number" ? relErr(r[k], w, (TARGET[name] || {}).floor) : (JSON.stringify(r[k]) === JSON.stringify(w) ? 0 : Infinity), c.name);
+      }
+    }
+  }
+}
+
 /* ---- the table ---- */
 let fail = 0, short = 0, pass = 0;
 console.log("\n  function              worst error   target");
