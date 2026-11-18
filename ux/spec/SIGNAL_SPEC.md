@@ -271,6 +271,15 @@ column included).
 
 ## 5.2 Filters designed
 
+Done 18.11, as below, with these changes of plan: the response is drawn on a log scale of frequency over the three decades below
+Nyquist (a linear axis squeezed a low edge against 0), forwards and backwards in doubled dB; the notch says when its ringing reaches
+a third of the data, as the designed filter does; Bessel is designed to order 20 like the others (its poles by Aberth's iteration
+on the Bessel polynomial from Campos-Calderon's starts, as SciPy does); a design is compared with SciPy's as a set of sections, the
+first (with the gain) in place, since two mirror poles equally near the unit circle may be paired in either order; filtering is
+judged against SciPy on the scale of max|x|/(1 − max|pole|), since a resonant section loses those digits in both (5.8e-12 for each,
+against 40 digits); the mean a detrend takes off is a compensated sum (a level a thousand times its spread showed at the lowest
+frequencies), so Kurve's Welch agrees with 40 digits to 4e-16 where SciPy's least-squares line is 2e-12 off.
+
 **What.** Analyze › Signal processing › *Filter…* opens a step: the kind (Butterworth, Chebyshev I,
 Chebyshev II, elliptic, Bessel, FIR by a windowed sinc), the band (low, high, band pass, band
 stop), the order (1 to 20; FIR: taps), the edges in 1/X's unit (with the Nyquist frequency shown

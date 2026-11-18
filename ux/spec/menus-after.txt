@@ -241,6 +241,8 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
   Signal processing  ## ~ "Smooth and filter"
     Smooth…
     FFT filter…
+    Filter (designed)…  ## + (SIGNAL_SPEC 5.2): a step: Butterworth, Chebyshev I and II, elliptic, Bessel, FIR; low, high, band, band-stop; the response drawn
+    Notch…  ## + (SIGNAL_SPEC 5.2): a step: a frequency and its harmonics
     FFT…  ## + (SIGNAL_SPEC 5.1): an analysis into a result sheet: frequency, amplitude, power, density, phase, real and imaginary parts
     Power spectrum (Welch)…  ## + (SIGNAL_SPEC 5.1)
     Inverse FFT…  ## + (SIGNAL_SPEC 5.1)

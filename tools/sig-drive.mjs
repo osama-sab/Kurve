@@ -109,6 +109,43 @@ await page(async p => {
   check(`500 000 points worked out in the worker (${ms} ms), 250 001 frequencies`, r && r.t.f0.length === 250001 && Math.abs(r.t.amp0[r.t.f0.findIndex(f => Math.abs(f - 12.5) < 1e-9)] - 2) < 1e-9, r && r.err);
 }, { name: "5.1" });
 
+console.log("5.2 Filters designed");
+await page(async p => {
+  // a 2 Hz sine with a 30 Hz hum, X in seconds at 200 Hz
+  await p.evaluate(() => { const x = [], y = []; for (let i = 0; i < 800; i++) { x.push(+(i * 0.005).toFixed(10)); y.push(Math.sin(2 * Math.PI * 2 * i * 0.005) + 0.4 * Math.sin(2 * Math.PI * 30 * i * 0.005)); }
+    save({ cols: [makeCol("x", "Time", "s", x), Object.assign(makeCol("y", "Signal", "V", y), { pipe: [], mask: [] })], activeY: null }, "typed"); }); await p.waitForTimeout(300);
+  await menu(p, "analyze", "Signal processing", "Filter (designed)…");
+  const fld = (k) => `#pane-tool [data-pk="${k}"]:not([type="range"])`;
+  let r = await p.evaluate(() => ({ op: S.pending && S.pending.step.op, f1: S.pending && S.pending.step.p.f1, svg: !!document.querySelector("#pane-tool .filtresp svg path"), unit: [...document.querySelectorAll("#pane-tool .lab")].some(e => e.textContent.trim() === "Hz") }));
+  check("Analyze › Signal processing › Filter (designed)… opens the tool, its edge suggested in Hz, the response drawn", r.op === "filt" && r.f1 === 10 && r.svg && r.unit, JSON.stringify(r));
+  check("…Butterworth shows no ripple or attenuation fields", !(await p.isVisible(fld("rp"))) && !(await p.isVisible(fld("rs"))));
+  await p.selectOption(fld("kind"), "ellip"); await p.waitForTimeout(250);
+  check("…elliptic shows the pass-band ripple and the stop-band attenuation", await p.isVisible(fld("rp")) && await p.isVisible(fld("rs")));
+  await p.selectOption(fld("band"), "pass"); await p.waitForTimeout(250);
+  check("…a band-pass shows the upper edge", await p.isVisible(fld("f2")));
+  await p.selectOption(fld("band"), "low"); await p.selectOption(fld("kind"), "butter"); await p.waitForTimeout(200);
+  await p.fill(fld("f1"), "150"); await p.press(fld("f1"), "Enter"); await p.waitForTimeout(400);
+  r = await p.evaluate(() => $("#pane-tool").textContent);
+  check("…an edge past Nyquist (100 Hz) is refused in words", /below the Nyquist frequency, 100 Hz/.test(r), r.slice(0, 300));
+  await p.fill(fld("f1"), "8"); await p.press(fld("f1"), "Enter"); await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const d = document.querySelector("#pane-tool .filtresp path"); return { path: d && d.getAttribute("d").length, edge: !!document.querySelector("#pane-tool .filtresp line[stroke-dasharray]") }; });
+  check("…the response redrawn with the edge dashed", r.path > 100 && r.edge, JSON.stringify(r));
+  await p.click("#tlOk"); await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const c = activeYCol(), d = finalOf(c); let e = 0; for (let i = 100; i < 700; i++) e = Math.max(e, Math.abs(d.y[i] - Math.sin(2 * Math.PI * 2 * d.x[i]))); return { ops: c.pipe.map(s => s.op), e, sum: stepSummary ? stepSummary(c.pipe[0], d) : "" }; });
+  check("OK: the step in the column's processing, the 30 Hz hum gone, the 2 Hz kept", r.ops.join() === "filt" && r.e < 0.01, JSON.stringify(r));
+  await p.evaluate(() => undo()); await p.waitForTimeout(300);
+  check("…undone", await p.evaluate(() => (activeYCol().pipe || []).length === 0));
+  await menu(p, "analyze", "Signal processing", "Notch…");
+  await p.fill(fld("f0"), "30"); await p.press(fld("f0"), "Enter"); await p.waitForTimeout(400);
+  r = await p.evaluate(() => ({ svg: !!document.querySelector("#pane-tool .filtresp svg path"), txt: $("#pane-tool").textContent }));
+  check("Notch…: 30 Hz taken out, its response drawn", r.svg && /30 Hz taken out/.test(r.txt), r.txt.slice(0, 200));
+  await p.click("#tlOk"); await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const d = finalOf(activeYCol()); let e = 0; for (let i = 300; i < 500; i++) e = Math.max(e, Math.abs(d.y[i] - Math.sin(2 * Math.PI * 2 * d.x[i]))); return e; });
+  check("…the hum gone from the middle of the data", r < 0.02, r);
+  const flow = await p.evaluate(() => { openWin("flow", { render: true }); return [...document.querySelectorAll("#w-flow .fnode")].map(b => b.textContent).join(" | "); });
+  check("…the History shows the notch with its frequency", /Notch\s*30 Hz/.test(flow), flow.slice(0, 300));
+}, { name: "5.2" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

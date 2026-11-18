@@ -182,7 +182,8 @@ await page(async p => {
   // two commands are Fourier's (FIT2_SPEC 4.7): the self-deconvolution by its name, the FFT filter by the word for it
   check("“fourier” finds the FFT filter beside the self-deconvolution", r.labs.slice(0, 2).includes("FFT filter…") && r.labs.slice(0, 2).includes("Fourier self-deconvolution…"), JSON.stringify(r));
   r = await first("power spectrum");
-  check("a phrase people use is kept whole", r.on === "FFT filter…", JSON.stringify(r));
+  // a power spectrum is a command of its own since SIGNAL_SPEC 5.1; the phrase is still read whole, not as "power" and "spectrum"
+  check("a phrase people use is kept whole", r.on === "Power spectrum (Welch)…", JSON.stringify(r));
   r = await first("export");
   check("“export” finds the Publish menu", /^Graph/.test(r.on || "") && /^Publish/.test(r.where || ""), JSON.stringify(r));
   r = await first("log y");

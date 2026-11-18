@@ -879,5 +879,48 @@
  },
  "welch.fail": {
   "tol": 0
+ },
+ "iirSos": {
+  "tol": 3e-12,
+  "why": "Bessel's poles are found by Aberth's iteration and Newton's, as SciPy finds them; order 12 agrees to 2.4e-12 of its largest coefficient"
+ },
+ "iirSos.fail": {
+  "tol": 0
+ },
+ "iirFreq": {
+  "tol": 1e-10
+ },
+ "sosfiltfilt": {
+  "tol": 1e-12
+ },
+ "sosfiltfilt.fail": {
+  "tol": 0
+ },
+ "sosfilt.y": {
+  "tol": 1e-13
+ },
+ "sosfiltZi": {
+  "tol": 1e-12
+ },
+ "firwin.b": {
+  "tol": 1e-14
+ },
+ "firwin.fail": {
+  "tol": 0
+ },
+ "filtfilt": {
+  "tol": 1e-12
+ },
+ "iirNotch.b": {
+  "tol": 1e-15
+ },
+ "iirNotch.a": {
+  "tol": 1e-15
+ },
+ "lfilter": {
+  "tol": 1e-13
+ },
+ "lfilterZi": {
+  "tol": 1e-14
  }
 }

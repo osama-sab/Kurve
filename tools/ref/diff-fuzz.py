@@ -988,6 +988,56 @@ def elld_post(c, out):
     e = abs(out - w["d"]) / max(abs(w["d"]), 1e-4 * w["a"]); return e, f"distance {e:.2e}"
 POST["ellDist"] = elld_post
 
+# ---- Wave 5, signal processing (SIGNAL_SPEC): the FFT at random lengths (primes and odd sizes most of all, where Bluestein's chirp
+# works), Welch's spectrum with random settings, and a random design's sections run forwards and backwards; each array judged by its
+# worst error over the reference's largest |value| ----
+from scipy import signal as _sig
+def _vec_post(key=None, cplx=False):
+    def post(c, out):
+        w = c["want"]
+        if isinstance(out, dict) and out.get("fail"): return float("inf"), f"refused: {out['fail']}"
+        if cplx:
+            if not isinstance(out, dict) or "re" not in out: return float("inf"), f"no transform: {str(out)[:80]}"
+            big = max(math.hypot(a, b) for a, b in zip(w["re"], w["im"])) or 1.0
+            e = max(math.hypot(val(a) - b, val(c2) - d) / big for a, b, c2, d in zip(out["re"], w["re"], out["im"], w["im"])); return e, f"transform {e:.2e}"
+        g = out[key] if key else out; ww = w[key] if key else w
+        if not isinstance(g, list) or len(g) != len(ww): return float("inf"), f"length {len(g) if isinstance(g, list) else '?'} against {len(ww)}"
+        big = c.get("scale") or max(abs(v) for v in ww) or 1.0; e = max(abs(val(a) - b) / big for a, b in zip(g, ww)); return e, f"values {e:.2e}"
+    return post
+@gen("fftC", 1e-13, 0.5)
+def _():
+    n = int(edge([1, 2, 3, 97, 1009, 4096, 4099, 65537], lambda: int(rng.integers(1, 6000))))
+    re_ = rng.normal(0, 1, n) * 10 ** rng.uniform(-3, 3, n); im_ = rng.normal(0, 1, n) * 10 ** rng.uniform(-3, 3, n) if rng.random() < 0.6 else np.zeros(n)
+    inv = bool(rng.random() < 0.3); X = (np.fft.ifft if inv else np.fft.fft)(re_ + 1j * im_)
+    return [re_.tolist(), im_.tolist(), n, inv], {"re": X.real.tolist(), "im": X.imag.tolist()}
+POST["fftC"] = _vec_post(cplx=True)
+@gen("welch", 1e-12, 0.3)
+def _():
+    n = int(rng.integers(8, 4000)); y = rng.normal(0, float(lognum(-3, 3)), n) + float(rng.uniform(-5, 5)); fs = float(lognum(-2, 4))
+    win = str(rng.choice(["hann", "hamming", "boxcar", "blackman", "flattop", "bartlett"])); nseg = int(rng.integers(4, max(5, min(n, 600))))
+    over = int(rng.integers(0, nseg)); det = str(rng.choice(["constant", "linear", "none"])); sc = str(rng.choice(["density", "spectrum"])); avg = str(rng.choice(["mean", "median"]))
+    f, P = _sig.welch(y, fs, window=win, nperseg=nseg, noverlap=over, detrend=False if det == "none" else det, scaling=sc, average=avg)
+    # SciPy takes a straight line off by LAPACK's least squares, which leaves rounding of the level beside a spread maybe a thousand
+    # times smaller; against 40 digits (18.11) Kurve's line was right to 4e-16 of the largest value, SciPy's to 2e-12. A mean taken off
+    # (NumPy's pairwise sum) leaves the same kind of rounding, smaller. So a detrended case is judged on the scale of the level over
+    # the spread.
+    lvl = max(1.0, float(np.max(np.abs(y)) / np.std(y))) if det != "none" else 1.0
+    return [y.tolist(), fs, {"win": win, "nseg": nseg, "over": over, "detrend": det, "scaling": sc, "avg": avg}], {"p": P.tolist(), "lvl": lvl}
+POST["welch"] = lambda c, out: (lambda r: (r[0] / c["want"]["lvl"], r[1]))(_vec_post("p")(c, out))
+@gen("sosfiltfilt", 1e-12, 0.3)
+def _():
+    kind = str(rng.choice(["butter", "cheby1", "cheby2", "ellip", "bessel"])); band = str(rng.choice(["lowpass", "highpass", "bandpass", "bandstop"]))
+    N = int(rng.integers(1, 9)); a, b = sorted(rng.uniform(0.02, 0.95, 2)); Wn = float(a) if band in ("lowpass", "highpass") else (float(a), float(max(b, a + 0.02)))
+    sos = _sig.iirfilter(N, Wn, rp=float(rng.uniform(0.1, 3)), rs=float(rng.uniform(20, 80)), btype=band, ftype=kind, output="sos")
+    n = int(rng.integers(3 * (2 * len(sos) + 1) + 2, 3000)); x = np.cumsum(rng.normal(0, 1, n)) + rng.normal(0, 1, n)
+    return [sos.tolist(), x.tolist()], _sig.sosfiltfilt(sos, x).tolist()
+# A section with poles near the unit circle rings, and carries every rounding for about 1/(1 − |p|) points: an elliptic band-stop with
+# poles at 0.9945 lost 5.8e-12 of the largest |x| in Kurve and in SciPy alike against 40 digits (18.11). So the error is judged on
+# the scale of max|x| over (1 − the largest |p|).
+def _sos_scale(c):
+    _, p, _ = _sig.sos2zpk(np.array(c["args"][0])); return max(abs(v) for v in c["args"][1]) / max(1e-6, 1 - float(np.max(np.abs(p))))
+POST["sosfiltfilt"] = lambda c, out: _vec_post()(dict(c, scale=_sos_scale(c)), out)
+
 cases = []
 ONLY = os.environ.get("ONLY")  # ONLY=name,name: those generators alone
 for name, (f, tol) in GEN.items():

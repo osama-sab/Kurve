@@ -1618,7 +1618,22 @@ graph first, with the taskbar kept at the bottom of the screen.
   `#aFs`, `#aFsh`, `#aFo_<key>`, `#aFu`, `#aFg`), `.psd` (`#aWn`, `#aWo`, `#aWs`, `#aWa`, `#aWdb`), `.ifft` (`#aIr`,
   `#aIi`, `#aIs`, `#aIo`). `SIG_PLOT`/`sigPlot(id)` (the tab's *Plot the spectrum*: the sheet's Y columns on a new graph).
   Analyze › Signal processing › FFT…, Power spectrum (Welch)…, Inverse FFT…; Help `signal`. References:
-  `tools/ref/sig_fixtures.py` → `fixtures/sig-fft.json`, judged in `ref-test.mjs`'s Signal processing section.
+  `tools/ref/sig_fixtures.py` → `fixtures/sig-*.json`, judged in `ref-test.mjs`'s Signal processing section (`vec`, `cvec`, `obj`,
+  `flat`, `sos` (sections as a set, the first in place), `fail`); the fuzzer's `fftC`, `welch`, `sosfiltfilt`. `detrendV` takes
+  the mean off by `sigSum` (Neumaier). **5.2**: complex numbers as `[re, im]` (`cAdd`, `cSub`, `cMul`, `cDiv` Smith's,
+  `cSqrt` principal, `cAbs`, `cConj`, `cProd`); SciPy's prototypes `buttap`, `cheb1ap`, `cheb2ap`, `ellipap` (`agm`, `ellipK`,
+  `ellipKm1`, `ellipJ` as Cephes' ellpj, `ellipDeg` SciPy's seven-term nome, `arcJacSc1` by Landen in reals), `besselap`
+  (`besselPoly` by the recurrence, Campos-Calderon's starts, Aberth then Newton, conjugates averaged, the phase norm by the
+  exact a_last in BigInt); `lp2lpZ`, `lp2hpZ`, `lp2bpZ`, `lp2bsZ`, `bilinZ`; `cplxReal`, `nearestIdx`, `polyC`, `singleSos`,
+  `zpk2sos` ("nearest", mirror ties to the first); `iirDesign({kind, band, order, w1, w2, rp, rs})` (Wn over Nyquist; refusals
+  in words, an unstable design too); `sosfilt(sos, x, zi)` → `{y, zf}`, `sosfiltZi`, `oddExt`, `sosfiltfilt` (SciPy's edge
+  3·(2·sections + 1 − trivial)), `lfilter`, `lfilterZi` (the triangular system solved in closed form), `filtfilt`, `npSinc`,
+  `firwin(taps, cut, {band, win, wpar})` → `{b}`, `iirNotch(w0, Q)` → `{b, a}`, `sosFreqz`, `baFreqz`; for the bench `iirSos`,
+  `iirFreq`, `sosFreqzRI`. In PIPE (needed when PIPE_OPS is built): `FILT_KINDS`, `FILT_BANDS`, `FILT_W()` (257 frequencies
+  log-spaced over three decades below Nyquist). Steps `filt` (`kind`, `band`, `order`, `taps`, `f1`, `f2`, `rp`, `rs`, `phase`
+  "zero"|"causal"; `init` f1 = fs/20, f2 = fs/8; `extra {resp {f, db}, edges, nyq, u, zero}`) and `notch` (`f0`, `q`, `harm`,
+  `phase`), both `dep` in `PIPE_ROWS`; a param's `unit: "1/x"` is `sigRecip` of X's (`unitOfParam`); `filtRespSvg(extra)` in
+  `stepForm` (`.filtresp`). Find a command's `CMDK_SYN` has filters, notch, Welch.
 - **Worksheet** (`renderWs`, `setupWs`): a spreadsheet grid as in Excel, with Origin's label
   rows. Columns have fixed widths (`WS_W`, 100 px; `p.wsw[colId]` when dragged or autofitted by
   a double click on the header's edge, `wsSetWidth`, `wsAutofit`), never stretched to the
@@ -5314,7 +5329,9 @@ Next, in order:
    a Review tool window, the toolbar and the status bar), its eight slices in `ux/spec/PARITY_SPEC.md`. Wave 5's plan is `ux/spec/SIGNAL_SPEC.md` (signal processing and
    mathematics, eight slices in the order 5.1, 5.2, 5.3, 5.7, 5.4, 5.5, 5.6, 5.8; its eleven decisions, 18.11); slice 5.1, the
    transform with its output (FFT of any length into a result sheet, ten windows, Welch's spectrum, the inverse; NumPy and
-   SciPy agreeing to 2e-15), done 18.11
+   SciPy agreeing to 2e-15), done 18.11; slice 5.2, filters designed (Butterworth, Chebyshev I and II, elliptic, Bessel and FIR
+   as SciPy designs them, in sections forwards and backwards, the response drawn; a notch; SciPy agreeing section by section), done
+   18.11
 
 ## Known gaps
 

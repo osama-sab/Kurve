@@ -99,5 +99,52 @@ console.log("5.1 the analyses");
   const pw = anaRunKind("psd", [q], { nseg: 100 }); ok(!pw.fail && pw.tables[0].cols[1].unit === "V²/Hz" && pw.report.sections[0].tables[0].rows[0][6] === 7, "Welch: density in V²/Hz, 7 segments of 100 overlapping by 50");
   const bad = anaRunKind("psd", [q], { nseg: 100, over: 100 }); ok(/overlap/.test(bad.fail || bad.notes.join(" ")), "Welch: an overlap as long as the segment refused in words");
 }
+console.log("5.2 filters designed");
+{ const iirDesign = get("iirDesign"), sosFreqz = get("sosFreqz"), sosfiltfilt = get("sosfiltfilt"), sosfilt = get("sosfilt"), iirNotch = get("iirNotch"), filtfilt = get("filtfilt"), firwin = get("firwin"), baFreqz = get("baFreqz");
+  const mag = (sos, w) => { const h = sosFreqz(sos, [w])[0]; return 20 * Math.log10(Math.hypot(h[0], h[1])); };
+  // each design's magnitude at its edge: −3.0103 dB (Butterworth), −rp (Chebyshev I, elliptic), −rs (Chebyshev II)
+  let worst = 0, mono = true;
+  for (const N of [1, 2, 3, 5, 8, 13, 20]) for (const w1 of [0.05, 0.3, 0.8]) {
+    const B = iirDesign({ kind: "butter", band: "low", order: N, w1 }); worst = Math.max(worst, Math.abs(mag(B.sos, Math.PI * w1) + 10 * Math.log10(2)));
+    let prev = Infinity; for (let i = 0; i <= 200; i++) { const m = mag(B.sos, Math.PI * i / 200 * 0.999); if (m > prev + 1e-9) mono = false; prev = m; } }
+  ok(worst < 1e-9 && mono, `Butterworth: −3.0103 dB at the edge for orders 1 to 20 (worst ${worst.toExponential(1)} dB), falling all the way`);
+  let w2 = 0, rip = 0; for (const N of [2, 3, 6, 9]) { const C = iirDesign({ kind: "cheby1", band: "low", order: N, w1: 0.25, rp: 0.5 });
+    w2 = Math.max(w2, Math.abs(mag(C.sos, Math.PI * 0.25) + 0.5)); for (let i = 0; i < 100; i++) { const m = mag(C.sos, Math.PI * 0.25 * i / 100); rip = Math.max(rip, -m - 0.5, m); } }
+  ok(w2 < 1e-9 && rip < 1e-9, `Chebyshev I: −0.5 dB at the edge, its pass band within 0 and −0.5 dB (${w2.toExponential(1)})`);
+  let w3 = 0, stop = -Infinity; for (const N of [2, 4, 7]) { const C = iirDesign({ kind: "cheby2", band: "low", order: N, w1: 0.25, rs: 50 });
+    w3 = Math.max(w3, Math.abs(mag(C.sos, Math.PI * 0.25) + 50)); for (let i = 1; i <= 100; i++) stop = Math.max(stop, mag(C.sos, Math.PI * (0.25 + 0.75 * i / 100) * 0.9999)); }
+  ok(w3 < 1e-8 && stop < -50 + 1e-8, `Chebyshev II: −50 dB at the edge and below it beyond (highest ${stop.toFixed(6)} dB)`);
+  const E = iirDesign({ kind: "ellip", band: "low", order: 6, w1: 0.2, rp: 0.1, rs: 70 }); let er = 0; for (let i = 0; i < 100; i++) er = Math.max(er, -mag(E.sos, Math.PI * 0.2 * i / 100) - 0.1);
+  ok(Math.abs(mag(E.sos, Math.PI * 0.2) + 0.1) < 1e-8 && er < 1e-8, "elliptic: −0.1 dB at the edge, its pass band within it");
+  const BP = iirDesign({ kind: "butter", band: "pass", order: 3, w1: 0.2, w2: 0.4 }), BS = iirDesign({ kind: "butter", band: "stop", order: 3, w1: 0.2, w2: 0.4 });
+  ok(Math.abs(mag(BP.sos, 0.2 * Math.PI) + 3.0103) < 1e-3 && Math.abs(mag(BP.sos, 0.4 * Math.PI) + 3.0103) < 1e-3 && Math.abs(mag(BS.sos, 0.2 * Math.PI) + 3.0103) < 1e-3, "band-pass and band-stop: −3 dB at both edges");
+  // zero phase: a sine in the pass band comes out in place, scaled by |H|²; forwards only it is delayed
+  const n = 2000, x = Array.from({ length: n }, (_, i) => Math.sin(2 * Math.PI * 0.02 * i)), L = iirDesign({ kind: "butter", band: "low", order: 6, w1: 0.2 });
+  const y = sosfiltfilt(L.sos, x), h = sosFreqz(L.sos, [2 * Math.PI * 0.02])[0], g = h[0] ** 2 + h[1] ** 2; let e = 0; for (let i = 300; i < n - 300; i++) e = Math.max(e, Math.abs(y[i] - g * x[i]));
+  const yc = sosfilt(L.sos, x).y; let ec = 0; for (let i = 300; i < n - 300; i++) ec = Math.max(ec, Math.abs(yc[i] - x[i]));
+  ok(e < 1e-6 && ec > 0.05, `forwards and backwards keeps a sine in place (${e.toExponential(1)}); forwards only shifts it (${ec.toFixed(2)})`);
+  // a notch: 50 Hz out of 50 + 7 Hz at 1 kHz, the 7 Hz kept
+  const fs = 1000, m = 5000, s2 = Array.from({ length: m }, (_, i) => Math.sin(2 * Math.PI * 50 * i / fs) + 0.5 * Math.sin(2 * Math.PI * 7 * i / fs));
+  const N0 = iirNotch(50 / 500, 30), yn = filtfilt(N0.b, N0.a, s2); let rn = 0; for (let i = 1500; i < m - 1500; i++) rn = Math.max(rn, Math.abs(yn[i] - 0.5 * Math.sin(2 * Math.PI * 7 * i / fs)));
+  ok(rn < 1e-3, `a notch at 50 Hz takes the hum out and keeps 7 Hz, away from the ends it rings at (left ${rn.toExponential(1)})`);
+  const nop = get("PIPE_OPS").notch, tt = Array.from({ length: 1200 }, (_, i) => i / fs), dn = { x: tt, y: tt.map((v) => Math.sin(2 * Math.PI * 50 * v)), e: null, idx: tt.map((_, i) => i), xu: "s" };
+  const rr = nop.run(dn, Object.assign({}, nop.defaults, { harm: 3 }));
+  ok(rr.warn.some((w) => /rings|lasts/.test(w)) && /50, 100, 150, 200 Hz taken out/.test(rr.note), `the notch step: four frequencies taken out, its ringing at the ends said ("${rr.note.slice(0, 40)}…")`);
+  const F = firwin(101, 0.2, { band: "low" }), fh = baFreqz(F.b, [1], [0, 0.2 * Math.PI, 0.5 * Math.PI]).map(v => 20 * Math.log10(Math.hypot(...v)));
+  ok(Math.abs(fh[0]) < 1e-12 && fh[1] > -7 && fh[1] < -5 && fh[2] < -50, `FIR of 101 taps: 0 dB at 0, −6 dB at its edge (${fh[1].toFixed(2)}), below −50 dB past it`);
+  ok(/between 0 and the Nyquist/.test(iirDesign({ kind: "butter", band: "low", order: 4, w1: 1 }).fail || "") && /lower edge/.test(iirDesign({ kind: "butter", band: "pass", order: 4, w1: 0.4, w2: 0.2 }).fail || "") && /1 to 20/.test(iirDesign({ kind: "butter", band: "low", order: 30, w1: 0.2 }).fail || ""),
+    "refused in words: an edge at Nyquist, a band's edges crossed, an order of 30");
+  // the step, whole: an edge in Hz on X in seconds, the response in its extra, the note
+  const op = get("PIPE_OPS").filt, t = Array.from({ length: 400 }, (_, i) => i * 0.001), d = { x: t, y: t.map(v => Math.sin(2 * Math.PI * 20 * v) + 0.3 * Math.sin(2 * Math.PI * 300 * v)), e: null, idx: t.map((_, i) => i), xn: "Time", xu: "s", yn: "V", yu: "V" };
+  const r = op.run(d, Object.assign({}, op.defaults, { f1: 60 }));
+  ok(near(r.extra.nyq, 500, 1e-12) && r.extra.resp.f.length === 257 && /Butterworth low-pass, order 4, 60 Hz; forwards and backwards/.test(r.note), `the step: Nyquist 500 Hz, the response drawn, "${r.note.slice(0, 70)}…"`);
+  let ee = 0; for (let i = 60; i < 340; i++) ee = Math.max(ee, Math.abs(r.d.y[i] - Math.sin(2 * Math.PI * 20 * t[i])));
+  ok(ee < 0.02, `…keeps the 20 Hz and takes the 300 Hz off (left ${ee.toFixed(4)})`);
+  let thr = ""; try { op.run(d, Object.assign({}, op.defaults, { f1: 600 })); } catch (er) { thr = er.message; }
+  ok(/below the Nyquist frequency, 500 Hz/.test(thr), "…an edge past Nyquist refused, naming it in Hz");
+  const big = Float64Array.from({ length: 1e6 }, () => gauss()), H20 = iirDesign({ kind: "butter", band: "high", order: 20, w1: 0.1 });
+  const [, ms] = time(() => sosfiltfilt(H20.sos, big)); ok(ms < 600, `an order-20 high-pass forwards and backwards over 10⁶ points in ${ms.toFixed(0)} ms (budget 0.3 s in the browser)`);
+  const [, md] = time(() => { for (let i = 0; i < 20; i++) iirDesign({ kind: "ellip", band: "pass", order: 10, w1: 0.1, w2: 0.3, rp: 1, rs: 60 }); }); ok(md / 20 < 5, `an elliptic band-pass of order 10 designed in ${(md / 20).toFixed(2)} ms`);
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -146,6 +146,62 @@ for nm, y, fs in [("two sines in noise", long, 1000.0), ("sines on a slope", spe
         cases.append({"fn": "welch", "name": name, "args": [y, fs, o], "want": {"f": f, "p": P}, "kind": "obj"})
 out["sig-fft"] = cases
 
+# ---- 5.2 filters designed: SciPy's iirfilter section by section ("nearest" pairing), its response, sosfilt and sosfiltfilt,
+# firwin and filtfilt, iirnotch; its refusals ----
+cases = []
+rng = np.random.default_rng(20261119)
+def sig_x(n):
+    t = np.arange(n)
+    return r6(np.sin(2 * np.pi * 0.01 * t) + 0.5 * np.sin(2 * np.pi * 0.21 * t + 0.3) + 0.3 * rng.normal(0, 1, n) + 0.002 * t)
+ws = np.linspace(0, np.pi, 97)
+designs = []
+for kind in ("butter", "cheby1", "cheby2", "ellip", "bessel"):
+    for band, Wn in (("low", 0.2), ("high", 0.35), ("pass", (0.1, 0.3)), ("stop", (0.15, 0.4))):
+        for N in ((1, 2, 3, 4, 5, 8, 12, 20) if kind == "butter" else (1, 2, 3, 4, 7, 10) if kind != "bessel" else (1, 2, 3, 4, 6, 9, 12)):
+            designs.append((kind, band, N, Wn, 1.0, 40.0))
+designs += [("ellip", "low", 6, 0.05, 0.1, 80.0), ("cheby1", "low", 6, 0.9, 3.0, 40.0), ("cheby2", "high", 5, 0.02, 1.0, 60.0), ("butter", "low", 4, 0.001, 1, 40), ("butter", "pass", 4, (0.45, 0.55), 1, 40)]
+btype = {"low": "lowpass", "high": "highpass", "pass": "bandpass", "stop": "bandstop"}
+for kind, band, N, Wn, rp, rs in designs:
+    two = band in ("pass", "stop")
+    o = {"kind": kind, "band": band, "order": N, "w1": Wn[0] if two else Wn, "w2": Wn[1] if two else None, "rp": rp, "rs": rs}
+    nm = f"{kind} {band} N {N} Wn {Wn}"
+    sos = signal.iirfilter(N, Wn, rp=rp, rs=rs, btype=btype[band], ftype=kind, output="sos")
+    _, H = signal.sosfreqz(sos, worN=ws)
+    cases.append({"fn": "iirSos", "name": nm, "args": [o], "want": sos.ravel(), "kind": "sos"})
+    cases.append({"fn": "iirFreq", "name": nm, "args": [o, ws.tolist()], "want": {"re": H.real, "im": H.imag}, "kind": "cvec"})
+for o, why in (({"kind": "butter", "band": "low", "order": 4, "w1": 1.0}, (4, 1.0, "lowpass")), ({"kind": "butter", "band": "pass", "order": 4, "w1": 0.3, "w2": 0.2}, (4, (0.3, 0.2), "bandpass"))):
+    try: signal.iirfilter(why[0], why[1], btype=why[2], output="sos"); msg = None
+    except ValueError as e: msg = str(e)
+    if msg: cases.append({"fn": "iirSos", "name": f"refused: {why}", "args": [o], "want": {"fail": msg}, "kind": "fail"})
+# filtering, on SciPy's own sections, so the filter is judged apart from the design
+x = sig_x(600)
+for kind, band, N, Wn in (("butter", "lowpass", 4, 0.1), ("cheby1", "highpass", 6, 0.3), ("ellip", "bandpass", 4, (0.1, 0.25)), ("bessel", "bandstop", 5, (0.15, 0.3)), ("butter", "lowpass", 12, 0.05)):
+    sos = signal.iirfilter(N, Wn, rp=1, rs=40, btype=kind != "x" and band, ftype=kind, output="sos")
+    cases.append({"fn": "sosfiltfilt", "name": f"sosfiltfilt {kind} {band} {N}", "args": [sos.tolist(), x], "want": signal.sosfiltfilt(sos, np.array(x)), "kind": "vec", "scale": max(abs(v) for v in x)})
+    cases.append({"fn": "sosfilt", "name": f"sosfilt {kind} {band} {N}", "args": [sos.tolist(), x, None], "want": {"y": signal.sosfilt(sos, np.array(x))}, "kind": "obj", "scale": max(abs(v) for v in x)})
+    cases.append({"fn": "sosfiltZi", "name": f"sosfilt_zi {kind} {band} {N}", "args": [sos.tolist()], "want": signal.sosfilt_zi(sos).ravel(), "kind": "flat"})
+short = x[:20]; sos = signal.butter(8, 0.2, output="sos")
+try: signal.sosfiltfilt(sos, np.array(short)); msg = None
+except ValueError as e: msg = str(e)
+cases.append({"fn": "sosfiltfilt", "name": "refused: too short to pad", "args": [sos.tolist(), short], "want": {"fail": msg}, "kind": "fail"})
+for taps, cut, band, win in ((31, 0.2, "low", "hamming"), (51, 0.3, "high", "hamming"), (101, (0.1, 0.2), "pass", "hamming"), (61, (0.2, 0.35), "stop", "blackman"), (3, 0.5, "low", "hamming"), (201, 0.02, "low", "hann"), (40, 0.25, "low", "hamming")):
+    pz = {"low": "lowpass", "high": "highpass", "pass": "bandpass", "stop": "bandstop"}[band]
+    b = signal.firwin(taps, cut, window=win, pass_zero=pz)
+    cases.append({"fn": "firwin", "name": f"firwin {taps} {cut} {band} {win}", "args": [taps, list(cut) if isinstance(cut, tuple) else cut, {"band": band, "win": win}], "want": {"b": b}, "kind": "obj"})
+    if taps < 100:
+        cases.append({"fn": "filtfilt", "name": f"filtfilt FIR {taps} {band}", "args": [b.tolist(), [1.0], x], "want": signal.filtfilt(b, [1.0], np.array(x)), "kind": "vec", "scale": max(abs(v) for v in x)})
+try: signal.firwin(40, 0.3, pass_zero="highpass"); msg = None
+except ValueError as e: msg = str(e)
+cases.append({"fn": "firwin", "name": "refused: even taps, high-pass", "args": [40, 0.3, {"band": "high"}], "want": {"fail": msg}, "kind": "fail"})
+for w0, Q in ((0.1, 30), (0.5, 5), (0.02, 50), (0.9, 10)):
+    b, a = signal.iirnotch(w0, Q)
+    cases.append({"fn": "iirNotch", "name": f"iirnotch {w0} Q {Q}", "args": [w0, Q], "want": {"b": b, "a": a}, "kind": "obj"})
+    cases.append({"fn": "filtfilt", "name": f"filtfilt notch {w0} Q {Q}", "args": [b.tolist(), a.tolist(), x], "want": signal.filtfilt(b, a, np.array(x)), "kind": "vec", "scale": max(abs(v) for v in x)})
+    cases.append({"fn": "lfilter", "name": f"lfilter notch {w0} Q {Q}", "args": [b.tolist(), a.tolist(), x, None], "want": signal.lfilter(b, a, np.array(x)), "kind": "vec", "scale": max(abs(v) for v in x)})
+for b, a in (([0.2, 0.3, 0.1], [1.0, -0.5, 0.25]), ([1.0, 2.0, 3.0, 4.0], [1.0, 0.1, -0.2, 0.05]), ([0.5, 0.5], [1.0])):
+    cases.append({"fn": "lfilterZi", "name": f"lfilter_zi {b} {a}", "args": [b, a], "want": signal.lfilter_zi(b, a), "kind": "vec"})
+out["sig-filt"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

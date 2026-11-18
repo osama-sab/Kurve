@@ -1024,6 +1024,23 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 5, slice 5.2: filters designed (2026-11-18)
+
+- **Analyze › Signal processing › Filter (designed)…**: a step that designs its filter as SciPy does (Butterworth, Chebyshev I and
+  II, elliptic, Bessel, or FIR by a windowed sinc; low-pass, high-pass, band-pass, band-stop; order 1 to 20; edges in the reciprocal
+  of X's unit) and runs it as second-order sections forwards and backwards (zero phase) or forwards only. The response is drawn
+  under the settings, in dB on a log scale of frequency, the edges dashed, before OK.
+- **Notch…**: a frequency (and its harmonics) taken out by SciPy's iirnotch, forwards and backwards.
+- Each step warns of uneven or unsorted X, of ringing longer than a third of the data, of a low-pass lowering a clear band; an edge
+  at or past Nyquist is refused naming the Nyquist frequency in its unit.
+- The mean a detrend takes off (the FFT, Welch) is a compensated sum; Find a command knows low-pass, Butterworth, notch, hum, PSD.
+
+Checked: 125 new reference checks against SciPy (`fixtures/sig-filt.json`: 140 designs section by section to 2.4e-12 and their
+responses to 8e-12, sosfiltfilt to 1e-14, firwin, filtfilt, iirnotch, lfilter_zi, SciPy's refusals); `diff-fuzz.py` gains the FFT,
+Welch and sosfiltfilt (random designs, judged on their conditioning; Kurve and SciPy measured against 40 digits where they
+differed); `sig-test.mjs` 15 more (each design's magnitude at its edges, zero phase, the notch, the step whole, an order-20 filter on
+10⁶ points in 84 ms); `sig-drive.mjs` 12 more; four speed budgets in `perf.mjs`.
+
 ## Closing the gap with Origin, wave 5, slice 5.1: the transform, with its output (2026-11-18)
 
 - **Analyze › Signal processing › FFT…**: the discrete Fourier transform of each column ticked, at any length (Bluestein's

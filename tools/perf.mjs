@@ -79,6 +79,10 @@ const BUDGET = {
   "Implicit: ellipse, 20 000 points": [1200, "a turned ellipse through 20 000 points by orthogonal distance, each point's foot by Eberly's root, from the algebraic ellipse (FIT2_SPEC 4.5)"],
   "Implicit: formula, 500 points": [500, "a parabola written as y − (a x² + b x + c) = 0 through 500 points by orthogonal distance, each foot by Newton's projection (FIT2_SPEC 4.5)"],
   "ANOVA: Tukey, 10 groups": [1100, "Tukey–Kramer's 45 pairs and its quantile (worked out in the worker in the app)"],
+  "FFT: 2^20 points": [200, "the transform of 1 048 576 real values, radix 2 (SIGNAL_SPEC 5.1)"],
+  "FFT: 1 000 003 points (prime)": [1500, "the transform of a prime length of a million by Bluestein's chirp, its plan made too (in the worker in the app; SIGNAL_SPEC 5.1)"],
+  "Welch: 10^6 points": [300, "Welch's power spectral density of a million values, segments of 1024 (SIGNAL_SPEC 5.1)"],
+  "Filter: order 20, 10^6 points": [300, "a Butterworth high-pass of order 20 designed, then run forwards and backwards over a million values (SIGNAL_SPEC 5.2)"],
 };
 const got = {};
 const best = async (fn) => { let m = Infinity; for (let i = 0; i < RUNS; i++) m = Math.min(m, await fn()); return m; };
@@ -224,6 +228,14 @@ await withPage(async (p) => {
   got["Correlation: 1M pairs"] = await best(() => p.evaluate(() => { const mb = mulberry32(10), n = 1000000, x = Array.from({ length: n }, () => mb()), rows = x.map((_, i) => i);
     const ins = [{ name: "A", vals: x, rows }, { name: "B", vals: x.map((v) => v + mb()), rows }];
     const a = performance.now(); anaRunKind("corr", ins, { methods: ["pearson", "spearman", "kendall"] }); return performance.now() - a; }));
+  got["FFT: 2^20 points"] = await best(() => p.evaluate(() => { const mb = mulberry32(21), n = 1 << 20, re = new Float64Array(n), im = new Float64Array(n); for (let i = 0; i < n; i++) re[i] = mb();
+    const a = performance.now(); fftAny(re, im, false); return performance.now() - a; }));
+  got["FFT: 1 000 003 points (prime)"] = await best(() => p.evaluate(() => { const mb = mulberry32(22), n = 1000003, re = new Float64Array(n), im = new Float64Array(n); for (let i = 0; i < n; i++) re[i] = mb();
+    BLU.clear(); const a = performance.now(); fftAny(re, im, false); return performance.now() - a; }));
+  got["Welch: 10^6 points"] = await best(() => p.evaluate(() => { const mb = mulberry32(23), y = Array.from({ length: 1e6 }, () => mb());
+    const a = performance.now(); welch(y, 1, { nseg: 1024 }); return performance.now() - a; }));
+  got["Filter: order 20, 10^6 points"] = await best(() => p.evaluate(() => { const mb = mulberry32(24), y = Float64Array.from({ length: 1e6 }, () => mb());
+    const a = performance.now(); sosfiltfilt(iirDesign({ kind: "butter", band: "high", order: 20, w1: 0.1 }).sos, y); return performance.now() - a; }));
 });
 
 await browser.close(); server.close();

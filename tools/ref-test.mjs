@@ -574,12 +574,19 @@ if (fixtures.implicit) {
       let r; try { r = get(c.fn)(...c.args); } catch (e) { note(c.fn, Infinity, `${c.name}: threw ${e.message}`); continue; }
       if (c.kind === "fail") { note(`${c.fn}.fail`, r && r.fail ? 0 : Infinity, `${c.name}: SciPy refused (${c.want.fail}), Kurve did not`); continue; }
       if (r && r.fail) { note(c.fn, Infinity, `${c.name}: refused, ${r.fail}`); continue; }
-      if (c.kind === "vec") note(c.fn, vecErr(r, c.want, c.scale), c.name);
+      const flat = (a) => (a && typeof a === "object" && typeof a.length === "number" ? Array.from(a).flat(Infinity) : a);
+      if (c.kind === "vec") note(c.fn, vecErr(r && Array.from(r), c.want, c.scale), c.name);
+      else if (c.kind === "flat") note(c.fn, vecErr(flat(r), c.want.flat(Infinity), c.scale), c.name);
+      // second-order sections: the first (it carries the gain) in place, the others as a set (a tie between mirror poles
+      // may order them differently, the cascade the same)
+      else if (c.kind === "sos") { const rows = (a) => { const o = []; for (let i = 0; i < a.length; i += 6) o.push(a.slice(i, i + 6)); return o; },
+          canon = (a) => { const R = rows(Array.from(a)); return R.slice(0, 1).concat(R.slice(1).sort((u, v) => u[4] - v[4] || u[5] - v[5] || u[1] - v[1])).flat(); };
+        note(c.fn, r && r.length === c.want.length ? vecErr(canon(r), canon(c.want), c.scale) : Infinity, c.name); }
       else if (c.kind === "cvec") note(c.fn, cErr(r, c.want), c.name);
       else if (c.kind === "rel") note(c.fn, relErr(r, c.want), c.name);
       else if (c.kind === "obj") for (const [k, w] of Object.entries(c.want)) {
         const name = `${c.fn}.${k}`;
-        note(name, Array.isArray(w) ? vecErr(r[k] && Array.from(r[k]), w, c.scale, k === "phase") : typeof w === "number" ? relErr(r[k], w, (TARGET[name] || {}).floor) : (JSON.stringify(r[k]) === JSON.stringify(w) ? 0 : Infinity), c.name);
+        note(name, Array.isArray(w) ? vecErr(r[k] && Array.from(r[k]).flat(Infinity), w.flat(Infinity), c.scale, k === "phase") : typeof w === "number" ? relErr(r[k], w, (TARGET[name] || {}).floor) : (JSON.stringify(r[k]) === JSON.stringify(w) ? 0 : Infinity), c.name);
       }
     }
   }
