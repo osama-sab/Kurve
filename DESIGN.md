@@ -898,6 +898,16 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-18: wave 5's end
+
+- **A placeholder is words, set as words.** A field for a number is monospaced, so its digits line up; its placeholder ("the first
+  X", "auto") is a phrase, and in the monospaced face it was cut in four of the wave's dialogs. Placeholders take the interface's
+  face everywhere, and an analysis's range fields are as wide as their words; `sig-drive.mjs` measures every placeholder of the
+  wave's dialogs against its field.
+- **A method's cost is the interface's business.** LOWESS fitted at every point froze the page for a minute on a long column; it is
+  fitted at points a hundredth of the range apart, as R does, and the Help says so. A step a person can choose must finish while
+  they watch.
+
 ### 2026-11-18: calculus, further (SIGNAL_SPEC 5.8)
 
 - **An integral is an analysis when it is of columns, a sentence when it is of a fit.** Each column's area by the trapezoid and

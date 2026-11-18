@@ -2050,6 +2050,10 @@ table.pdann{border-collapse:collapse;font-size:var(--fs-tab);width:100%;margin:v
 /* Fields are as wide as what they hold, the way Office dialogs size them; a label column never stretches its control. */
 :where(input[type=text]){width:12em}
 :where(input[type=text][inputmode="decimal"]){width:7em}
+/* A decimal field's placeholder is words ("the first X", "auto"), set in the interface's face; what is typed is a number, in the
+   monospaced one. A range of an analysis's dialog holds such words: room for them. */
+input[inputmode="decimal"]:not(.wsed)::placeholder{font-family:var(--sans)}
+.anarows input[type=text][inputmode="decimal"]{width:9em}
 /* The review had 5.5em here; 7em, the system's number field, shows a value such as 1550.25 whole. */
 .fwhere .pair input[type=text]{width:7em}
 select:not([multiple]):not([size]){width:auto;max-width:100%}
@@ -21104,7 +21108,7 @@ const ANA_FORMS={
     read(v){ const l=parseNum(String(v.aDl||"")); return {wav:v.aDw||"db4",level:l>0?Math.round(l):null,mode:v.aDm||"symmetric"}; },
     valid(v){ const t=String(v.aDl||"").trim(); return !t||parseNum(t)>=1; }},
   cwt:{noGroup:true, html(p){ return `<div class="grid2"><label for="aCw">Wavelet</label><select id="aCw">${CWT_WAVS.map(([k,t])=>`<option value="${k}"${k===(p.wav||"morl")?" selected":""}>${t}</option>`).join("")}</select>
-      <label for="aCs0">Scales</label><span class="anarows"><input type="text" id="aCs0" inputmode="decimal" value="${+p.s0>0?+p.s0:""}" placeholder="1" aria-label="Smallest scale"><span class="muted">to</span><input type="text" id="aCs1" inputmode="decimal" value="${+p.s1>0?+p.s1:""}" placeholder="a quarter of the points, 128 at most" aria-label="Largest scale"></span>
+      <label for="aCs0">Scales</label><span class="anarows"><input type="text" id="aCs0" inputmode="decimal" value="${+p.s0>0?+p.s0:""}" placeholder="1" aria-label="Smallest scale"><span class="muted">to</span><input type="text" id="aCs1" inputmode="decimal" value="${+p.s1>0?+p.s1:""}" placeholder="auto" title="Empty: a quarter of the points, 128 at most" aria-label="Largest scale"></span>
       <label for="aCn">How many</label><input type="text" id="aCn" inputmode="numeric" value="${+p.ns>0?Math.round(+p.ns):""}" placeholder="48">
       <label for="aCy">Rows by</label><select id="aCy"><option value="scale">Scale</option><option value="freq"${p.yaxis==="freq"?" selected":""}>The frequency a scale stands for</option></select></div>
       <label class="chk"><input type="checkbox" id="aClin"${p.lin?" checked":""}> Scales evenly spaced (not on a log scale)</label><label class="chk"><input type="checkbox" id="aCab"${p.abs===false?"":" checked"}> Magnitudes (|coefficient|)</label>`; },

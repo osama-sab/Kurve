@@ -321,6 +321,25 @@ await page(async p => {
   check("Delete the analysis: its matrix goes with it", await p.evaluate(() => matBooks().length === 0 && !anaList().some(x => x.kind === "grid")));
 }, { name: "5.7" });
 
+console.log("The wave's end: every dialog and tool form at 1024 px");
+await page(async p => {
+  await p.setViewportSize({ width: 1024, height: 768 });
+  await p.evaluate(() => { const x = [], y = [], z = []; for (let i = 0; i < 256; i++) { const t = i / 100; x.push(t); y.push(Math.cos(40 * t)); z.push(Math.sin(30 * t)); }
+    save({ cols: [makeCol("x", "Time", "s", x), Object.assign(makeCol("y", "A", "V", y), { pipe: [], mask: [] }), Object.assign(makeCol("y", "B", "V", z), { pipe: [], mask: [] }), Object.assign(makeCol("y", "C", "V", z.map(v => v * 2)), { pipe: [], mask: [] })], activeY: null }, "typed"); });
+  await p.waitForTimeout(300);
+  // a placeholder's words, measured in the placeholder's own face, against the room its field leaves
+  const cut = (where) => p.evaluate((where) => { const c = document.createElement("canvas").getContext("2d"), out = [];
+    document.querySelectorAll(where + " input[placeholder]").forEach(el => { if (!el.offsetParent) return; const cs = getComputedStyle(el), ps = getComputedStyle(el, "::placeholder"); c.font = `${ps.fontStyle} ${ps.fontWeight} ${ps.fontSize} ${ps.fontFamily}`;
+      const w = c.measureText(el.placeholder).width, room = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight); if (w > room + 1) out.push(`${el.id}: "${el.placeholder}"`); });
+    return out; }, where);
+  const bad = [];
+  for (const k of ["fft", "psd", "ifft", "stft", "xcorr", "coh", "dwt", "cwt", "interp", "grid", "integ", "between"]) { await p.evaluate(k => { anaDlg(k, { two: true }); }, k); await p.waitForTimeout(250);
+    (await cut("#formModal")).forEach(q => bad.push(k + " " + q)); await p.evaluate(() => { const m = $("#formModal"); m._cancel && m._cancel(); }); await p.waitForTimeout(120); }
+  for (const op of ["filt", "notch", "conv", "deconv", "env", "wden", "smooth"]) { await p.evaluate(op => { P().activeY = yCols()[0].id; openTool(op); }, op); await p.waitForTimeout(300);
+    (await cut("#pane-tool")).forEach(q => bad.push(op + " " + q)); await p.evaluate(() => cancelTool()); await p.waitForTimeout(120); }
+  check("every placeholder of the wave's twelve dialogs and seven tool forms fits its field", !bad.length, bad.join(" | "));
+}, { name: "end" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);
