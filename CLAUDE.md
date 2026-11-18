@@ -1661,7 +1661,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   `#aPr0`/`#aPr1`, `#aPa`, `#aPe`; `#aGx`, `#aGy`, `#aGz`, `#aGm`, `#aGs`, `#aGr`, `#aGnx`/`#aGny`, `#aGx0`… Analyze › Calculus ›
   Interpolate…, Data › Matrix › From scattered X, Y, Z…. **5.4**: `analytic(y, N)` (scipy.signal.hilbert), `gradientV` (numpy.gradient),
   `extremaIdx(y, order, lower)` (argrelextrema, ends clipped), `envelope(x, y, {out, order, join, pad})` (`env` about the mean, `phase`,
-  `freq`, `imag`, or `upper`/`lower`/`mean` through `interp1`); in PIPE `ENV_OUTS`, `ENV_JOINS`; step `env` (`dep`).
+  `freq`, `imag`, or `upper`/`lower`/`mean` through `interp1`); in PIPE `ENV_OUTS`, `ENV_JOINS`; step `env` (`dep`). **5.5**:
+  `stft(y, fs, {win (tukey, α 0.25), wpar, nseg, over (⌊nseg/8⌋), nfft, detrend, scaling, mode "psd"|"magnitude"})` →
+  `{f, t, z (a row a frequency), nf, nt, …}` as scipy.signal.spectrogram; kind `stft` (`mat`; `db`; the matrix's X the column's
+  first X plus each centre, Y frequency), form `#aSm2` beside the Welch fields.
 - **Worksheet** (`renderWs`, `setupWs`): a spreadsheet grid as in Excel, with Origin's label
   rows. Columns have fixed widths (`WS_W`, 100 px; `p.wsw[colId]` when dragged or autofitted by
   a double click on the header's edge, `wsSetWidth`, `wsAutofit`), never stretched to the
@@ -5363,7 +5366,8 @@ Next, in order:
    shape or a column, Wiener's deconvolution; NumPy and SciPy agreeing to 2e-15), done 18.11; slice 5.7, interpolation into
    columns (eight interpolants as SciPy's, extrapolation asked for, the smoothing spline by GCV; scattered points into a matrix of
    the analysis's own by triangles, a thin-plate spline or Shepard's weights), done 18.11; slice 5.4, envelopes (the Hilbert
-   envelope, phase and frequency; the curve through the extrema; SciPy agreeing to 2e-14), done 18.11
+   envelope, phase and frequency; the curve through the extrema; SciPy agreeing to 2e-14), done 18.11; slice 5.5, the spectrogram
+   (scipy.signal.spectrogram into a matrix of the analysis's own, drawn as a map), done 18.11
 
 ## Known gaps
 

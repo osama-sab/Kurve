@@ -223,5 +223,16 @@ console.log("5.4 envelope");
   ok(r.d.yn === "Frequency of Signal" && r.d.yu === "Hz" && /less its mean/.test(r.note), `the step: "${r.d.yn}" in ${r.d.yu}, "${r.note.slice(0, 60)}…"`);
   const big = Array.from({ length: 1 << 20 }, (_, i) => Math.sin(i * 0.01)), xs = big.map((_, i) => i), [, ms] = time(() => envelope(xs, big, { out: "env" })); ok(ms < 1200, `the analytic signal of 2²⁰ points in ${ms.toFixed(0)} ms (budget 0.5 s in the browser)`);
 }
+console.log("5.5 the short-time transform");
+{ const stft = get("stft"), fs = 1000, n = 4000, t = Array.from({ length: n }, (_, i) => i / fs), y = t.map((v) => Math.cos(2 * Math.PI * (50 * v + 50 * v * v)));
+  const r = stft(y, fs, { nseg: 256, over: 192 }); let worst = 0;
+  for (let s = 2; s < r.nt - 2; s++) { let kb = 0; for (let k = 0; k < r.nf; k++) if (r.z[k * r.nt + s] > r.z[kb * r.nt + s]) kb = k; worst = Math.max(worst, Math.abs(r.f[kb] - (50 + 100 * r.t[s]))); }
+  ok(worst <= 1000 / 256 + 100 * 0.256 / 2, `a chirp's ridge follows 50 + 100t Hz within a frequency step and half the sweep across a segment (${worst.toFixed(2)} Hz)`);
+  const pts = (x, y) => ({ x, y, e: x.map(() => null), rows: x.map((_, i) => i) }), R = anaRunKind("stft", [{ id: "a", name: "Signal", unit: "V", xu: "s", xn: "Time", pts: pts(t.map((v) => v + 10), y) }], { db: true });
+  ok(R.mat && R.mat.yunit === "Hz" && R.mat.xunit === "s" && R.mat.zunit === "dB" && R.mat.zname === "Power spectral density" && R.mat.ny === 129 && Math.abs(get("matAxis")(R.mat.x, R.mat.nx)[0] - 10.128) < 1e-9,
+    "the analysis: a matrix of frequency (Hz, 129 rows) against time from the column's own X (the first centre at 10.128 s), in dB");
+  ok(/more than a matrix holds/.test(stft(Array.from({ length: 5e6 }, () => 0), 1, { nseg: 4000, over: 3999 }).fail || ""), "a spectrogram past a matrix's size refused in words");
+  const big = Array.from({ length: 1e6 }, () => gauss()), [, ms] = time(() => stft(big, 1, { nseg: 256, over: 0 })); ok(ms < 2000, `a million points into 3906 × 129 cells in ${ms.toFixed(0)} ms (budget 1.5 s in the worker)`);
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

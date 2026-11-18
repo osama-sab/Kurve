@@ -383,6 +383,10 @@ point.
 
 ## 5.5 Short-time FFT
 
+Done 18.11, as below, with these changes of plan: no padding at the ends (SciPy's spectrogram has none; its ShortTimeFFT's padding
+is left for later); the matrix's X starts from the column's own first X, each segment at its centre as SciPy places it; a matrix
+past MAT_MAX cells is refused in words, naming the cure.
+
 **What.** Analyze › Signal processing › *Spectrogram…* (an analysis writing a matrix, decision 7):
 the window and its length, the overlap, padding, detrend, scaling (power spectral density,
 power, amplitude, dB of either), one side; the matrix's X the segments' centres in X's unit, Y the

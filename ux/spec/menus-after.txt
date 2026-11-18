@@ -247,6 +247,7 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
     FFT…  ## + (SIGNAL_SPEC 5.1): an analysis into a result sheet: frequency, amplitude, power, density, phase, real and imaginary parts
     Power spectrum (Welch)…  ## + (SIGNAL_SPEC 5.1)
     Inverse FFT…  ## + (SIGNAL_SPEC 5.1)
+    Spectrogram…  ## + (SIGNAL_SPEC 5.5): an analysis writing a matrix, drawn as a map
     Correlation…  ## + (SIGNAL_SPEC 5.3): auto- or cross-correlation, an analysis
     Coherence…  ## + (SIGNAL_SPEC 5.3); ↓ until there are two columns or more
     Convolution…  ## + (SIGNAL_SPEC 5.3): a step

@@ -989,5 +989,14 @@
  },
  "extremaIdx": {
   "tol": 0
+ },
+ "stft.f": {
+  "tol": 1e-15
+ },
+ "stft.t": {
+  "tol": 1e-15
+ },
+ "stft.z": {
+  "tol": 1e-12
  }
 }

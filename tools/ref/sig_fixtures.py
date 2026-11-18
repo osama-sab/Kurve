@@ -349,6 +349,23 @@ for n in (5, 8, 64, 101, 500):
                     cases.append({"fn": "envelope", "name": f"{'lower' if lower else 'upper'} envelope by {jn}, order {order}, {n}", "args": [t.tolist(), y.tolist(), {"out": "lower" if lower else "upper", "order": order, "join": jn}], "want": {"y": F()}, "kind": "obj"})
 out["sig-env"] = cases
 
+# ---- 5.5 the short-time transform: scipy.signal.spectrogram (its Tukey 0.25 window, an eighth's overlap, density or spectrum,
+# power or magnitude), the matrix a row a frequency ----
+cases = []
+rng = np.random.default_rng(20261123)
+fs = 1000.0; t = np.arange(3000) / fs; y = np.array(r6(np.cos(2 * np.pi * (50 * t + 60 * t * t)) + 0.1 * rng.normal(0, 1, t.size)))
+for win, par, nseg, over, sc, mode, det in ((("tukey", 0.25), None, None, None, "density", "psd", "constant"), (("hann", None), None, 128, 64, "spectrum", "psd", "constant"),
+                                           (("tukey", 0.25), None, 200, None, "density", "magnitude", "constant"), (("blackman", None), None, 100, 10, "spectrum", "magnitude", "linear"),
+                                           (("kaiser", 6.0), None, 300, 250, "density", "psd", False)):
+    wk = win[0] if win[1] is None else win
+    kw = dict(window=wk, scaling=sc, mode=mode, detrend=det)
+    if nseg: kw["nperseg"] = nseg
+    if over is not None: kw["noverlap"] = over
+    f, tt, S = signal.spectrogram(y, fs, **kw)
+    o = {"win": win[0], "wpar": win[1], "nseg": nseg, "over": over, "scaling": sc, "mode": mode, "detrend": det if det else "none"}
+    cases.append({"fn": "stft", "name": f"spectrogram {win} {nseg} {over} {sc} {mode} {det}", "args": [y.tolist(), fs, o], "want": {"f": f, "t": tt, "z": S.ravel()}, "kind": "obj"})
+out["sig-stft"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

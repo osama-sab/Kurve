@@ -1024,6 +1024,15 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 5, slice 5.5: the spectrogram (2026-11-18)
+
+- **Analyze › Signal processing › Spectrogram…**: the short-time Fourier transform of a column as scipy.signal.spectrogram makes
+  it, into a matrix of the analysis's own (time from the column's X, frequency, power density, power or magnitude, dB if asked),
+  drawn as a map from its tab's menu; worked out again with the column, in the worker when large.
+
+Checked: 5 new reference cases (every cell of SciPy's spectrograms, to 7e-16); `sig-test.mjs` 4 more (a chirp's ridge, the matrix's
+axes and units, a refusal, a million points); `sig-drive.mjs` 4 more.
+
 ## Closing the gap with Origin, wave 5, slice 5.4: envelopes (2026-11-18)
 
 - **Analyze › Signal processing › Envelope…** (a step): the Hilbert envelope about the mean, the phase, the instantaneous frequency

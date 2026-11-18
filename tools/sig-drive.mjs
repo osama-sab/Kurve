@@ -205,6 +205,19 @@ await page(async p => {
   check("OK: the instantaneous frequency, named and in Hz, 60 in the middle", r.ops.join() === "env" && r.yn === "Frequency of Signal" && r.yu === "Hz" && Math.abs(r.mid - 60) < 0.5, JSON.stringify(r));
 }, { name: "5.4" });
 
+console.log("5.5 Short-time FFT");
+await page(async p => {
+  await p.evaluate(() => { const x = [], y = []; for (let i = 0; i < 4000; i++) { const t = i / 1000; x.push(t); y.push(Math.cos(2 * Math.PI * (50 * t + 50 * t * t))); }
+    save({ cols: [makeCol("x", "Time", "s", x), Object.assign(makeCol("y", "Chirp", "V", y), { pipe: [], mask: [] })], activeY: null }, "typed"); }); await p.waitForTimeout(300);
+  await menu(p, "analyze", "Signal processing", "Spectrogram…");
+  check("Analyze › Signal processing › Spectrogram… opens with Tukey's window, α 0.25", await p.evaluate(() => $("#aWw").value === "tukey" && $("#aWp").value === "0.25"));
+  await p.fill("#aWn", "200"); await p.check("#aWdb"); await p.click("#formOk"); await p.waitForTimeout(800);
+  const r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "stft"), s = a && anaMatSheet(a); return a && { err: a.res && a.res.err, nx: s && s.nx, ny: s && s.ny, zu: s && s.zunit, yu: s && s.yunit, acts: anaActs(a).map(x => x.label) }; });
+  check("a matrix of power in dB against time and frequency, belonging to the analysis", r && !r.err && r.ny === 101 && r.nx > 15 && r.zu === "dB" && r.yu === "Hz" && r.acts.includes("Draw the map"), JSON.stringify(r));
+  await p.evaluate(() => { const a = anaList().find(x => x.kind === "stft"); anaActs(a).find(x => x.key === "map").run(); }); await p.waitForTimeout(600);
+  check("…drawn as a map", await p.evaluate(() => { const g = P().graphs[P().graphs.length - 1]; return !!(g && g.plot && g.plot.mat && g.plot.layout === "heat"); }));
+}, { name: "5.5" });
+
 console.log("5.7 Interpolation into columns");
 await page(async p => {
   await p.evaluate(() => { const x = [0, 1, 2.5, 4, 5.5, 7, 9], y = x.map(v => v * v * v - 2 * v);
