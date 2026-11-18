@@ -236,8 +236,8 @@ await page(async p => {
   await p.evaluate(() => { showSheet(SHEET0.id, { quiet: true }); }); await p.waitForTimeout(150);
   await menu(p, "analyze", "Signal processing", "Wavelets", "Continuous (CWT)…");
   await p.fill("#aCn", "20"); await p.selectOption("#aCy", "freq"); await p.click("#formOk"); await p.waitForTimeout(800);
-  r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "cwt"), s = a && anaMatSheet(a); return a && { err: a.res && a.res.err, nx: s && s.nx, ny: s && s.ny, yn: s && s.yname, yu: s && s.yunit }; });
-  check("Continuous (CWT)…: a matrix of 20 frequencies (Hz) by 512 X, the analysis's own", r && !r.err && r.ny === 20 && r.nx === 512 && r.yn === "Frequency" && r.yu === "Hz", JSON.stringify(r));
+  r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "cwt"), s = a && anaMatSheet(a); return a && { err: a.res && a.res.err, nx: s && s.nx, ny: s && s.ny, yn: s && s.yname, yu: s && s.yunit, xn: s && s.xname, nm: s && s.name, an: a.name }; });
+  check("Continuous (CWT)…: a matrix of 20 frequencies (Hz) by 512 X, the analysis's own, named as it is, X the column's own", r && !r.err && r.ny === 20 && r.nx === 512 && r.yn === "Frequency" && r.yu === "Hz" && r.xn === "Time" && r.nm === r.an.replace(/ /g, ""), JSON.stringify(r));
 }, { name: "5.6" });
 
 console.log("5.8 Calculus, further");

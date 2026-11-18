@@ -898,6 +898,69 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-18: calculus, further (SIGNAL_SPEC 5.8)
+
+- **An integral is an analysis when it is of columns, a sentence when it is of a fit.** Each column's area by the trapezoid and
+  Simpson's rule goes into a result sheet that follows the data, as every measurement of columns does; the fitted curve's integral
+  is one number asked of the fit in front, so its dialog answers as the ends are typed and puts it in the History, with no sheet.
+- **The Integrate window keeps its one rule.** Its windows measure bands, each with its own baseline; Simpson's rule there would be
+  a second answer to the same question with no way to tell which to report. The analysis gives both, side by side.
+- **LOWESS is a way to smooth, not a tool of its own.** It goes where smoothing is chosen (Smooth's methods), with its two settings
+  shown in place of a window's, so the before-and-after and the checks on what it takes off a band come with it.
+- **A readout is the number.** How the integral was worked out (the rule, its tolerance, the delta method) is the readout's
+  tooltip and the Help's; the dialog shows the value and its error.
+
+### 2026-11-18: wavelets (SIGNAL_SPEC 5.6)
+
+- **Denoising is a step, decomposing and the continuous transform are analyses** (decision 1): a denoised column keeps its X and
+  goes through its processing like smoothing; levels of coefficients and a grid of scales are new things with X of their own.
+- **Each level alone, on the column's X.** Coefficients by level are indices, which nobody can lay over the data; the levels
+  reconstructed alone add up to the column and can be plotted with it, which is what a person reading a decomposition wants.
+- **The noise the threshold used is said.** The noise read from the finest level is printed in the step's form, so a threshold
+  that took too much can be seen to have read too much noise.
+
+### 2026-11-18: the spectrogram (SIGNAL_SPEC 5.5)
+
+- **A grid an analysis makes is the analysis's matrix** (decision 7): read only, worked out again with its column, cut from it or
+  deleted with it, drawn as a map by its report's *Draw the map*; a person never has to ask where the numbers went.
+- **Named as the analysis, its axes the column's.** The matrix takes the analysis's name (CWT1, Spectrogram1) and the column's own X
+  name and unit; the wave's screenshots showed "CWT11" and "X (s)" until this was so.
+
+### 2026-11-18: envelopes (SIGNAL_SPEC 5.4)
+
+- **One step, its output chosen.** The Hilbert envelope, its phase, its instantaneous frequency and the curves through the maxima
+  and minima are one step (*Envelope…*) with a list of what it writes, not five tools: they are one question asked five ways.
+
+### 2026-11-18: interpolation into columns (SIGNAL_SPEC 5.7)
+
+- **Past the data is asked for.** Extrapolation is off unless chosen, and the result sheet marks each value measured, interpolated
+  or extrapolated (decision 9), so a guess is never read as a measurement.
+- **Scattered points into a matrix live under Data › Matrix**, beside the other ways a matrix is made, though the work is an
+  analysis's; a person looks for a grid where grids are made.
+
+### 2026-11-18: correlation and convolution (SIGNAL_SPEC 5.3)
+
+- **A lag is read in words.** The correlation's report says "B follows A by 6.5 s" beside the lag of the largest value, since the
+  sign convention of a cross-correlation is the first thing people get wrong.
+- **Deconvolution states its noise** (decision 6): estimated unless typed, and the ratio used said, because Wiener's result
+  depends on it entirely.
+
+### 2026-11-18: filters designed (SIGNAL_SPEC 5.2)
+
+- **The response is drawn in the form.** A designed filter's gain against frequency, on a log scale to the Nyquist frequency with
+  its edges dashed, sits under its settings in the Tool window and the History, so an edge typed in the wrong unit shows at once.
+- **The step warns in the data's terms.** A filter that lowers a band says by how much and how wide the band is in points, as
+  smoothing does, and a notch that rings says so; a filter is a step like the others, with their checks.
+
+### 2026-11-18: the transform, with its output (SIGNAL_SPEC 5.1)
+
+- **A transform is an analysis with a sheet** (decision 1): its X is frequency, not the column's, so it cannot be a step; its
+  columns (amplitude, phase, power…) are chosen as switches and written to a result sheet that follows the column.
+- **Uneven spacing is said, then cured** (decision 2): X not evenly spaced is resampled by straight lines first and the note says
+  so, rather than refusing or transforming wrong numbers in silence.
+- **Kurve's words, SciPy's numbers** (decision 3): windows, scalings and sides are named in words in the dialog, and give exactly
+  NumPy's and SciPy's results, so a number can be checked against a script.
+
 ### 2026-11-15: implicit fits (FIT2_SPEC 4.5)
 
 - **A curve through points measured in both coordinates is fitted by its distances.** A circle, an ellipse or a formula f(x, y)

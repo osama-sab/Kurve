@@ -3,7 +3,7 @@
    every pointer tool on the graph, wandering the menu bar, the graph's menus and right-click menus
    to any item, dialogs answered at random, windows dragged, resized, maximised and minimised, the
    taskbar and the dock, undo and redo in bursts, Find a command, examples and new projects, files
-   imported, screen sizes, the theme, and coffee breaks. Every 30 s it writes memory, page elements,
+   imported, screen sizes, the theme, a matrix, Analyze's Fit, Signal processing and Calculus dialogs and tools, and coffee breaks. Every 30 s it writes memory, page elements,
    listeners, lag, long tasks, storage and the status to a CSV; at the end it reloads and compares
    every project. Page errors, a page that stops answering (lag over 1.5 s), an action with no
    answer in 90 s and a reload that loses anything are failures.
@@ -99,6 +99,23 @@ async function dialog() {
 const SIZES = [[1440, 900], [1280, 720], [1920, 1080], [1024, 768], [390, 844], [1600, 1000]];
 const files = Array.from({ length: 6 }, (_, k) => ({ name: `run_${k}.csv`, mimeType: "text/csv", buffer: Buffer.from("Raman shift (cm-1),Counts\n" + Array.from({ length: 1500 }, (_, i) => { const x = 100 + i * 2; return `${x},${(200 * Math.exp(-(((x - 520 - k) / 4) ** 2)) + 30 + Math.sin(i) * 3).toFixed(1)}`; }).join("\n")) }));
 
+// An item of an Analyze submenu: a dialog's lists and ticks changed at random, junk typed into a field now and then, then run
+// when it can be, else left by Escape.
+const anaMenu = (name) => async () => { const ab = await vis('.menubar .mb[data-menu="analyze"]'); if (!ab.length) return "no menu bar"; await clickAt(...mid(ab[0].b)); await pause(150, 300);
+    const f = page.locator(".menu .mi", { hasText: new RegExp("^" + name + "$") }); if (!(await f.count())) { await key("Escape"); return "no " + name; } await f.first().hover(); await pause(250, 400);
+    const its = await vis(".menu.sub .mi:not(:disabled)"); if (!its.length) { await key("Escape"); return "empty"; } const it = pick(its);
+    const t = ((await page.locator(".menu.sub .mi:not(:disabled)").nth(it.i).textContent().catch(() => "")) || "").trim().slice(0, 40); await clickAt(...mid(it.b)); await pause(300, 600);
+    if (!(await page.isVisible(".modal:not([hidden]) #formOk"))) { // a tool window's step (Smooth, a filter, wavelet denoising): kept or not
+      if (await page.isVisible("#tlOk").catch(() => false)) { const sl = await vis("#pane-tool select:not(:disabled)"); if (sl.length && R() < .5) { const x = pick(sl); await page.locator("#pane-tool select:not(:disabled)").nth(x.i).selectOption({ index: 0 }).catch(() => {}); }
+        await pause(150, 400); await page.click(R() < .6 ? "#tlOk" : "#tlCancel").catch(() => {}); return "tool " + t; } return "no dialog " + t; }
+    await page.evaluate((seed) => { let s = seed; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+      const sel = [...document.querySelectorAll(".modal:not([hidden]) select")].filter(x => x.offsetParent && !x.disabled), box = [...document.querySelectorAll(".modal:not([hidden]) input[type=checkbox]")].filter(x => x.offsetParent && !x.disabled);
+      for (let k = 0; k < 3 && sel.length; k++) { const x = sel[Math.floor(r() * sel.length)], o = [...x.options].filter(q => !q.disabled); if (!o.length) continue; x.value = o[Math.floor(r() * o.length)].value; x.dispatchEvent(new Event("input", { bubbles: true })); x.dispatchEvent(new Event("change", { bubbles: true })); }
+      for (let k = 0; k < 2 && box.length; k++) { const x = box[Math.floor(r() * box.length)]; x.checked = !x.checked; x.dispatchEvent(new Event("input", { bubbles: true })); x.dispatchEvent(new Event("change", { bubbles: true })); } }, 1 + Math.floor(R() * 2147483646));
+    if (R() < .3) { const fs = await vis(".modal:not([hidden]) input[type=text]"); if (fs.length) { const fl = pick(fs); await clickAt(fl.b.x + 8, fl.b.y + fl.b.height / 2); await type(junk().slice(0, 12)); } }
+    await pause(150, 300);
+    if (R() < .75 && await page.isEnabled(".modal:not([hidden]) #formOk").catch(() => false)) { await page.click(".modal:not([hidden]) #formOk"); await pause(800, 2000); return "ran " + t; }
+    await key("Escape"); return "left " + t; };
 const ACTIONS = [
   [10, "type into a cell", async () => { const c = await cell(); if (!c) return "no cell"; await clickAt(...c); if (R() < .3) await key("F2"); await type(junk().slice(0, 60)); await key(pick(["Enter", "Tab", "Enter", "Escape", "ArrowDown", "ArrowRight"])); }],
   [5, "keys in the sheet", async () => { await key(pick(["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "PageDown", "PageUp", "Control+End", "Control+Home", "Tab", "Shift+ArrowDown", "Shift+ArrowRight", "Delete", "Home", "End"]), Math.ceil(R() * 6)); }],
@@ -162,19 +179,10 @@ const ACTIONS = [
   // Analyze › Fit (FIT2_SPEC, wave 4): an item of its submenu (the Fit window, multiple regression, best subsets, comparing models
   // and data sets, surface and implicit fits…); a dialog's lists and ticks changed at random, junk typed into a field now and then,
   // then run when it can be, else left by Escape.
-  [3, "Analyze › Fit", async () => { const ab = await vis('.menubar .mb[data-menu="analyze"]'); if (!ab.length) return "no menu bar"; await clickAt(...mid(ab[0].b)); await pause(150, 300);
-    const f = page.locator(".menu .mi", { hasText: /^Fit$/ }); if (!(await f.count())) { await key("Escape"); return "no Fit"; } await f.first().hover(); await pause(250, 400);
-    const its = await vis(".menu.sub .mi:not(:disabled)"); if (!its.length) { await key("Escape"); return "empty"; } const it = pick(its);
-    const t = ((await page.locator(".menu.sub .mi:not(:disabled)").nth(it.i).textContent().catch(() => "")) || "").trim().slice(0, 40); await clickAt(...mid(it.b)); await pause(300, 600);
-    if (!(await page.isVisible(".modal:not([hidden]) #formOk"))) return "no dialog";
-    await page.evaluate((seed) => { let s = seed; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
-      const sel = [...document.querySelectorAll(".modal:not([hidden]) select")].filter(x => x.offsetParent && !x.disabled), box = [...document.querySelectorAll(".modal:not([hidden]) input[type=checkbox]")].filter(x => x.offsetParent && !x.disabled);
-      for (let k = 0; k < 3 && sel.length; k++) { const x = sel[Math.floor(r() * sel.length)], o = [...x.options].filter(q => !q.disabled); if (!o.length) continue; x.value = o[Math.floor(r() * o.length)].value; x.dispatchEvent(new Event("input", { bubbles: true })); x.dispatchEvent(new Event("change", { bubbles: true })); }
-      for (let k = 0; k < 2 && box.length; k++) { const x = box[Math.floor(r() * box.length)]; x.checked = !x.checked; x.dispatchEvent(new Event("input", { bubbles: true })); x.dispatchEvent(new Event("change", { bubbles: true })); } }, 1 + Math.floor(R() * 2147483646));
-    if (R() < .3) { const fs = await vis(".modal:not([hidden]) input[type=text]"); if (fs.length) { const fl = pick(fs); await clickAt(fl.b.x + 8, fl.b.y + fl.b.height / 2); await type(junk().slice(0, 12)); } }
-    await pause(150, 300);
-    if (R() < .75 && await page.isEnabled(".modal:not([hidden]) #formOk").catch(() => false)) { await page.click(".modal:not([hidden]) #formOk"); await pause(800, 2000); return "ran " + t; }
-    await key("Escape"); return "left " + t; }],
+  [3, "Analyze › Fit", async () => anaMenu("Fit")()],
+  // Analyze › Signal processing and Calculus (SIGNAL_SPEC, wave 5): the same, its tools' steps kept or cancelled.
+  [2, "Analyze › Signal processing", async () => anaMenu("Signal processing")()],
+  [1, "Analyze › Calculus", async () => anaMenu("Calculus")()],
   [1, "coffee", async () => { const s = between(15, 90); await page.mouse.move(between(0, 50), between(0, 50)); await page.waitForTimeout(s * 1000); return Math.round(s) + " s"; }],
 ];
 // BIAS="label" makes the actions whose label holds it twenty times as likely, to watch one closely.

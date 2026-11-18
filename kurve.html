@@ -20655,7 +20655,7 @@ const cmpCommonRead=v=>{ const num=t=>{ const x=parseNum(String(t||"").trim()); 
 function anaPts(a,cs,notes){ return cs.map(c=>{ const d=finalOf(c), mk=new Set(a.in.masked?[]:(c.mask||[])), x=[], y=[], e=[], rows=[]; let nm=0;
     for(let k=0;k<d.x.length;k++){ const X=d.x[k], Y=d.y[k], i=d.idx?d.idx[k]:k; if(!Number.isFinite(X)||!Number.isFinite(Y)) continue; if(i>=0&&mk.has(i)){ nm++; continue; } x.push(X); y.push(Y); e.push(d.e&&d.e[k]!=null?d.e[k]:null); rows.push(i); }
     if(nm) notes.push(`${nm} masked point${nm===1?"":"s"} of ${specName(c)} left out.`);
-    return {id:c.id,name:specName(c),ref:colRef(c),unit:c.unit||"",xu:d.xu||"",pts:{x,y,e,rows},nMasked:nm}; }); }
+    return {id:c.id,name:specName(c),ref:colRef(c),unit:c.unit||"",xn:d.xn||"",xu:d.xu||"",pts:{x,y,e,rows},nMasked:nm}; }); }
 /* A reshaping kind's inputs (SHEET_SPEC 3.5): every column's cells as the worksheet holds them (numbers and text,
    the original data or a formula's values, not processed), rows aligned across the columns; the rows chosen and a
    filter's conditions taken as its rows applied to all of them at once. */
@@ -20690,7 +20690,7 @@ function runAna(a,p,o){ o=o||{}; const K=ANA_KINDS[a.kind]; p=p||P(); if(!K||!p)
    only as a result sheet is, worked out again with the analysis, cut from it and deleted with it. */
 function anaWriteMat(a,p,m){ const books=matBooks(p).slice(), bi=books.findIndex(b=>b.id===(a.out&&a.out.mat)), names={};
   ["xname","xunit","yname","yunit","zname","zunit"].forEach(k=>{ if(m[k]) names[k]=String(m[k]); });
-  if(bi<0){ const s=matSheetNew(m,matFreeName(a.name.replace(/[^A-Za-z0-9]/g,"")||"Result",p),Object.assign({ana:a.id},names)), b=matBookNew(s,a.name); books.push(b); a.out=Object.assign({},a.out,{mat:b.id}); }
+  if(bi<0){ const nm=a.name.replace(/[^A-Za-z0-9_]/g,""), s=matSheetNew(m,nm&&!matNameWhy(nm,null,p)?nm:matFreeName(nm.replace(/\d+$/,"")||"Result",p),Object.assign({ana:a.id},names)), b=matBookNew(s,a.name); books.push(b); a.out=Object.assign({},a.out,{mat:b.id}); }
   else { const b=books[bi], s0=b.sheets[0], s=Object.assign({id:s0.id,name:s0.name,ana:a.id},names,{nx:m.nx,ny:m.ny,x:m.x,y:m.y,z:m.z}); MATZ_OK.add(s.z); books[bi]=Object.assign({},b,{sheets:[s]}); }
   p.mats=books; }
 // The patch a save of analyses needs: their matrices too, when any has one.
@@ -30301,7 +30301,7 @@ async function fitIntegralDlg(){ const p=P(), f=activeFit(); if(!p||!f){ toast("
   const html=`<div class="grid2"><label for="fiA">From</label><input type="text" id="fiA" inputmode="decimal" value="${Number.isFinite(lo)?fmt(lo,8):""}"><label for="fiB">To</label><input type="text" id="fiB" inputmode="decimal" value="${Number.isFinite(hi)?fmt(hi,8):""}"></div><p class="note" id="fiOut" aria-live="polite"></p>`;
   const pr=formDlg({title:"Integrate the fitted curve",html,ok:"Put it in the History",valid:v=>Number.isFinite(parseNum(v.fiA))&&Number.isFinite(parseNum(v.fiB))&&parseNum(v.fiA)!==parseNum(v.fiB)});
   const say=()=>{ const el=$("#fiOut"); if(!el) return; const a=parseNum($("#fiA").value), b=parseNum($("#fiB").value), r=Number.isFinite(a)&&Number.isFinite(b)&&a!==b?fitIntegral(f,a,b):{fail:"Give the two ends of the range."};
-    el.textContent=r.fail?r.fail:`∫ = ${r.se!=null?fmtPM(r.v,r.se):fmt(r.v,8)}${au}${r.se==null?" (no error: the fit has no covariance)":""}, by adaptive Gauss–Kronrod to 1e-12; the error from the parameters' covariance.`; };
+    el.textContent=r.fail?r.fail:`∫ = ${r.se!=null?fmtPM(r.v,r.se):fmt(r.v,8)}${au}${r.se==null?" (no error: the fit has no covariance)":""}`; el.title=r.fail?"":"By adaptive Gauss–Kronrod to 1e-12; the error from the parameters' covariance by the delta method"; };
   ["#fiA","#fiB"].forEach(id=>$(id).addEventListener("input",say)); say();
   const v=await pr; if(!v) return; const a=parseNum(v.fiA), b=parseNum(v.fiB), r=fitIntegral(f,a,b); if(r.fail){ toast(r.fail); return; }
   const txt=`${r.se!=null?fmtPM(r.v,r.se):fmt(r.v,8)}${au}`; save({},`worked out the integral of the fitted curve from ${fmt(a,6)} to ${fmt(b,6)}${xu}: ${txt}`);

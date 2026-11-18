@@ -3544,8 +3544,8 @@ and back); add a section to it for each report fixed.
 the pointer and keys (typing junk into cells and fields, sizing columns and rows, zooming, every
 pointer tool, wandering the menus and right-click menus, dialogs answered at random, windows
 dragged, resized, maximised and minimised, the dock, undo bursts, Find a command, examples, files
-imported, screen sizes, the theme, a sheet's own window, a matrix made, typed into and changed, Analyze › Fit's dialogs with
-their lists and ticks changed at random and run or left, coffee breaks), sampling
+imported, screen sizes, the theme, a sheet's own window, a matrix made, typed into and changed, Analyze › Fit's, Signal processing's and
+Calculus' dialogs with their lists and ticks changed at random and run or left, their tools' steps kept or cancelled, coffee breaks), sampling
 memory, page elements, listeners, lag, long tasks and storage every 30 s into a CSV, and at the end reloading and comparing
 every project; run it for a long while (40 minutes) after touching windows, storage or rendering. `BIAS=text` makes the
 actions whose name holds the text twenty times as likely, to watch a new one closely.
@@ -5630,6 +5630,18 @@ Next, in order:
   Shirley with a slope; a Doniach–Šunjić has a kink in its slope at α = 0, and an EMG's tail goes to
   higher x only. The self-deconvolution assumes Lorentzian bands and even spacing; no maximum entropy
   or Fourier deconvolution by a measured line shape
+- Signal processing (wave 5): a transform of a length that is not a power of two goes by Bluestein's chirp (no mixed radix), a
+  few times slower; X not evenly spaced is resampled by straight lines first (said), never transformed as it is (no Lomb–Scargle);
+  filters are designed from an order and edges typed (no order found from a specification, as buttord; no Parks–McClellan; no
+  filter typed as coefficients), and a step filters one column at a time; deconvolution is Wiener's (no Richardson–Lucy, no
+  blind deconvolution); coherence and the cross-spectrum by Welch's segments only. Wavelets: Haar, Daubechies 1–20, symlets
+  2–20 and coiflets 1–5 (no biorthogonal, Meyer or complex continuous wavelets, no packets, no transform of a matrix). The
+  spectrogram is SciPy's, with no reassignment or synchrosqueezing.
+- Interpolation: scattered points are gridded by Delaunay's triangles in straight lines (not Clough–Tocher's cubic or natural
+  neighbours), a thin-plate spline up to 3000 points, or Shepard's weights within a radius; a smoothing spline's λ by GCV only.
+- Calculus: Simpson's rule is in the analysis, not the Integrate window (whose windows measure bands); the fitted curve's
+  integral is said in its dialog and the History, not in Results, the report or the CSV, and is worked out numerically for every
+  model; no double integral over a matrix; LOESS is local parabolas in one X (no several X, no degree above 2).
 - The worksheet fuzzer's seed 1 (`tools/sheet-fuzz.mjs kurve.html 1`, step 61, on the version before text
   cells too): after an undo, a click and a value typed and held past the delayed save, the view scrolls
   back towards the undone cell and Enter enters the value without moving; found 07.11, not yet fixed
