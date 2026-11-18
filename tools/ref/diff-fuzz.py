@@ -1038,6 +1038,84 @@ def _sos_scale(c):
     _, p, _ = _sig.sos2zpk(np.array(c["args"][0])); return max(abs(v) for v in c["args"][1]) / max(1e-6, 1 - float(np.max(np.abs(p))))
 POST["sosfiltfilt"] = lambda c, out: _vec_post()(dict(c, scale=_sos_scale(c)), out)
 
+# ---- Wave 5, 5.3 to 5.8: correlation at random lengths and normalisations, the interpolants between random points, LOWESS against
+# statsmodels, Simpson's rule on uneven X, and a wavelet decomposition in every family and mode ----
+from scipy import interpolate as _ipz, integrate as _intg
+@gen("correlate", 1e-13, 0.3)
+def _():
+    na = int(rng.integers(1, 600)); a = (rng.normal(0, 1, na) * float(lognum(-3, 3)) + float(rng.uniform(-10, 10))).tolist()
+    b = None if rng.random() < 0.4 else (rng.normal(0, 1, int(rng.integers(1, 600))) * float(lognum(-3, 3))).tolist()
+    norm = str(rng.choice(["none", "biased", "unbiased", "coeff"])); dm = bool(rng.random() < 0.7); ml = None if rng.random() < 0.5 else int(rng.integers(0, 700))
+    A = np.array(a); B = np.array(b if b is not None else a)
+    # the mean as math.fsum gives it (correctly rounded), not NumPy's pairwise one, whose rounding of a level far above the spread
+    # (values near −5.29 that differ by 0.01) would be a difference of the reference's own
+    if dm: A = A - math.fsum(A) / len(A); B = B - math.fsum(B) / len(B)
+    if norm == "coeff" and (not np.any(A) or not np.any(B)): raise ValueError("a zero column")
+    c = np.correlate(A, B, "full"); k = np.arange(-(len(B) - 1), len(A))
+    if norm == "biased": c = c / max(len(A), len(B))
+    elif norm == "unbiased": c = c / np.array([max(1, min(len(B), len(A) - kk) - max(0, -kk)) for kk in k])
+    elif norm == "coeff": c = c / math.sqrt(float(np.sum(A * A)) * float(np.sum(B * B)))
+    keep = np.abs(k) <= (ml if ml is not None else 10 ** 9)
+    # a sum of products is judged on the scale of the products' sizes (Σ|a||b| at the largest), not of a result that may cancel to 0
+    sc = float(np.max(np.correlate(np.abs(A), np.abs(B), "full")))
+    if norm == "biased": sc /= max(len(A), len(B))
+    elif norm == "unbiased": sc = float(np.max(np.correlate(np.abs(A), np.abs(B), "full") / np.array([max(1, min(len(B), len(A) - kk) - max(0, -kk)) for kk in np.arange(-(len(B) - 1), len(A))])))
+    elif norm == "coeff": sc /= math.sqrt(float(np.sum(A * A)) * float(np.sum(B * B)))
+    return [a, b, {"norm": norm, "demean": dm, "maxlag": ml}], {"k": k[keep].tolist(), "c": c[keep].tolist(), "sc": sc}
+def corr_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or "c" not in out: return float("inf"), f"no correlation: {str(out)[:80]}"
+    if list(map(int, out["k"])) != w["k"]: return float("inf"), "lags differ"
+    e = max([abs(val(a) - b) / (w["sc"] or 1.0) for a, b in zip(out["c"], w["c"])] or [0.0]); return e, f"values {e:.2e}"
+POST["correlate"] = corr_post
+@gen("interp1", 1e-12, 0.4)
+def _():
+    m = str(rng.choice(["linear", "notaknot", "natural", "akima", "makima", "pchip"])); n = int(edge([2, 3, 4, 5], lambda: int(rng.integers(2, 400))))
+    x = np.cumsum(10 ** rng.uniform(-1, 1, n)) * float(lognum(-3, 3)) + float(rng.uniform(-1e3, 1e3)); y = rng.normal(0, 1, n) * float(lognum(-3, 3))
+    F = {"linear": lambda: _ipz.interp1d(x, y, kind="linear"), "notaknot": lambda: _ipz.CubicSpline(x, y, bc_type="not-a-knot"), "natural": lambda: _ipz.CubicSpline(x, y, bc_type="natural"),
+         "akima": lambda: _ipz.Akima1DInterpolator(x, y, method="akima"), "makima": lambda: _ipz.Akima1DInterpolator(x, y, method="makima"), "pchip": lambda: _ipz.PchipInterpolator(x, y)}[m]()
+    xq = np.sort(rng.uniform(x[0], x[-1], int(rng.integers(1, 300))))
+    return [x.tolist(), y.tolist(), xq.tolist(), {"method": m, "ext": "none"}], {"y": F(xq).tolist(), "sc": float(np.max(np.abs(y))) or 1.0}
+POST["interp1"] = lambda c, out: _vec_post("y")(dict(c, scale=c["want"]["sc"]), out)
+@gen("lowessY", 1e-12, 0.3)
+def _():
+    import statsmodels.api as _smz
+    n = int(rng.integers(3, 800)); x = np.sort(rng.uniform(0, 1, n)) * float(lognum(-2, 3)) + float(rng.uniform(-100, 100))
+    y = np.sin(np.linspace(0, float(rng.uniform(0, 12)), n)) * float(lognum(-2, 2)) + rng.normal(0, 0.3, n) + (rng.random(n) < 0.05) * 5
+    frac = float(rng.uniform(0.02, 1)); it = int(rng.integers(0, 5)); delta = 0.0 if rng.random() < 0.5 else float(rng.uniform(0, 0.05)) * float(x[-1] - x[0])
+    fit = _smz.nonparametric.lowess(y, x, frac=frac, it=it, delta=delta, return_sorted=False)
+    # statsmodels centres X on a weighted mean of values that may lie far from 0 against their span, and carries |x|·ε of rounding into
+    # each slope: against 40 digits (18.11, X near 45 over a span of 0.014) it was 4e-11 off where Kurve, which works in each point's
+    # own offsets, was 2.4e-15. So a case is judged on max|y| times max|x| over X's span.
+    sc = (float(np.max(np.abs(y))) or 1.0) * max(1.0, float(np.max(np.abs(x))) / float(x[-1] - x[0]))
+    return [x.tolist(), y.tolist(), {"frac": frac, "it": it, "delta": delta}], {"y": fit.tolist(), "sc": sc}
+POST["lowessY"] = lambda c, out: _vec_post()(dict(c, scale=c["want"]["sc"]), {"fail": out["fail"]} if isinstance(out, dict) else out) if not isinstance(out, list) else _vec_post()(dict(c, want=c["want"]["y"], scale=c["want"]["sc"]), out)
+@gen("ruleOn", 1e-13, 0.3)
+def _():
+    n = int(edge([2, 3, 4, 5], lambda: int(rng.integers(2, 600)))); x = np.cumsum(10 ** rng.uniform(-1, 1, n)) * float(lognum(-3, 3)) + float(rng.uniform(-1e3, 1e3))
+    y = rng.normal(0, 1, n) * float(lognum(-3, 3)) + float(rng.uniform(-3, 3)); rule = str(rng.choice(["simpson", "trap"]))
+    ref = _intg.simpson(y, x=x) if rule == "simpson" else _intg.trapezoid(y, x=x)
+    return [y.tolist(), x.tolist(), rule], {"v": float(ref), "sc": float((x[-1] - x[0]) * np.max(np.abs(y))) or 1.0}
+def rule_post(c, out):
+    if not isinstance(out, (int, float)): return float("inf"), f"no area: {str(out)[:80]}"
+    e = abs(out - c["want"]["v"]) / c["want"]["sc"]; return e, f"area {e:.2e} of the span times the largest |y|"
+POST["ruleOn"] = rule_post
+@gen("wavedecFlat", 1e-13, 0.3)
+def _():
+    import pywt
+    nm = str(rng.choice(["haar"] + [f"db{k}" for k in range(1, 21)] + [f"sym{k}" for k in range(2, 21)] + [f"coif{k}" for k in range(1, 6)]))
+    mode = str(rng.choice(["zero", "constant", "symmetric", "periodic", "smooth", "periodization", "reflect", "antisymmetric", "antireflect"]))
+    # one level at least: too few values for one Kurve refuses in words, where PyWavelets returns the values themselves
+    F = pywt.Wavelet(nm).dec_len; N = int(rng.integers(2 * (F - 1), 700)); x = (np.cumsum(rng.normal(0, 1, N)) * float(lognum(-3, 3))).tolist()
+    c = pywt.wavedec(np.array(x), nm, mode); flat = np.concatenate(c)
+    return [x, nm, mode, None], {"c": flat.tolist(), "len": [len(v) for v in c], "sc": float(np.max(np.abs(x))) or 1.0}
+def wav_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or "c" not in out: return float("inf"), f"no decomposition: {str(out)[:80]}"
+    if list(map(int, out["len"])) != w["len"]: return float("inf"), f"levels {out['len']} against {w['len']}"
+    e = max(abs(val(a) - b) / w["sc"] for a, b in zip(out["c"], w["c"])); return e, f"coefficients {e:.2e}"
+POST["wavedecFlat"] = wav_post
+
 cases = []
 ONLY = os.environ.get("ONLY")  # ONLY=name,name: those generators alone
 for name, (f, tol) in GEN.items():

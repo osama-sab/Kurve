@@ -10965,7 +10965,9 @@ function areaBetween(xa,ya,xb,yb,o){ o=o||{}; const A=interpPrep(xa,ya), B=inter
   return {area:s,abs:sa,cross,x0:lo,x1:hi,n:X.length}; }
 /* LOWESS as statsmodels' lowess (Cleveland 1979): k = ⌊frac·n + 1e-10⌋ (2 to n) neighbours, tricube weights over the farthest's
    distance, a weighted straight line at each X (deg 2: a parabola, LOESS), `it` robust rounds with bisquare weights of the residuals
-   over 6 times their median, points within delta of a fitted one read by straight lines. The fit in the points' own order. */
+   over 6 times their median, points within delta of a fitted one read by straight lines. The fit in the points' own order. Each
+   line is worked out in offsets from its own X, not about a weighted mean of X: the same line, with none of the |x|·ε rounding
+   statsmodels carries when X lies far from 0 against its span (4e-11 there, against 40 digits; Kurve 2e-15). */
 function lowess(x,y,o){ o=o||{}; const n0=Math.min(x.length,y.length), ord=[]; for(let i=0;i<n0;i++) if(Number.isFinite(x[i])&&Number.isFinite(y[i])) ord.push(i);
   ord.sort((a,b)=>x[a]-x[b]||a-b); const n=ord.length; if(n<3) return {fail:"LOWESS needs three points at least."};
   const X=Float64Array.from(ord,i=>x[i]), Y=Float64Array.from(ord,i=>y[i]), frac=o.frac==null||o.frac===""?2/3:+o.frac; if(!(frac>=0&&frac<=1)) return {fail:"The fraction goes from 0 to 1."};
@@ -10978,8 +10980,10 @@ function lowess(x,y,o){ o=o||{}; const n0=Math.min(x.length,y.length), ord=[]; f
       for(let j=le;j<re;j++){ let d=Math.abs(X[j]-xv)/rad; d=d*d*d; d=1-d; w[j]=d*d*d*rw[j]; sw+=w[j]; if(w[j]>1e-12) nz++; }
       if(nz<2) fit[i]=Y[i];
       else { for(let j=le;j<re;j++) w[j]/=sw;
-        if(deg===1){ let mx=0, sxx=0; for(let j=le;j<re;j++) mx+=w[j]*X[j]; for(let j=le;j<re;j++) sxx+=w[j]*(X[j]-mx)**2; sxx=Math.max(sxx,1e-12);
-          let v=0; for(let j=le;j<re;j++) v+=w[j]*(1+(xv-mx)*(X[j]-mx)/sxx)*Y[j]; fit[i]=v; }
+        if(deg===1){ // in offsets from this X (X − xv is exact for neighbours, as Sterbenz says), so X far from 0 against its span loses no digits
+          let mt=0, sxx=0; for(let j=le;j<re;j++) mt+=w[j]*(X[j]-xv); for(let j=le;j<re;j++) sxx+=w[j]*(X[j]-xv-mt)**2;
+          // statsmodels' floor of 1e-12 on the spread, which it applies in X's own terms: kept as it is, a spread so small is a tie
+          sxx=Math.max(sxx,1e-12); let v=0; for(let j=le;j<re;j++) v+=w[j]*(1-mt*(X[j]-xv-mt)/sxx)*Y[j]; fit[i]=v; }
         else { // a weighted parabola in t = X − xv: its value at t = 0 by the normal equations
           let s0=0, s1=0, s2=0, s3=0, s4=0, b0=0, b1=0, b2=0; for(let j=le;j<re;j++){ const t=(X[j]-xv)/rad, ww=w[j], t2=t*t; s0+=ww; s1+=ww*t; s2+=ww*t2; s3+=ww*t2*t; s4+=ww*t2*t2; b0+=ww*Y[j]; b1+=ww*t*Y[j]; b2+=ww*t2*Y[j]; }
           const c=gaussSolve([s0,s1,s2,s1,s2,s3,s2,s3,s4],[b0,b1,b2],3); fit[i]=c?c[0]:Y[i]; } }

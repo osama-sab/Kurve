@@ -1619,7 +1619,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   `#aIi`, `#aIs`, `#aIo`). `SIG_PLOT`/`sigPlot(id)` (the tab's *Plot the spectrum*: the sheet's Y columns on a new graph).
   Analyze › Signal processing › FFT…, Power spectrum (Welch)…, Inverse FFT…; Help `signal`. References:
   `tools/ref/sig_fixtures.py` → `fixtures/sig-*.json`, judged in `ref-test.mjs`'s Signal processing section (`vec`, `cvec`, `obj`,
-  `flat`, `sos` (sections as a set, the first in place), `fail`); the fuzzer's `fftC`, `welch`, `sosfiltfilt`. `detrendV` takes
+  `flat`, `sos` (sections as a set, the first in place), `fail`); the fuzzer's `fftC`, `welch`, `sosfiltfilt`,
+  `correlate`, `interp1`, `lowessY` (on the scale of max|x| over X's span: statsmodels' centring loses those digits), `ruleOn`, `wavedecFlat`. `detrendV` takes
   the mean off by `sigSum` (Neumaier). **5.2**: complex numbers as `[re, im]` (`cAdd`, `cSub`, `cMul`, `cDiv` Smith's,
   `cSqrt` principal, `cAbs`, `cConj`, `cProd`); SciPy's prototypes `buttap`, `cheb1ap`, `cheb2ap`, `ellipap` (`agm`, `ellipK`,
   `ellipKm1`, `ellipJ` as Cephes' ellpj, `ellipDeg` SciPy's seven-term nome, `arcJacSc1` by Landen in reals), `besselap`
@@ -1676,7 +1677,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   `#aCn`, `#aCy`, `#aClin`, `#aCab`. Analyze › Signal processing › Wavelets ›.
   **5.8**: `trapW`, `simpsonW` (scipy.integrate.simpson's weights, Cartwright's last interval for an even count), `simpson`,
   `integPts(x, y, e, {rule, x0, x1})` (`{area, err (√Σw²σ²), abs, centroid, n, x0, x1}`, a range's ends read in by straight lines),
-  `areaBetween(xa, ya, xb, yb, {x0, x1})` (`{area, abs, cross, n}`), `lowess(x, y, {frac, it, delta, deg, k})` (statsmodels' exactly,
+  `areaBetween(xa, ya, xb, yb, {x0, x1})` (`{area, abs, cross, n}`), `lowess(x, y, {frac, it, delta, deg, k})` (statsmodels', but each line in offsets from its own X, 2e-15 from 40 digits where
+  statsmodels was 4e-11 for X far from 0 against its span;
   `deg` 2 Cleveland and Devlin's LOESS), `GK15`, `gk15`, `integrateFn(f, a, b, tol)` (adaptive Gauss–Kronrod); for the bench `ruleOn`,
   `lowessY`. Kinds `integ` (`x0`, `x1`; `trap`, `etrap`, `simp`, `esimp`, `abs`, `cen`, `n`) and `between` (`what`, `val`, `cx`), forms
   `#aIr0`/`#aIr1`; Smooth's `lowess`/`loess` (`frac`, `it`, `smLocal`; fitted at points a hundredth of X's range apart at most, a tenth of the fraction's share when
