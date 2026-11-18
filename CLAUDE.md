@@ -5284,7 +5284,8 @@ Next, in order:
    imported; the user's suggestion, its design discussed when the wave starts); and a wave 11, last, review as in Word (its
    names from wave 10's identity, comments on every kind of thing, tracked changes shown where they were made with Simple, All, No markup and Original, Accept and
    Reject, the round trip of a reviewed file back into its project, Compare and Combine, Restrict and Inspect; a Review menu,
-   a Review tool window, the toolbar and the status bar), its eight slices in `ux/spec/PARITY_SPEC.md`
+   a Review tool window, the toolbar and the status bar), its eight slices in `ux/spec/PARITY_SPEC.md`. Wave 5's plan is `ux/spec/SIGNAL_SPEC.md` (signal processing and
+   mathematics, eight slices in the order 5.1, 5.2, 5.3, 5.7, 5.4, 5.5, 5.6, 5.8; its eleven decisions, 18.11)
 
 ## Known gaps
 
