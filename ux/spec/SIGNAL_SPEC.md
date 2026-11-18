@@ -309,6 +309,12 @@ group delay drawn.
 
 ## 5.3 Correlation and convolution
 
+Done 18.11, as below, with these changes of plan: the lag is counted from where each column starts (k times the spacing plus the
+first's first X less the second's), so it is the true shift, and the report says in words which column follows which at the
+largest value (NumPy's sign, a later copy at a negative lag, misleads otherwise); convolution offers the column mirrored past its
+ends beside NumPy's zeros, and a kernel column's origin is X = 0 when its X spans 0, else its top; the deconvolution's ratio left
+empty is estimated (a test caught `null >= 0` being true, which had made it 0: the raw inverse).
+
 **What.** Analyze › Signal processing › *Correlation…* (an analysis: one column against itself, or
 two; lags from −m to m; normalised none, biased, unbiased or as a coefficient; the means taken
 off first or not; out: lag in X's unit, the correlation; the lag of the largest value in the

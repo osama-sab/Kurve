@@ -202,6 +202,65 @@ for b, a in (([0.2, 0.3, 0.1], [1.0, -0.5, 0.25]), ([1.0, 2.0, 3.0, 4.0], [1.0, 
     cases.append({"fn": "lfilterZi", "name": f"lfilter_zi {b} {a}", "args": [b, a], "want": signal.lfilter_zi(b, a), "kind": "vec"})
 out["sig-filt"] = cases
 
+# ---- 5.3 correlation and convolution: numpy.correlate and numpy.convolve (direct below 2·10⁶ products, by the FFT above), the
+# normalisations by their definitions, scipy.signal.csd and coherence, the mirrored convolution as numpy.pad("symmetric") then
+# "valid", and Wiener's deconvolution written from its definition with Kurve's padding ----
+cases = []
+rng = np.random.default_rng(20261120)
+def rv(n, sc=1.0): return r6(rng.normal(0, sc, n))
+for na, nb in ((1, 1), (5, 3), (3, 5), (40, 40), (100, 7), (7, 100), (2500, 1000), (1000, 2500)):
+    a, b = rv(na), rv(nb)
+    sc = max(1.0, float(np.max(np.abs(a))) * float(np.max(np.abs(b))) * min(na, nb))
+    cases.append({"fn": "correlateFull", "name": f"correlate {na} with {nb}", "args": [a, b], "want": np.correlate(a, b, "full"), "kind": "vec"})
+    cases.append({"fn": "convFull", "name": f"convolve {na} with {nb}", "args": [a, b], "want": np.convolve(a, b, "full"), "kind": "vec"})
+    cases.append({"fn": "convSame", "name": f"convolve same {na} with {nb}", "args": [a, b], "want": np.convolve(a, b, "same"), "kind": "vec"})
+def corr_ref(a, b, norm, demean, maxlag):
+    A = np.array(a, float); B = np.array(b if b is not None else a, float)
+    if demean: A = A - A.mean(); B = B - B.mean()
+    c = np.correlate(A, B, "full"); k = np.arange(-(len(B) - 1), len(A))
+    if norm == "biased": c = c / max(len(A), len(B))
+    elif norm == "unbiased": c = c / np.array([max(1, min(len(B), len(A) - kk) - max(0, -kk)) for kk in k])
+    elif norm == "coeff": c = c / math.sqrt(float(np.sum(A * A)) * float(np.sum(B * B)))
+    keep = np.abs(k) <= (maxlag if maxlag is not None else 10 ** 9)
+    return {"k": k[keep].tolist(), "c": c[keep]}
+x = np.cumsum(rng.normal(0, 1, 300)); y2 = np.roll(x, 7) + rng.normal(0, 0.1, 300)
+for norm in ("none", "biased", "unbiased", "coeff"):
+    for b, dm, ml in ((None, True, None), (r6(y2), True, 50), (r6(y2[:180]), False, None)):
+        cases.append({"fn": "correlate", "name": f"correlate {norm} {'auto' if b is None else len(b)} demean {dm} maxlag {ml}", "args": [r6(x), b, {"norm": norm, "demean": dm, "maxlag": ml}],
+                      "want": corr_ref(r6(x), b, norm, dm, ml), "kind": "obj"})
+# csd and coherence
+t = np.arange(2000) / 100.0; u = np.sin(2 * np.pi * 5 * t) + rng.normal(0, 1, 2000); v = np.sin(2 * np.pi * 5 * t + 0.7) * 2 + rng.normal(0, 1, 2000)
+for win, nseg, over, det, avg in (("hann", None, None, "constant", "mean"), ("hamming", 200, 50, "linear", "mean"), ("hann", 128, 64, "constant", "median")):
+    kw = dict(window=win, detrend=det, average=avg)
+    if nseg: kw["nperseg"] = nseg
+    if over is not None: kw["noverlap"] = over
+    f, P = signal.csd(np.array(r6(u)), np.array(r6(v)), 100.0, **kw)
+    cases.append({"fn": "csd", "name": f"csd {win} {nseg} {over} {det} {avg}", "args": [r6(u), r6(v), 100.0, {"win": win, "nseg": nseg, "over": over, "detrend": det, "avg": avg}], "want": {"f": f, "re": P.real, "im": P.imag}, "kind": "obj"})
+    if avg == "mean":
+        f, C = signal.coherence(np.array(r6(u)), np.array(r6(v)), 100.0, window=win, nperseg=nseg, noverlap=over, detrend=det)
+        cases.append({"fn": "coherence", "name": f"coherence {win} {nseg} {over} {det}", "args": [r6(u), r6(v), 100.0, {"win": win, "nseg": nseg, "over": over, "detrend": det}], "want": {"f": f, "coh": C}, "kind": "obj"})
+# the mirrored convolution, and Wiener's deconvolution
+yy = r6(np.cumsum(rng.normal(0, 1, 400)) + 50)
+for m in (1, 3, 31, 101, 399):
+    k = rng.random(m); k = (k / k.sum()).tolist(); h = m // 2
+    cases.append({"fn": "convolveY", "name": f"convolve mirrored, kernel {m}", "args": [yy, k, "mirror"], "want": np.convolve(np.pad(np.array(yy), h, mode="symmetric"), k, "valid"), "kind": "vec"})
+    cases.append({"fn": "convolveY", "name": f"convolve zero, kernel {m}", "args": [yy, k, "zero"], "want": np.convolve(np.array(yy), k, "same"), "kind": "vec"})
+def wiener_ref(y, k, nsr):
+    y = np.array(y, float); n = len(y); m = len(k); h = m // 2; a, b = y[0], y[-1]; line = a + (b - a) * np.arange(n) / (n - 1)
+    N = 1
+    while N < 2 * n or N < m: N <<= 1
+    z = np.zeros(N); d = y - line; z[:n] = d; z[n:2 * n] = d[::-1]
+    K = np.zeros(N)
+    for j in range(m): K[(j - h) % N] += k[j]
+    Y = np.fft.fft(z); KF = np.fft.fft(K); H = np.conj(KF) / (np.abs(KF) ** 2 + nsr)
+    return {"y": np.real(np.fft.ifft(Y * H))[:n] + line, "gain": float(np.sqrt(np.mean(np.abs(H) ** 2)))}
+xs = np.arange(512.0); clean = 1000 * np.exp(-0.5 * ((xs - 200) / 3) ** 2) + 600 * np.exp(-0.5 * ((xs - 215) / 3) ** 2) + 20
+for w, nsr in ((4.0, 1e-3), (6.0, 1e-2), (2.0, 1e-5)):
+    s_ = w / 2.3548200450309493; hh = int(math.floor(4 * w + 1e-9)); kk = np.exp(-0.5 * ((np.arange(-hh, hh + 1)) / s_) ** 2); kk = kk / kk.sum()
+    blurred = np.convolve(np.pad(clean, hh, mode="symmetric"), kk, "valid") + rng.normal(0, 0.5, 512)
+    cases.append({"fn": "wienerDeconv", "name": f"Wiener: Gaussian {w} points, nsr {nsr}", "args": [r6(blurred), kk.tolist(), nsr], "want": wiener_ref(r6(blurred), kk.tolist(), nsr), "kind": "obj"})
+out["sig-corr"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

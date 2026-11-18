@@ -1024,6 +1024,21 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 5, slice 5.3: correlation and convolution (2026-11-18)
+
+- **Analyze › Signal processing › Correlation…**: auto- or cross-correlation into a result sheet, lags in X's unit from where each
+  column starts, four normalisations, the means off, lags up to a number; the report gives the largest value's lag and says which
+  column follows which.
+- **Coherence…**: two columns on the X they share, by Welch's segments: coherence, the cross-spectrum's magnitude and phase.
+- **Convolution…** (a step): a Gaussian, Lorentzian, box, triangle or exponential kernel of a width in X's unit, or another column
+  as the kernel; the area kept; the column mirrored past its ends or zero. **Deconvolution…** (a step): Wiener's, its noise-to-signal
+  ratio typed or estimated, the noise's rise said.
+
+Checked: 54 new reference checks (`fixtures/sig-corr.json`: numpy.correlate and convolve directly and by the FFT, the four
+normalisations, scipy.signal.csd and coherence, the mirrored convolution through numpy.pad, Wiener's deconvolution written from its
+definition), all past their targets at once; `sig-test.mjs` 13 more (a shifted copy at its lag, widths in quadrature, a blur undone,
+coherence 1 with itself, the steps whole, 10⁵ points correlated in 104 ms); `sig-drive.mjs` 11 more.
+
 ## Closing the gap with Origin, wave 5, slice 5.2: filters designed (2026-11-18)
 
 - **Analyze › Signal processing › Filter (designed)…**: a step that designs its filter as SciPy does (Butterworth, Chebyshev I and

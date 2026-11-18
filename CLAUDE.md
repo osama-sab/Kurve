@@ -1633,7 +1633,16 @@ graph first, with the taskbar kept at the bottom of the screen.
   log-spaced over three decades below Nyquist). Steps `filt` (`kind`, `band`, `order`, `taps`, `f1`, `f2`, `rp`, `rs`, `phase`
   "zero"|"causal"; `init` f1 = fs/20, f2 = fs/8; `extra {resp {f, db}, edges, nyq, u, zero}`) and `notch` (`f0`, `q`, `harm`,
   `phase`), both `dep` in `PIPE_ROWS`; a param's `unit: "1/x"` is `sigRecip` of X's (`unitOfParam`); `filtRespSvg(extra)` in
-  `stepForm` (`.filtresp`). Find a command's `CMDK_SYN` has filters, notch, Welch.
+  `stepForm` (`.filtresp`). Find a command's `CMDK_SYN` has filters, notch, Welch. **5.3**: `convFull` (direct below 2·10⁶
+  products, else by the FFT), `convSame`, `correlateFull` (numpy's "full"), `correlate(a, b|null, {norm "none"|"biased"|"unbiased"
+  |"coeff", demean, maxlag})` → `{k, c, n}`, `csd(x, y, fs, o)` (`f`, `re`, `im`, `pxx`, `pyy`; the median of real and imaginary
+  parts apart), `coherence`, `sigKernel(kind, w, dx, norm)` (sampled at j·dx, j = −h…h, cut at ±4 FWHM, ±25, the width, 12 decay
+  lengths; `cut` the Lorentzian's lost area), `convolveY(y, k, "zero"|"mirror")`, `wienerDeconv(y, k, nsr|null)` (mirrored as
+  fftFilter, K centred at 0, the ratio estimated as the top fifth's median power over the lowest twentieth's mean; `{y, nsr, gain,
+  est}`). In the ANA block `sigAtStep`, `XC_NORMS`, kinds `xcorr` (`norm`, `maxlag`, `demean`; `lag`, `c`; the report's "That
+  is" in words) and `coh` (`win`, `wpar`, `nseg`, `over`, `detrend`; `f`, `coh`, `mag`, `ph`), forms `#aXn`, `#aXm`, `#aXd`.
+  In PIPE `CONV_KERNS`, `convKernelOf(d, p, ctx, sp, unit)`; steps `conv` (`kern`, `w`, `col` through `refData`, `norm`, `ends`)
+  and `deconv` (`kern`, `w`, `col`, `nsr` blank), both `dep`.
 - **Worksheet** (`renderWs`, `setupWs`): a spreadsheet grid as in Excel, with Origin's label
   rows. Columns have fixed widths (`WS_W`, 100 px; `p.wsw[colId]` when dragged or autofitted by
   a double click on the header's edge, `wsSetWidth`, `wsAutofit`), never stretched to the
@@ -5331,7 +5340,8 @@ Next, in order:
    transform with its output (FFT of any length into a result sheet, ten windows, Welch's spectrum, the inverse; NumPy and
    SciPy agreeing to 2e-15), done 18.11; slice 5.2, filters designed (Butterworth, Chebyshev I and II, elliptic, Bessel and FIR
    as SciPy designs them, in sections forwards and backwards, the response drawn; a notch; SciPy agreeing section by section), done
-   18.11
+   18.11; slice 5.3, correlation and convolution (auto- and cross-correlation with lags in X's unit, coherence, convolution with a
+   shape or a column, Wiener's deconvolution; NumPy and SciPy agreeing to 2e-15), done 18.11
 
 ## Known gaps
 

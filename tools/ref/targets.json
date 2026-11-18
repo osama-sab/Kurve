@@ -922,5 +922,44 @@
  },
  "lfilterZi": {
   "tol": 1e-14
+ },
+ "correlateFull": {
+  "tol": 1e-13
+ },
+ "convFull": {
+  "tol": 1e-13
+ },
+ "convSame": {
+  "tol": 1e-13
+ },
+ "correlate.k": {
+  "tol": 0
+ },
+ "correlate.c": {
+  "tol": 1e-13
+ },
+ "csd.f": {
+  "tol": 1e-15
+ },
+ "csd.re": {
+  "tol": 1e-12
+ },
+ "csd.im": {
+  "tol": 1e-12
+ },
+ "coherence.f": {
+  "tol": 1e-15
+ },
+ "coherence.coh": {
+  "tol": 1e-12
+ },
+ "convolveY": {
+  "tol": 1e-14
+ },
+ "wienerDeconv.y": {
+  "tol": 1e-12
+ },
+ "wienerDeconv.gain": {
+  "tol": 1e-12
  }
 }

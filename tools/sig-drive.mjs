@@ -146,6 +146,49 @@ await page(async p => {
   check("…the History shows the notch with its frequency", /Notch\s*30 Hz/.test(flow), flow.slice(0, 300));
 }, { name: "5.2" });
 
+console.log("5.3 Correlation and convolution");
+await page(async p => {
+  // two columns on one X: B is A 13 points later
+  await p.evaluate(() => { let s = 7; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; }; const base = Array.from({ length: 640 }, r), sm = base.map((_, i) => base.slice(Math.max(0, i - 3), i + 4).reduce((a, v) => a + v, 0));
+    const x = Array.from({ length: 600 }, (_, i) => +(i * 0.5).toFixed(6)), a = sm.slice(20, 620), b = sm.slice(7, 607);
+    save({ cols: [makeCol("x", "Time", "s", x), Object.assign(makeCol("y", "A", "V", a), { pipe: [], mask: [] }), Object.assign(makeCol("y", "B", "V", b), { pipe: [], mask: [] })], activeY: null }, "typed"); }); await p.waitForTimeout(300);
+  await menu(p, "analyze", "Signal processing", "Correlation…");
+  check("Analyze › Signal processing › Correlation… opens its dialog, the coefficient chosen", await p.isVisible("#aXn") && await p.evaluate(() => $("#aXn").value === "coeff"));
+  const ids = await p.evaluate(() => yCols().map(c => c.id));
+  await p.evaluate(ids => { const a = document.getElementById("aI_" + ids[0]), b = document.getElementById("aI_" + ids[1]); a.checked = false; b.checked = true; a.dispatchEvent(new Event("change", { bubbles: true })); }, ids);
+  await p.check(`#aI_${ids[0]}`); await p.fill("#aXm", "40"); await p.click("#formOk"); await p.waitForTimeout(500);
+  let r = await RES(p);
+  const ib = r && r.t.c ? r.t.c.indexOf(Math.max(...r.t.c)) : -1;
+  // A first (the sheet's order), B second: B follows A by 13 points, a lag of −6.5 s in numpy's convention, said in words
+  const said = r && r.rep ? r.rep.sections[0].tables[0].rows[0].slice(-1)[0] : "";
+  check("…two columns: the lag in s, 81 lags kept, the largest at −6.5 s, read as “B follows A by 6.5 s”", r && r.meta.lag.unit === "s" && r.t.lag.length === 81 && Math.abs(r.t.lag[ib] + 6.5) < 1e-9 && said === "B follows A by 6.5 s", JSON.stringify(r && { n: r.t.lag.length, at: r.t.lag[ib], said, err: r.err }));
+  await p.evaluate(() => showSheet(SHEET0.id, { quiet: true })); await p.waitForTimeout(150);
+  await menu(p, "analyze", "Signal processing", "Coherence…");
+  check("Coherence… opens with both columns ticked", await p.evaluate(ids => ids.every(i => document.getElementById("aI_" + i).checked), ids));
+  await p.fill("#aWn", "100"); await p.click("#formOk"); await p.waitForTimeout(500);
+  r = await RES(p, 1);
+  check("…a coherence from 0 to 1 against frequency in Hz, with the cross-spectrum's magnitude and phase", r && r.meta.f.unit === "Hz" && r.t.coh.every(v => v >= -1e-12 && v <= 1 + 1e-12) && r.meta.ph.unit === "rad", r && r.err);
+  // the convolution step on A
+  await p.evaluate(() => { showSheet(SHEET0.id, { quiet: true }); P().activeY = yCols()[0].id; renderAll(); }); await p.waitForTimeout(150);
+  await menu(p, "analyze", "Signal processing", "Convolution…");
+  const fld = (k) => `#pane-tool [data-pk="${k}"]:not([type="range"])`;
+  r = await p.evaluate(() => ({ op: S.pending && S.pending.step.op, w: S.pending && S.pending.step.p.w }));
+  check("Convolution… opens the tool, a Gaussian of three spacings suggested", r.op === "conv" && r.w === 1.5, JSON.stringify(r));
+  await p.selectOption(fld("kern"), "col"); await p.waitForTimeout(250);
+  check("…another column as kernel shows its picker, not the width", await p.isVisible(fld("col")) && !(await p.isVisible(fld("w"))));
+  await p.selectOption(fld("kern"), "box"); await p.waitForTimeout(250); await p.fill(fld("w"), "2"); await p.press(fld("w"), "Enter"); await p.waitForTimeout(300);
+  r = await p.evaluate(() => $("#pane-tool").textContent); check("…a box of 2 s: 5 points of kernel", /5 points of kernel/.test(r), r.slice(0, 200));
+  await p.click("#tlOk"); await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const c = yCols()[0], d = finalOf(c), raw = rawSeries(c); return { ops: c.pipe.map(s => s.op), y: d.y[100], want: raw.y.slice(98, 103).reduce((a, v) => a + v, 0) / 5 }; });
+  check("OK: each point the mean of five", r.ops.join() === "conv" && Math.abs(r.y - r.want) < 1e-12, JSON.stringify(r));
+  await menu(p, "analyze", "Signal processing", "Deconvolution…");
+  await p.selectOption(fld("kern"), "box"); await p.waitForTimeout(200); await p.fill(fld("w"), "2"); await p.press(fld("w"), "Enter"); await p.waitForTimeout(400);
+  r = await p.evaluate(() => $("#pane-tool").textContent);
+  check("Deconvolution…: Wiener's, its ratio estimated and the noise's rise said", /Wiener's deconvolution/.test(r) && /estimated/.test(r) && /rises/.test(r), r.slice(0, 300));
+  await p.click("#tlOk"); await p.waitForTimeout(400);
+  check("…both steps in the column's processing", await p.evaluate(() => yCols()[0].pipe.map(s => s.op).join() === "conv,deconv"));
+}, { name: "5.3" });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

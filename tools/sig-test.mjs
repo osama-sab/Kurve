@@ -146,5 +146,37 @@ console.log("5.2 filters designed");
   const [, ms] = time(() => sosfiltfilt(H20.sos, big)); ok(ms < 600, `an order-20 high-pass forwards and backwards over 10⁶ points in ${ms.toFixed(0)} ms (budget 0.3 s in the browser)`);
   const [, md] = time(() => { for (let i = 0; i < 20; i++) iirDesign({ kind: "ellip", band: "pass", order: 10, w1: 0.1, w2: 0.3, rp: 1, rs: 60 }); }); ok(md / 20 < 5, `an elliptic band-pass of order 10 designed in ${(md / 20).toFixed(2)} ms`);
 }
+console.log("5.3 correlation and convolution");
+{ const correlate = get("correlate"), sigKernel = get("sigKernel"), convolveY = get("convolveY"), wienerDeconv = get("wienerDeconv"), coherence = get("coherence");
+  const pts = (x, y) => ({ x, y, e: x.map(() => null), rows: x.map((_, i) => i) });
+  const n = 600, base = Array.from({ length: n + 40 }, () => gauss()), sm = base.map((_, i) => base.slice(Math.max(0, i - 3), i + 4).reduce((a, v) => a + v, 0));
+  const a = sm.slice(20, 20 + n), b = sm.slice(20 - 13, 20 - 13 + n);   // b[n] = a[n − 13]: b follows a by 13 points
+  const r = correlate(b, a, { norm: "coeff", demean: true }); let ib = 0; r.c.forEach((v, i) => { if (v > r.c[ib]) ib = i; });
+  ok(r.k[ib] === 13 && r.c[ib] > 0.95, `a copy 13 points later is found at lag 13 (coefficient ${r.c[ib].toFixed(3)})`);
+  const ac = correlate(a, null, { norm: "coeff" }); ok(Math.abs(ac.c[ac.k.indexOf(0)] - 1) < 1e-14 && ac.c.every((v) => v <= 1 + 1e-14), "the autocorrelation coefficient is 1 at lag 0 and no more anywhere");
+  const q1 = { id: "a", name: "A", unit: "V", xu: "s", pts: pts(a.map((_, i) => 2 + i * 0.5), a) }, q2 = { id: "b", name: "B", unit: "V", xu: "s", pts: pts(b.map((_, i) => 2 + i * 0.5), b) };
+  const R = anaRunKind("xcorr", [q2, q1], { norm: "coeff" }), L = R.tables[0].cols.find((c) => c.k === "lag"), C = R.tables[0].cols.find((c) => c.k === "c");
+  let jb = 0; C.vals.forEach((v, i) => { if (v > C.vals[jb]) jb = i; }); ok(L.unit === "s" && Math.abs(L.vals[jb] - 6.5) < 1e-12 && C.unit === "", "the analysis: the lag in seconds (13 × 0.5 s = 6.5 s), the coefficient without a unit");
+  const q3 = Object.assign({}, q1, { pts: pts(a.map((_, i) => 100 + i * 0.5), a) }), R2 = anaRunKind("xcorr", [q2, q3], { norm: "coeff" }), L2 = R2.tables[0].cols[0], C2 = R2.tables[0].cols[1];
+  let kb = 0; C2.vals.forEach((v, i) => { if (v > C2.vals[kb]) kb = i; }); ok(Math.abs(L2.vals[kb] - (6.5 - 98)) < 1e-12, "…with the second's X starting 98 s later, the lag is 6.5 − 98 s: where it truly matches");
+  // a Gaussian of FWHM 4 convolved with a Gaussian kernel of FWHM 3: FWHM 5, the area kept
+  const xs = Array.from({ length: 801 }, (_, i) => i * 0.1), y = xs.map((x) => Math.exp(-0.5 * ((x - 40) / (4 / 2.3548200450309493)) ** 2));
+  const K = sigKernel("gauss", 3, 0.1, "area"), yc = convolveY(y, K.k, "zero"), area = (v) => v.reduce((t, q) => t + q, 0) * 0.1;
+  const half = Math.max(...yc) / 2, above = yc.filter((v) => v >= half).length * 0.1; ok(Math.abs(area(yc) - area(y)) < 1e-10 && Math.abs(above - 5) < 0.15, `Gaussians add in quadrature: FWHM 4 with 3 gives ${above.toFixed(1)} (5), the area kept to ${Math.abs(area(yc) - area(y)).toExponential(1)}`);
+  // convolved, then deconvolved by Wiener's with a small ratio: the column back
+  const peaks = xs.map((x) => 100 * Math.exp(-0.5 * ((x - 30) / 0.8) ** 2) + 60 * Math.exp(-0.5 * ((x - 33) / 0.8) ** 2) + 5), K2 = sigKernel("gauss", 2, 0.1, "area"), bl = convolveY(peaks, K2.k, "mirror");
+  const W = wienerDeconv(bl, K2.k, 1e-9); let we = 0; for (let i = 100; i < 700; i++) we = Math.max(we, Math.abs(W.y[i] - peaks[i]));
+  ok(we < 0.5 && W.gain > 1, `blurred by a Gaussian of 2 and deconvolved: back to within ${we.toFixed(3)} of 100 (the noise would rise ${W.gain.toExponential(1)} times)`);
+  const We = wienerDeconv(bl.map((v) => v + 0.2 * gauss()), K2.k, null); ok(We.est && We.nsr > 0 && We.gain < 50, `the ratio estimated from the column's highest frequencies (${We.nsr.toExponential(1)}), the noise's rise kept to ${We.gain.toFixed(1)}`);
+  const u = Array.from({ length: 4000 }, () => gauss()), cs = coherence(u, u, 1, { nseg: 256 }); ok(cs.coh.every((v) => Math.abs(v - 1) < 1e-12), "a column's coherence with itself is 1 at every frequency");
+  const op = get("PIPE_OPS").conv, d = { x: xs, y, e: null, idx: xs.map((_, i) => i), xu: "nm" };
+  const st = op.run(d, Object.assign({}, op.defaults, { w: 3 })); ok(/points of kernel, summing to 1/.test(st.note) && st.d.y.length === 801, `the step: "${st.note}"`);
+  const ctx = { refData: () => ({ x: [-1, -0.5, 0, 0.5, 1], y: [0, 1, 2, 1, 0] }) }, sc = op.run(d, Object.assign({}, op.defaults, { kern: "col", col: "k" }), ctx);
+  ok(/origin at X = 0/.test(sc.note) && /21 points/.test(sc.note), `…with a column for kernel, read at this spacing: "${sc.note.slice(0, 60)}…"`);
+  let th = ""; try { op.run(d, Object.assign({}, op.defaults, { w: 1000 })); } catch (e) { th = e.message; } ok(/more than the column/.test(th), "…a kernel wider than the column refused in words");
+  const dop = get("PIPE_OPS").deconv, ds = dop.run(Object.assign({}, d, { y: bl.map((v) => v + 0.05 * gauss()) }), Object.assign({}, dop.defaults, { w: 2 }));
+  ok(/Wiener's deconvolution/.test(ds.note) && /estimated/.test(ds.note) && /rises/.test(ds.note), `the deconvolution step says its ratio and the noise's rise: "${ds.note.slice(0, 90)}…"`);
+  const big = Array.from({ length: 1e5 }, () => gauss()), [, ms] = time(() => correlate(big, big.map((v) => v + gauss()), { norm: "coeff" })); ok(ms < 600, `the correlation of two columns of 10⁵ in ${ms.toFixed(0)} ms (budget 0.2 s in the browser)`);
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

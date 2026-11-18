@@ -4729,8 +4729,21 @@ function serSig(d){ return d.x.length+":"+hash32(d.x.join(",")+"|"+d.y.join(",")
 // its run time already names it.
 function stepPKey(s){ const p=s.p||{}; if(s.op!=="python") return p; return {code:p.code,ranCode:p.ranCode,ranAt:p.ranAt,n:p.out&&p.out.x?p.out.x.length:0,inSig:p.inSig}; }
 
+// A convolution step's kernel (SIGNAL_SPEC 5.3): a shape of sigKernel, or another column read at this column's spacing, its
+// origin at X = 0 when its X spans 0, else at its largest value (said). Scaled to sum to 1 unless "none" (a deconvolution's always).
+function convKernelOf(d,p,c,sp,unit){ const dx=sp.abs; if(!(dx>0)) return {fail:"The column's X has no spacing."};
+  if(p.kern!=="col"){ const w=+p.w; if(!(w>0)) return {fail:"Give the kernel's width, in X's unit."}; return sigKernel(p.kern,w,dx,unit?"area":p.norm); }
+  const r=c&&c.refData?c.refData(p.col,"final"):null; if(!r||!r.x||r.x.length<2) return {fail:"Choose the kernel's column."};
+  const P=r.x.map((x,i)=>[x,r.y[i]]).filter(q=>Number.isFinite(q[0])&&Number.isFinite(q[1])).sort((a,b)=>a[0]-b[0]); if(P.length<2) return {fail:"The kernel's column has fewer than two points."};
+  const xs=P.map(q=>q[0]), ys=P.map(q=>q[1]); let o=0, note=""; if(xs[0]<=0&&xs[xs.length-1]>=0) note="its origin at X = 0"; else { let ib=0; ys.forEach((v,i)=>{ if(v>ys[ib]) ib=i; }); o=xs[ib]; note=`its origin at its largest value (X = ${nf(o,4)})`; }
+  const h=Math.ceil(Math.max(o-xs[0],xs[xs.length-1]-o)/dx-1e-9); if(2*h+1>2e6) return {fail:"The kernel's column is wider than two million points at this spacing."};
+  const gx=Array.from({length:2*h+1},(_,j)=>o+(j-h)*dx), k=Float64Array.from(interpOnto(xs,ys,gx),v=>v==null?0:v);
+  if(unit||p.norm!=="none"){ let t=0; for(const v of k) t+=v; if(!(Math.abs(t)>0)) return {fail:"The kernel's column sums to 0: it cannot be scaled to 1."}; for(let i=0;i<k.length;i++) k[i]/=t; }
+  return {k,h,cut:0,note}; }
 // The designed filter's kinds and bands (SIGNAL_SPEC 5.2; the design itself is the SIG block's iirDesign and firwin), and the
 // frequencies its response is drawn at: 257, evenly on a log scale over the three decades below the Nyquist frequency.
+// A convolution's kernels (SIGNAL_SPEC 5.3): the shapes of the SIG block's sigKernel, or another column.
+const CONV_KERNS=[["gauss","Gaussian"],["lorentz","Lorentzian"],["box","Box"],["tri","Triangle"],["exp","Exponential (one-sided)"],["col","Another column"]];
 const FILT_W=()=>Array.from({length:257},(_,i)=>Math.PI*Math.pow(10,-3+3*i/256));
 const FILT_KINDS=[["butter","Butterworth"],["cheby1","Chebyshev I"],["cheby2","Chebyshev II"],["ellip","Elliptic"],["bessel","Bessel"],["fir","FIR (windowed sinc)"]];
 const FILT_BANDS=[["low","Low-pass"],["high","High-pass"],["pass","Band-pass"],["stop","Band-stop"]];
@@ -5407,6 +5420,38 @@ const PIPE_OPS={
       const db=H.map(h=>{ const m=cAbs(h); return m>0?(causal?20:40)*Math.log10(m):-300; });
       return {d:pser(d,d.x,Array.from(y),null,d.idx), note:`${fsL.map(f=>nf(f,4)).join(", ")}${U} taken out, Q ${nf(+p.q,3)}${causal?", forwards only":", forwards and backwards"}.${d.e?" Error bars dropped: filtered points are no longer independent.":""}`, warn,
         extra:{resp:{f:W.map(w=>w/Math.PI*nyq),db},edges:fsL,nyq,u,zero:!causal}}; }},
+  conv:{group:"math", rank:6, label:"Convolution", short:"Convolve",
+    help:"Each point replaced by the sum of its neighbours weighted by a kernel: a Gaussian, Lorentzian, box, triangle or one-sided exponential of a width in X's units, or another column (a measured line shape) read at this column's spacing. Scaled to sum to 1 the kernel keeps the area; a peak comes out wider by about the kernel's width.",
+    params:[{k:"kern",label:"Kernel",type:"sel",opts:CONV_KERNS},{k:"w",label:"Width",type:"num",min:0,unit:"x",show:p=>p.kern!=="col",hint:"The FWHM (Gaussian, Lorentzian, triangle), the full width (box) or the decay length (exponential), in X's unit"},
+      {k:"col",label:"Kernel column",type:"refcol",show:p=>p.kern==="col"},
+      {k:"norm",label:"Scaled",type:"sel",opts:[["area","To sum to 1: the area kept"],["none","As it is"]]},
+      {k:"ends",label:"Past the ends",type:"sel",opts:[["mirror","The column mirrored"],["zero","Zero (numpy's \"same\")"]]}],
+    defaults:{kern:"gauss",w:null,col:null,norm:"area",ends:"mirror"}, deps:p=>p.kern==="col"&&p.col?[[p.col,"final"]]:[],
+    init(d){ const sp=spacing(d.x); return {w:+(3*sp.abs).toPrecision(3)}; },
+    summary:(p,d)=>p.kern==="col"?"with a column":`${(CONV_KERNS.find(e=>e[0]===p.kern)||["",""])[1]}, ${nf(+p.w,3)}${ux(d)}`,
+    run(d,p,c){ const n=d.y.length, sp=spacing(d.x); if(n<3) throw new Error("Too few points to convolve."); const K=convKernelOf(d,p,c,sp); if(K.fail) throw new Error(K.fail);
+      if(K.k.length>n) throw new Error(`The kernel spans ${K.k.length} points, more than the column's ${n}: choose a narrower one.`);
+      const y=convolveY(d.y,K.k,p.ends==="zero"?"zero":"mirror"), warn=[];
+      if(sp.uneven>0.05) warn.push(`X spacing varies by ${Math.round(sp.uneven*100)}%, and a convolution treats every point as evenly spaced. Add Resample above this step.`);
+      if(!sp.sorted) warn.push("X is not in order, so neighbouring rows are not neighbouring points. Add Sort by X above this step.");
+      if(K.cut>0.01) warn.push(`The Lorentzian is cut at ±25 widths, leaving out ${(K.cut*100).toFixed(1)}% of its area${p.norm==="none"?"":" (the rest scaled back to 1)"}.`);
+      if(p.ends==="zero") warn.push(`The first and last ${K.h} points are pulled towards zero: the column is taken as zero past its ends.`);
+      return {d:pser(d,d.x,Array.from(y),null,d.idx), warn, note:`${K.k.length} points of kernel${K.note?`, ${K.note}`:""}${p.norm==="none"?"":", summing to 1"}.${d.e?" Error bars dropped: convolved points are no longer independent.":""}`}; }},
+  deconv:{group:"math", rank:6, label:"Deconvolution", short:"Deconvolve",
+    help:"Undoes a convolution by a known kernel (Wiener's deconvolution): divided in Fourier space by the kernel's transform, held back where the kernel is small by the noise-to-signal ratio, given or estimated from the column. The noise rises with it, and the step says by how much.",
+    params:[{k:"kern",label:"Kernel",type:"sel",opts:CONV_KERNS},{k:"w",label:"Width",type:"num",min:0,unit:"x",show:p=>p.kern!=="col",hint:"The width of the shape that blurred the column, in X's unit"},
+      {k:"col",label:"Kernel column",type:"refcol",show:p=>p.kern==="col"},
+      {k:"nsr",label:"Noise to signal",type:"num",min:0,blank:true,hint:"The noise's power over the signal's: larger holds back more. Empty: estimated from the column's highest frequencies"}],
+    defaults:{kern:"gauss",w:null,col:null,nsr:null}, deps:p=>p.kern==="col"&&p.col?[[p.col,"final"]]:[],
+    init(d){ const sp=spacing(d.x); return {w:+(3*sp.abs).toPrecision(3)}; },
+    summary:(p,d)=>p.kern==="col"?"by a column":`${(CONV_KERNS.find(e=>e[0]===p.kern)||["",""])[1]}, ${nf(+p.w,3)}${ux(d)}`,
+    run(d,p,c){ const n=d.y.length, sp=spacing(d.x); if(n<8) throw new Error("Too few points to deconvolve."); const K=convKernelOf(d,p,c,sp,true); if(K.fail) throw new Error(K.fail);
+      if(K.k.length>n) throw new Error(`The kernel spans ${K.k.length} points, more than the column's ${n}: choose a narrower one.`);
+      const r=wienerDeconv(d.y,K.k,p.nsr==null||p.nsr===""?null:+p.nsr); if(r.fail) throw new Error(r.fail); const warn=[], sig=noiseSigma(d.y)||0;
+      if(sp.uneven>0.05) warn.push(`X spacing varies by ${Math.round(sp.uneven*100)}%, and a deconvolution treats every point as evenly spaced. Add Resample above this step.`);
+      if(r.gain>3) warn.push(`The noise rises about ${nf(r.gain,2)} times${sig?` (σ ${nf(sig,2)} to about ${nf(sig*r.gain,2)})`:""}: a larger noise-to-signal ratio holds it back, at the cost of less narrowing.`);
+      return {d:pser(d,d.x,Array.from(r.y),null,d.idx), warn, extra:{nsr:r.nsr,gain:r.gain},
+        note:`Wiener's deconvolution by ${K.k.length} points of kernel${K.note?`, ${K.note}`:""}; noise to signal ${nf(r.nsr,3)}${r.est?" (estimated from the highest frequencies)":""}; the noise rises ${nf(r.gain,3)} times.${d.e?" Error bars dropped.":""}`}; }},
   fsd:{group:"smooth", rank:8, label:"Fourier self-deconvolution", short:"Self-deconvolution",
     help:"Narrows overlapping bands: the data's Fourier transform is multiplied by the inverse of a Lorentzian's of the width given and apodised, so a band of about that width comes out narrower by the factor given, its area kept. The noise rises with it, and the step says by how much.",
     params:[{k:"fwhm",label:"Width taken out",type:"num",min:0,hint:"The FWHM of the Lorentzian taken out, in X's units: about the bands' own width"},
@@ -9823,6 +9868,47 @@ ANA_KINDS.ifft={label:"Inverse FFT", base:"IFFT", pts:true, typed:true, xs:true,
     secs.push({title:"Inverse transform",tables:[{head:["Real parts","Imaginary parts","Values","Length","Frequency step","Time step"],rows:[[qr.name,qi?qi.name:"none (0)",n,N,`${fmt(df,6)}${qr.xu?" "+qr.xu:""}`,`${fmt(dt,6)}${xu?" "+xu:""}`]]}]});
     const method=one?`numpy.fft.irfft: the values taken as the non-negative half of a Hermitian transform (the imaginary parts at 0${N%2===0?" and at the last frequency":""} not used), the real sequence of ${N} values x_j = (1/N) Σ X_k e^(2πi jk/N).`:`numpy.fft.ifft: x_j = (1/N) Σ X_k e^(2πi jk/N) over the ${n} values, real and imaginary parts.`;
     return {tables:[{cols}],report:{sections:secs,method:`${method} The time step is 1/(N·Δf).`},notes}; }};
+/* ---- 5.3: correlation of one column with itself or two with each other, and the coherence of two (SIGNAL_SPEC). A second column on
+   another spacing is read at the first's step by straight lines (sigAtStep), said in the notes. ---- */
+function sigAtStep(ev,dx){ const n=ev.x.length, a=ev.x[0], b=ev.x[n-1], s=Math.sign(b-a)||1, step=s*Math.abs(dx), m=Math.floor((b-a)/step+1e-9)+1;
+  const x=[], y=[]; let j=0; for(let i=0;i<m;i++){ const v=a+i*step; while(j<n-2&&(s>0?ev.x[j+1]<v:ev.x[j+1]>v)) j++; const t=(v-ev.x[j])/(ev.x[j+1]-ev.x[j]); x.push(v); y.push(ev.y[j]+(ev.y[j+1]-ev.y[j])*Math.max(0,Math.min(1,t))); } return {x,y,dx:step}; }
+const XC_NORMS=[["none","None: the sums"],["biased","Biased: ÷ N"],["unbiased","Unbiased: ÷ the terms at each lag"],["coeff","Coefficient: 1 for a column with itself at lag 0"]];
+ANA_KINDS.xcorr={label:"Auto- and cross-correlation", base:"Xcorr", pts:true,
+  help:"One column with itself (autocorrelation) or two with each other (cross-correlation) at every lag: how alike they are when one is shifted by that much, as numpy.correlate. The lag of the largest value is where the second best matches the first.",
+  heavy(p,ins){ return ins.reduce((t,q)=>t+(q.pts?q.pts.x.length:0),0)>400000; },
+  run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[]; if(!ins.length) return {fail:"No column chosen."}; if(ins.length>2) notes.push(`${ins.length-2} more column${ins.length===3?"":"s"} ticked left out: a correlation reads one or two.`);
+    const qa=ins[0], qb=ins[1]||null, ea=sigEven(qa.pts.x,qa.pts.y,2); if(ea.fail) return {fail:`${qa.name}: ${ea.fail}`}; ea.notes.forEach(s=>notes.push(`${qa.name}: ${s}`));
+    let eb=null; if(qb){ eb=sigEven(qb.pts.x,qb.pts.y,2); if(eb.fail) return {fail:`${qb.name}: ${eb.fail}`}; eb.notes.forEach(s=>notes.push(`${qb.name}: ${s}`));
+      if(Math.abs(Math.abs(eb.dx)-Math.abs(ea.dx))>1e-6*Math.abs(ea.dx)){ eb=sigAtStep(eb,ea.dx); notes.push(`${qb.name} was read at ${qa.name}'s step (${fmt(Math.abs(ea.dx),6)}) by straight lines: its own was ${fmt(Math.abs(sigEven(qb.pts.x,qb.pts.y,2).dx),6)}.`); }
+      if(Math.sign(eb.dx)!==Math.sign(ea.dx)) return {fail:"The two columns' X run in opposite directions: sort one of them by X first."}; }
+    const norm=XC_NORMS.some(e=>e[0]===p.norm)?p.norm:"coeff", r=correlate(ea.y,eb?eb.y:null,{norm,demean:p.demean!==false,maxlag:p.maxlag}); if(r.fail) return r;
+    const dx=ea.dx, off=eb?ea.x[0]-eb.x[0]:0, lag=r.k.map(k=>k*dx+off), yu=norm==="coeff"?"":qb?(qa.unit&&qb.unit?(qa.unit===qb.unit?sigSq(qa.unit):`${qa.unit}·${qb.unit}`):""):sigSq(qa.unit);
+    cols.push({k:"lag",name:"Lag",unit:qa.xu||"",role:"x",vals:lag.map(anaNum)}); cols.push({k:"c",name:qb?"Cross-correlation":"Autocorrelation",unit:yu,role:"y",vals:r.c.map(anaNum)});
+    let ib=0; r.c.forEach((v,i)=>{ if(v>r.c[ib]) ib=i; }); const rows=[[qb?`${qa.name} and ${qb.name}`:qa.name,r.n[0],qb?r.n[1]:"",`${fmt(Math.abs(dx),6)}${qa.xu?" "+qa.xu:""}`,`${fmt(lag[ib],6)}${qa.xu?" "+qa.xu:""}`,anaNum(r.c[ib])]];
+    if(!qb){ const i0=r.k.indexOf(0); let iz=-1; for(let i=i0+1;i<r.c.length;i++) if(r.c[i]<=0){ iz=i; break; } rows[0].push(iz>0?`${fmt(lag[iz],6)}${qa.xu?" "+qa.xu:""}`:"none in the lags kept"); }
+    // what the sign of that lag means, in words (numpy's convention: a copy that follows the first shows at a negative lag)
+    else { const t=lag[ib], u=qa.xu?" "+qa.xu:""; rows[0].push(t===0?"in step":t<0?`${qb.name} follows ${qa.name} by ${fmt(-t,6)}${u}`:`${qa.name} follows ${qb.name} by ${fmt(t,6)}${u}`); }
+    secs.push({title:"Correlation",tables:[{head:["Columns","Points","Points of the second","Spacing","Largest at the lag","Its value"].concat(qb?["That is"]:["First crossing of 0"]),rows}]});
+    const method=`numpy.correlate's sums c_k = Σ a[n + k]·b[n] at every lag k${p.maxlag!=null&&Number.isFinite(+p.maxlag)?` up to ${Math.round(+p.maxlag)} points either way`:""}, ${p.demean!==false?"each column's mean taken off first, ":""}${norm==="coeff"?"divided by √(Σa²·Σb²)":norm==="biased"?"divided by N, the longer length":norm==="unbiased"?"each divided by the number of terms at its lag":"not divided"}. A lag is in X's unit: k times the spacing${qb?", plus the first column's first X less the second's, so a positive lag means the first column follows the second":""}.`;
+    return {tables:[{cols}],report:{sections:secs,method},notes}; }};
+ANA_KINDS.coh={label:"Coherence", base:"Coherence", pts:true,
+  help:"How well two columns are related at each frequency, from 0 (not at all) to 1 (one is a filtered copy of the other), with the cross-spectrum's magnitude and phase, by Welch's segments as scipy.signal.coherence.",
+  run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[]; if(ins.length<2) return {fail:"Tick two columns: coherence is between two."};
+    if(ins.length>2) notes.push(`${ins.length-2} more column${ins.length===3?"":"s"} ticked left out.`);
+    const qa=ins[0], qb=ins[1], ea=sigEven(qa.pts.x,qa.pts.y,2), eb=sigEven(qb.pts.x,qb.pts.y,2); if(ea.fail) return {fail:`${qa.name}: ${ea.fail}`}; if(eb.fail) return {fail:`${qb.name}: ${eb.fail}`};
+    // both read on one grid over the X they share: the first's step, the overlap's ends
+    const lo=Math.max(Math.min(ea.x[0],ea.x[ea.x.length-1]),Math.min(eb.x[0],eb.x[eb.x.length-1])), hi=Math.min(Math.max(ea.x[0],ea.x[ea.x.length-1]),Math.max(eb.x[0],eb.x[eb.x.length-1]));
+    if(!(hi>lo)) return {fail:"The two columns share no range of X: coherence needs them measured at the same time."};
+    const d=Math.abs(ea.dx), m=Math.floor((hi-lo)/d+1e-9)+1, gx=Array.from({length:m},(_,i)=>lo+i*d), at=(ev)=>interpOnto(ev.x,ev.y,gx);
+    let ya=at(ea), yb=at(eb); const same=ea.x.length===m&&eb.x.length===m&&ea.x.every((v,i)=>v===eb.x[i]); if(same){ ya=ea.y; yb=eb.y; } else notes.push(`Both read on one grid over the X they share (${fmt(lo,6)} to ${fmt(hi,6)}, every ${fmt(d,6)}) by straight lines.`);
+    ya.forEach((v,i)=>{ if(v==null) ya[i]=0; }); yb.forEach((v,i)=>{ if(v==null) yb[i]=0; });
+    const fs=1/d, r=coherence(ya,yb,fs,{win:SIG_WIN[p.win]?p.win:"hann",wpar:p.wpar,nseg:p.nseg,over:p.over,detrend:SIG_DETREND.some(e=>e[0]===p.detrend)?p.detrend:"constant"}); if(r.fail) return r;
+    r.notes.forEach(s=>notes.push(s)); const fu=sigRecip(qa.xu), pu=qa.unit&&qb.unit?sigPer(qa.unit===qb.unit?sigSq(qa.unit):`${qa.unit}·${qb.unit}`,fu):"";
+    cols.push({k:"f",name:"Frequency",unit:fu,role:"x",vals:Array.from(r.f,anaNum)}); cols.push({k:"coh",name:"Coherence",unit:"",role:"y",vals:Array.from(r.coh,anaNum)});
+    cols.push({k:"mag",name:"Cross-spectrum magnitude",unit:pu,role:"ignore",vals:Array.from(r.re,(v,k)=>anaNum(Math.hypot(v,r.im[k])))}); cols.push({k:"ph",name:"Cross-spectrum phase",unit:"rad",role:"ignore",vals:Array.from(r.re,(v,k)=>anaNum(Math.atan2(r.im[k],v)))});
+    secs.push({title:"Segments",tables:[{head:["Columns","Points","Segment","Overlap","Segments averaged","Frequency step"],rows:[[`${qa.name} and ${qb.name}`,m,r.nseg,r.over,r.k,`${fmt(fs/r.nfft,6)}${fu?" "+fu:""}`]]}]});
+    if(r.k<2) notes.push("One segment only: the coherence of a single segment is 1 at every frequency, whatever the columns. Shorten the segment.");
+    return {tables:[{cols}],report:{sections:secs,method:`scipy.signal.coherence: |Pxy|²/(Pxx·Pyy), the cross-spectrum and each column's spectrum by Welch's segments (${sigWinName(SIG_WIN[p.win]?p.win:"hann",p.wpar)} window, each segment less its ${p.detrend==="linear"?"straight line":"mean"}), averaged. The phase is that of the averaged cross-spectrum, conj(X)·Y: positive when the second column leads.`},notes}; }};
 /* ==ANA:END== */
 /* ==MAT:START== Matrices (ux/spec/SHEET_SPEC.md, slice 3.6), pure: a grid of Z with its X and Y.
    A matrix is {nx, ny, x, y, z}: `z` row major (z[r*nx + c], a row a Y, a column an X), null for a
@@ -10280,6 +10366,84 @@ function iirNotch(w0,Q){ if(!(w0>0&&w0<1)) return {fail:"The notch must lie betw
 function sosFreqz(sos,w){ return w.map(t=>{ const e1=[Math.cos(t),-Math.sin(t)], e2=[Math.cos(2*t),-Math.sin(2*t)]; let h=[1,0];
   sos.forEach(q=>{ const num=cAdd(cAdd([q[0],0],cScale(e1,q[1])),cScale(e2,q[2])), den=cAdd(cAdd([q[3],0],cScale(e1,q[4])),cScale(e2,q[5])); h=cMul(h,cDiv(num,den)); }); return h; }); }
 function baFreqz(b,a,w){ return w.map(t=>{ let nr=[0,0], dr=[0,0]; b.forEach((v,i)=>{ nr=cAdd(nr,[v*Math.cos(i*t),-v*Math.sin(i*t)]); }); a.forEach((v,i)=>{ dr=cAdd(dr,[v*Math.cos(i*t),-v*Math.sin(i*t)]); }); return cDiv(nr,dr); }); }
+/* ---- 5.3 Correlation and convolution. numpy.correlate's "full" lags (c_k = Σ_n a[n+k]·b[n], k from −(len b − 1) to
+   len a − 1) and numpy.convolve's "full" and "same", worked directly when small and by the FFT when n·m passes 2·10⁶ (the same
+   values to rounding); Welch's cross-spectrum (scipy.signal.csd) and the coherence |Pxy|²/(Pxx·Pyy) (scipy.signal.coherence);
+   Wiener's deconvolution. ---- */
+function convFull(a,b){ const n=a.length, m=b.length; if(!n||!m) return new Float64Array(0); const L=n+m-1;
+  if(n*m<=2e6){ const o=new Float64Array(L); for(let i=0;i<n;i++){ const ai=a[i]; if(ai===0) continue; for(let j=0;j<m;j++) o[i+j]+=ai*b[j]; } return o; }
+  let N=1; while(N<L) N<<=1; const ar=new Float64Array(N), ai=new Float64Array(N), br=new Float64Array(N), bi=new Float64Array(N);
+  for(let i=0;i<n;i++) ar[i]=a[i]; for(let j=0;j<m;j++) br[j]=b[j]; fftInPlace(ar,ai,false); fftInPlace(br,bi,false);
+  for(let k=0;k<N;k++){ const r=ar[k]*br[k]-ai[k]*bi[k]; ai[k]=ar[k]*bi[k]+ai[k]*br[k]; ar[k]=r; } fftInPlace(ar,ai,true); return ar.slice(0,L); }
+// numpy.convolve(a, b, "same"): the middle max(n, m) values of the full convolution.
+function convSame(a,b){ const f=convFull(a,b), n=Math.max(a.length,b.length), s=Math.floor((f.length-n)/2); return f.slice(s,s+n); }
+// numpy.correlate(a, b, "full"): the convolution of a with b reversed; lags from −(len b − 1).
+function correlateFull(a,b){ return convFull(a,Array.from(b).reverse()); }
+/* A correlation with its lags and normalisation: o.norm "none" | "biased" (÷ N, the longer length) | "unbiased" (÷ the terms at
+   each lag) | "coeff" (÷ √(Σa²·Σb²): 1 at lag 0 for a column with itself); o.demean the means taken off first; o.maxlag the
+   largest |lag| kept (in points). {k (lags in points), c, n}. */
+function correlate(a,b,o){ o=o||{}; const auto=!b; b=b||a; let A=Float64Array.from(a), B=Float64Array.from(b);
+  if(!A.length||!B.length) return {fail:"A correlation needs values in both columns."};
+  if(o.demean){ const ma=sigSum(A)/A.length, mb=sigSum(B)/B.length; for(let i=0;i<A.length;i++) A[i]-=ma; for(let i=0;i<B.length;i++) B[i]-=mb; }
+  const full=correlateFull(A,B), na=A.length, nb=B.length, k0=-(nb-1), norm=o.norm||"none"; let ea=0, eb=0;
+  if(norm==="coeff"){ ea=sigSum(A,v=>v*v); eb=auto?ea:sigSum(B,v=>v*v); if(!(ea>0&&eb>0)) return {fail:"A column is constant (after its mean is taken off): its correlation coefficient is undefined."}; }
+  const ml=o.maxlag!=null&&Number.isFinite(+o.maxlag)&&+o.maxlag>=0?Math.round(+o.maxlag):Infinity, k=[], c=[];
+  for(let i=0;i<full.length;i++){ const lag=k0+i; if(Math.abs(lag)>ml) continue; let v=full[i];
+    if(norm==="biased") v/=Math.max(na,nb); else if(norm==="unbiased"){ const lo=Math.max(0,-lag), hi=Math.min(nb,na-lag); v/=Math.max(1,hi-lo); } else if(norm==="coeff") v/=Math.sqrt(ea*eb);
+    k.push(lag); c.push(v); }
+  return {k,c,n:[na,nb]}; }
+/* scipy.signal.csd of two sequences of the same length (Welch's segments, conj(X)·Y scaled as density or spectrum, one side doubled
+   but at its ends, averaged by the mean or by the median of the real and imaginary parts apart) and scipy.signal.coherence:
+   |Pxy|²/(Pxx·Pyy) on the same segments, between 0 and 1. */
+function csd(x,y,fs,o){ o=o||{}; const n=Math.min(x.length,y.length); if(n<2) return {fail:"At least two points are needed for a spectrum."};
+  if(x.length!==y.length) return {fail:"The two columns must have as many values each."};
+  let L=o.nseg>0?Math.round(o.nseg):256; const notes=[]; if(L>n){ L=n; notes.push(`The segment is the whole column (${n} points).`); }
+  const ov=o.over!=null&&o.over!==""&&Number.isFinite(+o.over)?Math.round(+o.over):L>>1; if(ov<0||ov>=L) return {fail:`The overlap (${ov} points) must be at least 0 and less than the segment (${L}).`};
+  const N=o.nfft>0?Math.round(o.nfft):L; if(N<L) return {fail:`The transform's length (${N}) is shorter than the segment (${L}).`};
+  const w=sigWindow(o.win||"hann",L,o.wpar,false); if(w.fail) return w; const g=winGains(w), K=welchSegs(n,L,ov), step=L-ov; if(K<1) return {fail:"No whole segment fits in the data."};
+  const h=(N>>1)+1, scale=o.scaling==="spectrum"?1/(g.s1*g.s1):1/(fs*g.s2), med=o.avg==="median";
+  const Sr=new Float64Array(h), Si=new Float64Array(h), Sxx=new Float64Array(h), Syy=new Float64Array(h), Pr=med?Array.from({length:h},()=>new Float64Array(K)):null, Pi=med?Array.from({length:h},()=>new Float64Array(K)):null;
+  const Xr=new Float64Array(N), Xi=new Float64Array(N), Yr=new Float64Array(N), Yi=new Float64Array(N), det=o.detrend==null?"constant":o.detrend;
+  for(let s=0;s<K;s++){ const a=detrendV(x.slice(s*step,s*step+L),det), b=detrendV(y.slice(s*step,s*step+L),det); Xr.fill(0); Xi.fill(0); Yr.fill(0); Yi.fill(0);
+    for(let i=0;i<L;i++){ Xr[i]=a[i]*w[i]; Yr[i]=b[i]*w[i]; } fftAny(Xr,Xi,false); fftAny(Yr,Yi,false);
+    for(let k=0;k<h;k++){ const d=(k>0&&!(N%2===0&&k===N/2)?2:1)*scale, re=(Xr[k]*Yr[k]+Xi[k]*Yi[k])*d, im=(Xr[k]*Yi[k]-Xi[k]*Yr[k])*d;
+      if(med){ Pr[k][s]=re; Pi[k][s]=im; } else { Sr[k]+=re; Si[k]+=im; } Sxx[k]+=(Xr[k]*Xr[k]+Xi[k]*Xi[k])*d; Syy[k]+=(Yr[k]*Yr[k]+Yi[k]*Yi[k])*d; } }
+  const md=a=>{ const q=a.sort(); return K%2?q[K>>1]:(q[K/2-1]+q[K/2])/2; };
+  if(med){ const b=medianBias(K); for(let k=0;k<h;k++){ Sr[k]=md(Pr[k])/b; Si[k]=md(Pi[k])/b; } } else for(let k=0;k<h;k++){ Sr[k]/=K; Si[k]/=K; }
+  for(let k=0;k<h;k++){ Sxx[k]/=K; Syy[k]/=K; }
+  return {f:fftFreq(N,1/fs,true),re:Sr,im:Si,pxx:Sxx,pyy:Syy,nseg:L,over:ov,nfft:N,k:K,notes}; }
+function coherence(x,y,fs,o){ const r=csd(x,y,fs,Object.assign({},o,{avg:"mean"})); if(r.fail) return r; const C=new Float64Array(r.f.length);
+  for(let k=0;k<C.length;k++){ const d=r.pxx[k]*r.pyy[k]; C[k]=d>0?(r.re[k]*r.re[k]+r.im[k]*r.im[k])/d:NaN; } return Object.assign(r,{coh:C}); }
+/* A kernel on the column's own spacing dx: a shape of FWHM (or full width for the box, a decay time for the exponential) w in X's
+   units, sampled at j·dx for j = −h…h so its centre is the middle point (the exponential is 0 left of it), cut where it is
+   negligible (Gaussian ±4 FWHM, Lorentzian ±25, triangle and box their width, exponential 12 decay times) and, for "area",
+   scaled so its points sum to 1. {k, h, cut (the part of the area cut off, Lorentzian), fail}. */
+function sigKernel(kind,w,dx,norm){ dx=Math.abs(dx); if(!(w>0)||!(dx>0)) return {fail:"The kernel's width must be above 0."};
+  const half={gauss:4*w,lorentz:25*w,box:w/2,tri:w,exp:12*w}[kind]; if(half==null) return {fail:`There is no kernel called ${kind}.`};
+  const h=Math.max(kind==="box"?0:1,Math.floor(half/dx+1e-9)); if(2*h+1>2e6) return {fail:"That kernel is wider than two million points."};
+  const k=new Float64Array(2*h+1), s=w/2.3548200450309493;
+  for(let j=-h;j<=h;j++){ const t=j*dx; k[j+h]=kind==="gauss"?Math.exp(-0.5*(t/s)**2):kind==="lorentz"?1/(1+(2*t/w)**2):kind==="box"?(Math.abs(t)<=w/2+1e-9*dx?1:0):kind==="tri"?Math.max(0,1-Math.abs(t)/w):(t>=0?Math.exp(-t/w):0); }
+  let cut=0; if(kind==="lorentz") cut=1-2/Math.PI*Math.atan(2*h*dx/w);
+  if(norm!=="none"){ const t=sigSum(k); for(let i=0;i<k.length;i++) k[i]/=t; } return {k,h,cut}; }
+/* A column convolved with a kernel, on its own points: "zero" as numpy.convolve(y, k, "same") (nothing past the ends), "mirror"
+   the column reflected about its ends first (numpy.pad's "symmetric") and only the valid part kept. */
+function convolveY(y,k,ends){ const n=y.length, m=k.length; if(ends!=="mirror") return convSame(y,k);
+  const h=Math.floor(m/2), P=new Float64Array(n+m-1), sym=i=>{ while(i<0||i>=n){ if(i<0) i=-i-1; if(i>=n) i=2*n-i-1; } return i; };
+  for(let i=0;i<P.length;i++) P[i]=y[sym(i-h)]; const f=convFull(P,k); return f.slice(m-1,m-1+n); }
+/* Wiener's deconvolution: the column (its straight line through the ends taken off, mirrored as fftFilter mirrors it) divided in
+   Fourier space by the kernel's transform, X = Y·conj(K)/(|K|² + nsr), K the kernel (summing to 1) centred at 0, then the line
+   put back. nsr the noise-to-signal power ratio; null estimates it as the median power of the top fifth of the frequencies over
+   the mean power of the lowest twentieth (null or empty: estimated; `null >= 0` is true in JavaScript, so it is asked for by
+   name). {y, nsr, gain (white noise's rise), est}. */
+function wienerDeconv(y,k,nsr){ const n=y.length, m=k.length, h=Math.floor(m/2); if(n<4) return {fail:"Too few points to deconvolve."};
+  const a=y[0], b=y[n-1], line=i=>a+(b-a)*i/(n-1); let N=1; while(N<2*n||N<m) N<<=1;
+  const R=new Float64Array(N), I=new Float64Array(N); for(let i=0;i<n;i++){ const v=y[i]-line(i); R[i]=v; R[2*n-1-i]=v; } fftInPlace(R,I,false);
+  const KR=new Float64Array(N), KI=new Float64Array(N); for(let j=0;j<m;j++) KR[((j-h)%N+N)%N]+=k[j]; fftInPlace(KR,KI,false);
+  let est=false; if(nsr==null||nsr===""||!(+nsr>=0)){ est=true; const P=k=>R[k]*R[k]+I[k]*I[k], hiK=[], lo=Math.max(2,Math.round(N/40)); for(let q=Math.round(0.4*N);q<=N/2;q++) hiK.push(P(q));
+    hiK.sort((u,v)=>u-v); let s=0; for(let q=1;q<=lo;q++) s+=P(q); const noise=hiK.length?hiK[hiK.length>>1]:0, sig=s/lo; nsr=sig>0?noise/sig:0; }
+  let g2=0; for(let q=0;q<N;q++){ const kr=KR[q], ki=KI[q], d=kr*kr+ki*ki+nsr, hr=kr/(d||1e-300), hi=-ki/(d||1e-300); g2+=hr*hr+hi*hi;
+    const r=R[q]*hr-I[q]*hi; I[q]=R[q]*hi+I[q]*hr; R[q]=r; }
+  fftInPlace(R,I,true); const out=new Float64Array(n); for(let i=0;i<n;i++) out[i]=R[i]+line(i); return {y:out,nsr,gain:Math.sqrt(g2/N),est}; }
 // For the bench: a design's sections as one flat array, and its response at w (radians a sample) as {re, im}.
 function iirSos(o){ const D=iirDesign(o); return D.fail?D:D.sos.flat(); }
 function iirFreq(o,w){ const D=iirDesign(o); if(D.fail) return D; const H=sosFreqz(D.sos,w); return {re:H.map(h=>h[0]),im:H.map(h=>h[1])}; }
@@ -19848,7 +20012,7 @@ async function catDlg(id){ const c=colById(id); if(!c||S.readOnly) return;
 // What a step does to the rows (PARITY_SPEC 1.3): keep them, keep them with neighbours depending on
 // each other, drop some, or merge or make points. Every step has one; ana-drive checks.
 const PIPE_ROWS={correct:"keep",bg:"keep",shift:"keep",xunit:"keep",calib:"keep",ecal:"keep",xlin:"keep",norm:"keep",scale:"keep",
-  smooth:"dep",fft:"dep",filt:"dep",notch:"dep",fsd:"dep",deriv:"dep",cumint:"dep",despike:"dep",
+  smooth:"dep",fft:"dep",filt:"dep",notch:"dep",conv:"dep",deconv:"dep",fsd:"dep",deriv:"dep",cumint:"dep",despike:"dep",
   crop:"drop",exclude:"drop",sort:"drop",log:"drop",absorb:"drop",km:"drop",ref:"drop",combine:"drop",bose:"drop",where:"drop",
   dedupe:"merge",resample:"merge",hist:"merge",python:"merge"};
 const ROWS_RANK={keep:0,dep:1,drop:2,merge:3};
@@ -20309,6 +20473,19 @@ const ANA_FORMS={
     read(v){ return {re:v.aIr||null,im:v.aIi||null,sides:v.aIs==="1"?1:2,odd:v.aIs==="1"&&!!v.aIo}; },
     valid(v){ return !!v.aIr&&v.aIr!==v.aIi; },
     extra(p){ return [p.re,p.im].filter(Boolean); }},
+  xcorr:{noGroup:true, html(p){ return `<p class="note">One column ticked: with itself. Two: the first with the second.</p><div class="grid2">
+      <label for="aXn" class="tipd" title="How each lag's sum is divided">Normalised</label><select id="aXn">${XC_NORMS.map(([k,t])=>`<option value="${k}"${k===(p.norm||"coeff")?" selected":""}>${t}</option>`).join("")}</select>
+      <label for="aXm" class="tipd" title="The largest shift kept, in points either way; empty: every lag">Lags up to</label><input type="text" id="aXm" inputmode="numeric" value="${Number.isFinite(+p.maxlag)&&p.maxlag!==null&&p.maxlag!==""?Math.round(+p.maxlag):""}" placeholder="every lag"></div>
+      <label class="chk"><input type="checkbox" id="aXd"${p.demean!==false?" checked":""}> Each column's mean taken off first</label>`; },
+    read(v){ const m=String(v.aXm||"").trim(); return {norm:v.aXn||"coeff",maxlag:m?Math.round(parseNum(m)):null,demean:!!v.aXd}; },
+    valid(v){ const m=String(v.aXm||"").trim(); return !m||parseNum(m)>=0; }},
+  coh:{noGroup:true, html(p){ return `<p class="note">Tick two columns.</p><div class="grid2">${sigWinHtml(p,"hann")}
+      <label for="aWn" class="tipd" title="Points in each segment (256, or the whole overlap when shorter): there must be several segments, or the coherence is 1 everywhere">Segment</label><input type="text" id="aWn" inputmode="numeric" value="${p.nseg>0?Math.round(p.nseg):""}" placeholder="256 points">
+      <label for="aWo">Overlap</label><input type="text" id="aWo" inputmode="numeric" value="${Number.isFinite(+p.over)&&p.over!==""&&p.over!=null?Math.round(+p.over):""}" placeholder="half the segment">
+      <label for="aFd">Take off</label><select id="aFd">${SIG_DETREND.filter(e=>e[0]!=="none").map(([k,t])=>`<option value="${k}"${k===(p.detrend||"constant")?" selected":""}>${t} of each segment</option>`).join("")}</select></div>`; },
+    wire(box){ const on=()=>sigWinWire(box); box.addEventListener("change",on); on(); },
+    read(v){ const n=parseNum(String(v.aWn||"")), o=parseNum(String(v.aWo||"")); return Object.assign(sigWinRead(v),{nseg:n>0?Math.round(n):null,over:Number.isFinite(o)&&String(v.aWo||"").trim()!==""?Math.round(o):null,detrend:v.aFd||"constant"}); },
+    valid(v){ const n=String(v.aWn||"").trim(), o=String(v.aWo||"").trim(); return sigWinOk(v)&&(!n||parseNum(n)>=2)&&(!o||parseNum(o)>=0); }},
   cmpmod:{noGroup:true, html(p){ const C=cmpCands(), keys=(Array.isArray(p.fits)?p.fits:[]).map(s=>s.key), def=[C.find(c=>c.key==="screen")?"screen":"m:linear","m:poly2"], opts=sel=>C.map(c=>c.group?`<optgroup label="${esc(c.group)}">`:c.end?"</optgroup>":`<option value="${esc(c.key)}"${c.key===sel?" selected":""}>${esc(c.name)}</option>`).join("");
       return `<div class="grid2">${[0,1,2,3,4].map(i=>`<label for="aMm${i}">${i<2?`Setting ${i+1}`:`Setting ${i+1}, if any`}</label><select id="aMm${i}">${i>=2?`<option value="">—</option>`:""}${opts(keys[i]||(i<2?def[i]:""))}</select>`).join("")}
       ${cmpCommonHtml(p)}</div>`; },
@@ -20482,7 +20659,7 @@ function graphSummary(cid){ const p=P(); if(!p||S.readOnly) return;
 /* What an analysis's result offers beside its report (STATS_SPEC 2.2): a normality test's Q–Q plot, the
    outliers masked or marked. The report's buttons (Results, the History) and the tab menu list them. */
 // A signal analysis's result plotted (SIGNAL_SPEC, wave 5): each Y column of its sheet against its X, on a new graph.
-const SIG_PLOT={fft:"Plot the spectrum",psd:"Plot the spectrum",ifft:"Plot the signal"};
+const SIG_PLOT={fft:"Plot the spectrum",psd:"Plot the spectrum",ifft:"Plot the signal",xcorr:"Plot the correlation",coh:"Plot the coherence"};
 function sigPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const ys=p.cols.filter(c=>c.ana===id&&c.role==="y");
   if(!ys.length){ toast("There is nothing to plot: Recalculate first."); return; }
   plotCols(ys.map(c=>c.id),{series:Object.fromEntries(ys.map(c=>[c.id,{type:"line"}])),undo:`plotting ${a.name}`,say:a.name}); }
@@ -27443,7 +27620,10 @@ function analyzeMenu(){
     {label:"Signal processing", sub:()=>[t("smooth"), t("fft"), t("filt"), t("notch"), "-",
       {label:"FFT…", title:ANA_KINDS.fft.help, run:()=>anaDlg("fft"), enabled:!S.readOnly&&!!P()},
       {label:"Power spectrum (Welch)…", title:ANA_KINDS.psd.help, run:()=>anaDlg("psd"), enabled:!S.readOnly&&!!P()},
-      {label:"Inverse FFT…", title:ANA_KINDS.ifft.help, run:()=>anaDlg("ifft"), enabled:!S.readOnly&&!!P()}]},
+      {label:"Inverse FFT…", title:ANA_KINDS.ifft.help, run:()=>anaDlg("ifft"), enabled:!S.readOnly&&!!P()}, "-",
+      {label:"Correlation…", title:ANA_KINDS.xcorr.help, run:()=>anaDlg("xcorr"), enabled:!S.readOnly&&!!P()},
+      {label:"Coherence…", title:ANA_KINDS.coh.help, run:()=>anaDlg("coh",{two:true}), enabled:!S.readOnly&&!!P()&&yCols().length>1},
+      t("conv"), t("deconv")]},
     {label:"Calculus", sub:()=>[t("deriv"),
       {label:"Derivative, as a new column…", title:"Keeps this column and adds its derivative beside it", run:()=>{ const id=newDerived("final",{quiet:true,name:`d/dx ${specName(activeYCol())}`}); if(id) openTool("deriv",{col:id}); }, enabled:edit&&has},
       t("cumint")]},
@@ -30282,8 +30462,8 @@ ${DL([["Pearson's r","p by t on N − 2 degrees of freedom; its interval by Fish
 <p>Its tab carries a lock: the sheet is read only, since its values are worked out. Its columns can be plotted, read by a formula and copied; one moved to another sheet becomes a copy, cut from the analysis. The results are not original data, so they leave the check code alone.</p>
 <h2 id="recalc">Recalculating</h2>
 <p>Right-click its tab: ${DL([["Report","What it found, with its notes."],["Change settings…","The dialog again."],["Recalculate","When it is out of date."],["Recalculate by itself","The default: worked out again whenever a value, a step or a mask of what it reads changes, with a line in the log."],["Only when asked","A change marks its tab out of date instead, with the reason in its tooltip."],["Cut from its data","The values stay as an ordinary sheet; the analysis goes."],["Delete the analysis…","With its sheet."]])} Each is one undo step.</p>`},
-{id:"signal", g:"Analysis", t:"Signal processing", kw:"signal processing fft fourier transform discrete spectrum frequency amplitude power phase real imaginary periodogram power spectral density psd welch segments overlap window hann hanning hamming blackman harris flat top kaiser tukey bartlett gaussian rectangle boxcar leakage padding zero padding detrend nyquist sampling rate inverse ifft irfft bluestein db decibel unwrap filter designed iir fir butterworth chebyshev elliptic cauer bessel thomson low-pass high-pass band-pass band-stop lowpass highpass bandpass bandstop order cut-off cutoff edge ripple attenuation zero phase filtfilt sosfiltfilt forwards backwards causal notch hum mains 50 hz 60 hz harmonics quality factor",
- lead:"The Fourier transform of a column, its power spectrum by Welch's method and the inverse, each as a sheet of results worked out again when its data change; filters designed by their kind, band and order, and a notch, as steps.",
+{id:"signal", g:"Analysis", t:"Signal processing", kw:"signal processing fft fourier transform discrete spectrum frequency amplitude power phase real imaginary periodogram power spectral density psd welch segments overlap window hann hanning hamming blackman harris flat top kaiser tukey bartlett gaussian rectangle boxcar leakage padding zero padding detrend nyquist sampling rate inverse ifft irfft bluestein db decibel unwrap filter designed iir fir butterworth chebyshev elliptic cauer bessel thomson low-pass high-pass band-pass band-stop lowpass highpass bandpass bandstop order cut-off cutoff edge ripple attenuation zero phase filtfilt sosfiltfilt forwards backwards causal notch hum mains 50 hz 60 hz harmonics quality factor correlation autocorrelation cross-correlation xcorr lag lags delay shift coherence cross-spectrum csd convolution convolve kernel blur broaden instrument function line shape deconvolution deconvolve wiener sharpen",
+ lead:"The Fourier transform of a column, its power spectrum by Welch's method and the inverse, correlation and coherence, each as a sheet of results worked out again when its data change; filters designed by their kind, band and order, a notch, convolution and deconvolution, as steps.",
  body:`<h2 id="fft">FFT</h2>
 <p>${MP("Analyze › Signal processing › FFT…")}: the discrete Fourier transform of each column ticked, at any length (a prime length too, by Bluestein's algorithm). The columns written are chosen: frequency always, then amplitude, power, the power spectral density, phase, the real and imaginary parts, power in dB. One side runs from 0 to half the sampling rate; two sides add the negative frequencies, in NumPy's order or from −fs/2 when shifted. The normalisations are stated in the report: a sine of amplitude A reads A in the amplitude and A²/2 in the power (its mean square), and the density integrates over frequency to the mean square, so a window does not change what a peak reads. The real and imaginary parts are the transform unscaled, as NumPy gives it, so the inverse takes them back.</p>
 <p>The sampling interval is the column's X step, and the frequency is in the reciprocal of X's unit (Hz for seconds, cm for cm⁻¹). X out of order is sorted first; X not evenly spaced (steps differing by more than a millionth) is read on an even grid by straight lines; both are said in the notes. A trend taken off (the mean, or a straight line) keeps a large value at frequency 0 from leaking into its neighbours; padding with zeros gives a finer frequency step to read, not new information.</p>
@@ -30297,6 +30477,12 @@ ${DL([["Pearson's r","p by t on N − 2 degrees of freedom; its interval by Fish
 <p>${MP("Analyze › Signal processing › Filter (designed)…")} adds a step: the kind ${DL([["Butterworth","The flattest pass band, a gentle edge."],["Chebyshev I","A steeper edge for a ripple in the pass band (its size given in dB)."],["Chebyshev II","A steeper edge for a ripple in the stop band (its depth given in dB)."],["Elliptic","The steepest, ripples in both."],["Bessel","The gentlest edge; a pulse keeps its shape best."],["FIR (windowed sinc)","No feedback: a set number of taps, Hamming-windowed, as SciPy's firwin."]])} the band (low-pass, high-pass, band-pass, band-stop), the order (1 to 20) and the edges, in the reciprocal of X's unit, below the Nyquist frequency (half the sampling rate). Below the settings the response is drawn in dB against frequency on a log scale, the edges dashed, before anything is applied. The design is SciPy's (the analog prototype, the band transformed, the bilinear transform with the edges pre-warped), run as second-order sections forwards and backwards by default, so nothing is delayed and the order is doubled in effect, or forwards only. The step warns of uneven or unsorted X, of a filter whose response to one point lasts more than a third of the data (its ends ring), and of a low-pass that lowers a clear band. The ${MP("FFT filter…")} of before stays as it was.</p>
 <h2 id="notch">Notch</h2>
 <p>${MP("Analyze › Signal processing › Notch…")}: one frequency taken out (mains hum at 50 or 60 Hz, a vibration) by a narrow second-order notch of quality Q (the frequency over the width taken out), and if asked its harmonics below the Nyquist frequency, forwards and backwards. A high Q takes a narrow band but rings for longer after a change; the step says when that ringing reaches a third of the data.</p>
+<h2 id="xcorr">Correlation</h2>
+<p>${MP("Analyze › Signal processing › Correlation…")}: one column ticked, its autocorrelation; two, the first's cross-correlation with the second, at every lag or up to a number of points either way: c(k) = Σ a[n + k]·b[n], as NumPy's <code>correlate</code>, the means taken off first unless unticked, divided by nothing, by N (biased), by the terms at each lag (unbiased) or by √(Σa²·Σb²) (a coefficient, 1 for a column with itself at lag 0). The lag is in X's unit, counted from where each column starts, so it is the true shift. A copy of the first that comes later shows at a negative lag; the report says it in words (“B follows A by 6.5 s”). A second column on another spacing is read at the first's.</p>
+<h2 id="coh">Coherence</h2>
+<p>${MP("Analyze › Signal processing › Coherence…")}: two columns read on one grid over the X they share, cut into Welch's segments; at each frequency |Pxy|²/(Pxx·Pyy), from 0 (unrelated) to 1 (one a filtered copy of the other), with the cross-spectrum's magnitude and phase. With one segment it is 1 everywhere, and the notes say so.</p>
+<h2 id="conv">Convolution and deconvolution</h2>
+<p>${MP("Analyze › Signal processing › Convolution…")} adds a step: each point replaced by its neighbours weighted by a kernel, a Gaussian, Lorentzian, box, triangle or one-sided exponential of a width in X's unit, or another column (a measured line shape, read at this column's spacing; its origin at X = 0 when its X spans 0, else at its top). Scaled to sum to 1, the area is kept and a band comes out wider (Gaussians add in quadrature). Past the ends the column is mirrored, or taken as zero as NumPy's <code>convolve</code> does. ${MP("Deconvolution…")} undoes a known blur by Wiener's filter: divided by the kernel's transform where it is large, held back where it is small by the noise-to-signal ratio, typed or estimated from the column's highest frequencies; the step says the ratio and how many times the noise rises.</p>
 <h2>The results</h2>
 <p>Each is a result sheet (see ${DA("analyses","Analyses and result sheets")}): read only, worked out again when its column changes, its report giving the settings and, for the FFT, the frequency of the largest amplitude away from 0. Right-click its tab › <em>Plot</em> draws the main column against frequency. Past 400 000 points the work is done in the background, with Stop.</p>`},
 {id:"stats", g:"Analysis", t:"Statistics", win:"stats", kw:"statistics quick statistics descriptive n count mean median sd se standard error spectral measures noise signal to noise area centroid correlation pearson integrate visible range",
@@ -30608,7 +30794,7 @@ const DOC_KW={ecal:"energy calibration channel kev gamma mca gain offset quadrat
   fft:"fourier low-pass high-pass drift noise butterworth power spectrum frequency",fsd:"fourier self deconvolution FSD band narrowing resolution enhancement overlapping bands apodization Bessel Happ Genzel",cumint:"integral running area",hist:"histogram distribution bins frequency count probability density cumulative freedman diaconis sturges",ref:"dark reference white lamp subtract divide",crop:"range cut trim",
   exclude:"region remove notch laser line",resample:"interpolate even spacing grid",dedupe:"duplicate repeated average",sort:"order ascending",correct:"correction typo reason fix wrong value",python:"code script"};
 const DOC_MENU={crop:"Data › Clean",exclude:"Data › Clean",despike:"Analyze › Spectroscopy",sort:"Data › Clean",dedupe:"Data › Clean",resample:"Data › Clean",
-  bg:"Data › Baseline",smooth:"Analyze › Signal processing",fft:"Analyze › Signal processing",filt:"Analyze › Signal processing",notch:"Analyze › Signal processing",fsd:"Data › Transform",scale:"Data › Transform",xlin:"Data › Transform",norm:"Data › Transform",
+  bg:"Data › Baseline",smooth:"Analyze › Signal processing",fft:"Analyze › Signal processing",filt:"Analyze › Signal processing",notch:"Analyze › Signal processing",conv:"Analyze › Signal processing",deconv:"Analyze › Signal processing",fsd:"Data › Transform",scale:"Data › Transform",xlin:"Data › Transform",norm:"Data › Transform",
   ref:"Data › Transform",combine:"Data › Transform",deriv:"Analyze › Calculus",cumint:"Analyze › Calculus",hist:"Analyze › Statistics",log:"Data › Transform",absorb:"Analyze › Analyze › Spectroscopy › Corrections",
   km:"Analyze › Analyze › Spectroscopy › Corrections",shift:"Analyze › Spectroscopy › X axis",xunit:"Analyze › Spectroscopy › X axis",calib:"Data › Calibrate",ecal:"Data › Calibrate",bose:"Analyze › Analyze › Spectroscopy › Corrections"};
 // The article of each window, for its "?" and F1.
