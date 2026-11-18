@@ -44,7 +44,7 @@ to Bennett5), each read by the tests as NIST wrote it.
 ## Wave 5's references
 
 `tools/ref/sig_fixtures.py` makes `fixtures/sig-*.json` (signal processing and mathematics, `ux/spec/SIGNAL_SPEC.md`) from
-NumPy, SciPy and PyWavelets, apart from `make-fixtures.py` so a slice's references are made in seconds; `--check` and
+NumPy, SciPy, statsmodels and PyWavelets, apart from `make-fixtures.py` so a slice's references are made in seconds; `--check` and
 `--only` as there. It needs PyWavelets beside the others (`pip install --target "$PYREF" PyWavelets`). First made with Python
 3.13.18, NumPy 2.5.5, SciPy 1.18.1 and PyWavelets 1.8.0. `ref-test.mjs` judges each array by its worst error over the
 reference's largest |value| (a `scale` given where the answer is rounding, as a detrended residual), a complex one over its

@@ -1674,6 +1674,14 @@ graph first, with the taskbar kept at the bottom of the screen.
   the bench `wavedecFlat`, `cwtFlat`. Kinds `dwt` (`wav`, `level`, `mode`; `i`, `a`, `d<l>`, `x`, `ra`, `rd<l>`) and `cwt` (`mat`;
   `wav`, `s0`, `s1`, `ns`, `lin`, `yaxis`, `abs`); step `wden` (`dep`); forms `#aDw`, `#aDl`, `#aDm`; `#aCw`, `#aCs0`/`#aCs1`,
   `#aCn`, `#aCy`, `#aClin`, `#aCab`. Analyze › Signal processing › Wavelets ›.
+  **5.8**: `trapW`, `simpsonW` (scipy.integrate.simpson's weights, Cartwright's last interval for an even count), `simpson`,
+  `integPts(x, y, e, {rule, x0, x1})` (`{area, err (√Σw²σ²), abs, centroid, n, x0, x1}`, a range's ends read in by straight lines),
+  `areaBetween(xa, ya, xb, yb, {x0, x1})` (`{area, abs, cross, n}`), `lowess(x, y, {frac, it, delta, deg, k})` (statsmodels' exactly,
+  `deg` 2 Cleveland and Devlin's LOESS), `GK15`, `gk15`, `integrateFn(f, a, b, tol)` (adaptive Gauss–Kronrod); for the bench `ruleOn`,
+  `lowessY`. Kinds `integ` (`x0`, `x1`; `trap`, `etrap`, `simp`, `esimp`, `abs`, `cen`, `n`) and `between` (`what`, `val`, `cx`), forms
+  `#aIr0`/`#aIr1`; Smooth's `lowess`/`loess` (`frac`, `it`, `smLocal`); `fitIntegral(f, a, b)` (through `fitView`, the error by
+  central differences through the covariance) and `fitIntegralDlg` (Analyze › Fit › Integrate the fitted curve…: `#fiA`, `#fiB`,
+  `#fiOut`; a log line and a toast with Copy). Analyze › Calculus › Integrate as an analysis…, Area between two curves….
 - **Worksheet** (`renderWs`, `setupWs`): a spreadsheet grid as in Excel, with Origin's label
   rows. Columns have fixed widths (`WS_W`, 100 px; `p.wsw[colId]` when dragged or autofitted by
   a double click on the header's edge, `wsSetWidth`, `wsAutofit`), never stretched to the
@@ -5377,7 +5385,9 @@ Next, in order:
    the analysis's own by triangles, a thin-plate spline or Shepard's weights), done 18.11; slice 5.4, envelopes (the Hilbert
    envelope, phase and frequency; the curve through the extrema; SciPy agreeing to 2e-14), done 18.11; slice 5.5, the spectrogram
    (scipy.signal.spectrogram into a matrix of the analysis's own, drawn as a map), done 18.11; slice 5.6, wavelets (PyWavelets'
-   DWT in nine modes over levels, denoising, the CWT into a matrix; PyWavelets agreeing to 1.4e-14), done 18.11
+   DWT in nine modes over levels, denoising, the CWT into a matrix; PyWavelets agreeing to 1.4e-14), done 18.11; slice 5.8, calculus
+   further (Simpson's rule and the area between two curves as analyses, the fitted curve's integral with its error, LOWESS and LOESS in
+   Smooth; SciPy and statsmodels agreeing to 1.5e-14), done 18.11
 
 ## Known gaps
 

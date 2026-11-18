@@ -414,6 +414,41 @@ for nm, mode, rule, thr, scope in (("sym8", "symmetric", "universal", "soft", "g
     cases.append({"fn": "wdenoise", "name": f"denoise {nm} {mode} {rule} {thr} {scope}", "args": [yy, {"wav": nm, "mode": mode, "rule": rule, "thr": thr, "soft": thr == "soft", "scope": scope}], "want": {"y": wden_ref(np.array(yy), nm, mode, rule, thr, scope)}, "kind": "obj"})
 out["sig-wav"] = cases
 
+# ---- 5.8 calculus: scipy.integrate.simpson and trapezoid on even and odd counts and uneven X; statsmodels' lowess (frac, it,
+# delta); LOESS of degree 2 written in NumPy as Kurve's (the same neighbours, tricube and bisquare weights, a weighted parabola) ----
+from scipy import integrate as _int
+import statsmodels.api as _sm
+cases = []
+rng = np.random.default_rng(20261125)
+for n in (2, 3, 4, 5, 10, 11, 200, 201):
+    x = np.array(r6(np.sort(rng.uniform(0, 10, n)))); y = np.array(r6(np.sin(x) * 3 + x * x * 0.1))
+    for rule, ref in (("simpson", _int.simpson(y, x=x)), ("trap", _int.trapezoid(y, x=x))):
+        cases.append({"fn": "ruleOn", "name": f"{rule} of {n} uneven", "args": [y.tolist(), x.tolist(), rule], "want": float(ref), "kind": "rel"})
+xe = np.arange(0, 10.5, 0.5); ye = xe ** 3 - 2 * xe
+cases.append({"fn": "ruleOn", "name": "simpson of a cubic, even spacing, odd count", "args": [ye.tolist(), xe.tolist(), "simpson"], "want": float(_int.simpson(ye, x=xe)), "kind": "rel"})
+def loess2_ref(x, y, k, it):
+    n = len(x); o = np.argsort(x, kind="stable"); X = x[o]; Y = y[o]; rw = np.ones(n)
+    for rob in range(it + 1):
+        fit = np.zeros(n); le, re = 0, k
+        for i in range(n):
+            xv = X[i]
+            while re < n and xv > (X[le] + X[re]) / 2: le += 1; re += 1
+            rad = max(xv - X[le], X[re - 1] - xv); d = np.abs(X[le:re] - xv) / rad; w = (1 - d ** 3) ** 3 * rw[le:re]
+            if np.sum(w > 1e-12) < 2: fit[i] = Y[i]; continue
+            w = w / w.sum(); t = (X[le:re] - xv) / rad; A = np.vstack([np.ones_like(t), t, t * t]).T
+            c = np.linalg.solve(A.T @ (w[:, None] * A), A.T @ (w * Y[le:re])); fit[i] = c[0]
+        if rob < it:
+            r = np.abs(Y - fit); med = np.median(r); u = np.minimum(1, r / (6 * med)) if med > 0 else (r > 0).astype(float); rw = (1 - u * u) ** 2
+    out = np.empty(n); out[o] = fit; return out
+for n, frac, it, delta in ((50, 2 / 3, 3, 0.0), (200, 0.1, 0, 0.0), (200, 0.3, 2, 0.0), (400, 0.05, 3, 0.2), (31, 0.5, 1, 0.0)):
+    x = np.array(r6(np.sort(rng.uniform(0, 20, n)))); y = np.array(r6(np.sin(x / 2) * 2 + rng.normal(0, 0.3, n) + (rng.random(n) < 0.05) * 5))
+    fit = _sm.nonparametric.lowess(y, x, frac=frac, it=it, delta=delta, return_sorted=False)
+    cases.append({"fn": "lowessY", "name": f"lowess n {n} frac {frac:.3g} it {it} delta {delta}", "args": [x.tolist(), y.tolist(), {"frac": frac, "it": it, "delta": delta}], "want": fit, "kind": "vec"})
+    if delta == 0.0:
+        k = max(2, min(n, int(frac * n + 1e-10)))
+        cases.append({"fn": "lowessY", "name": f"loess (degree 2) n {n} frac {frac:.3g} it {it}", "args": [x.tolist(), y.tolist(), {"frac": frac, "it": it, "deg": 2}], "want": loess2_ref(x, y, k, it), "kind": "vec"})
+out["sig-calc"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

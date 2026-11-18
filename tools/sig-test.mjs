@@ -253,5 +253,19 @@ console.log("5.6 wavelets");
   ok(lv === get("wavMaxLevel")(257, "db4") && add < 1e-12, `the decomposition analysis: ${lv} levels, each alone on the column's X, adding up to the column (${add.toExponential(1)})`);
   const big = Array.from({ length: 1e6 }, () => gauss()), [, ms] = time(() => wavedec(big, "db4", "symmetric", 8)); ok(ms < 900, `a DWT of 10⁶ points over eight levels in ${ms.toFixed(0)} ms (budget 0.3 s in the browser)`);
 }
+console.log("5.8 calculus, further");
+{ const simpson = get("simpson"), integPts = get("integPts"), areaBetween = get("areaBetween"), lowess = get("lowess"), integrateFn = get("integrateFn");
+  const x = Array.from({ length: 21 }, (_, i) => i * 0.5), c = x.map((v) => v ** 3 - 2 * v); ok(Math.abs(simpson(c, x) - (10 ** 4 / 4 - 100)) < 1e-10, "Simpson's rule is exact for a cubic on even spacing (2400)");
+  const xu = [0, 0.3, 1.1, 1.5, 2.6, 3], cu = xu.map((v) => v * v); ok(Math.abs(simpson(cu, xu) - 9) < 1e-12, "…and for a parabola on uneven X with an even count (Cartwright's last interval)");
+  const e = integPts(x, x.map(() => 1), x.map(() => 0.1), {}); ok(Math.abs(e.area - 10) < 1e-12 && Math.abs(e.err - 0.1 * Math.sqrt(x.reduce((t, _, i) => t + (i === 0 || i === 20 ? 0.0625 : 0.25), 0))) < 1e-12, "a constant's area 10, its error √Σw²σ² from the Y errors");
+  const r0 = integPts(x, c, null, { x0: 1.25, x1: 3.75 }); ok(r0.n === 7 && r0.x0 === 1.25 && r0.x1 === 3.75, "a range between points: its ends read in by straight lines");
+  const ab = areaBetween(x, x.map(Math.sin), x, x.map(Math.sin)); ok(ab.area === 0 && ab.abs === 0, "the area between a curve and itself is 0");
+  const ab2 = areaBetween([0, 1, 2], [1, 1, 1], [0, 2], [0, 2]); ok(Math.abs(ab2.area) < 1e-15 && Math.abs(ab2.abs - 1) < 1e-15 && ab2.cross.length === 1 && ab2.cross[0] === 1, "two lines crossing once: signed 0, absolute 1, the crossing at 1");
+  const xs = Array.from({ length: 200 }, (_, i) => i * 0.1), ys = xs.map((v) => Math.sin(v) + ((v * 7) % 1 - 0.5) * 0.3), perm = xs.map((_, i) => i).sort((a, b) => ((a * 37) % 200) - ((b * 37) % 200));
+  const l1 = lowess(xs, ys, { frac: 0.2 }).y, l2 = lowess(perm.map((i) => xs[i]), perm.map((i) => ys[i]), { frac: 0.2 }).y; ok(perm.every((i, j) => Math.abs(l2[j] - l1[i]) < 1e-14), "LOWESS does not depend on the rows' order");
+  const g = integrateFn((t) => Math.exp(-t * t), -6, 6); ok(Math.abs(g.v - Math.sqrt(Math.PI)) < 1e-14, `Gauss–Kronrod: ∫e^(−x²) over ±6 is √π to ${Math.abs(g.v - Math.sqrt(Math.PI)).toExponential(1)}`);
+  const pts = (x, y) => ({ x, y, e: x.map(() => null), rows: x.map((_, i) => i) }), R = anaRunKind("integ", [{ id: "a", name: "C", unit: "V", xu: "s", pts: pts(x, c) }], {});
+  ok(Math.abs(R.tables[0].cols.find((q) => q.k === "simp").vals[0] - 2400) < 1e-9 && R.tables[0].cols.find((q) => q.k === "trap").unit === "V·s", "Integrate as an analysis: Simpson's 2400 beside the trapezoid's, in V·s");
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

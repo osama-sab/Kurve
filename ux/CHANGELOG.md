@@ -1024,6 +1024,21 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 5, slice 5.8: calculus, further (2026-11-18)
+
+- **Analyze › Calculus › Integrate as an analysis…**: each column's area by the trapezoid and by Simpson's rule (SciPy's, uneven X
+  and Cartwright's last interval included), each with its error from the Y errors, the area of |y| and the centroid, in a result
+  sheet. **Area between two curves…**: the signed and the absolute area over the X two columns share, and where they cross.
+- **Analyze › Fit › Integrate the fitted curve…**: the area under the fit from one X to another, by adaptive Gauss–Kronrod to
+  1e-12, its error from the parameters' covariance, said as it is typed and put in the History.
+- **Smooth** gains LOWESS (statsmodels' `lowess`, its robust rounds and `delta`) and LOESS (a parabola about each point).
+
+Checked: 26 new reference cases (`fixtures/sig-calc.json`: SciPy's `simpson` and `trapezoid` to 3e-15, statsmodels' LOWESS and
+LOESS written from Cleveland and Devlin to 1.5e-14); `sig-test.mjs` 15 more (Simpson exact for a cubic and, uneven, a parabola, the
+error from the Y errors, a range read in, the area between a curve and itself, a crossing, LOWESS whatever the rows' order,
+Gauss–Kronrod against √π); `sig-drive.mjs` 9 more (both analyses from the menu, LOWESS in Smooth, a fitted Gaussian's integral
+against its closed form with an error, the dialog's readout as typed and its History line).
+
 ## Closing the gap with Origin, wave 5, slice 5.6: wavelets (2026-11-18)
 
 - **Analyze › Signal processing › Wavelets**: *Decompose (DWT)…* (each level's coefficients, and each level alone on the column's X,

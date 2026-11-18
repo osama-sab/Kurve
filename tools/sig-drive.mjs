@@ -240,6 +240,44 @@ await page(async p => {
   check("Continuous (CWT)…: a matrix of 20 frequencies (Hz) by 512 X, the analysis's own", r && !r.err && r.ny === 20 && r.nx === 512 && r.yn === "Frequency" && r.yu === "Hz", JSON.stringify(r));
 }, { name: "5.6" });
 
+console.log("5.8 Calculus, further");
+await page(async p => {
+  await p.evaluate(() => { const x = [], y = [], z = []; for (let i = 0; i <= 200; i++) { const t = i * 0.05; x.push(+t.toFixed(4)); y.push(5 * Math.exp(-0.5 * ((t - 5) / 0.8) ** 2) / (0.8 * Math.sqrt(2 * Math.PI)) + 0.2 + 0.004 * Math.sin(i * 12.9898)); z.push(0.2 + 0.01 * t); }
+    save({ cols: [makeCol("x", "Energy", "eV", x), Object.assign(makeCol("y", "Peak", "counts", y), { pipe: [], mask: [] }), Object.assign(makeCol("y", "Base", "counts", z), { pipe: [], mask: [] })], activeY: null }, "typed"); }); await p.waitForTimeout(300);
+  await menu(p, "analyze", "Calculus", "Area between two curves…");
+  await p.click("#formOk"); await p.waitForTimeout(500);
+  let r = await RES(p); check("Analyze › Calculus › Area between two curves…: the peak's area over the line, about 5 − the line's share", r && Math.abs(r.t.val[0] - (5 + 0.2 * 10 - (0.2 * 10 + 0.01 * 50))) < 0.02, JSON.stringify(r && r.t.val));
+  await p.evaluate(() => showSheet(SHEET0.id, { quiet: true })); await p.waitForTimeout(150);
+  await menu(p, "analyze", "Calculus", "Integrate as an analysis…"); await p.evaluate(() => yCols().forEach(c => { const b = document.getElementById("aI_" + c.id); if (b && !b.checked) b.click(); })); await p.click("#formOk"); await p.waitForTimeout(500);
+  r = await RES(p, 1); check("Integrate as an analysis…: each column's area by the trapezoid and Simpson, in counts·eV", r && r.t.col.length === 2 && r.meta.simp.unit === "counts·eV" && Math.abs(r.t.simp[0] - 7) < 0.01, JSON.stringify(r && { col: r.t.col, simp: r.t.simp }));
+  // LOWESS as a smoothing method
+  await p.evaluate(() => { showSheet(SHEET0.id, { quiet: true }); P().activeY = yCols()[0].id; renderAll(); openTool("smooth"); }); await p.waitForTimeout(300);
+  const fld = (k) => `#pane-tool [data-pk="${k}"]:not([type="range"])`;
+  await p.selectOption(fld("method"), "lowess"); await p.waitForTimeout(300);
+  check("Smooth's LOWESS shows its fraction and robust rounds, not a window", await p.isVisible(fld("frac")) && await p.isVisible(fld("it")) && !(await p.isVisible(fld("win"))));
+  await p.click("#tlOk"); await p.waitForTimeout(400);
+  check("…OK: the column smoothed by LOWESS", await p.evaluate(() => { const s = activeYCol().pipe[0]; return s && s.op === "smooth" && s.p.method === "lowess"; }));
+  await p.evaluate(() => { activeYCol().pipe = []; save({ cols: P().cols }, "x"); renderAll(); }); await p.waitForTimeout(200);
+  // the fitted curve's integral: a Gaussian fitted, integrated over the data, its area parameter back
+  await p.evaluate(() => { P().activeY = yCols()[0].id; S.fitMode = "curve"; showTab("fit"); chooseModel("gauss"); }); await p.waitForTimeout(250);
+  await p.evaluate(() => runFit()); await p.waitForTimeout(600);
+  r = await p.evaluate(() => { const f = activeFit(); if (!f) return null; const q = fitIntegral(f, 0, 10), [y0, A, xc, w] = f.params, s = Math.abs(w) * Math.SQRT2;
+    return { v: q.v, se: q.se, want: A * Math.abs(w) * Math.sqrt(2 * Math.PI) * 0.5 * (erfFn((10 - xc) / s) - erfFn((0 - xc) / s)) + y0 * 10 }; });
+  check("the fitted Gaussian's integral from 0 to 10 is its closed form, with an error from the covariance", r && Math.abs(r.v - r.want) < 1e-9 * Math.abs(r.want) && r.se > 0 && Math.abs(r.v - 7) < 0.01, JSON.stringify(r));
+  await menu(p, "analyze", "Fit", "Integrate the fitted curve…"); await p.waitForTimeout(200);
+  let t = await p.evaluate(() => $("#fiOut").textContent);
+  check("Analyze › Fit › Integrate the fitted curve… says the integral and its error over the data", /∫ = 7\.0\d*\s*±/.test(t) && /counts·eV/.test(t), t);
+  await p.fill("#fiA", "4"); await p.waitForTimeout(100); t = await p.evaluate(() => $("#fiOut").textContent);
+  check("…a new end worked out as it is typed", /∫ = /.test(t) && !/∫ = 7\.0/.test(t), t);
+  const nLog = await p.evaluate(() => P().log.length);
+  await p.click("#formOk"); await p.waitForTimeout(300);
+  r = await p.evaluate(() => ({ n: P().log.length, last: JSON.stringify(P().log[P().log.length - 1]) }));
+  check("…Put it in the History: a log line", r.n === nLog + 1 && /integral of the fitted curve from 4/.test(r.last), JSON.stringify(r));
+  await p.evaluate(() => { constDlg(); }); await p.waitForTimeout(200);
+  await p.evaluate(() => { const i = document.querySelector("#formBody input"); if (i) i.dispatchEvent(new Event("input", { bubbles: true })); });
+  await p.evaluate(() => { const m = $("#formModal"); m._cancel && m._cancel(); }); await p.waitForTimeout(150);
+}, { name: "5.8" });
+
 console.log("5.7 Interpolation into columns");
 await page(async p => {
   await p.evaluate(() => { const x = [0, 1, 2.5, 4, 5.5, 7, 9], y = x.map(v => v * v * v - 2 * v);

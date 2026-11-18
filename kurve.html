@@ -4800,7 +4800,8 @@ function fsd(y,o){ const n=y.length, g=Math.abs(o.w), k=Math.max(1,+o.k||2), D=(
   // gain: what white noise's standard deviation is multiplied by (Parseval: the filter's root mean square)
   fftInPlace(re,im,true); const out=new Array(n); for(let i=0;i<n;i++) out[i]=re[i]+line(i); return {y:out,T,clamped,gain:Math.sqrt(f2/N)}; }
 const BG_METHODS=[["arpls","arPLS (automatic)"],["als","Asymmetric least squares (ALS)"],["airpls","airPLS"],["modpoly","Polynomial, iterative (ModPoly)"],["imodpoly","Polynomial, improved (I-ModPoly)"],["snip","SNIP (peak clipping)"],["rolling","Rolling ball"],["anchors","Anchor points"],["line","Straight line between the ends"],["const","Constant"],["shirley","Shirley (XPS)"],["tougaard","Tougaard (XPS)"]];
-const SMOOTH_METHODS=[["sg","Savitzky–Golay"],["ma","Moving average"],["median","Median"],["gauss","Gaussian"],["whittaker","Whittaker"]];
+const SMOOTH_METHODS=[["sg","Savitzky–Golay"],["ma","Moving average"],["median","Median"],["gauss","Gaussian"],["whittaker","Whittaker"],["lowess","LOWESS (local lines)"],["loess","LOESS (local parabolas)"]];
+const smLocal=p=>p.method==="lowess"||p.method==="loess";
 const XUNITS=[["nm","Wavelength (nm)"],["um","Wavelength (µm)"],["cm-1","Wavenumber (cm⁻¹, absolute)"],["eV","Photon energy (eV)"],["THz","Frequency (THz)"]];
 const XUNIT_LABEL={nm:["Wavelength","nm"],um:["Wavelength","µm"],"cm-1":["Wavenumber","cm⁻¹"],eV:["Energy","eV"],THz:["Frequency","THz"]};
 const toWn={nm:v=>1e7/v, um:v=>1e4/v, "cm-1":v=>v, eV:v=>v/1.239841984e-4, THz:v=>v/0.0299792458};
@@ -5032,10 +5033,12 @@ const PIPE_OPS={
   smooth:{group:"smooth", rank:7, label:"Smooth", short:"Smooth",
     help:"Reduces noise. Every smoothing lowers and broadens the narrowest bands a little; this step measures how much and warns when it matters.",
     params:[{k:"method",label:"Method",type:"sel",opts:SMOOTH_METHODS},
-      {k:"win",label:"Window",type:"odd",min:3,max:301,slider:true,unit:"points",show:p=>p.method!=="whittaker"},
+      {k:"win",label:"Window",type:"odd",min:3,max:301,slider:true,unit:"points",show:p=>p.method!=="whittaker"&&!smLocal(p)},
+      {k:"frac",label:"Fraction",type:"num",min:0,max:1,show:smLocal,hint:"The share of the points each local fit uses (statsmodels' frac): larger is smoother"},
+      {k:"it",label:"Robust rounds",type:"int",min:0,max:10,show:smLocal,hint:"Rounds that weigh down points far from the curve (outliers); 0 for none"},
       {k:"order",label:"Polynomial order",type:"int",min:1,max:6,show:p=>p.method==="sg"},
       {k:"lam",label:"Smoothness λ",type:"log",min:-1,max:9,step:0.1,show:p=>p.method==="whittaker"}],
-    defaults:{method:"sg",win:7,order:2,lam:1},
+    defaults:{method:"sg",win:7,order:2,lam:1,frac:0.1,it:3},
     // The suggestion is measured, not guessed: of the usual Savitzky–Golay
     // windows and orders, the one that removes the most noise while keeping
     // the height of every clear band within the margin the check allows.
@@ -5054,18 +5057,23 @@ const PIPE_OPS={
       const pick=best||gentlest||{win:5,order:2};
       return {win:pick.win,order:pick.order,lam}; },
     summary(p,d){ const m=(SMOOTH_METHODS.find(q=>q[0]===p.method)||[,p.method])[1];
+      if(smLocal(p)) return `${m.replace(/ \(.*\)$/,"")}, ${nf(+p.frac,3)} of the points${+p.it>0?`, ${p.it} robust rounds`:""}`;
       return p.method==="whittaker"?`${m}, λ = 10^${nf(p.lam,3)}`:`${m}, ${p.win} points${p.method==="sg"?`, order ${p.order}`:""}${d&&d.x.length>1?` (${nf(Math.abs(spacing(d.x).abs*(p.win-1)),3)}${ux(d)})`:""}`; },
     run(d,p){
-      const y=d.y, n=y.length, win=oddUp(p.win||7), f=smoothFn(p);
-      if(p.method!=="whittaker"&&n<win) throw new Error(`The window (${win}) is longer than the data (${n} points).`);
-      const out=f(y);
+      const y=d.y, n=y.length, win=oddUp(p.win||7), loc=smLocal(p);
+      // LOWESS and LOESS fit on X itself; the band check runs them on an ideal band with as many neighbours as here
+      const K=loc?Math.max(2,Math.min(n,Math.floor((+p.frac||0)*n+1e-10))):0, opt={k:K,it:p.it,deg:p.method==="loess"?2:1};
+      const f=loc?(yy=>lowess(yy.map((_,i)=>i),yy,opt).y):smoothFn(p);
+      if(!loc&&p.method!=="whittaker"&&n<win) throw new Error(`The window (${win}) is longer than the data (${n} points).`);
+      if(loc&&!(+p.frac>0&&+p.frac<=1)) throw new Error("The fraction must lie between 0 and 1.");
+      const out=loc?lowess(d.x,y,{frac:p.frac,it:p.it,deg:opt.deg}).y:f(y);
       const warn=[], sp=spacing(d.x);
       if(sp.uneven>0.05&&p.method!=="whittaker") warn.push(`X spacing varies by ${Math.round(sp.uneven*100)}% across the data, and this smoothing treats every point as evenly spaced. Add Resample above this step.`);
       const bands=detectBands(d.x,y), sig=noiseSigma(y)||0, top=bands.reduce((m,b)=>Math.max(m,b.h),0);
       let worst=null;
       bands.filter(b=>b.h>=5*sig&&b.h>=0.05*top).forEach(b=>{ const loss=idealLoss(b.pts,f);
         if(loss>0.05&&(!worst||loss>worst.loss)) worst={x:b.x,loss,fwhm:b.fwhm,pts:b.pts}; });
-      const span=p.method==="whittaker"?null:Math.abs(sp.abs*(win-1));
+      const span=p.method==="whittaker"?null:loc?Math.abs(sp.abs*(K-1)):Math.abs(sp.abs*(win-1));
       if(worst&&worst.pts<4) warn.push(`The band at ${nf(worst.x,5)}${ux(d)} is only ${nf(worst.pts,2)} points wide: it is barely sampled, and any smoothing lowers it (this one by ${Math.round(worst.loss*100)}%). Consider not smoothing before fitting: the fit itself averages out the noise.`);
       else if(worst) warn.push(`Smoothing lowers the band at ${nf(worst.x,5)}${ux(d)} by ${Math.round(worst.loss*100)}%${span!=null?`: the window spans ${nf(span,3)}${ux(d)}, against the band's FWHM of ${nf(worst.fwhm,3)}${ux(d)}`:""}. Heights, widths and areas fitted after this step are distorted; use a ${p.method==="whittaker"?"smaller λ":"narrower window"}${p.method==="sg"?" or a higher order":""}.`);
       return {d:pser(d,d.x,out,null,d.idx), note:d.e?"Error bars dropped: smoothing makes neighbouring points depend on each other, so the recorded errors no longer apply.":"", warn};
@@ -10036,6 +10044,28 @@ ANA_KINDS.cwt={label:"Continuous wavelet transform", base:"CWT", pts:true, mat:t
     const cols=[{k:"what",name:"CWT",unit:"",role:"ignore",vals:rows.map(e=>e[0])},{k:"val",name:"Value",unit:"",role:"ignore",vals:rows.map(e=>typeof e[1]==="number"?e[1]:String(e[1]))}];
     return {tables:[{cols}],report:{sections:[{title:"Continuous wavelet transform",tables:[{head:["","Value"],rows}]}],method:`PyWavelets' cwt (method "conv"): the ${(CWT_WAVS.find(e=>e[0]===name)||["",name])[1]} wavelet integrated on 2¹² points over its support, read at each scale, convolved with the column, differenced and scaled by −√scale. A scale's frequency is PyWavelets' scale2frequency over the spacing.`},notes,
       mat:{nx:n,ny:ns,x:matAxisOf(ev.x),y:matAxisOf(Yv),z,xname:q.xn||"X",xunit:q.xu||"",yname:fy?"Frequency":"Scale",yunit:fy?fu:"",zname:p.abs?"|Coefficient|":"Coefficient",zunit:q.unit||""}}; }};
+/* ---- 5.8: integrals as an analysis, and the area between two curves (SIGNAL_SPEC). ---- */
+ANA_KINDS.integ={label:"Integration", base:"Integral", pts:true,
+  help:"Each column's area over its X (all of it or a range), by the trapezoid and by Simpson's rule (scipy.integrate.simpson), with its error from the Y errors, the area of its absolute value and its centroid; worked out again with the data.",
+  run(ins,p){ p=p||{}; const notes=[], rows=[]; if(!ins.length) return {fail:"No column chosen."};
+    ins.forEach(q=>{ const o={x0:p.x0,x1:p.x1}, t=integPts(q.pts.x,q.pts.y,q.pts.e,Object.assign({rule:"trap"},o)), s=integPts(q.pts.x,q.pts.y,q.pts.e,Object.assign({rule:"simpson"},o));
+      if(t.fail){ notes.push(`${q.name}: ${t.fail}`); return; } const au=q.unit&&q.xu?`${q.unit}·${q.xu}`:"";
+      rows.push({col:q.name,trap:t.area,simp:s.area,etrap:t.err,esimp:s.err,abs:t.abs,cen:t.centroid,n:t.n,from:t.x0,to:t.x1,unit:au,xu:q.xu||""}); });
+    if(!rows.length) return {fail:notes.join(" ")||"Nothing could be integrated."};
+    const cols=[{k:"col",name:"Column",unit:"",role:"ignore",vals:rows.map(r=>r.col)},{k:"trap",name:"Area, trapezoid",unit:rows[0].unit,role:"ignore",vals:rows.map(r=>anaNum(r.trap))},{k:"etrap",name:"Its error",unit:rows[0].unit,role:"ignore",vals:rows.map(r=>anaNum(r.etrap))},
+      {k:"simp",name:"Area, Simpson",unit:rows[0].unit,role:"ignore",vals:rows.map(r=>anaNum(r.simp))},{k:"esimp",name:"Its error",unit:rows[0].unit,role:"ignore",vals:rows.map(r=>anaNum(r.esimp))},
+      {k:"abs",name:"Area of |y|",unit:rows[0].unit,role:"ignore",vals:rows.map(r=>anaNum(r.abs))},{k:"cen",name:"Centroid",unit:rows[0].xu,role:"ignore",vals:rows.map(r=>anaNum(r.cen))},{k:"n",name:"Points",unit:"",role:"ignore",vals:rows.map(r=>r.n)}];
+    if(rows.every(r=>r.etrap==null)) notes.push("No column has Y errors, so the areas have none.");
+    return {tables:[{cols}],report:{sections:[{title:"Areas",tables:[{head:["Column","From","To","Points","Trapezoid","Its error","Simpson","Its error","Area of |y|","Centroid"],rows:rows.map(r=>[r.col,anaNum(r.from),anaNum(r.to),r.n,anaNum(r.trap),anaNum(r.etrap),anaNum(r.simp),anaNum(r.esimp),anaNum(r.abs),anaNum(r.cen)])}]}],
+      method:"The trapezoid, and Simpson's rule as scipy.integrate.simpson (parabolas through each two intervals on uneven X; an even count's last interval by Cartwright's correction), over the points in the range, its ends read in by straight lines. Each is Σ w_i·y_i, so its error is √Σ w_i²σ_i² from the Y errors. The centroid is ∫x·y/∫y (trapezoid)."},notes}; }};
+ANA_KINDS.between={label:"Area between two curves", base:"Between", pts:true,
+  help:"The area between two columns over the X they share: signed (the first less the second) and absolute (each crossing found exactly), with the X of each crossing.",
+  run(ins,p){ p=p||{}; const notes=[]; if(ins.length<2) return {fail:"Tick two columns: the area is between two."}; if(ins.length>2) notes.push(`${ins.length-2} more column${ins.length===3?"":"s"} ticked left out.`);
+    const a=ins[0], b=ins[1], r=areaBetween(a.pts.x,a.pts.y,b.pts.x,b.pts.y,{x0:p.x0,x1:p.x1}); if(r.fail) return r; const au=a.unit&&a.xu?`${a.unit}·${a.xu}`:"";
+    const cols=[{k:"what",name:"Between",unit:"",role:"ignore",vals:["Signed area","Absolute area","From","To","Crossings"]},{k:"val",name:"Value",unit:"",role:"ignore",vals:[anaNum(r.area),anaNum(r.abs),anaNum(r.x0),anaNum(r.x1),r.cross.length]},
+      {k:"cx",name:"Crossing at",unit:a.xu||"",role:"ignore",vals:r.cross.map(anaNum)}];
+    return {tables:[{cols}],report:{sections:[{title:`${a.name} less ${b.name}`,tables:[{head:["Signed area","Absolute area","From","To","Crossings","Points"],rows:[[anaNum(r.area),anaNum(r.abs),anaNum(r.x0),anaNum(r.x1),r.cross.length,r.n]]}]}],
+      method:`Both columns read by straight lines at every X either has inside the range they share; ∫(a − b) and ∫|a − b| by the trapezoid, a piece where they cross split at the crossing.${au?` Areas in ${au}.`:""}`},notes}; }};
 /* ==ANA:END== */
 /* ==MAT:START== Matrices (ux/spec/SHEET_SPEC.md, slice 3.6), pure: a grid of Z with its X and Y.
    A matrix is {nx, ny, x, y, z}: `z` row major (z[r*nx + c], a row a Y, a column an X), null for a
@@ -10891,6 +10921,77 @@ function cwt(y,scales,name,dx){ if(!CWT_WAVS.some(e=>e[0]===name)) return {fail:
     const k=Float64Array.from(j.reverse(),t=>ip[t]), conv=convFull(y,k), co=new Float64Array(conv.length-1), rs=-Math.sqrt(sc); for(let i=0;i<co.length;i++) co[i]=rs*(conv[i+1]-conv[i]);
     const dd=(co.length-n)/2; if(dd<0) return {fail:`A scale of ${sc} is too small for this wavelet.`}; out.push(co.slice(Math.floor(dd),Math.floor(dd)+n)); freqs.push(scale2freq(name,sc)/(dx||1)); }
   return {c:out,f:freqs}; }
+/* ---- 5.8 Calculus, further. Integration rules as weights on the values (Σ w_i·y_i, so the error from the Y errors is
+   √Σ w_i²σ_i²): the trapezoid, and scipy.integrate.simpson (Simpson's rule on uneven X, an even count's last interval by
+   Cartwright's correction, SciPy ≥ 1.11). ---- */
+function trapW(x){ const n=x.length, w=new Float64Array(n); for(let i=1;i<n;i++){ const h=(x[i]-x[i-1])/2; w[i-1]+=h; w[i]+=h; } return w; }
+function simpsonW(x){ const n=x.length, w=new Float64Array(n); if(n<2) return w; if(n===2){ const h=(x[1]-x[0])/2; w[0]=h; w[1]=h; return w; }
+  const basic=(stop)=>{ for(let i=0;i<stop;i+=2){ const h0=x[i+1]-x[i], h1=x[i+2]-x[i+1], hs=h0+h1, hp=h0*h1, r=h1!==0?h0/h1:0;
+      w[i]+=hs/6*(2-(r!==0?1/r:0)); w[i+1]+=hs/6*(hp!==0?hs*hs/hp:0); w[i+2]+=hs/6*(2-r); } };
+  if(n%2===1){ basic(n-2); return w; }
+  basic(n-3); const h0=x[n-2]-x[n-3], h1=x[n-1]-x[n-2], den1=6*(h1+h0), den2=6*h0, den3=6*h0*(h0+h1);
+  w[n-1]+=den1!==0?(2*h1*h1+3*h0*h1)/den1:0; w[n-2]+=den2!==0?(h1*h1+3*h0*h1)/den2:0; w[n-3]-=den3!==0?h1*h1*h1/den3:0; return w; }
+function simpson(y,x){ const w=simpsonW(x); let s=0; for(let i=0;i<w.length;i++) s+=w[i]*y[i]; return s; }
+/* An integral of points over [x0, x1] (the points inside; the ends read in by straight lines when they fall between points, as a
+   band's edges are): rule "trap" | "simpson"; {area, abs (∫|y|), centroid (∫x·y/∫y), err (from e, null without), n} or {fail}. */
+function integPts(x,y,e,o){ o=o||{}; const P=[]; for(let i=0;i<Math.min(x.length,y.length);i++) if(Number.isFinite(x[i])&&Number.isFinite(y[i])) P.push([x[i],y[i],e&&Number.isFinite(e[i])?e[i]:null]);
+  P.sort((a,b)=>a[0]-b[0]); if(P.length<2) return {fail:"Two points at least are needed to integrate."};
+  let lo=Number.isFinite(+o.x0)&&o.x0!==null&&o.x0!==""?+o.x0:P[0][0], hi=Number.isFinite(+o.x1)&&o.x1!==null&&o.x1!==""?+o.x1:P[P.length-1][0]; if(lo>hi){ const t=lo; lo=hi; hi=t; }
+  const at=v=>{ let j=0; while(j<P.length-2&&P[j+1][0]<v) j++; const a=P[j], b=P[j+1], t=(v-a[0])/(b[0]-a[0]); return [v,a[1]+(b[1]-a[1])*t,null]; };
+  const Q=P.filter(q=>q[0]>lo&&q[0]<hi); if(lo>=P[0][0]&&lo<=P[P.length-1][0]) Q.unshift(P.find(q=>q[0]===lo)||at(lo)); if(hi>=P[0][0]&&hi<=P[P.length-1][0]&&hi!==lo) Q.push(P.find(q=>q[0]===hi)||at(hi));
+  if(Q.length<2) return {fail:"Fewer than two points in the range."};
+  const X=Q.map(q=>q[0]), Y=Q.map(q=>q[1]), w=o.rule==="simpson"?simpsonW(X):trapW(X); let s=0, sa=0, sx=0, v2=0, haveE=false;
+  for(let i=0;i<X.length;i++){ s+=w[i]*Y[i]; sa+=w[i]*Math.abs(Y[i]); sx+=w[i]*X[i]*Y[i]; if(Q[i][2]!=null){ v2+=w[i]*w[i]*Q[i][2]*Q[i][2]; haveE=true; } }
+  return {area:s,abs:sa,centroid:s!==0?sx/s:null,err:haveE?Math.sqrt(v2):null,n:X.length,x0:X[0],x1:X[X.length-1]}; }
+/* The area between two curves (each read by straight lines at the union of their X inside the X they share): ∫(a − b), ∫|a − b|
+   with each crossing found exactly on its straight piece, the crossings' X. */
+function areaBetween(xa,ya,xb,yb,o){ o=o||{}; const A=interpPrep(xa,ya), B=interpPrep(xb,yb); if(A.fail) return A; if(B.fail) return B;
+  let lo=Math.max(A.x[0],B.x[0]), hi=Math.min(A.x[A.x.length-1],B.x[B.x.length-1]); if(Number.isFinite(+o.x0)&&o.x0!==null&&o.x0!=="") lo=Math.max(lo,+o.x0); if(Number.isFinite(+o.x1)&&o.x1!==null&&o.x1!=="") hi=Math.min(hi,+o.x1);
+  if(!(hi>lo)) return {fail:"The two columns share no range of X."};
+  const X=Array.from(new Set(A.x.concat(B.x).filter(v=>v>lo&&v<hi).concat([lo,hi]))).sort((u,v)=>u-v), fa=interp1(A.x,A.y,X,{method:"linear"}).y, fb=interp1(B.x,B.y,X,{method:"linear"}).y, d=X.map((_,i)=>fa[i]-fb[i]);
+  let s=0, sa=0; const cross=[]; for(let i=1;i<X.length;i++){ const h=X[i]-X[i-1], d0=d[i-1], d1=d[i]; s+=h*(d0+d1)/2;
+    if(d0*d1<0){ const t=d0/(d0-d1), xc=X[i-1]+t*h; cross.push(xc); sa+=(Math.abs(d0)*t*h+Math.abs(d1)*(1-t)*h)/2; } else sa+=h*(Math.abs(d0)+Math.abs(d1))/2; if(d1===0&&i<X.length-1) cross.push(X[i]); }
+  return {area:s,abs:sa,cross,x0:lo,x1:hi,n:X.length}; }
+/* LOWESS as statsmodels' lowess (Cleveland 1979): k = ⌊frac·n + 1e-10⌋ (2 to n) neighbours, tricube weights over the farthest's
+   distance, a weighted straight line at each X (deg 2: a parabola, LOESS), `it` robust rounds with bisquare weights of the residuals
+   over 6 times their median, points within delta of a fitted one read by straight lines. The fit in the points' own order. */
+function lowess(x,y,o){ o=o||{}; const n0=Math.min(x.length,y.length), ord=[]; for(let i=0;i<n0;i++) if(Number.isFinite(x[i])&&Number.isFinite(y[i])) ord.push(i);
+  ord.sort((a,b)=>x[a]-x[b]||a-b); const n=ord.length; if(n<3) return {fail:"LOWESS needs three points at least."};
+  const X=Float64Array.from(ord,i=>x[i]), Y=Float64Array.from(ord,i=>y[i]), frac=o.frac==null||o.frac===""?2/3:+o.frac; if(!(frac>=0&&frac<=1)) return {fail:"The fraction goes from 0 to 1."};
+  let k=o.k>0?Math.round(o.k):Math.floor(frac*n+1e-10); k=Math.max(2,Math.min(n,k)); const it=Math.max(0,Math.round(o.it==null?3:+o.it)), delta=+o.delta>0?+o.delta:0, deg=o.deg===2?2:1;
+  let rw=new Float64Array(n).fill(1); const w=new Float64Array(n); let fit=new Float64Array(n);
+  for(let rob=0;rob<=it;rob++){ let i=0, last=-1, le=0, re=k; fit=new Float64Array(n);
+    while(true){ const xv=X[i];
+      while(re<n&&xv>(X[le]+X[re])/2){ le++; re++; }
+      const rad=Math.max(xv-X[le],X[re-1]-xv); let sw=0, nz=0;
+      for(let j=le;j<re;j++){ let d=Math.abs(X[j]-xv)/rad; d=d*d*d; d=1-d; w[j]=d*d*d*rw[j]; sw+=w[j]; if(w[j]>1e-12) nz++; }
+      if(nz<2) fit[i]=Y[i];
+      else { for(let j=le;j<re;j++) w[j]/=sw;
+        if(deg===1){ let mx=0, sxx=0; for(let j=le;j<re;j++) mx+=w[j]*X[j]; for(let j=le;j<re;j++) sxx+=w[j]*(X[j]-mx)**2; sxx=Math.max(sxx,1e-12);
+          let v=0; for(let j=le;j<re;j++) v+=w[j]*(1+(xv-mx)*(X[j]-mx)/sxx)*Y[j]; fit[i]=v; }
+        else { // a weighted parabola in t = X − xv: its value at t = 0 by the normal equations
+          let s0=0, s1=0, s2=0, s3=0, s4=0, b0=0, b1=0, b2=0; for(let j=le;j<re;j++){ const t=(X[j]-xv)/rad, ww=w[j], t2=t*t; s0+=ww; s1+=ww*t; s2+=ww*t2; s3+=ww*t2*t; s4+=ww*t2*t2; b0+=ww*Y[j]; b1+=ww*t*Y[j]; b2+=ww*t2*Y[j]; }
+          const c=gaussSolve([s0,s1,s2,s1,s2,s3,s2,s3,s4],[b0,b1,b2],3); fit[i]=c?c[0]:Y[i]; } }
+      if(last<i-1){ const a=X[i]-X[last]; for(let j=last+1;j<i;j++){ const t=(X[j]-X[last])/a; fit[j]=t*fit[i]+(1-t)*fit[last]; } }
+      // statsmodels' update_indices: its for loop leaves k at the last index when it runs out, not one past it
+      last=i; let q=last; const cut=X[last]+delta; for(let kk=last+1;kk<n;kk++){ q=kk; if(X[kk]>cut) break; if(X[kk]===X[last]){ fit[kk]=fit[last]; last=kk; } } i=Math.max(q-1,last+1); if(last>=n-1) break; }
+    if(rob<it){ const r=Float64Array.from(Y,(v,j)=>Math.abs(v-fit[j])), s=Array.from(r).sort((a,b)=>a-b), med=n%2?s[n>>1]:(s[n/2-1]+s[n/2])/2;
+      rw=Float64Array.from(r,v=>{ const u=med===0?(v>0?1:0):Math.min(1,v/(6*med)); const t=1-u*u; return t*t; }); } }
+  const out=new Array(n0).fill(null); ord.forEach((i,j)=>{ out[i]=fit[j]; }); return {y:out,k}; }
+/* An integral of f over [a, b] by adaptive Gauss–Kronrod (7 and 15 points), each half split until its two estimates agree to tol of
+   the whole; {v, err (the summed differences), n}. */
+const GK15={x:[0.991455371120812639206854697526329,0.949107912342758524526189684047851,0.864864423359769072789712788640926,0.741531185599394439863864773280788,0.586087235467691130294144845693013,0.405845151377397166906606412076961,0.207784955007898467600689403773245,0],
+  wk:[0.022935322010529224963732008058970,0.063092092629978553290700663189204,0.104790010322250183839876322541518,0.140653259715525918745189590510238,0.169004726639267902826583426598550,0.190350578064785409913256402421014,0.204432940075298892414161999234649,0.209482141084727828012999174891714],
+  wg:[0.129484966168869693270611432679082,0.279705391489276667901467771423780,0.381830050505118944950369775488975,0.417959183673469387755102040816327]};
+function gk15(f,a,b){ const c=(a+b)/2, h=(b-a)/2, fc=f(c); let k=GK15.wk[7]*fc, g=GK15.wg[3]*fc;
+  for(let i=0;i<7;i++){ const u=h*GK15.x[i], s=f(c-u)+f(c+u); k+=GK15.wk[i]*s; if(i%2===1) g+=GK15.wg[(i-1)/2]*s; } return {k:k*h,g:g*h}; }
+function integrateFn(f,a,b,tol){ tol=tol||1e-12; let tot=0, err=0, n=0; const st=[[a,b,0]];
+  while(st.length){ const [lo,hi,dep]=st.pop(), r=gk15(f,lo,hi); n++; const e=Math.abs(r.k-r.g);
+    if(e<=Math.max(tol*Math.abs(r.k),1e-300)||dep>=40||n>20000){ tot+=r.k; err+=e; } else { const m=(lo+hi)/2; st.push([lo,m,dep+1],[m,hi,dep+1]); } }
+  return {v:tot,err,n}; }
+// For the bench: an integration rule applied, and LOWESS's fit as an array.
+function ruleOn(y,x,rule){ const w=rule==="simpson"?simpsonW(x):trapW(x); let s=0; for(let i=0;i<w.length;i++) s+=w[i]*y[i]; return s; }
+function lowessY(x,y,o){ const r=lowess(x,y,o); return r.fail?r:r.y; }
 // For the bench: a decomposition as one flat array with each level's length, and a CWT's coefficients flat with its frequencies.
 function wavedecFlat(x,name,mode,level){ const r=wavedec(x,name,mode,level); return r.fail?r:{c:r.c.map(a=>Array.from(a)).flat(),len:r.c.map(a=>a.length)}; }
 function cwtFlat(y,scales,name,dx){ const r=cwt(y,scales,name,dx); return r.fail?r:{c:r.c.map(a=>Array.from(a)).flat(),f:r.f}; }
@@ -21002,6 +21103,10 @@ const ANA_FORMS={
       <label class="chk"><input type="checkbox" id="aClin"${p.lin?" checked":""}> Scales evenly spaced (not on a log scale)</label><label class="chk"><input type="checkbox" id="aCab"${p.abs===false?"":" checked"}> Magnitudes (|coefficient|)</label>`; },
     read(v){ const n=x=>{ const t=String(v[x]||"").trim(); return t?parseNum(t):null; }; return {wav:v.aCw||"morl",s0:n("aCs0"),s1:n("aCs1"),ns:n("aCn"),yaxis:v.aCy==="freq"?"freq":"scale",lin:!!v.aClin,abs:!!v.aCab}; },
     valid(v){ const o=ANA_FORMS.cwt.read(v); return (o.s0==null||o.s0>0)&&(o.s1==null||o.s1>0)&&(o.s0==null||o.s1==null||o.s1>o.s0)&&(o.ns==null||o.ns>=2&&o.ns<=1000); }},
+  integ:{noGroup:true, html(p){ return `<div class="grid2"><label for="aIr0">X from</label><span class="anarows"><input type="text" id="aIr0" inputmode="decimal" value="${Number.isFinite(+p.x0)&&p.x0!==null&&p.x0!==""?+p.x0:""}" placeholder="the first X" aria-label="X from"><span class="muted">to</span><input type="text" id="aIr1" inputmode="decimal" value="${Number.isFinite(+p.x1)&&p.x1!==null&&p.x1!==""?+p.x1:""}" placeholder="the last X" aria-label="X to"></span></div>`; },
+    read(v){ const n=k=>{ const t=String(v[k]||"").trim(); return t?parseNum(t):null; }; return {x0:n("aIr0"),x1:n("aIr1")}; },
+    valid(v){ return ["aIr0","aIr1"].every(k=>{ const t=String(v[k]||"").trim(); return !t||Number.isFinite(parseNum(t)); }); }},
+  between:{noGroup:true, html(p){ return `<p class="note">Tick two columns: the first less the second.</p>`+ANA_FORMS.integ.html(p); }, read(v){ return ANA_FORMS.integ.read(v); }, valid(v){ return ANA_FORMS.integ.valid(v); }},
   cmpmod:{noGroup:true, html(p){ const C=cmpCands(), keys=(Array.isArray(p.fits)?p.fits:[]).map(s=>s.key), def=[C.find(c=>c.key==="screen")?"screen":"m:linear","m:poly2"], opts=sel=>C.map(c=>c.group?`<optgroup label="${esc(c.group)}">`:c.end?"</optgroup>":`<option value="${esc(c.key)}"${c.key===sel?" selected":""}>${esc(c.name)}</option>`).join("");
       return `<div class="grid2">${[0,1,2,3,4].map(i=>`<label for="aMm${i}">${i<2?`Setting ${i+1}`:`Setting ${i+1}, if any`}</label><select id="aMm${i}">${i>=2?`<option value="">—</option>`:""}${opts(keys[i]||(i<2?def[i]:""))}</select>`).join("")}
       ${cmpCommonHtml(p)}</div>`; },
@@ -28128,6 +28233,7 @@ function analyzeMenu(){
       {label:"Fit", kbd:"Ctrl+Enter", run:fitNow, enabled:edit&&has},
       yCols().length>1?{label:"Fit every column…", run:openBatchDialog, enabled:edit&&!!f, title:f?"":"Fit the active column first: its fit is the template"}:null,
       {label:"Put the fit in the worksheet", run:()=>fitToSheet(), enabled:edit&&!!f, title:f?"The fitted values and the residuals as columns beside the column fitted":"Fit the active column first"},
+      {label:"Integrate the fitted curve…", run:()=>fitIntegralDlg(), enabled:edit&&!!f, title:f?"The area under the fitted curve over a range, with its error from the parameters":"Fit the active column first"},
       {label:"Saved fit settings", sub:()=>fitSetMenuItems()},
       "-",
       {label:"Show residuals", checked:!!p&&residOn(cfg,sf||residHint()), title:"A panel of the residuals under the graph, when there is a fit", run:()=>togglePlot("resid"), enabled:edit},
@@ -28152,6 +28258,8 @@ function analyzeMenu(){
     {label:"Calculus", sub:()=>[t("deriv"),
       {label:"Derivative, as a new column…", title:"Keeps this column and adds its derivative beside it", run:()=>{ const id=newDerived("final",{quiet:true,name:`d/dx ${specName(activeYCol())}`}); if(id) openTool("deriv",{col:id}); }, enabled:edit&&has},
       t("cumint"), "-",
+      {label:"Integrate as an analysis…", title:ANA_KINDS.integ.help, run:()=>anaDlg("integ"), enabled:!S.readOnly&&!!P()},
+      {label:"Area between two curves…", title:ANA_KINDS.between.help, run:()=>anaDlg("between",{two:true}), enabled:!S.readOnly&&!!P()&&yCols().length>1},
       {label:"Interpolate…", title:ANA_KINDS.interp.help, run:()=>anaDlg("interp"), enabled:!S.readOnly&&!!P()}]},
     {label:"Statistics", sub:()=>[{label:"Quick statistics…", title:"The Statistics window: each column's numbers at a glance, the integral of the range in view, the noise and the signal to noise, with no sheet made", run:go("desc"), enabled:has},
       {label:"Descriptive", sub:()=>[{label:"Statistics on columns…", title:ANA_KINDS.desc.help, run:()=>anaDlg("desc"), enabled:!S.readOnly&&!!P()},
@@ -30178,6 +30286,26 @@ function confirmDlg(title,text,okLabel,danger){
   });
 }
 /* A small form in a dialog. Resolves with {inputId: value} or null. */
+/* The integral of a fitted curve over [a, b] (SIGNAL_SPEC 5.8): adaptive Gauss–Kronrod to 1e-12 of the curve as the fit draws it
+   (fitView: a polynomial about its centre), its error from the parameters' covariance by the delta method (each free parameter's
+   effect by central differences of a hundredth of its standard error). {v, se (null with no covariance), quad (the rule's own
+   estimate of its error), n} or {fail}. */
+function fitIntegral(f,a,b){ const V=f?fitView(f):null; if(!V) return {fail:"There is no fit to integrate."}; if(!(Number.isFinite(a)&&Number.isFinite(b))||a===b) return {fail:"Give the two ends of the range."};
+  const I=p=>integrateFn(x=>V.f(x,p),a,b,1e-12), r=I(V.p); if(!Number.isFinite(r.v)) return {fail:"The fitted curve is not a number somewhere in that range."};
+  let se=null; const C=V.cov; if(C&&Array.isArray(C)){ const k=V.p.length, g=new Array(k).fill(0);
+    for(let i=0;i<k;i++){ const c=C[i]&&C[i][i]; if(!(c>0)||(V.fixed&&V.fixed[i])) continue; const h=Math.sqrt(c)/100, pp=V.p.slice(), pm=V.p.slice(); pp[i]+=h; pm[i]-=h; g[i]=(I(pp).v-I(pm).v)/(2*h); }
+    let v=0; for(let i=0;i<k;i++) for(let j=0;j<k;j++){ const c=C[i]&&C[i][j]; if(Number.isFinite(c)) v+=g[i]*c*g[j]; } se=v>=0?Math.sqrt(v):null; }
+  return {v:r.v,se,quad:r.err,n:r.n}; }
+async function fitIntegralDlg(){ const p=P(), f=activeFit(); if(!p||!f){ toast("Fit the active column first."); return; } const c=activeYCol(), d=c?finalOf(c):null; let lo=Infinity, hi=-Infinity; (d?d.x:[]).forEach(v=>{ if(Number.isFinite(v)){ lo=Math.min(lo,v); hi=Math.max(hi,v); } });
+  const xu=d&&d.xu?" "+d.xu:"", yu=d&&d.yu?d.yu:"", au=yu&&xu?` ${yu}·${xu.trim()}`:"";
+  const html=`<div class="grid2"><label for="fiA">From</label><input type="text" id="fiA" inputmode="decimal" value="${Number.isFinite(lo)?fmt(lo,8):""}"><label for="fiB">To</label><input type="text" id="fiB" inputmode="decimal" value="${Number.isFinite(hi)?fmt(hi,8):""}"></div><p class="note" id="fiOut" aria-live="polite"></p>`;
+  const pr=formDlg({title:"Integrate the fitted curve",html,ok:"Put it in the History",valid:v=>Number.isFinite(parseNum(v.fiA))&&Number.isFinite(parseNum(v.fiB))&&parseNum(v.fiA)!==parseNum(v.fiB)});
+  const say=()=>{ const el=$("#fiOut"); if(!el) return; const a=parseNum($("#fiA").value), b=parseNum($("#fiB").value), r=Number.isFinite(a)&&Number.isFinite(b)&&a!==b?fitIntegral(f,a,b):{fail:"Give the two ends of the range."};
+    el.textContent=r.fail?r.fail:`∫ = ${r.se!=null?fmtPM(r.v,r.se):fmt(r.v,8)}${au}${r.se==null?" (no error: the fit has no covariance)":""}, by adaptive Gauss–Kronrod to 1e-12; the error from the parameters' covariance.`; };
+  ["#fiA","#fiB"].forEach(id=>$(id).addEventListener("input",say)); say();
+  const v=await pr; if(!v) return; const a=parseNum(v.fiA), b=parseNum(v.fiB), r=fitIntegral(f,a,b); if(r.fail){ toast(r.fail); return; }
+  const txt=`${r.se!=null?fmtPM(r.v,r.se):fmt(r.v,8)}${au}`; save({},`worked out the integral of the fitted curve from ${fmt(a,6)} to ${fmt(b,6)}${xu}: ${txt}`);
+  toast(`∫ of the fitted curve from ${fmt(a,6)} to ${fmt(b,6)}: ${txt}.`,{action:"Copy",run:()=>copyText(String(r.v)+(r.se!=null?"\t"+r.se:""))}); }
 function formDlg(o){
   return new Promise(res=>{
     const m=$("#formModal"); $("#formTitle").textContent=o.title; $("#formBody").innerHTML=o.html; m.querySelector(".sheet").classList.toggle("wide",!!o.wide);
@@ -30988,7 +31116,7 @@ ${DL([["Pearson's r","p by t on N − 2 degrees of freedom; its interval by Fish
 <p>Its tab carries a lock: the sheet is read only, since its values are worked out. Its columns can be plotted, read by a formula and copied; one moved to another sheet becomes a copy, cut from the analysis. The results are not original data, so they leave the check code alone.</p>
 <h2 id="recalc">Recalculating</h2>
 <p>Right-click its tab: ${DL([["Report","What it found, with its notes."],["Change settings…","The dialog again."],["Recalculate","When it is out of date."],["Recalculate by itself","The default: worked out again whenever a value, a step or a mask of what it reads changes, with a line in the log."],["Only when asked","A change marks its tab out of date instead, with the reason in its tooltip."],["Cut from its data","The values stay as an ordinary sheet; the analysis goes."],["Delete the analysis…","With its sheet."]])} Each is one undo step.</p>`},
-{id:"signal", g:"Analysis", t:"Signal processing", kw:"signal processing fft fourier transform discrete spectrum frequency amplitude power phase real imaginary periodogram power spectral density psd welch segments overlap window hann hanning hamming blackman harris flat top kaiser tukey bartlett gaussian rectangle boxcar leakage padding zero padding detrend nyquist sampling rate inverse ifft irfft bluestein db decibel unwrap filter designed iir fir butterworth chebyshev elliptic cauer bessel thomson low-pass high-pass band-pass band-stop lowpass highpass bandpass bandstop order cut-off cutoff edge ripple attenuation zero phase filtfilt sosfiltfilt forwards backwards causal notch hum mains 50 hz 60 hz harmonics quality factor correlation autocorrelation cross-correlation xcorr lag lags delay shift coherence cross-spectrum csd convolution convolve kernel blur broaden instrument function line shape deconvolution deconvolve wiener sharpen wavelet wavelets dwt idwt cwt daubechies symlet coiflet haar morlet mexican hat gaussian derivative decomposition levels detail approximation denoise denoising threshold universal visushrink sure sureshrink minimax soft hard spectrogram short-time stft time-frequency waterfall envelope hilbert analytic signal instantaneous frequency phase amplitude modulation demodulation upper lower maxima minima interpolate interpolation extrapolate extrapolation spline cubic natural not-a-knot clamped akima makima pchip smoothing spline gcv cross-validation resample grid gridding scattered xyz delaunay triangles thin plate tps rbf shepard inverse distance matrix",
+{id:"signal", g:"Analysis", t:"Signal processing", kw:"signal processing fft fourier transform discrete spectrum frequency amplitude power phase real imaginary periodogram power spectral density psd welch segments overlap window hann hanning hamming blackman harris flat top kaiser tukey bartlett gaussian rectangle boxcar leakage padding zero padding detrend nyquist sampling rate inverse ifft irfft bluestein db decibel unwrap filter designed iir fir butterworth chebyshev elliptic cauer bessel thomson low-pass high-pass band-pass band-stop lowpass highpass bandpass bandstop order cut-off cutoff edge ripple attenuation zero phase filtfilt sosfiltfilt forwards backwards causal notch hum mains 50 hz 60 hz harmonics quality factor correlation autocorrelation cross-correlation xcorr lag lags delay shift coherence cross-spectrum csd convolution convolve kernel blur broaden instrument function line shape deconvolution deconvolve wiener sharpen wavelet wavelets dwt idwt cwt daubechies symlet coiflet haar morlet mexican hat gaussian derivative decomposition levels detail approximation denoise denoising threshold universal visushrink sure sureshrink minimax soft hard spectrogram short-time stft time-frequency waterfall envelope hilbert analytic signal instantaneous frequency phase amplitude modulation demodulation upper lower maxima minima interpolate interpolation extrapolate extrapolation spline cubic natural not-a-knot clamped akima makima pchip smoothing spline gcv cross-validation resample grid gridding scattered xyz delaunay triangles thin plate tps rbf shepard inverse distance matrix integral integrate area simpson trapezoid trapezoidal area between two curves crossing fitted curve integral gauss-kronrod quadrature",
  lead:"The Fourier transform of a column, its power spectrum by Welch's method and the inverse, correlation and coherence, interpolation, each as a sheet of results worked out again when its data change; scattered points gridded into a matrix; filters designed by their kind, band and order, a notch, convolution and deconvolution, as steps.",
  body:`<h2 id="fft">FFT</h2>
 <p>${MP("Analyze › Signal processing › FFT…")}: the discrete Fourier transform of each column ticked, at any length (a prime length too, by Bluestein's algorithm). The columns written are chosen: frequency always, then amplitude, power, the power spectral density, phase, the real and imaginary parts, power in dB. One side runs from 0 to half the sampling rate; two sides add the negative frequencies, in NumPy's order or from −fs/2 when shifted. The normalisations are stated in the report: a sine of amplitude A reads A in the amplitude and A²/2 in the power (its mean square), and the density integrates over frequency to the mean square, so a window does not change what a peak reads. The real and imaginary parts are the transform unscaled, as NumPy gives it, so the inverse takes them back.</p>
@@ -31019,6 +31147,8 @@ ${DL([["Pearson's r","p by t on N − 2 degrees of freedom; its interval by Fish
 <p>${MP("Analyze › Calculus › Interpolate…")}: each column ticked read at new X: so many evenly spaced points or a step, over its own range or one typed, or the X of another column (to put two columns on one X). ${DL([["Straight lines","Between neighbours, as NumPy's interp."],["Cubic spline","Smooth through every point; its ends not a knot (the default), natural (no curvature) or clamped (the end slopes typed)."],["Akima, modified Akima","Smooth, and calmer than a spline near a sudden step."],["PCHIP","Never overshoots: a monotone stretch stays monotone."],["Smoothing spline","Does not pass through the points: λ sets how smooth, empty chooses it by generalised cross-validation; the report gives λ and the degrees of freedom."]])} All as SciPy's. Past the data the cells are empty unless asked (the method's curve continued, a straight line from the end, the end's value). A column beside the values says, row by row, measured (an X that was measured keeps its value), interpolated or extrapolated. Repeated X are averaged first, and said.</p>
 <h2 id="grid">Scattered points into a matrix</h2>
 <p>${MP("Data › Matrix › From scattered X, Y, Z…")}: three columns, a value at each place measured, onto an even grid of so many columns and rows over the points' extent or a range typed, as a matrix that belongs to the analysis (read only, worked out again when the columns change, cut from it or deleted with it). Delaunay's triangles in straight lines (empty outside the points' outline, as SciPy's griddata), a thin-plate spline (through every point, or smoothed; up to ${"3 000"} points), or Shepard's weights within a radius (empty where no point is near). Its tab menu's <em>Draw the map</em> plots it as an image.</p>
+<h2 id="calc">Integrals</h2>
+<p>${MP("Analyze › Calculus › Integrate as an analysis…")}: each column ticked, over all its X or a range typed, by the trapezoid and by Simpson's rule (parabolas through each two intervals, on uneven X too, as SciPy's <code>simpson</code>), each with its error from the Y errors, the area of its absolute value and its centroid, into a result sheet worked out again with the data. ${MP("Analyze › Calculus › Area between two curves…")}: two columns, the first less the second, over the X they share (each read by straight lines at every X either has), the signed and the absolute area, and where they cross. ${MP("Analyze › Fit › Integrate the fitted curve…")}: the area under the active column's fit from one X to another, by adaptive Gauss–Kronrod to 1e-12, with its error from the parameters' covariance; it is said there and put in the History. The ${DA("integ","Integrate window")} measures bands, each with its own baseline.</p>
 <h2>The results</h2>
 <p>Each is a result sheet (see ${DA("analyses","Analyses and result sheets")}): read only, worked out again when its column changes, its report giving the settings and, for the FFT, the frequency of the largest amplitude away from 0. Right-click its tab › <em>Plot</em> draws the main column against frequency. Past 400 000 points the work is done in the background, with Stop.</p>`},
 {id:"stats", g:"Analysis", t:"Statistics", win:"stats", kw:"statistics quick statistics descriptive n count mean median sd se standard error spectral measures noise signal to noise area centroid correlation pearson integrate visible range",
@@ -31264,7 +31394,7 @@ const DOC_STEP={
   exclude:`<p>Pick the range by dragging on the graph (<em>Pick the range on the graph</em>).</p>`,
   despike:`<h2>How it decides</h2><p>A point is a spike when it stands more than <em>Threshold</em> times the noise above a smooth line through its neighbours, and the feature is at most <em>Widest spike</em> points wide. Real bands are wider, so they are left alone. The graph marks every point the step replaced.</p><h2>Checks</h2><p>It warns when it changed points inside a band, or when a "spike" was wide enough to be a narrow band.</p>${TIP("Remove spikes before smoothing: a smoothed spike is wider, and survives as a false band.")}`,
   bg:`<h2>Methods</h2>${DL([["arPLS","Automatic. A smooth curve that weights points above it less and less, so it passes under the bands. Stiffness λ sets how slowly it may bend. Start here."],["ALS","Asymmetric least squares: the same idea with a fixed asymmetry p (0.001 to 0.05). Follows bands more than arPLS."],["airPLS","Adaptive iterative reweighting: another automatic variant, good on steep fluorescence."],["ModPoly, I-ModPoly","A polynomial fitted again and again, clipped to the data each time. I-ModPoly also allows for noise."],["SNIP","Peak clipping over a window wider than the widest band. With the log-log-sqrt transform, for counts."],["Rolling ball","A ball of the window's width rolled under the data."],["Anchor points","Points you place (or let Kurve place) joined by a spline, a monotone cubic, or straight lines. Drag them on the graph."],["Straight line","Between the means of the end regions."],["Constant","The lowest point, a percentile, or a value you give."],["Shirley (XPS)","The background under a photoelectron line rises in step with the line's area: at each point, the level of the low end plus the step between the ends times the area of the data above the background on the low side, found by Proctor and Sherwood's iteration until it settles. The ends' levels are the means of the first and last <em>End regions</em> of the points; the note says how many rounds it took."],["Tougaard (XPS)","The electrons that lost energy on their way out: at each point, B times the integral of the counts on the low-loss side weighted by Tougaard's universal cross-section T/(C + T²)² (C = 1643 eV² for most metals and their oxides), or with D above 0 the three-parameter one for polymers and semiconductors. B is set so the background meets the high-loss end. <em>Losses towards</em> says which side that is: higher binding energy, or lower kinetic energy."]])}<h2>Checks</h2><p>A stretch of the result below −3σ is over-subtraction: the background rose into the data. A background that follows a band's shape eats into its area: a symmetric method with a small window or a low stiffness does that, and the step says so.</p>${TIP("The step's box in the History shows the background curve drawn under its input.")}`,
-  smooth:`<h2>Methods</h2>${DL([["Savitzky–Golay","A polynomial fitted in a moving window. Keeps band heights best for its window; needs even spacing."],["Moving average","The mean over the window. Simple; flattens narrow bands."],["Median","Robust to single outliers."],["Gaussian","A Gaussian-weighted average."],["Whittaker","A penalised smoother with one setting, λ; works on uneven spacing."]])}<h2>Checks</h2><p>The step measures what it takes off the narrowest band, on an ideal band of the same width in points, and warns when that matters; it also warns about uneven spacing.</p>`,
+  smooth:`<h2>Methods</h2>${DL([["Savitzky–Golay","A polynomial fitted in a moving window. Keeps band heights best for its window; needs even spacing."],["Moving average","The mean over the window. Simple; flattens narrow bands."],["Median","Robust to single outliers."],["Gaussian","A Gaussian-weighted average."],["Whittaker","A penalised smoother with one setting, λ; works on uneven spacing."],["LOWESS","A straight line fitted about each point to the nearest fraction of the points, weighted by distance (tricube), then again with points far from the curve weighted down (robust rounds); as statsmodels' lowess. Works on uneven spacing."],["LOESS","The same with a parabola about each point (Cleveland and Devlin), which keeps a band's top better."]])}<h2>Checks</h2><p>The step measures what it takes off the narrowest band, on an ideal band of the same width in points, and warns when that matters; it also warns about uneven spacing.</p>`,
   fsd:`<h2>How it works</h2><p>The series, its straight line through the ends taken off and mirrored, is taken into Fourier space, multiplied there by the inverse of a Lorentzian's transform of FWHM <em>Width taken out</em> and by the apodisation, cut where a band of that width comes out <em>Narrowing</em> times narrower, and brought back (Kauppinen and others, 1981). A band's area is kept; its shape becomes the apodisation's line. Bessel is the smoothest, the triangle gives the narrowest lines with side lobes, Happ–Genzel lies between.</p><h2>Checks</h2><p>The note says how many times the noise rose (worked out from the filter itself, exact for white noise); past 2 % of the deconvolved bands' height the step warns. It warns of uneven spacing, of X out of order, and of a narrowing the spacing cannot hold.</p>${TIP("Narrowed bands are for seeing where they are and how many; measure areas on the data before this step.")}`,
   sort:`<p>Needed after merging files, or for data recorded in scan order that doubles back.</p>`,
   dedupe:`<p>Repeated scans written into one file give repeated X values; this averages them, and the spread becomes each point's error.</p>`,
@@ -31324,7 +31454,7 @@ const DOC_PARAM={
   "cumint.norm":"Divide by the total, so the curve ends at 1.",
   "fft.mode":"Remove fast noise (low-pass) or slow drift (high-pass).","fft.cut":"In points: features narrower than this are removed (low-pass), or wider than this (high-pass)."
 };
-const DOC_KW={ecal:"energy calibration channel kev gamma mca gain offset quadratic tka detector",bg:"baseline fluorescence arpls als airpls modpoly snip rolling ball anchors polynomial shirley tougaard xps photoemission inelastic",smooth:"noise savitzky golay moving average median gaussian whittaker filter",
+const DOC_KW={ecal:"energy calibration channel kev gamma mca gain offset quadratic tka detector",bg:"baseline fluorescence arpls als airpls modpoly snip rolling ball anchors polynomial shirley tougaard xps photoemission inelastic",smooth:"noise savitzky golay moving average median gaussian whittaker filter lowess loess local regression robust cleveland",
   despike:"cosmic ray spike outlier dead pixel",norm:"normalise normalization internal standard snv",deriv:"derivative savitzky golay shoulder",shift:"raman laser wavelength wavenumber",
   xunit:"units nm wavelength wavenumber ev energy frequency convert",calib:"calibration silicon neon lamp reference",combine:"average mean median repeated scans sum",
   fft:"fourier low-pass high-pass drift noise butterworth power spectrum frequency",fsd:"fourier self deconvolution FSD band narrowing resolution enhancement overlapping bands apodization Bessel Happ Genzel",cumint:"integral running area",hist:"histogram distribution bins frequency count probability density cumulative freedman diaconis sturges",ref:"dark reference white lamp subtract divide",crop:"range cut trim",

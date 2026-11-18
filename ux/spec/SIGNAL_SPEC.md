@@ -425,6 +425,13 @@ transforms of a matrix.
 
 ## 5.8 Calculus, further
 
+Done 18.11, as below, with these changes of plan: the Integrate window keeps the trapezoid (its windows are for bands), and
+Simpson's rule is in the analysis, beside the trapezoid; the fitted curve's integral is worked out numerically for every model (adaptive
+15-point Gauss–Kronrod to 1e-12, QUADPACK's nodes and weights), not from closed forms, its error by the delta method through the
+covariance, and it is said in its dialog, a toast with Copy and a History log line, not yet in Results' derived values, the report or
+the CSV; LOESS of degree 2 is judged against a NumPy transcription of Cleveland and Devlin with statsmodels' neighbourhoods, and
+LOWESS against statsmodels exactly (its `delta` skip included, whose loop leaves the index at the last point).
+
 **What.** Integrate… (today's window) gains Simpson's rule beside the trapezoid (its result and its
 error from the Y errors, decision 10); Analyze › Calculus › *Integrate as an analysis…* (`integ`: a
 result sheet of each column's area, its absolute area, its centroid and its error, worked out
