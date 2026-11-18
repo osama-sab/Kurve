@@ -5391,7 +5391,11 @@ Next, in order:
    (scipy.signal.spectrogram into a matrix of the analysis's own, drawn as a map), done 18.11; slice 5.6, wavelets (PyWavelets'
    DWT in nine modes over levels, denoising, the CWT into a matrix; PyWavelets agreeing to 1.4e-14), done 18.11; slice 5.8, calculus
    further (Simpson's rule and the area between two curves as analyses, the fitted curve's integral with its error, LOWESS and LOESS in
-   Smooth; SciPy and statsmodels agreeing to 1.5e-14), done 18.11
+   Smooth; SciPy and statsmodels agreeing to 1.5e-14), done 18.11: wave 5's eight slices are done, and its end (`kurve.html`'s CRLF line
+   endings put back and checked by the suite; LOWESS made quick and its band check honest; fuzz generators for the wave's later
+   functions; a 40-minute lab day with its dialogs and tools, which found an implicit fit run on the page for 1.7 s; screenshots at
+   three widths in both themes and styles, which found a matrix's name and cut placeholders; Origin's tutorials not reached, its site
+   refused here)
 
 ## Known gaps
 

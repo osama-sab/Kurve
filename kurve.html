@@ -8824,7 +8824,7 @@ const IMPL_KINDS=[["circle","Circle"],["ellipse","Ellipse"],["formula","Your for
 ANA_KINDS.impl={label:"Implicit fit", base:"Implicit fit", typed:true, xs:true,
   typedWhat:()=>"two columns",
   help:"A curve f(x, y) = 0 through points whose x and y are both measured: a circle, an ellipse or your formula, fitted by orthogonal distance; each parameter with its error, t, p and interval, each point's distance and foot on the curve, and the curve's points.",
-  heavy(p,ins){ return p.model==="formula"&&ins.reduce((t,q)=>t+(q.vals||[]).length,0)>2000; },
+  heavy(p,ins){ return p.model==="formula"&&ins.reduce((t,q)=>t+(q.vals||[]).length,0)>300; }, // a formula's feet by Newton: 1.2 s at 1000 points on the page (the lab day of 18.11)
   run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[], conf=anaConf(p), id=IMPL_KINDS.some(e=>e[0]===p.model)?p.model:"circle";
     const g=k=>ins.find(q=>q.id===p[k]), qx=g("x"), qy=g("y"); if(!qx||!qy) return {fail:"Choose the X and Y columns."}; if(qx.id===qy.id) return {fail:"X and Y are two different columns."};
     if(qx.cats||qy.cats||qx.groups||qy.groups) return {fail:"X and Y are columns of numbers."};
@@ -28274,7 +28274,7 @@ function analyzeMenu(){
       {label:"Derivative, as a new column…", title:"Keeps this column and adds its derivative beside it", run:()=>{ const id=newDerived("final",{quiet:true,name:`d/dx ${specName(activeYCol())}`}); if(id) openTool("deriv",{col:id}); }, enabled:edit&&has},
       t("cumint"), "-",
       {label:"Integrate as an analysis…", title:ANA_KINDS.integ.help, run:()=>anaDlg("integ"), enabled:!S.readOnly&&!!P()},
-      {label:"Area between two curves…", title:ANA_KINDS.between.help, run:()=>anaDlg("between",{two:true}), enabled:!S.readOnly&&!!P()&&yCols().length>1},
+      {label:"Area between two curves…", title:yCols().length>1?ANA_KINDS.between.help:"Two columns are needed: the area is between two", run:()=>anaDlg("between",{two:true}), enabled:!S.readOnly&&!!P()&&yCols().length>1},
       {label:"Interpolate…", title:ANA_KINDS.interp.help, run:()=>anaDlg("interp"), enabled:!S.readOnly&&!!P()}]},
     {label:"Statistics", sub:()=>[{label:"Quick statistics…", title:"The Statistics window: each column's numbers at a glance, the integral of the range in view, the noise and the signal to noise, with no sheet made", run:go("desc"), enabled:has},
       {label:"Descriptive", sub:()=>[{label:"Statistics on columns…", title:ANA_KINDS.desc.help, run:()=>anaDlg("desc"), enabled:!S.readOnly&&!!P()},

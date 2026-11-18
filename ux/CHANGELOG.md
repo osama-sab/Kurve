@@ -1024,6 +1024,32 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 5's end (2026-11-18)
+
+- **The line endings.** The commit of slice 5.1 had written `kurve.html` with LF line endings, against the project's rule, so every
+  diff after it claimed every line changed. CRLF is back on every line (against the last version with them, the wave's diff is
+  1452 lines), and `tools/suite.sh` checks it before anything else (`crlf`).
+- **The suite** green on the last slice (every node test, the bench's 299 checks, the fuzzer, every drive, the menus, the budgets).
+- **LOWESS** froze the page for a minute and a half on a column of 10⁵ points: every point fitted, and the band check on an ideal
+  band 30 widths long. The step now fits at points a hundredth of X's range apart at most, as R's lowess does (0.5 s), and checks a
+  band with the band and the neighbours scaled down together (equal to four digits); that check had also said no LOWESS ever
+  lowered a band, since its robust rounds give a noise-free band's top back, and it now measures without them. Each line is worked
+  out in offsets from its own X: 2e-15 from 40-digit arithmetic where statsmodels, centring X on a weighted mean, was 4e-11 for X far
+  from 0 against its span. A speed budget for it.
+- **The fuzzer** gained generators for the wave's later functions: correlation, the six interpolants, LOWESS, Simpson's rule and a
+  wavelet decomposition in every family and mode, each passing on two seeds.
+- **A 40-minute lab day** with two new actions, Analyze › Signal processing's and Calculus' dialogs (lists and ticks changed at
+  random, run or left) and their tools' steps (kept or cancelled): 1178 actions, no failures, the page never waiting more than
+  15 ms, memory and listeners back down by the end, the reload losing nothing. Its longest task, 1.7 s, was an implicit fit by a
+  formula (wave 4) run on the page up to 2000 points (1.2 s at 1000): past 300 points it goes to the worker now, which gives the
+  same tables. *Area between two curves…*, greyed out with one column, says why in its tooltip.
+- **Screenshots** of the wave's tools (the FFT's dialog, sheet and plot; the designed filter with its response; the CWT's dialog and
+  map; the fitted curve's integral) at 1440, 1024 and 390 px, light and dark, Bench and Graphite, read by eye. An analysis's matrix
+  was named "CWT11" and its X "X": it takes the analysis's name and the column's X now. Placeholders were cut in four dialogs (the
+  monospaced face of a decimal field): placeholders take the interface's face, the ranges are wider, and `sig-drive.mjs` measures
+  every placeholder of the wave's dialogs. The integral's method went into its readout's tooltip.
+- **Origin's tutorials** for the wave could not be worked: originlab.com is refused by this environment's network, as before.
+
 ## Closing the gap with Origin, wave 5, slice 5.8: calculus, further (2026-11-18)
 
 - **Analyze › Calculus › Integrate as an analysis…**: each column's area by the trapezoid and by Simpson's rule (SciPy's, uneven X
