@@ -3823,7 +3823,8 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   a tool that read `\25` as an escape and left a control byte plus a literal "b8" beside every
   collapsible heading for several releases. Prefer real characters or SVG over escapes in CSS.
   And a script that reads `kurve.html` in text mode writes it back with LF: convert back to
-  CRLF, or the diff claims every line changed and hides what really did.
+  CRLF, or the diff claims every line changed and hides what really did. It happened again in wave 5's first slice and went
+  unseen for seven commits: `tools/suite.sh` checks it first now (`crlf`).
 - **The preview pane serves a snapshot**, so `location.reload()` re-runs stale code. Navigate to
   the file again after editing.
 - **Undo has to cover the panel you are working in, not just the document.** The peak set being

@@ -30,6 +30,12 @@ run() { # name, timeout in seconds, command…
   pids+=($!); names+=("$n")
 }
 # The quick ones first, one after another (they take seconds).
+# kurve.html keeps its CRLF line endings (CLAUDE.md): a script writing it in text mode turns them into LF, and the diff then
+# claims every line changed (wave 5's first slice did, unseen for seven commits).
+nl=$(wc -l < "$html"); ncr=$(grep -c $'\r$' "$html")
+if [ "$nl" = "$ncr" ]; then echo "$nl lines, every one ending in CRLF: passed" > "$logs/crlf.log"; echo 0 > "$logs/crlf.code"
+else echo "$((nl - ncr)) of $nl lines end in LF alone: FAIL (convert back to CRLF)" > "$logs/crlf.log"; echo 1 > "$logs/crlf.code"; fi
+names+=("crlf")
 for t in fit pipe parser tex ref stats sig; do
   timeout 300 node "tools/$t-test.mjs" "$html" > "$logs/$t.log" 2>&1; echo $? > "$logs/$t.code"
   names+=("$t")
