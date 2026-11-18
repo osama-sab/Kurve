@@ -4744,6 +4744,9 @@ function convKernelOf(d,p,c,sp,unit){ const dx=sp.abs; if(!(dx>0)) return {fail:
 // frequencies its response is drawn at: 257, evenly on a log scale over the three decades below the Nyquist frequency.
 // A convolution's kernels (SIGNAL_SPEC 5.3): the shapes of the SIG block's sigKernel, or another column.
 const CONV_KERNS=[["gauss","Gaussian"],["lorentz","Lorentzian"],["box","Box"],["tri","Triangle"],["exp","Exponential (one-sided)"],["col","Another column"]];
+// An envelope's outputs and joins (SIGNAL_SPEC 5.4).
+const ENV_OUTS=[["env","Envelope (Hilbert)"],["upper","Upper envelope (through the maxima)"],["lower","Lower envelope (through the minima)"],["mean","Middle of the two envelopes"],["phase","Phase (unwrapped)"],["freq","Instantaneous frequency"],["imag","Hilbert transform"]];
+const ENV_JOINS=[["pchip","PCHIP"],["notaknot","Cubic spline"],["linear","Straight lines"]];
 const FILT_W=()=>Array.from({length:257},(_,i)=>Math.PI*Math.pow(10,-3+3*i/256));
 const FILT_KINDS=[["butter","Butterworth"],["cheby1","Chebyshev I"],["cheby2","Chebyshev II"],["ellip","Elliptic"],["bessel","Bessel"],["fir","FIR (windowed sinc)"]];
 const FILT_BANDS=[["low","Low-pass"],["high","High-pass"],["pass","Band-pass"],["stop","Band-stop"]];
@@ -5452,6 +5455,22 @@ const PIPE_OPS={
       if(r.gain>3) warn.push(`The noise rises about ${nf(r.gain,2)} times${sig?` (σ ${nf(sig,2)} to about ${nf(sig*r.gain,2)})`:""}: a larger noise-to-signal ratio holds it back, at the cost of less narrowing.`);
       return {d:pser(d,d.x,Array.from(r.y),null,d.idx), warn, extra:{nsr:r.nsr,gain:r.gain},
         note:`Wiener's deconvolution by ${K.k.length} points of kernel${K.note?`, ${K.note}`:""}; noise to signal ${nf(r.nsr,3)}${r.est?" (estimated from the highest frequencies)":""}; the noise rises ${nf(r.gain,3)} times.${d.e?" Error bars dropped.":""}`}; }},
+  env:{group:"math", rank:6, label:"Envelope", short:"Envelope",
+    help:"The envelope of an oscillation: by the Hilbert transform (the analytic signal's amplitude about the mean; its phase, its instantaneous frequency, or the transform itself), or the curve through the maxima (upper), the minima (lower) or between the two, joined by PCHIP, a spline or straight lines.",
+    params:[{k:"out",label:"Gives",type:"sel",opts:ENV_OUTS},
+      {k:"order",label:"Extrema apart",type:"int",min:1,max:1000,unit:"points",show:p=>p.out==="upper"||p.out==="lower"||p.out==="mean",hint:"A maximum (or minimum) must top every point this many either side: more ignores the small wiggles of noise"},
+      {k:"join",label:"Joined by",type:"sel",opts:ENV_JOINS,show:p=>p.out==="upper"||p.out==="lower"||p.out==="mean"},
+      {k:"pad",label:"Transform at",type:"sel",opts:[["none","The data's own length"],["pow2","The next power of two"]],show:p=>!(p.out==="upper"||p.out==="lower"||p.out==="mean")}],
+    defaults:{out:"env",order:3,join:"pchip",pad:"none"},
+    summary:p=>(ENV_OUTS.find(e=>e[0]===p.out)||["","Envelope"])[1].replace(/ \(.*\)$/,"").toLowerCase(),
+    run(d,p){ const n=d.y.length, sp=spacing(d.x); if(n<4) throw new Error("Too few points for an envelope."); const r=envelope(d.x,d.y,p); if(r.fail) throw new Error(r.fail); const warn=[];
+      const ext=p.out==="upper"||p.out==="lower"||p.out==="mean";
+      if(!ext&&sp.uneven>0.05) warn.push(`X spacing varies by ${Math.round(sp.uneven*100)}%, and the Hilbert transform treats every point as evenly spaced. Add Resample above this step.`);
+      if(!sp.sorted) warn.push("X is not in order, so neighbouring rows are not neighbouring points. Add Sort by X above this step.");
+      const nm=d.yn||"Y", names={env:[`Envelope of ${nm}`,d.yu],upper:[`Upper envelope of ${nm}`,d.yu],lower:[`Lower envelope of ${nm}`,d.yu],mean:[`Middle envelope of ${nm}`,d.yu],phase:[`Phase of ${nm}`,"rad"],freq:[`Frequency of ${nm}`,sigRecip(d.xu)],imag:[`Hilbert transform of ${nm}`,d.yu]}[p.out||"env"];
+      const note=ext?`Through ${r.n} ${p.out==="lower"?"minima":p.out==="mean"?"extrema":"maxima"}, joined by ${(ENV_JOINS.find(e=>e[0]===p.join)||["","PCHIP"])[1]}${p.join==="linear"?" (the end ones held to the ends)":" (continued to the ends)"}.`
+        :`The analytic signal of the column less its mean (${nf(r.mean,4)}${d.yu?" "+d.yu:""})${r.N!==n?`, transformed at ${r.N} points`:""}${p.out==="env"?", its amplitude put back on the mean":""}; the ends are less sure, as the transform takes the column as repeating.`;
+      return {d:pser(d,d.x,Array.from(r.y,v=>v==null?null:v),null,d.idx,{yn:names[0],yu:names[1]||""}), note, warn}; }},
   fsd:{group:"smooth", rank:8, label:"Fourier self-deconvolution", short:"Self-deconvolution",
     help:"Narrows overlapping bands: the data's Fourier transform is multiplied by the inverse of a Lorentzian's of the width given and apodised, so a band of about that width comes out narrower by the factor given, its area kept. The noise rises with it, and the step says by how much.",
     params:[{k:"fwhm",label:"Width taken out",type:"num",min:0,hint:"The FWHM of the Lorentzian taken out, in X's units: about the bands' own width"},
@@ -10658,6 +10677,30 @@ function gaussSolve(A0,b0,N){ const A=Float64Array.from(A0), b=Float64Array.from
   for(let c=0;c<N;c++){ const p=perm[c]; if(p!==c){ const t=b[c]; b[c]=b[p]; b[p]=t; } }
   for(let r=0;r<N;r++){ let s=b[r]; const rr=r*N; for(let k=0;k<r;k++) s-=A[rr+k]*b[k]; b[r]=s; }
   const x=new Float64Array(N); for(let r=N-1;r>=0;r--){ let s=b[r]; const rr=r*N; for(let k=r+1;k<N;k++) s-=A[rr+k]*x[k]; x[r]=s/A[rr+r]; } return x; }
+/* ---- 5.4 Envelope: the analytic signal as scipy.signal.hilbert (the transform's negative frequencies set to 0, the positive
+   doubled, at length N), and envelopes through the extrema (scipy.signal.argrelextrema's rule: a point above, or below, each of its
+   `order` neighbours either way, the ends clipped, so never an end itself). ---- */
+function analytic(y,N){ const n=y.length; N=N>0?Math.round(N):n; if(N<n) return {fail:"The length is shorter than the data."}; const R=new Float64Array(N), I=new Float64Array(N); for(let i=0;i<n;i++) R[i]=y[i];
+  fftAny(R,I,false); const h=new Float64Array(N); if(N%2===0){ h[0]=h[N/2]=1; for(let k=1;k<N/2;k++) h[k]=2; } else { h[0]=1; for(let k=1;k<(N+1)/2;k++) h[k]=2; }
+  for(let k=0;k<N;k++){ R[k]*=h[k]; I[k]*=h[k]; } fftAny(R,I,true); return {re:R.slice(0,n),im:I.slice(0,n)}; }
+// numpy.gradient of evenly spaced values: central differences inside, one-sided at the ends, over the spacing dx.
+function gradientV(y,dx){ const n=y.length, g=new Float64Array(n); if(n<2) return g; g[0]=(y[1]-y[0])/dx; g[n-1]=(y[n-1]-y[n-2])/dx; for(let i=1;i<n-1;i++) g[i]=(y[i+1]-y[i-1])/(2*dx); return g; }
+function extremaIdx(y,order,lower){ const n=y.length, k=Math.max(1,Math.round(order||1)), out=[]; for(let i=0;i<n;i++){ let ok=true;
+    for(let j=1;j<=k&&ok;j++){ const a=y[Math.max(0,i-j)], b=y[Math.min(n-1,i+j)]; ok=lower?(y[i]<a&&y[i]<b):(y[i]>a&&y[i]>b); } if(ok) out.push(i); } return out; }
+/* An envelope of y on its own X: o.out one of ENV_OUTS, o.order the least distance between extrema (points), o.join, o.pad ("pow2" to
+   the next power of two). {y, mean, n (extrema used), N} or {fail}. */
+function envelope(x,y,o){ o=o||{}; const n=y.length, out=o.out||"env"; if(n<4) return {fail:"An envelope needs four points at least."};
+  if(out==="upper"||out==="lower"||out==="mean"){ const side=s=>{ const ix=extremaIdx(y,o.order,s==="lower"); if(ix.length<2) return {fail:`Fewer than two ${s==="lower"?"minima":"maxima"} at least ${Math.max(1,Math.round(o.order||1))} points apart: there is no envelope to join.`};
+      const j=ENV_JOINS.some(e=>e[0]===o.join)?o.join:"pchip", r=interp1(ix.map(i=>x[i]),ix.map(i=>y[i]),x,{method:j,ext:j==="linear"?"end":"method"}); return {y:r.y,n:ix.length}; };
+    if(out!=="mean"){ const r=side(out); return r.fail?r:{y:Float64Array.from(r.y),n:r.n}; }
+    const u=side("upper"), l=side("lower"); if(u.fail) return u; if(l.fail) return l; return {y:Float64Array.from(u.y,(v,i)=>(v+l.y[i])/2),n:u.n+l.n}; }
+  const m=sigSum(y)/n, d=Float64Array.from(y,v=>v-m); let N=n; if(o.pad==="pow2"){ N=1; while(N<n) N<<=1; }
+  const a=analytic(d,N); if(a.fail) return a;
+  if(out==="imag") return {y:a.im,mean:m,N};
+  if(out==="env") return {y:Float64Array.from(a.re,(v,i)=>m+Math.hypot(v,a.im[i])),mean:m,N};
+  const ph=unwrapV(Float64Array.from(a.re,(v,i)=>Math.atan2(a.im[i],v)));
+  if(out==="phase") return {y:ph,mean:m,N};
+  const dx=(x[n-1]-x[0])/(n-1); return {y:Float64Array.from(gradientV(ph,dx),v=>v/(2*Math.PI)),mean:m,N}; }
 // For the bench: a smoothing spline's curve under a name of its own (its system's conditioning sets a target of its own).
 function smoothCurve(x,y,xq,o){ return interp1(x,y,xq,Object.assign({},o,{method:"smooth"})); }
 // For the bench: a design's sections as one flat array, and its response at w (radians a sample) as {re, im}.
@@ -20228,7 +20271,7 @@ async function catDlg(id){ const c=colById(id); if(!c||S.readOnly) return;
 // What a step does to the rows (PARITY_SPEC 1.3): keep them, keep them with neighbours depending on
 // each other, drop some, or merge or make points. Every step has one; ana-drive checks.
 const PIPE_ROWS={correct:"keep",bg:"keep",shift:"keep",xunit:"keep",calib:"keep",ecal:"keep",xlin:"keep",norm:"keep",scale:"keep",
-  smooth:"dep",fft:"dep",filt:"dep",notch:"dep",conv:"dep",deconv:"dep",fsd:"dep",deriv:"dep",cumint:"dep",despike:"dep",
+  smooth:"dep",fft:"dep",filt:"dep",notch:"dep",conv:"dep",deconv:"dep",env:"dep",fsd:"dep",deriv:"dep",cumint:"dep",despike:"dep",
   crop:"drop",exclude:"drop",sort:"drop",log:"drop",absorb:"drop",km:"drop",ref:"drop",combine:"drop",bose:"drop",where:"drop",
   dedupe:"merge",resample:"merge",hist:"merge",python:"merge"};
 const ROWS_RANK={keep:0,dep:1,drop:2,merge:3};
@@ -27888,7 +27931,7 @@ function analyzeMenu(){
       {label:"Inverse FFT…", title:ANA_KINDS.ifft.help, run:()=>anaDlg("ifft"), enabled:!S.readOnly&&!!P()}, "-",
       {label:"Correlation…", title:ANA_KINDS.xcorr.help, run:()=>anaDlg("xcorr"), enabled:!S.readOnly&&!!P()},
       {label:"Coherence…", title:ANA_KINDS.coh.help, run:()=>anaDlg("coh",{two:true}), enabled:!S.readOnly&&!!P()&&yCols().length>1},
-      t("conv"), t("deconv")]},
+      t("conv"), t("deconv"), t("env")]},
     {label:"Calculus", sub:()=>[t("deriv"),
       {label:"Derivative, as a new column…", title:"Keeps this column and adds its derivative beside it", run:()=>{ const id=newDerived("final",{quiet:true,name:`d/dx ${specName(activeYCol())}`}); if(id) openTool("deriv",{col:id}); }, enabled:edit&&has},
       t("cumint"), "-",
@@ -30728,7 +30771,7 @@ ${DL([["Pearson's r","p by t on N − 2 degrees of freedom; its interval by Fish
 <p>Its tab carries a lock: the sheet is read only, since its values are worked out. Its columns can be plotted, read by a formula and copied; one moved to another sheet becomes a copy, cut from the analysis. The results are not original data, so they leave the check code alone.</p>
 <h2 id="recalc">Recalculating</h2>
 <p>Right-click its tab: ${DL([["Report","What it found, with its notes."],["Change settings…","The dialog again."],["Recalculate","When it is out of date."],["Recalculate by itself","The default: worked out again whenever a value, a step or a mask of what it reads changes, with a line in the log."],["Only when asked","A change marks its tab out of date instead, with the reason in its tooltip."],["Cut from its data","The values stay as an ordinary sheet; the analysis goes."],["Delete the analysis…","With its sheet."]])} Each is one undo step.</p>`},
-{id:"signal", g:"Analysis", t:"Signal processing", kw:"signal processing fft fourier transform discrete spectrum frequency amplitude power phase real imaginary periodogram power spectral density psd welch segments overlap window hann hanning hamming blackman harris flat top kaiser tukey bartlett gaussian rectangle boxcar leakage padding zero padding detrend nyquist sampling rate inverse ifft irfft bluestein db decibel unwrap filter designed iir fir butterworth chebyshev elliptic cauer bessel thomson low-pass high-pass band-pass band-stop lowpass highpass bandpass bandstop order cut-off cutoff edge ripple attenuation zero phase filtfilt sosfiltfilt forwards backwards causal notch hum mains 50 hz 60 hz harmonics quality factor correlation autocorrelation cross-correlation xcorr lag lags delay shift coherence cross-spectrum csd convolution convolve kernel blur broaden instrument function line shape deconvolution deconvolve wiener sharpen interpolate interpolation extrapolate extrapolation spline cubic natural not-a-knot clamped akima makima pchip smoothing spline gcv cross-validation resample grid gridding scattered xyz delaunay triangles thin plate tps rbf shepard inverse distance matrix",
+{id:"signal", g:"Analysis", t:"Signal processing", kw:"signal processing fft fourier transform discrete spectrum frequency amplitude power phase real imaginary periodogram power spectral density psd welch segments overlap window hann hanning hamming blackman harris flat top kaiser tukey bartlett gaussian rectangle boxcar leakage padding zero padding detrend nyquist sampling rate inverse ifft irfft bluestein db decibel unwrap filter designed iir fir butterworth chebyshev elliptic cauer bessel thomson low-pass high-pass band-pass band-stop lowpass highpass bandpass bandstop order cut-off cutoff edge ripple attenuation zero phase filtfilt sosfiltfilt forwards backwards causal notch hum mains 50 hz 60 hz harmonics quality factor correlation autocorrelation cross-correlation xcorr lag lags delay shift coherence cross-spectrum csd convolution convolve kernel blur broaden instrument function line shape deconvolution deconvolve wiener sharpen envelope hilbert analytic signal instantaneous frequency phase amplitude modulation demodulation upper lower maxima minima interpolate interpolation extrapolate extrapolation spline cubic natural not-a-knot clamped akima makima pchip smoothing spline gcv cross-validation resample grid gridding scattered xyz delaunay triangles thin plate tps rbf shepard inverse distance matrix",
  lead:"The Fourier transform of a column, its power spectrum by Welch's method and the inverse, correlation and coherence, interpolation, each as a sheet of results worked out again when its data change; scattered points gridded into a matrix; filters designed by their kind, band and order, a notch, convolution and deconvolution, as steps.",
  body:`<h2 id="fft">FFT</h2>
 <p>${MP("Analyze › Signal processing › FFT…")}: the discrete Fourier transform of each column ticked, at any length (a prime length too, by Bluestein's algorithm). The columns written are chosen: frequency always, then amplitude, power, the power spectral density, phase, the real and imaginary parts, power in dB. One side runs from 0 to half the sampling rate; two sides add the negative frequencies, in NumPy's order or from −fs/2 when shifted. The normalisations are stated in the report: a sine of amplitude A reads A in the amplitude and A²/2 in the power (its mean square), and the density integrates over frequency to the mean square, so a window does not change what a peak reads. The real and imaginary parts are the transform unscaled, as NumPy gives it, so the inverse takes them back.</p>
@@ -30749,6 +30792,8 @@ ${DL([["Pearson's r","p by t on N − 2 degrees of freedom; its interval by Fish
 <p>${MP("Analyze › Signal processing › Coherence…")}: two columns read on one grid over the X they share, cut into Welch's segments; at each frequency |Pxy|²/(Pxx·Pyy), from 0 (unrelated) to 1 (one a filtered copy of the other), with the cross-spectrum's magnitude and phase. With one segment it is 1 everywhere, and the notes say so.</p>
 <h2 id="conv">Convolution and deconvolution</h2>
 <p>${MP("Analyze › Signal processing › Convolution…")} adds a step: each point replaced by its neighbours weighted by a kernel, a Gaussian, Lorentzian, box, triangle or one-sided exponential of a width in X's unit, or another column (a measured line shape, read at this column's spacing; its origin at X = 0 when its X spans 0, else at its top). Scaled to sum to 1, the area is kept and a band comes out wider (Gaussians add in quadrature). Past the ends the column is mirrored, or taken as zero as NumPy's <code>convolve</code> does. ${MP("Deconvolution…")} undoes a known blur by Wiener's filter: divided by the kernel's transform where it is large, held back where it is small by the noise-to-signal ratio, typed or estimated from the column's highest frequencies; the step says the ratio and how many times the noise rises.</p>
+<h2 id="env">Envelope</h2>
+<p>${MP("Analyze › Signal processing › Envelope…")} adds a step. By the Hilbert transform (SciPy's <code>hilbert</code>), of the column less its mean: its envelope (the analytic signal's amplitude, put back on the mean), its phase (unwrapped), its instantaneous frequency (the phase's slope over 2π, in the reciprocal of X's unit) or the transform itself; the ends are less sure, as the transform takes the column as repeating. Or the upper or lower envelope, the curve through the maxima or the minima (each above, or below, so many points either way), joined by PCHIP, a spline or straight lines, or the middle of the two.</p>
 <h2 id="interp">Interpolation</h2>
 <p>${MP("Analyze › Calculus › Interpolate…")}: each column ticked read at new X: so many evenly spaced points or a step, over its own range or one typed, or the X of another column (to put two columns on one X). ${DL([["Straight lines","Between neighbours, as NumPy's interp."],["Cubic spline","Smooth through every point; its ends not a knot (the default), natural (no curvature) or clamped (the end slopes typed)."],["Akima, modified Akima","Smooth, and calmer than a spline near a sudden step."],["PCHIP","Never overshoots: a monotone stretch stays monotone."],["Smoothing spline","Does not pass through the points: λ sets how smooth, empty chooses it by generalised cross-validation; the report gives λ and the degrees of freedom."]])} All as SciPy's. Past the data the cells are empty unless asked (the method's curve continued, a straight line from the end, the end's value). A column beside the values says, row by row, measured (an X that was measured keeps its value), interpolated or extrapolated. Repeated X are averaged first, and said.</p>
 <h2 id="grid">Scattered points into a matrix</h2>
@@ -31064,7 +31109,7 @@ const DOC_KW={ecal:"energy calibration channel kev gamma mca gain offset quadrat
   fft:"fourier low-pass high-pass drift noise butterworth power spectrum frequency",fsd:"fourier self deconvolution FSD band narrowing resolution enhancement overlapping bands apodization Bessel Happ Genzel",cumint:"integral running area",hist:"histogram distribution bins frequency count probability density cumulative freedman diaconis sturges",ref:"dark reference white lamp subtract divide",crop:"range cut trim",
   exclude:"region remove notch laser line",resample:"interpolate even spacing grid",dedupe:"duplicate repeated average",sort:"order ascending",correct:"correction typo reason fix wrong value",python:"code script"};
 const DOC_MENU={crop:"Data › Clean",exclude:"Data › Clean",despike:"Analyze › Spectroscopy",sort:"Data › Clean",dedupe:"Data › Clean",resample:"Data › Clean",
-  bg:"Data › Baseline",smooth:"Analyze › Signal processing",fft:"Analyze › Signal processing",filt:"Analyze › Signal processing",notch:"Analyze › Signal processing",conv:"Analyze › Signal processing",deconv:"Analyze › Signal processing",fsd:"Data › Transform",scale:"Data › Transform",xlin:"Data › Transform",norm:"Data › Transform",
+  bg:"Data › Baseline",smooth:"Analyze › Signal processing",fft:"Analyze › Signal processing",filt:"Analyze › Signal processing",notch:"Analyze › Signal processing",conv:"Analyze › Signal processing",deconv:"Analyze › Signal processing",env:"Analyze › Signal processing",fsd:"Data › Transform",scale:"Data › Transform",xlin:"Data › Transform",norm:"Data › Transform",
   ref:"Data › Transform",combine:"Data › Transform",deriv:"Analyze › Calculus",cumint:"Analyze › Calculus",hist:"Analyze › Statistics",log:"Data › Transform",absorb:"Analyze › Analyze › Spectroscopy › Corrections",
   km:"Analyze › Analyze › Spectroscopy › Corrections",shift:"Analyze › Spectroscopy › X axis",xunit:"Analyze › Spectroscopy › X axis",calib:"Data › Calibrate",ecal:"Data › Calibrate",bose:"Analyze › Analyze › Spectroscopy › Corrections"};
 // The article of each window, for its "?" and F1.

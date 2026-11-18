@@ -84,6 +84,7 @@ const BUDGET = {
   "Welch: 10^6 points": [300, "Welch's power spectral density of a million values, segments of 1024 (SIGNAL_SPEC 5.1)"],
   "Interpolate: PCHIP, 10^6 at 10^6": [500, "a million points read at a million others by PCHIP (SIGNAL_SPEC 5.7)"],
   "Grid: thin plate, 2000 points": [6000, "2000 scattered points onto 200 × 200 by a thin-plate spline, its system of 2003 by blocked LU (in the worker in the app; SIGNAL_SPEC 5.7)"],
+  "Envelope: 2^20 points": [600, "the analytic signal's amplitude of 1 048 576 points, two transforms (SIGNAL_SPEC 5.4)"],
   "Filter: order 20, 10^6 points": [300, "a Butterworth high-pass of order 20 designed, then run forwards and backwards over a million values (SIGNAL_SPEC 5.2)"],
 };
 const got = {};
@@ -240,6 +241,8 @@ await withPage(async (p) => {
     const a = performance.now(); interp1(x, y, q, { method: "pchip" }); return performance.now() - a; }));
   got["Grid: thin plate, 2000 points"] = await p.evaluate(() => { const mb = mulberry32(25), X = Array.from({ length: 2000 }, () => mb()), Y = X.map(() => mb()), Z = X.map((v, i) => Math.sin(5 * v) * Y[i]);
     const a = performance.now(); gridXYZ(X, Y, Z, { method: "tps", nx: 200, ny: 200 }); return performance.now() - a; });
+  got["Envelope: 2^20 points"] = await best(() => p.evaluate(() => { const n = 1 << 20, x = Array.from({ length: n }, (_, i) => i), y = x.map((v) => Math.sin(v * 0.01));
+    const a = performance.now(); envelope(x, y, { out: "env" }); return performance.now() - a; }));
   got["Filter: order 20, 10^6 points"] = await best(() => p.evaluate(() => { const mb = mulberry32(24), y = Float64Array.from({ length: 1e6 }, () => mb());
     const a = performance.now(); sosfiltfilt(iirDesign({ kind: "butter", band: "high", order: 20, w1: 0.1 }).sos, y); return performance.now() - a; }));
 });

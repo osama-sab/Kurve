@@ -251,6 +251,7 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
     Coherence…  ## + (SIGNAL_SPEC 5.3); ↓ until there are two columns or more
     Convolution…  ## + (SIGNAL_SPEC 5.3): a step
     Deconvolution…  ## + (SIGNAL_SPEC 5.3): a step, Wiener's
+    Envelope…  ## + (SIGNAL_SPEC 5.4): a step: the Hilbert envelope, phase, frequency, or the curve through the extrema
   Calculus  ## ← Analysis › Mathematics (DS2)
     Derivative…  ## + "Derivative, as a new spectrum…": a choice in the tool
     Cumulative integral…

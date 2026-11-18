@@ -325,6 +325,30 @@ for n, sx, sy in ((40, 1.0, 1.0), (150, 50.0, 0.02), (400, 3.0, 7.0)):
     cases.append({"fn": "gridXYZ", "name": f"Shepard's weights, {n} points", "args": args + [{"method": "shepard", "nx": nx, "ny": ny}], "want": {"z": [None if v != v else float(v) for v in sh.ravel()]}, "kind": "obj"})
 out["sig-interp"] = cases
 
+# ---- 5.4 envelope: scipy.signal.hilbert (at the data's length and padded), the amplitude about the mean, the unwrapped phase and
+# numpy.gradient of it over 2π; scipy.signal.argrelextrema (np.greater / np.less, order, its ends clipped) and the extrema joined by
+# PchipInterpolator, CubicSpline (both continued) or numpy.interp (its ends held) ----
+cases = []
+rng = np.random.default_rng(20261122)
+for n in (5, 8, 64, 101, 500):
+    t = np.arange(n) * 0.01; y = np.array(r6((1 + 0.5 * np.sin(2 * np.pi * 0.7 * t)) * np.cos(2 * np.pi * 9 * t + 0.4) + 0.3 + rng.normal(0, 0.02, n)))
+    for N in (None, 1 << int(math.ceil(math.log2(n)))):
+        H = signal.hilbert(y, N)[:n]
+        cases.append({"fn": "analytic", "name": f"hilbert of {n} at {N or n}", "args": [y.tolist(), N], "want": {"re": H.real, "im": H.imag}, "kind": "obj"})
+    m = float(np.mean(y)); A = signal.hilbert(y - m); ph = np.unwrap(np.angle(A)); dx = (t[-1] - t[0]) / (n - 1)
+    cases.append({"fn": "envelope", "name": f"Hilbert envelope of {n}", "args": [t.tolist(), y.tolist(), {"out": "env"}], "want": {"y": np.abs(A) + m}, "kind": "obj"})
+    cases.append({"fn": "envelope", "name": f"phase of {n}", "args": [t.tolist(), y.tolist(), {"out": "phase"}], "want": {"y": ph}, "kind": "obj"})
+    cases.append({"fn": "envelope", "name": f"frequency of {n}", "args": [t.tolist(), y.tolist(), {"out": "freq"}], "want": {"y": np.gradient(ph, dx) / (2 * np.pi)}, "kind": "obj"})
+    for order in (1, 3):
+        for lower in (False, True):
+            ix = signal.argrelextrema(y, np.less if lower else np.greater, order=order)[0]
+            cases.append({"fn": "extremaIdx", "name": f"argrelextrema {'less' if lower else 'greater'} order {order}, {n}", "args": [y.tolist(), order, lower], "want": ix.tolist(), "kind": "vec", "scale": 1})
+            if len(ix) >= 2 and n >= 64:
+                xs, ys = t[ix], y[ix]
+                for jn, F in (("pchip", lambda: _ip.PchipInterpolator(xs, ys)(t)), ("notaknot", lambda: _ip.CubicSpline(xs, ys)(t)), ("linear", lambda: np.interp(t, xs, ys))):
+                    cases.append({"fn": "envelope", "name": f"{'lower' if lower else 'upper'} envelope by {jn}, order {order}, {n}", "args": [t.tolist(), y.tolist(), {"out": "lower" if lower else "upper", "order": order, "join": jn}], "want": {"y": F()}, "kind": "obj"})
+out["sig-env"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

@@ -361,6 +361,12 @@ a separate method (the smoothing spline covers fitting a smooth curve).
 
 ## 5.4 Envelope
 
+Done 18.11, as below, with these changes of plan: the Hilbert envelope is put back on the column's mean so it lies over the data;
+the frequency is NumPy's gradient of the unwrapped phase (central differences, so as many values as points); straight lines hold
+the end extrema to the ends as numpy.interp does, PCHIP and the spline continue as SciPy's do; a million points of a length that is
+not a power of two take two Bluestein transforms, about 2 s on the page (a mixed-radix transform for lengths of small primes is
+left for later), so the budget is a power of two of 2²⁰ in 0.6 s.
+
 **What.** Analyze › Signal processing › *Envelope…* (a step): the amplitude of the analytic signal
 (`scipy.signal.hilbert`: the transform's negative frequencies set to zero, the positive doubled,
 padded to a length the user may choose), its phase (unwrapped), its instantaneous frequency (the

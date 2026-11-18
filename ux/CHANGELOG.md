@@ -1024,6 +1024,16 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 5, slice 5.4: envelopes (2026-11-18)
+
+- **Analyze › Signal processing › Envelope…** (a step): the Hilbert envelope about the mean, the phase, the instantaneous frequency
+  (in the reciprocal of X's unit) or the Hilbert transform; or the upper, lower or middle envelope through the extrema, joined by
+  PCHIP, a spline or straight lines.
+
+Checked: 81 new reference checks (`fixtures/sig-env.json`: scipy.signal.hilbert, the envelope, phase and frequency, argrelextrema,
+the extrema joined as SciPy's interpolants), all at once; `sig-test.mjs` 6 more (A·cos + c reads A + c, a chirp's frequency, the
+upper envelope through every maximum, the step's names and units); `sig-drive.mjs` 5 more; a budget in `perf.mjs`.
+
 ## Closing the gap with Origin, wave 5, slice 5.7: interpolation into columns (2026-11-18)
 
 - **Analyze › Calculus › Interpolate…**: columns read at so many evenly spaced X, a step, or another column's X, by straight

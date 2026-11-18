@@ -189,6 +189,22 @@ await page(async p => {
   check("…both steps in the column's processing", await p.evaluate(() => yCols()[0].pipe.map(s => s.op).join() === "conv,deconv"));
 }, { name: "5.3" });
 
+console.log("5.4 Envelope");
+await page(async p => {
+  await p.evaluate(() => { const x = [], y = []; for (let i = 0; i < 1000; i++) { x.push(+(i * 0.001).toFixed(6)); y.push((1 + 0.5 * Math.sin(2 * Math.PI * 3 * i * 0.001)) * Math.sin(2 * Math.PI * 60 * i * 0.001) + 2); }
+    save({ cols: [makeCol("x", "Time", "s", x), Object.assign(makeCol("y", "Signal", "V", y), { pipe: [], mask: [] })], activeY: null }, "typed"); }); await p.waitForTimeout(300);
+  await menu(p, "analyze", "Signal processing", "Envelope…");
+  const fld = (k) => `#pane-tool [data-pk="${k}"]:not([type="range"])`;
+  let r = await p.evaluate(() => ({ op: S.pending && S.pending.step.op, txt: $("#pane-tool").textContent }));
+  check("Analyze › Signal processing › Envelope… opens the tool: the Hilbert envelope about the mean", r.op === "env" && /less its mean \(2/.test(r.txt), r.txt.slice(0, 200));
+  check("…no extrema settings for the Hilbert envelope", !(await p.isVisible(fld("order"))) && await p.isVisible(fld("pad")));
+  await p.selectOption(fld("out"), "upper"); await p.waitForTimeout(300);
+  check("…the upper envelope shows how far apart the maxima and how they are joined", await p.isVisible(fld("order")) && await p.isVisible(fld("join")) && /Through \d+ maxima/.test(await p.evaluate(() => $("#pane-tool").textContent)));
+  await p.selectOption(fld("out"), "freq"); await p.waitForTimeout(300); await p.click("#tlOk"); await p.waitForTimeout(400);
+  r = await p.evaluate(() => { const c = activeYCol(), d = finalOf(c); return { ops: c.pipe.map(s => s.op), yn: d.yn, yu: d.yu, mid: d.y[500] }; });
+  check("OK: the instantaneous frequency, named and in Hz, 60 in the middle", r.ops.join() === "env" && r.yn === "Frequency of Signal" && r.yu === "Hz" && Math.abs(r.mid - 60) < 0.5, JSON.stringify(r));
+}, { name: "5.4" });
+
 console.log("5.7 Interpolation into columns");
 await page(async p => {
   await p.evaluate(() => { const x = [0, 1, 2.5, 4, 5.5, 7, 9], y = x.map(v => v * v * v - 2 * v);

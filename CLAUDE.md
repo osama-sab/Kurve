@@ -1659,7 +1659,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   (`plotMatrix(…, "image")`); `matPut` refuses a sheet with `ana`; `matClean` keeps `ana`, `anaClean` a string `out.mat`; `anaCut`
   makes the matrix ordinary, `anaDelete` removes its book. Forms `#aPm`, `#aPd0`/`#aPd1`, `#aPl`, `#aPg`, `#aPn`, `#aPs`,
   `#aPr0`/`#aPr1`, `#aPa`, `#aPe`; `#aGx`, `#aGy`, `#aGz`, `#aGm`, `#aGs`, `#aGr`, `#aGnx`/`#aGny`, `#aGx0`… Analyze › Calculus ›
-  Interpolate…, Data › Matrix › From scattered X, Y, Z….
+  Interpolate…, Data › Matrix › From scattered X, Y, Z…. **5.4**: `analytic(y, N)` (scipy.signal.hilbert), `gradientV` (numpy.gradient),
+  `extremaIdx(y, order, lower)` (argrelextrema, ends clipped), `envelope(x, y, {out, order, join, pad})` (`env` about the mean, `phase`,
+  `freq`, `imag`, or `upper`/`lower`/`mean` through `interp1`); in PIPE `ENV_OUTS`, `ENV_JOINS`; step `env` (`dep`).
 - **Worksheet** (`renderWs`, `setupWs`): a spreadsheet grid as in Excel, with Origin's label
   rows. Columns have fixed widths (`WS_W`, 100 px; `p.wsw[colId]` when dragged or autofitted by
   a double click on the header's edge, `wsSetWidth`, `wsAutofit`), never stretched to the
@@ -5360,7 +5362,8 @@ Next, in order:
    18.11; slice 5.3, correlation and convolution (auto- and cross-correlation with lags in X's unit, coherence, convolution with a
    shape or a column, Wiener's deconvolution; NumPy and SciPy agreeing to 2e-15), done 18.11; slice 5.7, interpolation into
    columns (eight interpolants as SciPy's, extrapolation asked for, the smoothing spline by GCV; scattered points into a matrix of
-   the analysis's own by triangles, a thin-plate spline or Shepard's weights), done 18.11
+   the analysis's own by triangles, a thin-plate spline or Shepard's weights), done 18.11; slice 5.4, envelopes (the Hilbert
+   envelope, phase and frequency; the curve through the extrema; SciPy agreeing to 2e-14), done 18.11
 
 ## Known gaps
 

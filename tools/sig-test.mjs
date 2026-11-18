@@ -209,5 +209,19 @@ console.log("5.7 interpolation");
   const [gb, mt] = time(() => gridXYZ(Xb, Yb, Zb, { method: "tps", nx: 200, ny: 200 })); ok(!gb.fail && mt < 9000, `a thin-plate spline of 2000 points onto 200 × 200 in ${mt.toFixed(0)} ms (budget 6 s in the worker, perf.mjs)`);
   const [, msh] = time(() => gridXYZ(Xb, Yb, Zb, { method: "shepard", nx: 200, ny: 200 })); ok(msh < 600, `Shepard's weights of 2000 points onto 200 × 200 in ${msh.toFixed(0)} ms`);
 }
+console.log("5.4 envelope");
+{ const envelope = get("envelope"), extremaIdx = get("extremaIdx");
+  const n = 2000, t = Array.from({ length: n }, (_, i) => i * 0.001), y = t.map((v) => 3 * Math.cos(2 * Math.PI * 50 * v) + 1.5);
+  const e = envelope(t, y, { out: "env" }); let er = 0; for (let i = 0; i < n; i++) er = Math.max(er, Math.abs(e.y[i] - 4.5));
+  ok(er < 1e-9 && Math.abs(e.mean - 1.5) < 1e-12, `the Hilbert envelope of 3·cos(2π·50t) + 1.5 is 4.5 (to ${er.toExponential(1)}), about its mean 1.5`);
+  const ch = t.map((v) => Math.cos(2 * Math.PI * (20 * v + 40 * v * v))), f = envelope(t, ch, { out: "freq" }); let ef = 0; for (let i = 300; i < n - 300; i++) ef = Math.max(ef, Math.abs(f.y[i] - (20 + 80 * t[i])));
+  ok(ef < 0.5, `a chirp's instantaneous frequency follows 20 + 80t Hz (to ${ef.toFixed(3)} Hz, away from the ends)`);
+  const am = t.map((v) => (1 + 0.5 * Math.sin(2 * Math.PI * 3 * v)) * Math.sin(2 * Math.PI * 60 * v)), ix = extremaIdx(am, 3, false), up = envelope(t, am, { out: "upper", order: 3 });
+  ok(ix.length > 100 && ix.every((i) => Math.abs(up.y[i] - am[i]) < 1e-12), `the upper envelope passes through each of the ${ix.length} maxima`);
+  ok(/Fewer than two maxima/.test(envelope([0, 1, 2, 3, 4], [0, 1, 2, 3, 4], { out: "upper" }).fail || ""), "a column with no maximum refused in words");
+  const op = get("PIPE_OPS").env, d = { x: t, y: ch, e: null, idx: t.map((_, i) => i), xn: "Time", xu: "s", yn: "Signal", yu: "V" }, r = op.run(d, Object.assign({}, op.defaults, { out: "freq" }));
+  ok(r.d.yn === "Frequency of Signal" && r.d.yu === "Hz" && /less its mean/.test(r.note), `the step: "${r.d.yn}" in ${r.d.yu}, "${r.note.slice(0, 60)}…"`);
+  const big = Array.from({ length: 1 << 20 }, (_, i) => Math.sin(i * 0.01)), xs = big.map((_, i) => i), [, ms] = time(() => envelope(xs, big, { out: "env" })); ok(ms < 1200, `the analytic signal of 2²⁰ points in ${ms.toFixed(0)} ms (budget 0.5 s in the browser)`);
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
