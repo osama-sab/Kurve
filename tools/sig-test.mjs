@@ -234,5 +234,24 @@ console.log("5.5 the short-time transform");
   ok(/more than a matrix holds/.test(stft(Array.from({ length: 5e6 }, () => 0), 1, { nseg: 4000, over: 3999 }).fail || ""), "a spectrogram past a matrix's size refused in words");
   const big = Array.from({ length: 1e6 }, () => gauss()), [, ms] = time(() => stft(big, 1, { nseg: 256, over: 0 })); ok(ms < 2000, `a million points into 3906 × 129 cells in ${ms.toFixed(0)} ms (budget 1.5 s in the worker)`);
 }
+console.log("5.6 wavelets");
+{ const wavedec = get("wavedec"), waverec = get("waverec"), wdenoise = get("wdenoise"), cwt = get("cwt"), NAMES = get("WAV_NAMES"), MODES = get("WAV_MODES");
+  const x = Array.from({ length: 257 }, (_, i) => Math.sin(i * 0.1) + 0.3 * Math.cos(i * 0.37) + i * 0.01); let worst = 0, tried = 0;
+  for (const [nm] of NAMES) for (const [md] of MODES) { const r = wavedec(x, nm, md); if (r.fail) continue; const b = waverec(r.c, nm, md); tried++; for (let i = 0; i < x.length; i++) worst = Math.max(worst, Math.abs(b[i] - x[i])); }
+  // PyWavelets' symlet coefficients are orthogonal only to about 1e-11 (its own sym20 gives a signal back to 1.6e-11; Daubechies and coiflets to 3e-15)
+  ok(worst < 2e-10 && tried === NAMES.length * MODES.length, `perfect reconstruction for all ${NAMES.length} wavelets in all ${MODES.length} modes, to the precision of PyWavelets' own filters (${tried} cases, worst ${worst.toExponential(1)})`);
+  const n = 1024, clean = Array.from({ length: n }, (_, i) => Math.sin(i * 0.02) * 3 + (i > 500 ? 2 : 0)), noisy = clean.map((v) => v + 0.4 * gauss());
+  const rms = (a) => Math.sqrt(a.reduce((t, v, i) => t + (v - clean[i]) ** 2, 0) / n), d = wdenoise(noisy, { wav: "sym8", rule: "universal" }), d2 = wdenoise(noisy, { wav: "db4", rule: "sure" });
+  ok(rms(d.y) < rms(noisy) / 2 && rms(d2.y) < rms(noisy) / 2 && Math.abs(d.sigma - 0.4) < 0.05, `denoising: the error from ${rms(noisy).toFixed(3)} to ${rms(d.y).toFixed(3)} (universal) and ${rms(d2.y).toFixed(3)} (SURE), the noise read as ${d.sigma.toFixed(3)} (0.4)`);
+  const sc = Array.from({ length: 60 }, (_, i) => 1 + i), sine = Array.from({ length: 600 }, (_, i) => Math.sin(2 * Math.PI * i / 32)), cw = cwt(sine, sc, "morl", 1);
+  let kb = 0, mb = -1; cw.c.forEach((row, k) => { const e = row.slice(100, 500).reduce((t, v) => t + v * v, 0); if (e > mb) { mb = e; kb = k; } });
+  ok(Math.abs(cw.f[kb] - 1 / 32) < 0.15 / 32, `the Morlet CWT of a sine of period 32 peaks at scale ${sc[kb]}, a frequency of ${cw.f[kb].toFixed(4)} (1/32 = 0.0313)`);
+  ok(/two values/.test(get("dwt")([1], "db2", "symmetric").fail || "") && /too few/.test(wavedec([1, 2, 3], "db10", "symmetric").fail || "") && /Antireflect needs/.test(get("dwt")([1, 2, 3], "db4", "antireflect").fail || ""), "refused in words: one value, too few for a level, antireflect shorter than its filter");
+  const pts = (x, y) => ({ x, y, e: x.map(() => null), rows: x.map((_, i) => i) }), R = anaRunKind("dwt", [{ id: "a", name: "S", unit: "V", xu: "s", pts: pts(x.map((_, i) => i * 0.5), x) }], { wav: "db4" });
+  const C = Object.fromEntries(R.tables[0].cols.map((c) => [c.k, c])), lv = R.report.sections[0].tables[0].rows[0][5]; let add = 0;
+  for (let i = 0; i < x.length; i++) { let t = C.ra.vals[i]; for (let l = 1; l <= lv; l++) t += C["rd" + l].vals[i]; add = Math.max(add, Math.abs(t - x[i])); }
+  ok(lv === get("wavMaxLevel")(257, "db4") && add < 1e-12, `the decomposition analysis: ${lv} levels, each alone on the column's X, adding up to the column (${add.toExponential(1)})`);
+  const big = Array.from({ length: 1e6 }, () => gauss()), [, ms] = time(() => wavedec(big, "db4", "symmetric", 8)); ok(ms < 900, `a DWT of 10⁶ points over eight levels in ${ms.toFixed(0)} ms (budget 0.3 s in the browser)`);
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

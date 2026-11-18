@@ -998,5 +998,36 @@
  },
  "stft.z": {
   "tol": 1e-12
+ },
+ "dwt.a": {
+  "tol": 1e-13
+ },
+ "dwt.d": {
+  "tol": 1e-13,
+  "why": "the antireflect rule's 2·x₀ − x_k cancels for a short signal: 3.7e-14 of the largest coefficient"
+ },
+ "wavedecFlat.c": {
+  "tol": 1e-13
+ },
+ "wavedecFlat.len": {
+  "tol": 0
+ },
+ "waverec": {
+  "tol": 1e-13
+ },
+ "wavMaxLevel": {
+  "tol": 0
+ },
+ "idwt": {
+  "tol": 1e-14
+ },
+ "cwtFlat.c": {
+  "tol": 1e-12
+ },
+ "cwtFlat.f": {
+  "tol": 1e-14
+ },
+ "wdenoise.y": {
+  "tol": 1e-12
  }
 }

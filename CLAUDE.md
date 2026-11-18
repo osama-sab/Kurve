@@ -1664,7 +1664,16 @@ graph first, with the taskbar kept at the bottom of the screen.
   `freq`, `imag`, or `upper`/`lower`/`mean` through `interp1`); in PIPE `ENV_OUTS`, `ENV_JOINS`; step `env` (`dep`). **5.5**:
   `stft(y, fs, {win (tukey, α 0.25), wpar, nseg, over (⌊nseg/8⌋), nfft, detrend, scaling, mode "psd"|"magnitude"})` →
   `{f, t, z (a row a frequency), nf, nt, …}` as scipy.signal.spectrogram; kind `stft` (`mat`; `db`; the matrix's X the column's
-  first X plus each centre, Y frequency), form `#aSm2` beside the Welch fields.
+  first X plus each centre, Y frequency), form `#aSm2` beside the Welch fields. **5.6**: `WAV_LO` (each wavelet's decomposition
+  low-pass from PyWavelets 1.8, 17 digits), `GAUS_C`; in PIPE `WAV_FAMILIES`, `WAV_NAMES`, `WAV_MODES`, `WDEN_RULES`;
+  `wavFilters(name)` (`dl`, `dh`, `rl`, `rh` derived), `wavExt(x, m, mode)` (PyWavelets' nine rules, repeated), `dwt(x, name,
+  mode)` → `{a, d}` (i = 2o + 1; periodization 2o + F/2 on the column evened; antireflect shorter than the filter refused),
+  `idwt` (the valid part, i + F − 2 − 2k; periodization the transpose), `wavMaxLevel`, `wavedec` → `{c: [a_L, d_L … d_1], level,
+  max}`, `waverec`, `madSigma`, `sureThresh` (rigrsure), `wavThresh` (pywt.threshold), `wdenoise(y, {wav, level, rule, thr, scope,
+  mode})`, `CWT_WAVS`, `hermiteH`, `cwtPsi(name, n)`, `scale2freq`, `cwt(y, scales, name, dx)` (2¹² points as PyWavelets 1.8); for
+  the bench `wavedecFlat`, `cwtFlat`. Kinds `dwt` (`wav`, `level`, `mode`; `i`, `a`, `d<l>`, `x`, `ra`, `rd<l>`) and `cwt` (`mat`;
+  `wav`, `s0`, `s1`, `ns`, `lin`, `yaxis`, `abs`); step `wden` (`dep`); forms `#aDw`, `#aDl`, `#aDm`; `#aCw`, `#aCs0`/`#aCs1`,
+  `#aCn`, `#aCy`, `#aClin`, `#aCab`. Analyze › Signal processing › Wavelets ›.
 - **Worksheet** (`renderWs`, `setupWs`): a spreadsheet grid as in Excel, with Origin's label
   rows. Columns have fixed widths (`WS_W`, 100 px; `p.wsw[colId]` when dragged or autofitted by
   a double click on the header's edge, `wsSetWidth`, `wsAutofit`), never stretched to the
@@ -5367,7 +5376,8 @@ Next, in order:
    columns (eight interpolants as SciPy's, extrapolation asked for, the smoothing spline by GCV; scattered points into a matrix of
    the analysis's own by triangles, a thin-plate spline or Shepard's weights), done 18.11; slice 5.4, envelopes (the Hilbert
    envelope, phase and frequency; the curve through the extrema; SciPy agreeing to 2e-14), done 18.11; slice 5.5, the spectrogram
-   (scipy.signal.spectrogram into a matrix of the analysis's own, drawn as a map), done 18.11
+   (scipy.signal.spectrogram into a matrix of the analysis's own, drawn as a map), done 18.11; slice 5.6, wavelets (PyWavelets'
+   DWT in nine modes over levels, denoising, the CWT into a matrix; PyWavelets agreeing to 1.4e-14), done 18.11
 
 ## Known gaps
 

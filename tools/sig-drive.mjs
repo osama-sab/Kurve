@@ -218,6 +218,28 @@ await page(async p => {
   check("…drawn as a map", await p.evaluate(() => { const g = P().graphs[P().graphs.length - 1]; return !!(g && g.plot && g.plot.mat && g.plot.layout === "heat"); }));
 }, { name: "5.5" });
 
+console.log("5.6 Wavelets");
+await page(async p => {
+  await p.evaluate(() => { let s = 9; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; }; const x = [], y = []; for (let i = 0; i < 512; i++) { x.push(i * 0.01); y.push(Math.sin(i * 0.05) * 3 + (i > 256 ? 2 : 0) + r()); }
+    save({ cols: [makeCol("x", "Time", "s", x), Object.assign(makeCol("y", "Noisy", "V", y), { pipe: [], mask: [] })], activeY: null }, "typed"); }); await p.waitForTimeout(300);
+  await menu(p, "analyze", "Signal processing", "Wavelets", "Decompose (DWT)…");
+  check("Analyze › Signal processing › Wavelets › Decompose (DWT)… opens with Daubechies 4", await p.evaluate(() => $("#aDw").value === "db4"));
+  await p.fill("#aDl", "3"); await p.click("#formOk"); await p.waitForTimeout(500);
+  let r = await RES(p);
+  check("…a sheet of the coefficients a level a column, and each level alone on the column's X", r && r.t.a && r.t.d1 && r.t.d3 && !r.t.d4 && r.t.rd1 && r.t.ra && r.meta.ra.unit === "V", JSON.stringify(r && Object.keys(r.t)));
+  await p.evaluate(() => { showSheet(SHEET0.id, { quiet: true }); }); await p.waitForTimeout(150);
+  await menu(p, "analyze", "Signal processing", "Wavelets", "Wavelet denoising…");
+  r = await p.evaluate(() => ({ op: S.pending && S.pending.step.op, txt: $("#pane-tool").textContent }));
+  check("Wavelet denoising… opens the tool: symlet 8, the universal threshold, the noise σ said", r.op === "wden" && /noise σ/.test(r.txt) && /threshold/.test(r.txt), r.txt.slice(0, 200));
+  await p.click("#tlOk"); await p.waitForTimeout(400);
+  check("…OK: the step in the column's processing", await p.evaluate(() => activeYCol().pipe.map(s => s.op).join() === "wden"));
+  await p.evaluate(() => { showSheet(SHEET0.id, { quiet: true }); }); await p.waitForTimeout(150);
+  await menu(p, "analyze", "Signal processing", "Wavelets", "Continuous (CWT)…");
+  await p.fill("#aCn", "20"); await p.selectOption("#aCy", "freq"); await p.click("#formOk"); await p.waitForTimeout(800);
+  r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "cwt"), s = a && anaMatSheet(a); return a && { err: a.res && a.res.err, nx: s && s.nx, ny: s && s.ny, yn: s && s.yname, yu: s && s.yunit }; });
+  check("Continuous (CWT)…: a matrix of 20 frequencies (Hz) by 512 X, the analysis's own", r && !r.err && r.ny === 20 && r.nx === 512 && r.yn === "Frequency" && r.yu === "Hz", JSON.stringify(r));
+}, { name: "5.6" });
+
 console.log("5.7 Interpolation into columns");
 await page(async p => {
   await p.evaluate(() => { const x = [0, 1, 2.5, 4, 5.5, 7, 9], y = x.map(v => v * v * v - 2 * v);

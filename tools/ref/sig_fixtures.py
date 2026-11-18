@@ -366,6 +366,54 @@ for win, par, nseg, over, sc, mode, det in ((("tukey", 0.25), None, None, None, 
     cases.append({"fn": "stft", "name": f"spectrogram {win} {nseg} {over} {sc} {mode} {det}", "args": [y.tolist(), fs, o], "want": {"f": f, "t": tt, "z": S.ravel()}, "kind": "obj"})
 out["sig-stft"] = cases
 
+# ---- 5.6 wavelets: PyWavelets' dwt in every mode (signals shorter than the filter too), idwt, wavedec and waverec, dwt_max_level,
+# cwt with every continuous wavelet Kurve has; denoising written from Donoho and Johnstone in NumPy with pywt.threshold ----
+cases = []
+rng = np.random.default_rng(20261124)
+modes = ["symmetric", "periodization", "reflect", "periodic", "zero", "constant", "smooth", "antisymmetric", "antireflect"]
+for nm in ("haar", "db2", "db4", "db10", "db20", "sym2", "sym8", "sym20", "coif1", "coif5"):
+    for mode in modes:
+        for N in ((2, 13, 64) if nm in ("db4", "sym8", "coif1") else (3, 40)):
+            x = r6(rng.normal(0, 1, N) + np.linspace(0, 2, N))
+            if mode == "antireflect" and N < pywt.Wavelet(nm).dec_len: continue  # refused by Kurve (its repeated reflections are PyWavelets' own)
+            try: A, D = pywt.dwt(x, nm, mode)
+            except Exception: continue
+            cases.append({"fn": "dwt", "name": f"dwt {nm} {mode} {N}", "args": [x, nm, mode], "want": {"a": A, "d": D}, "kind": "obj"})
+    for mode in (("symmetric", "periodization", "zero", "smooth") if nm in ("db4", "sym20", "coif5") else ("symmetric",)):
+        x = r6(np.cumsum(rng.normal(0, 1, 150)))
+        c = pywt.wavedec(x, nm, mode); flat = np.concatenate(c)
+        cases.append({"fn": "wavedecFlat", "name": f"wavedec {nm} {mode}", "args": [x, nm, mode, None], "want": {"c": flat, "len": [len(v) for v in c]}, "kind": "obj"})
+        cases.append({"fn": "waverec", "name": f"waverec {nm} {mode}", "args": [[v.tolist() for v in c], nm, mode], "want": pywt.waverec(c, nm, mode), "kind": "vec"})
+    for N in (5, 30, 1000, 4097):
+        cases.append({"fn": "wavMaxLevel", "name": f"dwt_max_level {N} {nm}", "args": [N, nm], "want": pywt.dwt_max_level(N, nm), "kind": "rel"})
+for nm in ("db3", "sym6", "coif2"):
+    for n in (3, 10):
+        a, d = r6(rng.normal(0, 1, n)), r6(rng.normal(0, 1, n))
+        try: R = pywt.idwt(a, d, nm, "symmetric")
+        except Exception: continue
+        cases.append({"fn": "idwt", "name": f"idwt {nm} {n}", "args": [a, d, nm, "symmetric"], "want": R, "kind": "vec"})
+t = np.arange(400) * 0.01; yc = r6(np.sin(2 * np.pi * 3 * t) * np.exp(-((t - 2) ** 2)) + 0.5 * np.sin(2 * np.pi * 12 * t) + 0.1 * rng.normal(0, 1, 400))
+for wn in ("morl", "mexh", "gaus1", "gaus2", "gaus3", "gaus4", "gaus5", "gaus6", "gaus7", "gaus8"):
+    sc = [1.0, 1.7, 2.5, 4.0, 7.3, 12.0, 30.0]
+    C, F = pywt.cwt(np.array(yc), sc, wn, sampling_period=0.01)
+    cases.append({"fn": "cwtFlat", "name": f"cwt {wn}", "args": [yc, sc, wn, 0.01], "want": {"c": C.ravel(), "f": F}, "kind": "obj"})
+def wden_ref(y, nm, mode, rule, thr, scope):
+    c = pywt.wavedec(y, nm, mode); n = len(y); mad = lambda d: np.median(np.abs(d)) / 0.6745; s1 = mad(c[-1])
+    for l in range(1, len(c)):
+        sg = mad(c[l]) if scope == "level" else s1
+        if rule == "universal": tt = sg * math.sqrt(2 * math.log(n))
+        elif rule == "minimax": tt = sg * (0.3936 + 0.1829 * math.log2(n)) if n > 32 else 0.0
+        else:
+            x2 = np.sort((c[l] / sg) ** 2); m = len(x2); risks = (m - 2 * np.arange(1, m + 1) + np.cumsum(x2) + np.arange(m - 1, -1, -1) * x2) / m
+            tt = sg * math.sqrt(x2[int(np.argmin(risks))])
+        c[l] = pywt.threshold(c[l], tt, mode=thr)
+    return pywt.waverec(c, nm, mode)[:n]
+yy = r6(np.sin(np.linspace(0, 6, 512)) * 3 + (np.linspace(0, 6, 512) > 3) * 2 + rng.normal(0, 0.3, 512))
+for nm, mode, rule, thr, scope in (("sym8", "symmetric", "universal", "soft", "global"), ("db4", "symmetric", "sure", "soft", "level"), ("haar", "periodization", "universal", "hard", "global"),
+                                   ("coif3", "smooth", "minimax", "soft", "level"), ("db8", "symmetric", "sure", "hard", "global")):
+    cases.append({"fn": "wdenoise", "name": f"denoise {nm} {mode} {rule} {thr} {scope}", "args": [yy, {"wav": nm, "mode": mode, "rule": rule, "thr": thr, "soft": thr == "soft", "scope": scope}], "want": {"y": wden_ref(np.array(yy), nm, mode, rule, thr, scope)}, "kind": "obj"})
+out["sig-wav"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

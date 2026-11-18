@@ -400,6 +400,12 @@ again when the column changes, refused to typing, cut from its analysis into an 
 
 ## 5.6 Wavelets
 
+Done 18.11, as below, with these changes of plan: coiflets 1–5, not 1–17 (the rest are rarely used and would add 25 kB of
+coefficients); PyWavelets 1.8 samples the continuous wavelet on 2¹² points (its `precision` 12), so Kurve does; the antireflect rule
+on a column shorter than the filter is refused in words (PyWavelets' repeated reflections there build on its own extension, not
+reproduced); a coefficient equal to the hard threshold is kept, as pywt.threshold keeps it; PyWavelets' symlets reconstruct only to
+about 1e-11 (their stored coefficients), and so do Kurve's, which are the same numbers.
+
 **What.** Analyze › Signal processing › Wavelets › *Decompose (DWT)…* (an analysis: the wavelet,
 the levels (to `dwt_max_level`), the mode; out: a column per level of detail coefficients and the
 last approximation, each with its own index X; and the reconstruction from each level alone, on the

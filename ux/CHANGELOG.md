@@ -1024,6 +1024,18 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 5, slice 5.6: wavelets (2026-11-18)
+
+- **Analyze › Signal processing › Wavelets**: *Decompose (DWT)…* (each level's coefficients, and each level alone on the column's X,
+  adding up to the column), *Wavelet denoising…* (a step: universal, SURE or minimax thresholds, soft or hard, the noise read from
+  the finest level and said), *Continuous (CWT)…* (a matrix of the analysis's own against X and scale or frequency). PyWavelets'
+  filters (Haar, Daubechies 1–20, symlets 2–20, coiflets 1–5) and its nine rules for the ends.
+
+Checked: 294 new reference cases against PyWavelets (`fixtures/sig-wav.json`: dwt in every mode to 9e-16, wavedec, waverec,
+idwt, dwt_max_level, cwt with ten wavelets to 1.4e-14, denoising written from Donoho and Johnstone to 1.2e-15); `sig-test.mjs` 6
+more (reconstruction for 45 wavelets in 9 modes, denoising halving the error, a sine's scale, refusals, the analysis's levels adding
+up); `sig-drive.mjs` 6 more.
+
 ## Closing the gap with Origin, wave 5, slice 5.5: the spectrogram (2026-11-18)
 
 - **Analyze › Signal processing › Spectrogram…**: the short-time Fourier transform of a column as scipy.signal.spectrogram makes
