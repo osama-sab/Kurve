@@ -16,7 +16,8 @@ for a in "$@"; do case "$a" in --snap) snap=1 ;; *) html="$a" ;; esac; done
 root="$here"
 if [ "$snap" = 1 ]; then
   root="$(mktemp -d "${TMPDIR:-/tmp}/kurve-suite.XXXXXX")"
-  (cd "$here" && git ls-files -z | xargs -0 -I{} cp --parents {} "$root/")
+  # the committed files themselves (git archive), not the working copies of them, so edits under way are not tested as the commit
+  (cd "$here" && git archive HEAD | tar -x -C "$root")
   echo "snapshot of $(cd "$here" && git rev-parse --short HEAD) in $root"
 fi
 cd "$root"
