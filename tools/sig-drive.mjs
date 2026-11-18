@@ -35,7 +35,7 @@ const menu = async (p, top, ...path) => { await p.click(`button.mb[data-menu="${
     const it = p.locator(".menu:visible .mi").filter({ hasText: ex }).last(); await it.hover(); await p.waitForTimeout(170); if (label === path[path.length - 1]) await it.click(); } await p.waitForTimeout(300); };
 // The analysis's result sheet: { key: values } and the columns' names, units and roles.
 const RES = (p, i = 0) => p.evaluate(i => { const a = anaList()[i]; if (!a) return null; const t = {}, meta = {};
-  P().cols.filter(c => c.ana === a.id).forEach(c => { t[c.ak] = c.data.slice(); meta[c.ak] = { name: c.name, unit: c.unit, role: c.role }; });
+  P().cols.filter(c => c.ana === a.id).forEach(c => { t[c.ak] = c.txt ? c.data.map((v, i) => c.txt[i] != null ? c.txt[i] : v) : c.data.slice(); meta[c.ak] = { name: c.name, unit: c.unit, role: c.role }; });
   return { t, meta, kind: a.kind, name: a.name, err: a.res && a.res.err, notes: (a.res && a.res.notes) || [], sheet: a.out.sheet, rep: a.res && a.res.report }; }, i);
 // A signal: X in seconds, Y in volts, a cosine of 2 V at 12.5 Hz on an offset.
 const SIGNAL = (n) => { const x = [], y = []; for (let i = 0; i < n; i++) { x.push(+(i * 0.01).toFixed(10)); y.push(2 * Math.cos(2 * Math.PI * 12.5 * i * 0.01) + 0.5); }
@@ -188,6 +188,49 @@ await page(async p => {
   await p.click("#tlOk"); await p.waitForTimeout(400);
   check("…both steps in the column's processing", await p.evaluate(() => yCols()[0].pipe.map(s => s.op).join() === "conv,deconv"));
 }, { name: "5.3" });
+
+console.log("5.7 Interpolation into columns");
+await page(async p => {
+  await p.evaluate(() => { const x = [0, 1, 2.5, 4, 5.5, 7, 9], y = x.map(v => v * v * v - 2 * v);
+    save({ cols: [makeCol("x", "Time", "s", x), Object.assign(makeCol("y", "A", "V", y), { pipe: [], mask: [] })], activeY: null }, "typed"); }); await p.waitForTimeout(300);
+  await menu(p, "analyze", "Calculus", "Interpolate…");
+  check("Analyze › Calculus › Interpolate… opens its dialog", await p.isVisible("#aPm"));
+  const vis = (id) => p.evaluate(id => { const e = document.getElementById(id); return !!e && !e.hidden && e.offsetParent !== null; }, id);
+  check("…straight lines: no λ, no end slopes; so many points", !(await vis("aPl")) && !(await vis("aPd0")) && await vis("aPn"));
+  await p.selectOption("#aPm", "smooth"); await p.waitForTimeout(100); check("…a smoothing spline shows λ", await vis("aPl"));
+  await p.selectOption("#aPm", "clamped"); await p.waitForTimeout(100); check("…a clamped spline shows its end slopes", await vis("aPd0") && !(await vis("aPl")));
+  await p.selectOption("#aPm", "notaknot"); await p.selectOption("#aPg", "step"); await p.waitForTimeout(100); check("…a step shows its field", await vis("aPs") && !(await vis("aPn")));
+  await p.fill("#aPs", "0.5"); await p.fill("#aPr1", "10"); await p.selectOption("#aPe", "method"); await p.click("#formOk"); await p.waitForTimeout(500);
+  let r = await RES(p);
+  check("a result sheet: X every 0.5 s to 10, the cubic read exactly, 9.5 and 10 extrapolated and marked", r && r.t.x0.length === 21 && Math.abs(r.t.y0[3] - (1.5 ** 3 - 3)) < 1e-12 && r.t.h0[20] === "extrapolated" && r.t.h0[0] === "measured" && Math.abs(r.t.y0[20] - 980) < 1e-9, JSON.stringify(r && { n: r.t.x0.length, h: r.t.h0, err: r.err }).slice(0, 300));
+  // gridding into a matrix
+  await p.evaluate(() => { let s = 5; const rr = () => { s = (s * 16807) % 2147483647; return s / 2147483647; }; const X = [], Y = [], Z = []; for (let i = 0; i < 120; i++) { const x = rr() * 10, y = rr() * 4; X.push(+x.toFixed(4)); Y.push(+y.toFixed(4)); Z.push(+(2 * x - y + 1).toFixed(6)); }
+    const cs = P().cols.filter(c => !c.ana); save({ cols: P().cols.concat([makeCol("ignore", "PX", "mm", X), makeCol("ignore", "PY", "mm", Y), makeCol("ignore", "Height", "nm", Z)]) }, "typed"); showSheet(SHEET0.id, { quiet: true }); }); await p.waitForTimeout(300);
+  await menu(p, "data", "Matrix", "From scattered X, Y, Z…");
+  check("Data › Matrix › From scattered X, Y, Z… opens its dialog", await p.isVisible("#aGm"));
+  await p.evaluate(() => { const id = n => P().cols.find(c => c.name === n).id; $("#aGx").value = id("PX"); $("#aGy").value = id("PY"); $("#aGz").value = id("Height"); $("#aGx").dispatchEvent(new Event("change", { bubbles: true })); });
+  await p.selectOption("#aGm", "tps"); await p.waitForTimeout(80); check("…the thin-plate spline shows its smoothing, not a radius", await vis("aGs") && !(await vis("aGr")));
+  await p.selectOption("#aGm", "tri"); await p.fill("#aGnx", "21"); await p.fill("#aGny", "9"); await p.click("#formOk"); await p.waitForTimeout(700);
+  r = await p.evaluate(() => { const a = anaList().find(x => x.kind === "grid"), b = a && matBooks().find(x => x.id === a.out.mat), s = b && b.sheets[0], xy = s && matXY(s); return a && { err: a.res && a.res.err, nx: s && s.nx, ny: s && s.ny, ana: s && s.ana === a.id, zu: s && s.zunit, filled: s && s.z.filter(v => v != null).length, mid: s && s.z[4 * 21 + 10], want: xy && 2 * xy.X[10] - xy.Y[4] + 1, name: a.name }; });
+  check("a matrix of 9 × 21 made, marked as the analysis's, its unit nm, the plane read in the middle", r && r.nx === 21 && r.ny === 9 && r.ana && r.zu === "nm" && r.filled > 100 && Math.abs(r.mid - r.want) < 1e-3, JSON.stringify(r));  // X and Y were kept to 4 decimals after Z was worked out
+  const refused = await p.evaluate(() => { const a = anaList().find(x => x.kind === "grid"), s = matBooks().find(b => b.id === a.out.mat).sheets[0]; return matPut(s.id, m => Object.assign({}, m, { z: m.z.map(() => 0) }), { undo: "x", log: "x" }); });
+  check("…typing over it is refused (it holds results)", refused === false && /results of Grid 1/.test(await p.evaluate(() => ($("#toast") || document.body).textContent)));
+  await p.evaluate(() => { const a = anaList().find(x => x.kind === "grid"); anaActs(a).find(x => x.key === "map").run(); }); await p.waitForTimeout(500);
+  check("…Draw the map: a graph of the matrix as an image", await p.evaluate(() => { const g = P().graphs[P().graphs.length - 1]; return !!(g && g.plot && g.plot.mat); }));
+  await p.evaluate(() => { const c = P().cols.find(c => c.name === "Height"); pushUndo("a value"); const d = c.data.slice(); d.forEach((v, i) => { d[i] = v + 100; }); c.data = d; save({ cols: P().cols }, "typed"); renderAll(); }); await p.waitForTimeout(500);
+  const mid2 = await p.evaluate(() => { const a = anaList().find(x => x.kind === "grid"); return matBooks().find(b => b.id === a.out.mat).sheets[0].z[4 * 21 + 10]; });
+  check("its data changed: the matrix worked out again", Math.abs(mid2 - r.mid - 100) < 1e-9, mid2);
+  await p.evaluate(() => undo()); await p.waitForTimeout(400);
+  check("…undo brings the matrix back", await p.evaluate(m => { const a = anaList().find(x => x.kind === "grid"); return Math.abs(matBooks().find(b => b.id === a.out.mat).sheets[0].z[4 * 21 + 10] - m) < 1e-9; }, r.mid));
+  await p.waitForTimeout(600); await p.goto(URL); await ready(p); await p.waitForTimeout(400);
+  check("after a reload: the analysis, its matrix and their link kept", await p.evaluate(() => { const a = anaList().find(x => x.kind === "grid"), s = a && anaMatSheet(a); return !!(s && s.ana === a.id && s.nx === 21 && a.res && a.res.report); }));
+  const id = await p.evaluate(() => anaList().find(x => x.kind === "grid").id);
+  await p.evaluate(id => anaCut(id), id); await p.waitForTimeout(300);
+  check("Cut from its data: an ordinary matrix, kept", await p.evaluate(() => matBooks().length === 1 && !matBooks()[0].sheets[0].ana && !anaList().some(x => x.kind === "grid")));
+  await p.evaluate(() => undo()); await p.waitForTimeout(300);
+  await p.evaluate(async id => { window.confirmDlg = async () => true; await anaDelete(id); }, id); await p.waitForTimeout(400);
+  check("Delete the analysis: its matrix goes with it", await p.evaluate(() => matBooks().length === 0 && !anaList().some(x => x.kind === "grid")));
+}, { name: "5.7" });
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();

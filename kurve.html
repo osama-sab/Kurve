@@ -9909,6 +9909,47 @@ ANA_KINDS.coh={label:"Coherence", base:"Coherence", pts:true,
     secs.push({title:"Segments",tables:[{head:["Columns","Points","Segment","Overlap","Segments averaged","Frequency step"],rows:[[`${qa.name} and ${qb.name}`,m,r.nseg,r.over,r.k,`${fmt(fs/r.nfft,6)}${fu?" "+fu:""}`]]}]});
     if(r.k<2) notes.push("One segment only: the coherence of a single segment is 1 at every frequency, whatever the columns. Shorten the segment.");
     return {tables:[{cols}],report:{sections:secs,method:`scipy.signal.coherence: |Pxy|²/(Pxx·Pyy), the cross-spectrum and each column's spectrum by Welch's segments (${sigWinName(SIG_WIN[p.win]?p.win:"hann",p.wpar)} window, each segment less its ${p.detrend==="linear"?"straight line":"mean"}), averaged. The phase is that of the averaged cross-spectrum, conj(X)·Y: positive when the second column leads.`},notes}; }};
+/* ---- 5.7: interpolation into columns, and scattered points into a matrix (SIGNAL_SPEC). ---- */
+const INTERP_EXT=[["none","Nothing: empty past the data"],["method","The method's own curve, continued"],["line","A straight line from the end"],["end","The end's value"]];
+ANA_KINDS.interp={label:"Interpolation", base:"Interp", pts:true,
+  help:"Each column read at new X values: n points or a step over a range, or another column's X. Straight lines, cubic splines (not a knot, natural, clamped), Akima, PCHIP or a smoothing spline, as SciPy's; extrapolation only when asked; each row marked measured, interpolated or extrapolated.",
+  heavy(p,ins){ return ins.reduce((t,q)=>t+(q.pts?q.pts.x.length:0),0)>400000; },
+  run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[], rows=[], m=INTERP_METHODS.some(e=>e[0]===p.method)?p.method:"linear", ext=INTERP_EXT.some(e=>e[0]===p.ext)?p.ext:"none";
+    const at=p.grid==="col"?ins.find(q=>q.id===p.at):null; if(p.grid==="col"&&!at) return {fail:"Choose the column whose X to read at."};
+    const todo=ins.filter(q=>q!==at); if(!todo.length) return {fail:"Tick a column to interpolate (besides the one whose X is read)."};
+    let ok=0; const HOW=["measured","interpolated","extrapolated"];
+    todo.forEach((q,t)=>{ const nm=todo.length>1?`${q.name}: `:"", P=interpPrep(q.pts.x,q.pts.y); if(P.fail){ notes.push(`${q.name}: ${P.fail}`); return; }
+      let xq; if(at) xq=at.pts.x.slice();
+      else { const lo=Number.isFinite(+p.x0)&&p.x0!==null&&p.x0!==""?+p.x0:P.x[0], hi=Number.isFinite(+p.x1)&&p.x1!==null&&p.x1!==""?+p.x1:P.x[P.x.length-1];
+        if(p.grid==="step"){ const st=Math.abs(+p.step); if(!(st>0)){ notes.push(`${q.name}: give the step.`); return; } const k=Math.floor(Math.abs(hi-lo)/st+1e-9)+1; if(k>4e6){ notes.push(`${q.name}: that step makes ${k} points.`); return; } xq=Array.from({length:k},(_,i)=>lo+Math.sign(hi-lo||1)*i*st); }
+        else { const k=Math.round(+p.n||P.x.length); if(!(k>=2&&k<=4e6)){ notes.push(`${q.name}: 2 to 4 000 000 points.`); return; } xq=Array.from(linspaceV(lo,hi,k)); } }
+      const r=interp1(q.pts.x,q.pts.y,xq,{method:m,lam:p.lam,ext,d0:p.d0,d1:p.d1}); if(r.fail){ notes.push(`${q.name}: ${r.fail}`); return; } ok++;
+      if(r.merged) notes.push(`${q.name}: ${r.merged} point${r.merged===1?" repeats":"s repeat"} an X before ${r.merged===1?"it":"them"}: the values at one X were averaged first.`);
+      cols.push({k:`x${t}`,name:`${nm}${q.xn||"X"}`,unit:q.xu||"",role:"x",vals:xq.map(anaNum)});
+      cols.push({k:`y${t}`,name:q.name,unit:q.unit||"",role:"y",vals:r.y.map(v=>v==null?null:anaNum(v))});
+      cols.push({k:`h${t}`,name:`${nm}Read`,unit:"",role:"ignore",vals:r.how.map(h=>h==null?"":HOW[h])});
+      const cnt=[0,0,0]; r.how.forEach(h=>{ if(h!=null) cnt[h]++; });
+      rows.push([q.name,P.x.length,xq.length,cnt[0],cnt[1],cnt[2],r.how.filter(h=>h==null).length].concat(m==="smooth"?[anaNum(r.lam),anaNum(r.edf),r.est?"by GCV":"given"]:[])); });
+    if(!ok) return {fail:notes.join(" ")||"Nothing could be interpolated."};
+    secs.push({title:"Interpolation",tables:[{head:["Column","Points","Values written","At a measured X","Interpolated","Extrapolated","Empty"].concat(m==="smooth"?["λ","Degrees of freedom","λ chosen"]:[]),rows}]});
+    const mn=(INTERP_METHODS.find(e=>e[0]===m)||["",""])[1];
+    const method=`${mn}, as SciPy's ${{linear:"interp1d",notaknot:"CubicSpline (not-a-knot)",natural:"CubicSpline (natural)",clamped:`CubicSpline (clamped, end slopes ${+p.d0||0} and ${+p.d1||0})`,akima:"Akima1DInterpolator",makima:"Akima1DInterpolator (makima)",pchip:"PchipInterpolator",smooth:"make_smoothing_spline, minimising Σ(y − f)² + λ∫f″²"}[m]}, read at ${at?`the X of ${at.name}`:p.grid==="step"?`every ${fmt(Math.abs(+p.step),6)}`:`${Math.round(+p.n)||"as many"} evenly spaced X`}; past the data ${(INTERP_EXT.find(e=>e[0]===ext)||["",""])[1].toLowerCase()}. A value at an X that was measured is the measured value${m==="smooth"?" (the smoothing spline's own there)":""}.`;
+    return {tables:[{cols}],report:{sections:secs,method},notes}; }};
+ANA_KINDS.grid={label:"Gridding", base:"Grid", typed:true, xs:true, mat:true,
+  typedWhat:p=>"the X, Y and Z columns chosen",
+  help:"Scattered X, Y and Z (a value at each place measured) onto an even grid, as a matrix drawn as a map: Delaunay's triangles in straight lines, a thin-plate spline, or Shepard's weights.",
+  heavy(p,ins){ const n=ins[0]&&ins[0].vals?ins[0].vals.length:0; return p.method==="tps"?n>400:n*(+p.nx||50)*(+p.ny||50)>2e7; },
+  run(ins,p){ p=p||{}; const notes=[], g=id=>ins.find(q=>q.id===id); const qx=g(p.x), qy=g(p.y), qz=g(p.z); if(!qx||!qy||!qz) return {fail:"Choose the X, Y and Z columns."};
+    // matched by row: a blank cell in one column leaves out that row, not shifts the others
+    const byRow=q=>{ const m=new Map(); q.vals.forEach((v,i)=>m.set(q.rows?q.rows[i]:i,v)); return m; }, mx=byRow(qx), my=byRow(qy), mz=byRow(qz), X=[], Y=[], Z=[];
+    for(const [r,v] of mx){ if(my.has(r)&&mz.has(r)){ X.push(v); Y.push(my.get(r)); Z.push(mz.get(r)); } }
+    const r=gridXYZ(X,Y,Z,{method:p.method,nx:p.nx,ny:p.ny,x0:p.x0,x1:p.x1,y0:p.y0,y1:p.y1,smooth:p.smooth,radius:p.radius}); if(r.fail) return r;
+    if(r.empty) notes.push(`${r.empty} of the ${r.nx*r.ny} cells are empty: ${p.method==="shepard"?`no point lies within the radius (${fmt(r.R,4)}) of them`:"they lie outside the points' outline"}.`);
+    const mn=(GRID_METHODS.find(e=>e[0]===(p.method||"tri"))||["",""])[1], rows=[["Method",mn],["Points used",r.n],["Grid",`${r.ny} rows × ${r.nx} columns`],["X",`${fmt(r.x0,6)} to ${fmt(r.x1,6)}`],["Y",`${fmt(r.y0,6)} to ${fmt(r.y1,6)}`],["Empty cells",r.empty]].concat(p.method==="tps"?[["Smoothing",+p.smooth||0]]:p.method==="shepard"?[["Radius",anaNum(r.R)]]:[]);
+    const cols=[{k:"what",name:"Grid",unit:"",role:"ignore",vals:rows.map(q=>q[0])},{k:"val",name:"Value",unit:"",role:"ignore",vals:rows.map(q=>typeof q[1]==="number"?q[1]:String(q[1]))}];
+    const method=p.method==="tps"?"A thin-plate spline through every point (r²·ln r and a plane, as SciPy's RBFInterpolator), its smoothing "+(+p.smooth||0)+".":p.method==="shepard"?`Shepard's weights as Franke and Little modified them, ((R − d)/(R·d))² within R = ${fmt(r.R,4)} (half the points' diameter times √(19/n) unless given); a cell on a point takes its value.`:"Delaunay's triangles of the points (X and Y each scaled to their range), each cell read in a straight line across the triangle it falls in, as SciPy's griddata(…, rescale=True); empty outside the points' outline.";
+    return {tables:[{cols}],report:{sections:[{title:"Grid",tables:[{head:["","Value"],rows}]}],method},notes,
+      mat:{nx:r.nx,ny:r.ny,x:{a:r.x0,b:r.x1},y:{a:r.y0,b:r.y1},z:r.z,xname:qx.name,xunit:qx.unit||"",yname:qy.name,yunit:qy.unit||"",zname:qz.name,zunit:qz.unit||""}}; }};
 /* ==ANA:END== */
 /* ==MAT:START== Matrices (ux/spec/SHEET_SPEC.md, slice 3.6), pure: a grid of Z with its X and Y.
    A matrix is {nx, ny, x, y, z}: `z` row major (z[r*nx + c], a row a Y, a column an X), null for a
@@ -10444,6 +10485,181 @@ function wienerDeconv(y,k,nsr){ const n=y.length, m=k.length, h=Math.floor(m/2);
   let g2=0; for(let q=0;q<N;q++){ const kr=KR[q], ki=KI[q], d=kr*kr+ki*ki+nsr, hr=kr/(d||1e-300), hi=-ki/(d||1e-300); g2+=hr*hr+hi*hi;
     const r=R[q]*hr-I[q]*hi; I[q]=R[q]*hi+I[q]*hr; R[q]=r; }
   fftInPlace(R,I,true); const out=new Float64Array(n); for(let i=0;i<n;i++) out[i]=R[i]+line(i); return {y:out,nsr,gain:Math.sqrt(g2/N),est}; }
+/* ---- 5.7 Interpolation: SciPy's interpolants (interp1d linear, CubicSpline with its three ends, Akima1DInterpolator,
+   PchipInterpolator, make_smoothing_spline with λ given or by generalised cross-validation), each a piecewise cubic held as its
+   values and slopes at the knots (a Hermite form, evaluated as SciPy's PPoly in powers of x − x_i); and scattered points onto a
+   grid (Delaunay's triangles in straight lines, a thin-plate spline as scipy.interpolate.RBFInterpolator, Shepard's weights). ---- */
+// Points by X, repeated X averaged: {x, y, merged} (or {fail}).
+function interpPrep(x,y){ const P=[]; for(let i=0;i<Math.min(x.length,y.length);i++){ const a=x[i], b=y[i]; if(typeof a==="number"&&Number.isFinite(a)&&typeof b==="number"&&Number.isFinite(b)) P.push([a,b]); }
+  P.sort((a,b)=>a[0]-b[0]); const X=[], Y=[]; let merged=0;
+  for(let i=0;i<P.length;){ let j=i, s=0; while(j<P.length&&P[j][0]===P[i][0]){ s+=P[j][1]; j++; } if(j-i>1) merged+=j-i-1; X.push(P[i][0]); Y.push(s/(j-i)); i=j; }
+  if(X.length<2) return {fail:`${X.length?"One distinct X":"No point"} with both X and Y: at least two are needed.`}; return {x:X,y:Y,merged}; }
+// A tridiagonal system (a below, b on, c above the diagonal) by Thomas's algorithm.
+function triSolve(a,b,c,d){ const n=b.length, cp=new Float64Array(n), dp=new Float64Array(n); cp[0]=c[0]/b[0]; dp[0]=d[0]/b[0];
+  for(let i=1;i<n;i++){ const m=b[i]-a[i]*cp[i-1]; cp[i]=c[i]/m; dp[i]=(d[i]-a[i]*dp[i-1])/m; } const x=new Float64Array(n); x[n-1]=dp[n-1]; for(let i=n-2;i>=0;i--) x[i]=dp[i]-cp[i]*x[i+1]; return x; }
+// The slopes of a cubic spline from its second derivatives M at the knots.
+function slopesOfM(x,y,M){ const n=x.length, d=new Float64Array(n); for(let i=0;i<n-1;i++){ const h=x[i+1]-x[i], dl=(y[i+1]-y[i])/h; d[i]=dl-h*(2*M[i]+M[i+1])/6; }
+  const h=x[n-1]-x[n-2]; d[n-1]=(y[n-1]-y[n-2])/h+h*(M[n-2]+2*M[n-1])/6; return d; }
+/* SciPy's CubicSpline: "not-a-knot" (the third derivative continuous at the second and the last-but-one knots), "natural" (no
+   curvature at the ends) or "clamped" (the slopes at the ends d0, d1, 0 by default). Two points: the straight line; three, not a
+   knot: the parabola. The slopes at the knots. */
+function splineSlopes(x,y,bc,d0,d1){ const n=x.length; if(n===2&&bc!=="clamped"){ const s=(y[1]-y[0])/(x[1]-x[0]); return Float64Array.of(s,s); }
+  const h=[], dl=[]; for(let i=0;i<n-1;i++){ h.push(x[i+1]-x[i]); dl.push((y[i+1]-y[i])/h[i]); }
+  if(bc==="clamped"){ const s0=Number.isFinite(+d0)?+d0:0, s1=Number.isFinite(+d1)?+d1:0, a=new Float64Array(n), b=new Float64Array(n), c=new Float64Array(n), r=new Float64Array(n);
+    b[0]=2*h[0]; c[0]=h[0]; r[0]=6*(dl[0]-s0); for(let i=1;i<n-1;i++){ a[i]=h[i-1]; b[i]=2*(h[i-1]+h[i]); c[i]=h[i]; r[i]=6*(dl[i]-dl[i-1]); } a[n-1]=h[n-2]; b[n-1]=2*h[n-2]; r[n-1]=6*(s1-dl[n-2]);
+    return slopesOfM(x,y,triSolve(a,b,c,r)); }
+  if(bc!=="natural"&&n===3){ // the parabola through three points: M constant
+    const m=2*(dl[1]-dl[0])/(x[2]-x[0]); return slopesOfM(x,y,Float64Array.of(m,m,m)); }
+  const k=n-2, a=new Float64Array(k), b=new Float64Array(k), c=new Float64Array(k), r=new Float64Array(k);
+  for(let j=0;j<k;j++){ const i=j+1; a[j]=h[i-1]; b[j]=2*(h[i-1]+h[i]); c[j]=h[i]; r[j]=6*(dl[i]-dl[i-1]); }
+  if(bc!=="natural"){ // not a knot: M0 = ((h0 + h1)·M1 − h0·M2)/h1 and its mirror at the far end, put into the first and last rows
+    const h0=h[0], h1=h[1], g0=h[n-2], g1=h[n-3];
+    b[0]+=h0*(h0+h1)/h1; c[0]-=h0*h0/h1; b[k-1]+=g0*(g0+g1)/g1; a[k-1]-=g0*g0/g1; }
+  const Mi=triSolve(a,b,c,r), M=new Float64Array(n); for(let j=0;j<k;j++) M[j+1]=Mi[j];
+  if(bc!=="natural"){ M[0]=((h[0]+h[1])*M[1]-h[0]*M[2])/h[1]; M[n-1]=((h[n-2]+h[n-3])*M[n-2]-h[n-2]*M[n-3])/h[n-3]; }
+  return slopesOfM(x,y,M); }
+// SciPy's Akima1DInterpolator ("akima", or "makima" its modified form) and PchipInterpolator: the slopes at the knots.
+function akimaSlopes(x,y,makima){ const n=x.length; if(n===2){ const s=(y[1]-y[0])/(x[1]-x[0]); return Float64Array.of(s,s); }
+  const m=new Float64Array(n+3); for(let i=0;i<n-1;i++) m[i+2]=(y[i+1]-y[i])/(x[i+1]-x[i]);
+  m[1]=2*m[2]-m[3]; m[0]=2*m[1]-m[2]; m[n+1]=2*m[n]-m[n-1]; m[n+2]=2*m[n+1]-m[n];
+  const t=new Float64Array(n), dm=new Float64Array(n+2); for(let i=0;i<n;i++) t[i]=0.5*(m[i+3]+m[i]); for(let i=0;i<n+2;i++) dm[i]=Math.abs(m[i+1]-m[i]);
+  const f1=new Float64Array(n), f2=new Float64Array(n); for(let i=0;i<n;i++){ f1[i]=dm[i+2]+(makima?0.5*Math.abs(m[i+3]+m[i+2]):0); f2[i]=dm[i]+(makima?0.5*Math.abs(m[i+1]+m[i]):0); }
+  let mx=-Infinity; for(let i=0;i<n;i++) mx=Math.max(mx,f1[i]+f2[i]);
+  for(let i=0;i<n;i++){ const f12=f1[i]+f2[i]; if(f12>1e-9*mx) t[i]=m[i+1]+(f2[i]/f12)*(m[i+2]-m[i+1]); } return t; }
+function pchipEdge(h0,h1,m0,m1){ let d=((2*h0+h1)*m0-h0*m1)/(h0+h1); if(Math.sign(d)!==Math.sign(m0)) d=0; else if(Math.sign(m0)!==Math.sign(m1)&&Math.abs(d)>3*Math.abs(m0)) d=3*m0; return d; }
+function pchipSlopes(x,y){ const n=x.length, h=[], m=[]; for(let i=0;i<n-1;i++){ h.push(x[i+1]-x[i]); m.push((y[i+1]-y[i])/h[i]); }
+  if(n===2) return Float64Array.of(m[0],m[0]); const d=new Float64Array(n);
+  for(let k=1;k<n-1;k++){ const a=m[k-1], b=m[k]; if(Math.sign(a)!==Math.sign(b)||a===0||b===0){ d[k]=0; continue; } const w1=2*h[k]+h[k-1], w2=h[k]+2*h[k-1]; d[k]=1/((w1/a+w2/b)/(w1+w2)); }
+  d[0]=pchipEdge(h[0],h[1],m[0],m[1]); d[n-1]=pchipEdge(h[n-2],h[n-3],m[n-2],m[n-3]); return d; }
+/* SciPy's _minimize_scalar_bounded (Brent's method on an interval, golden sections and parabolas), as make_smoothing_spline
+   searches λ: xatol 1e-5, 500 evaluations at most. {x, fx, nfev, ok}. */
+function fminBounded(f,lo,hi,xatol,maxfun){ xatol=xatol||1e-5; maxfun=maxfun||500; const se=Math.sqrt(2.2e-16), gm=0.5*(3-Math.sqrt(5));
+  let a=lo, b=hi, fulc=a+gm*(b-a), nfc=fulc, xf=fulc, rat=0, e=0, x=xf, fx=f(x), num=1, ffulc=fx, fnfc=fx, xm=0.5*(a+b), tol1=se*Math.abs(xf)+xatol/3, tol2=2*tol1, ok=true;
+  while(Math.abs(xf-xm)>(tol2-0.5*(b-a))){ let golden=1;
+    if(Math.abs(e)>tol1){ golden=0; let r=(xf-nfc)*(fx-ffulc), q=(xf-fulc)*(fx-fnfc), p=(xf-fulc)*q-(xf-nfc)*r; q=2*(q-r); if(q>0) p=-p; q=Math.abs(q); r=e; e=rat;
+      if(Math.abs(p)<Math.abs(0.5*q*r)&&p>q*(a-xf)&&p<q*(b-xf)){ rat=(p+0)/q; x=xf+rat; if((x-a)<tol2||(b-x)<tol2){ const si=Math.sign(xm-xf)+((xm-xf)===0?1:0); rat=tol1*si; } } else golden=1; }
+    if(golden){ e=xf>=xm?a-xf:b-xf; rat=gm*e; }
+    const si=Math.sign(rat)+(rat===0?1:0); x=xf+si*Math.max(Math.abs(rat),tol1); const fu=f(x); num++;
+    if(fu<=fx){ if(x>=xf) a=xf; else b=xf; fulc=nfc; ffulc=fnfc; nfc=xf; fnfc=fx; xf=x; fx=fu; }
+    else { if(x<xf) a=x; else b=x; if(fu<=fnfc||nfc===xf){ fulc=nfc; ffulc=fnfc; nfc=x; fnfc=fu; } else if(fu<=ffulc||fulc===xf||fulc===nfc){ fulc=x; ffulc=fu; } }
+    xm=0.5*(a+b); tol1=se*Math.abs(xf)+xatol/3; tol2=2*tol1; if(num>=maxfun){ ok=false; break; } }
+  return {x:xf,fx,nfev:num,ok}; }
+/* The cubic smoothing spline (Reinsch's algorithm; Green and Silverman, 1994): the curve f minimising Σ w_i (y_i − f(x_i))² +
+   λ∫f″², as scipy's make_smoothing_spline. (R + λ QᵀW⁻¹Q)γ = Qᵀy and g = y − λW⁻¹Qγ, the band matrix factored as LDLᵀ; the band
+   of its inverse (Hutchinson and de Hoog, 1985) gives tr A = n − λ·tr((R + λQᵀW⁻¹Q)⁻¹QᵀW⁻¹Q) for the generalised cross-validation
+   Σ(y − g)²/n ÷ (1 − tr A/n)², minimised over λ in (0, n) by fminBounded when λ is not given, as SciPy does. {g (the curve at the
+   knots), M (its second derivatives), lam, gcv, edf (tr A)} or {fail}. */
+function smoothCore(x,y,w,lam){ const n=x.length, k=n-2, h=[]; for(let i=0;i<n-1;i++) h.push(x[i+1]-x[i]);
+  const W=w?Array.from(w,v=>+v):x.map(()=>1);
+  if(k<1){ return {g:Float64Array.from(y),M:new Float64Array(n),gcv:NaN,edf:n}; }
+  const q0=new Float64Array(k), q1=new Float64Array(k), q2=new Float64Array(k); for(let j=0;j<k;j++){ q0[j]=1/h[j]; q1[j]=-1/h[j]-1/h[j+1]; q2[j]=1/h[j+1]; }
+  const M0=new Float64Array(k), M1=new Float64Array(k), M2=new Float64Array(k);
+  for(let j=0;j<k;j++){ M0[j]=q0[j]*q0[j]/W[j]+q1[j]*q1[j]/W[j+1]+q2[j]*q2[j]/W[j+2]; if(j+1<k) M1[j]=q1[j]*q0[j+1]/W[j+1]+q2[j]*q1[j+1]/W[j+2]; if(j+2<k) M2[j]=q2[j]*q0[j+2]/W[j+2]; }
+  const d=new Float64Array(k), l1=new Float64Array(k+2), l2=new Float64Array(k+2);
+  for(let j=0;j<k;j++){ const b0=(h[j]+h[j+1])/3+lam*M0[j];
+    if(j>=2) l2[j]=lam*M2[j-2]/d[j-2];
+    if(j>=1) l1[j]=((h[j]/6+lam*M1[j-1])-(j>=2?l2[j]*d[j-2]*l1[j-1]:0))/d[j-1];
+    d[j]=b0-(j>=1?l1[j]*l1[j]*d[j-1]:0)-(j>=2?l2[j]*l2[j]*d[j-2]:0); if(!(d[j]>0)) return {fail:"The smoothing spline's system is not positive: the X values are too close together for doubles."}; }
+  const z=new Float64Array(k); for(let j=0;j<k;j++) z[j]=q0[j]*y[j]+q1[j]*y[j+1]+q2[j]*y[j+2]-(j>=1?l1[j]*z[j-1]:0)-(j>=2?l2[j]*z[j-2]:0);
+  const ga=new Float64Array(k); for(let j=k-1;j>=0;j--) ga[j]=z[j]/d[j]-(j+1<k?l1[j+1]*ga[j+1]:0)-(j+2<k?l2[j+2]*ga[j+2]:0);
+  const g=new Float64Array(n); for(let i=0;i<n;i++){ let qg=0; if(i<k) qg+=q0[i]*ga[i]; if(i>=1&&i-1<k) qg+=q1[i-1]*ga[i-1]; if(i>=2&&i-2<k) qg+=q2[i-2]*ga[i-2]; g[i]=y[i]-lam*qg/W[i]; }
+  // the band of the inverse, from the bottom up
+  const S0=new Float64Array(k+2), S1=new Float64Array(k+2), S2=new Float64Array(k+2);
+  for(let j=k-1;j>=0;j--){ const a1=j+1<k?l1[j+1]:0, a2=j+2<k?l2[j+2]:0;
+    S2[j]=-a1*S1[j+1]-a2*S0[j+2]; S1[j]=-a1*S0[j+1]-a2*S1[j+1]; S0[j]=1/d[j]-a1*S1[j]-a2*S2[j]; }
+  let tr=0; for(let j=0;j<k;j++) tr+=S0[j]*M0[j]+2*S1[j]*M1[j]+2*S2[j]*M2[j];
+  const edf=n-lam*tr; let rs=0; for(let i=0;i<n;i++) rs+=(y[i]-g[i])**2;
+  const M=new Float64Array(n); for(let j=0;j<k;j++) M[j+1]=ga[j]; return {g,M,gcv:(rs/n)/((1-edf/n)**2),edf}; }
+function smoothSpline(x,y,o){ o=o||{}; const n=x.length; if(n<3) return {fail:"A smoothing spline needs three points at least."};
+  let lam=o.lam, est=false;
+  if(lam==null||lam===""||!(+lam>=0)){ est=true; const r=fminBounded(l=>{ const c=smoothCore(x,y,o.w,l); return c.fail?Infinity:c.gcv; },0,n,1e-5,500); lam=r.x; }
+  const c=smoothCore(x,y,o.w,+lam); if(c.fail) return c; return Object.assign(c,{lam:+lam,est}); }
+// A piecewise cubic from values and slopes at the knots, at xq (sorted or not): SciPy's PPoly form, c0 + c1·s + c2·s² + c3·s³
+// with s = x − x_i. ext: "none" (null outside), "method" (the end piece continued), "line" (the end's tangent), "end" (the end value).
+function hermiteAt(x,y,d,xq,ext){ const n=x.length, out=new Array(xq.length), how=new Array(xq.length);
+  for(let q=0;q<xq.length;q++){ const v=xq[q]; if(!Number.isFinite(v)){ out[q]=null; how[q]=null; continue; }
+    if(v<x[0]||v>x[n-1]){ how[q]=2; const lo=v<x[0], e=lo?0:n-1;
+      if(ext==="end"){ out[q]=y[e]; continue; } if(ext==="line"){ out[q]=y[e]+d[e]*(v-x[e]); continue; } if(ext!=="method"){ out[q]=null; how[q]=null; continue; } }
+    let i; if(v<=x[0]) i=0; else if(v>=x[n-1]) i=n-2; else { let a=0, b=n-1; while(b-a>1){ const m=(a+b)>>1; if(x[m]<=v) a=m; else b=m; } i=a; }
+    const h=x[i+1]-x[i], dl=(y[i+1]-y[i])/h, c2=(3*dl-2*d[i]-d[i+1])/h, c3=(d[i]+d[i+1]-2*dl)/(h*h), s=v-x[i];
+    out[q]=((c3*s+c2)*s+d[i])*s+y[i]; if(how[q]!==2) how[q]=v===x[i]||v===x[i+1]?0:1; if(v===x[i]) out[q]=y[i]; else if(v===x[i+1]) out[q]=y[i+1]; }
+  return {y:out,how}; }
+/* One column interpolated at xq: method "linear" | "natural" | "notaknot" | "clamped" (bc slopes d0, d1) | "akima" | "makima" |
+   "pchip" | "smooth" (λ, or by GCV); repeated X averaged first. {y, how (0 measured, 1 interpolated, 2 extrapolated, null
+   empty), merged, lam?, est?, edf?} or {fail}. */
+const INTERP_METHODS=[["linear","Straight lines"],["notaknot","Cubic spline, not a knot"],["natural","Cubic spline, natural"],["clamped","Cubic spline, clamped"],["akima","Akima"],["makima","Akima, modified"],["pchip","PCHIP (keeps the shape)"],["smooth","Smoothing spline"]];
+function interp1(x,y,xq,o){ o=o||{}; const P=interpPrep(x,y); if(P.fail) return P; const X=P.x, Y=P.y, m=o.method||"linear";
+  let d, Yk=Y, extra={};
+  if(m==="linear"){ d=new Float64Array(X.length); }
+  else if(m==="akima"||m==="makima") d=akimaSlopes(X,Y,m==="makima");
+  else if(m==="pchip") d=pchipSlopes(X,Y);
+  else if(m==="smooth"){ const s=smoothSpline(X,Y,{lam:o.lam}); if(s.fail) return s; Yk=s.g; d=slopesOfM(X,s.g,s.M); extra={lam:s.lam,est:s.est,edf:s.edf,gcv:s.gcv}; }
+  else d=splineSlopes(X,Y,m==="clamped"?"clamped":m==="natural"?"natural":"not-a-knot",o.d0,o.d1);
+  const ext=o.ext||"none";
+  if(m==="linear"){ const out=new Array(xq.length), how=new Array(xq.length), n=X.length;
+    for(let q=0;q<xq.length;q++){ const v=xq[q]; if(!Number.isFinite(v)){ out[q]=null; how[q]=null; continue; }
+      if(v<X[0]||v>X[n-1]){ const lo=v<X[0], e=lo?0:n-1, s=lo?(Y[1]-Y[0])/(X[1]-X[0]):(Y[n-1]-Y[n-2])/(X[n-1]-X[n-2]); how[q]=2;
+        out[q]=ext==="end"?Y[e]:ext==="line"||ext==="method"?Y[e]+s*(v-X[e]):null; if(out[q]==null) how[q]=null; continue; }
+      let a=0, b=n-1; while(b-a>1){ const mm=(a+b)>>1; if(X[mm]<=v) a=mm; else b=mm; } const t=(v-X[a])/(X[b]-X[a]); out[q]=v===X[a]?Y[a]:v===X[b]?Y[b]:Y[a]+(Y[b]-Y[a])*t; how[q]=v===X[a]||v===X[b]?0:1; }
+    return {y:out,how,merged:P.merged}; }
+  const r=hermiteAt(X,Yk,d,xq,ext); if(m==="smooth") r.how=r.how.map(v=>v===0?1:v);   // a smoothing spline does not pass through the points
+  return Object.assign(r,{merged:P.merged},extra); }
+/* Scattered X, Y, Z onto a grid of nx × ny over [x0, x1] × [y0, y1] (NumPy's linspace each way): "tri" Delaunay's triangles of the
+   points scaled to a unit square (as the map draws them; scipy's griddata with rescale), linear in each, empty outside; "tps" the
+   thin-plate spline r²·ln r with a plane, smoothing s, as RBFInterpolator(kernel="thin_plate_spline"), its polynomial in X and Y
+   centred and scaled as SciPy does, solved by Gaussian elimination with partial pivoting; "shepard" Franke and Little's weights
+   ((R − d)₊/(R·d))², a point exactly on a node its value, empty where no point is within R. {z (row major, a row a Y), nx, ny,
+   x0, x1, y0, y1, n, empty} or {fail}. */
+const GRID_METHODS=[["tri","Triangles (Delaunay), straight lines"],["tps","Thin-plate spline"],["shepard","Shepard's weights (modified)"]], TPS_MAX=3000;
+function gridXYZ(X,Y,Z,o){ o=o||{}; const P=[]; for(let i=0;i<Math.min(X.length,Y.length,Z.length);i++) if([X[i],Y[i],Z[i]].every(v=>typeof v==="number"&&Number.isFinite(v))) P.push([X[i],Y[i],Z[i]]);
+  const n=P.length; if(n<3) return {fail:"Three points at least, each with X, Y and Z, are needed."};
+  const nx=Math.round(+o.nx||50), ny=Math.round(+o.ny||50); if(!(nx>=2&&ny>=2)||nx*ny>MAT_MAX) return {fail:`The grid must be 2 × 2 at least and ${MAT_MAX.toLocaleString("en")} cells at most.`};
+  let xmin=Infinity, xmax=-Infinity, ymin=Infinity, ymax=-Infinity; P.forEach(q=>{ xmin=Math.min(xmin,q[0]); xmax=Math.max(xmax,q[0]); ymin=Math.min(ymin,q[1]); ymax=Math.max(ymax,q[1]); });
+  if(!(xmax>xmin)||!(ymax>ymin)) return {fail:"The points lie on one line of X or of Y: there is no area to grid."};
+  const x0=Number.isFinite(+o.x0)&&o.x0!==null&&o.x0!==""?+o.x0:xmin, x1=Number.isFinite(+o.x1)&&o.x1!==null&&o.x1!==""?+o.x1:xmax, y0=Number.isFinite(+o.y0)&&o.y0!==null&&o.y0!==""?+o.y0:ymin, y1=Number.isFinite(+o.y1)&&o.y1!==null&&o.y1!==""?+o.y1:ymax;
+  const gx=linspaceV(x0,x1,nx), gy=linspaceV(y0,y1,ny), z=new Array(nx*ny).fill(null), m=o.method||"tri";
+  if(m==="tri"){ const T=delaunay(P.map(q=>q[0]),P.map(q=>q[1])); if(T.fail) return T; const sx=xmax-xmin, sy=ymax-ymin, U=q=>[(q[0]-xmin)/sx,(q[1]-ymin)/sy];
+    const ux=Array.from(gx,v=>(v-xmin)/sx), uy=Array.from(gy,v=>(v-ymin)/sy), tri=T.tri, pts=T.pts||null;
+    for(let t=0;t<tri.length;t+=3){ const A=P[tri[t]], B=P[tri[t+1]], C=P[tri[t+2]], [ax,ay]=U(A), [bx,by]=U(B), [cx,cy]=U(C), det=(by-cy)*(ax-cx)+(cx-bx)*(ay-cy); if(!(Math.abs(det)>0)) continue;
+      const lx=Math.min(ax,bx,cx), hx=Math.max(ax,bx,cx), ly=Math.min(ay,by,cy), hy=Math.max(ay,by,cy);
+      for(let j=0;j<ny;j++){ const v=uy[j]; if(v<ly-1e-12||v>hy+1e-12) continue; for(let i=0;i<nx;i++){ const u=ux[i]; if(u<lx-1e-12||u>hx+1e-12) continue;
+        const l1=((by-cy)*(u-cx)+(cx-bx)*(v-cy))/det, l2=((cy-ay)*(u-cx)+(ax-cx)*(v-cy))/det, l3=1-l1-l2; if(l1<-1e-12||l2<-1e-12||l3<-1e-12) continue;
+        if(z[j*nx+i]==null) z[j*nx+i]=l1*A[2]+l2*B[2]+l3*C[2]; } } } }
+  else if(m==="tps"){ if(n>TPS_MAX) return {fail:`A thin-plate spline takes ${TPS_MAX} points at most (its system grows as the square): use triangles or Shepard's weights for more.`};
+    const s=Math.max(0,+o.smooth||0), N=n+3, Amat=new Float64Array(N*N), rhs=new Float64Array(N), sh=[(xmax+xmin)/2,(ymax+ymin)/2], scl=[(xmax-xmin)/2||1,(ymax-ymin)/2||1];
+    // r²·ln r as ½·r²·ln r², with no square root (the grid's 40 000 cells each read every point)
+    const phi2=d2=>d2===0?0:0.5*d2*Math.log(d2), px0=Float64Array.from(P,q=>q[0]), py0=Float64Array.from(P,q=>q[1]);
+    for(let i=0;i<n;i++){ for(let j=0;j<n;j++){ const dx=px0[i]-px0[j], dy=py0[i]-py0[j]; Amat[i*N+j]=phi2(dx*dx+dy*dy); } Amat[i*N+i]+=s;
+      const px=(P[i][0]-sh[0])/scl[0], py=(P[i][1]-sh[1])/scl[1]; Amat[i*N+n]=1; Amat[i*N+n+1]=px; Amat[i*N+n+2]=py; Amat[n*N+i]=1; Amat[(n+1)*N+i]=px; Amat[(n+2)*N+i]=py; rhs[i]=P[i][2]; }
+    const c=gaussSolve(Amat,rhs,N); if(!c) return {fail:"The thin-plate system is singular: points repeat or lie on one line."};
+    for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){ let v=0; const u=gx[i], w=gy[j]; for(let k=0;k<n;k++){ const dx=u-px0[k], dy=w-py0[k], d2=dx*dx+dy*dy; if(d2>0) v+=c[k]*0.5*d2*Math.log(d2); } v+=c[n]+c[n+1]*(u-sh[0])/scl[0]+c[n+2]*(w-sh[1])/scl[1]; z[j*nx+i]=v; } }
+  else if(m==="shepard"){ const D=Math.hypot(xmax-xmin,ymax-ymin), R=+o.radius>0?+o.radius:D/2*Math.sqrt(19/n);
+    // the points in buckets of side R: a cell reads the nine buckets about it, in the points' own order (so the sums are as unbucketed)
+    const bx=Math.max(1,Math.min(2048,Math.ceil((xmax-xmin)/R)+1)), by=Math.max(1,Math.min(2048,Math.ceil((ymax-ymin)/R)+1)), bk=new Map(), key=(a,b)=>a*by+b;
+    P.forEach((q,k)=>{ const a=Math.min(bx-1,Math.floor((q[0]-xmin)/R)), b=Math.min(by-1,Math.floor((q[1]-ymin)/R)), t=key(a,b); if(!bk.has(t)) bk.set(t,[]); bk.get(t).push(k); });
+    for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){ let sw=0, sz=0, hit=null; const u=gx[i], w=gy[j], a=Math.floor((u-xmin)/R), b=Math.floor((w-ymin)/R), near=[];
+      for(let da=-1;da<=1;da++) for(let db=-1;db<=1;db++){ const l=bk.get(key(a+da,b+db)); if(l&&a+da>=0&&b+db>=0&&a+da<bx&&b+db<by) for(const k of l) near.push(k); }
+      near.sort((p1,p2)=>p1-p2);
+      for(const k of near){ const dd=Math.hypot(u-P[k][0],w-P[k][1]); if(dd===0){ hit=P[k][2]; break; } if(dd<R){ const q=(R-dd)/(R*dd), wk=q*q; sw+=wk; sz+=wk*P[k][2]; } }
+      z[j*nx+i]=hit!=null?hit:sw>0?sz/sw:null; }
+    o._R=R; }
+  else return {fail:`There is no gridding called ${m}.`};
+  return {z,nx,ny,x0,x1,y0,y1,n,empty:z.filter(v=>v==null).length,R:o._R}; }
+/* A dense N × N system (row major) by LU with partial pivoting, blocked as LAPACK's dgetrf blocks it: a panel of 64 columns is
+   factored, the rows above to its right solved, and the rest updated a row at a time against those 64 rows, which stay in cache
+   (unblocked, every pivot swept the whole matrix through memory: 2000 unknowns took 8.8 s in node, blocked 4.6 s). x or null when singular. */
+function gaussSolve(A0,b0,N){ const A=Float64Array.from(A0), b=Float64Array.from(b0), perm=new Int32Array(N), BS=64;
+  for(let k0=0;k0<N;k0+=BS){ const k1=Math.min(N,k0+BS);
+    for(let c=k0;c<k1;c++){ let p=c, mv=Math.abs(A[c*N+c]); for(let r=c+1;r<N;r++){ const v=Math.abs(A[r*N+c]); if(v>mv){ mv=v; p=r; } }
+      if(!(mv>0)) return null; perm[c]=p; if(p!==c){ const rc=c*N, rp=p*N; for(let k=0;k<N;k++){ const t=A[rc+k]; A[rc+k]=A[rp+k]; A[rp+k]=t; } }
+      const piv=A[c*N+c]; for(let r=c+1;r<N;r++){ const rr=r*N, l=A[rr+c]/piv; A[rr+c]=l; if(l!==0){ const rc=c*N; for(let k=c+1;k<k1;k++) A[rr+k]-=l*A[rc+k]; } } }
+    if(k1<N){ for(let i=k0;i<k1;i++){ const ri=i*N; for(let j=k0;j<i;j++){ const l=A[ri+j]; if(l===0) continue; const rj=j*N; for(let k=k1;k<N;k++) A[ri+k]-=l*A[rj+k]; } }
+      for(let r=k1;r<N;r++){ const rr=r*N; for(let j=k0;j<k1;j++){ const l=A[rr+j]; if(l===0) continue; const rj=j*N; for(let k=k1;k<N;k++) A[rr+k]-=l*A[rj+k]; } } } }
+  for(let c=0;c<N;c++){ const p=perm[c]; if(p!==c){ const t=b[c]; b[c]=b[p]; b[p]=t; } }
+  for(let r=0;r<N;r++){ let s=b[r]; const rr=r*N; for(let k=0;k<r;k++) s-=A[rr+k]*b[k]; b[r]=s; }
+  const x=new Float64Array(N); for(let r=N-1;r>=0;r--){ let s=b[r]; const rr=r*N; for(let k=r+1;k<N;k++) s-=A[rr+k]*x[k]; x[r]=s/A[rr+r]; } return x; }
+// For the bench: a smoothing spline's curve under a name of its own (its system's conditioning sets a target of its own).
+function smoothCurve(x,y,xq,o){ return interp1(x,y,xq,Object.assign({},o,{method:"smooth"})); }
 // For the bench: a design's sections as one flat array, and its response at w (radians a sample) as {re, im}.
 function iirSos(o){ const D=iirDesign(o); return D.fail?D:D.sos.flat(); }
 function iirFreq(o,w){ const D=iirDesign(o); if(D.fail) return D; const H=sosFreqz(D.sos,w); return {re:H.map(h=>h[0]),im:H.map(h=>h[1])}; }
@@ -20133,10 +20349,22 @@ function runAna(a,p,o){ o=o||{}; const K=ANA_KINDS[a.kind]; p=p||P(); if(!K||!p)
   if((nv>=ANA_BIG||K.heavy&&K.heavy(a.p||{},ins))&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({id:q.id,name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,cells:q.cells,sheet:q.sheet,role:q.role,order:q.order,rows:q.rows,groups:q.groups,grows:q.grows,missing:q.missing,cats:q.cats,pts:q.pts,xu:q.xu,mat:q.mat})),notes,sig); return "later"; }
   let out; try{ out=anaRunKind(a.kind,ins,a.p||{}); }catch(e){ out={fail:String(e&&e.message||e)}; }
   return anaApply(a,p,out,notes,sig); }
+/* An analysis's matrix (SIGNAL_SPEC decision 7): written into a book of its own (`a.out.mat`), its sheet marked `ana` so it is read
+   only as a result sheet is, worked out again with the analysis, cut from it and deleted with it. */
+function anaWriteMat(a,p,m){ const books=matBooks(p).slice(), bi=books.findIndex(b=>b.id===(a.out&&a.out.mat)), names={};
+  ["xname","xunit","yname","yunit","zname","zunit"].forEach(k=>{ if(m[k]) names[k]=String(m[k]); });
+  if(bi<0){ const s=matSheetNew(m,matFreeName(a.name.replace(/[^A-Za-z0-9]/g,"")||"Result",p),Object.assign({ana:a.id},names)), b=matBookNew(s,a.name); books.push(b); a.out=Object.assign({},a.out,{mat:b.id}); }
+  else { const b=books[bi], s0=b.sheets[0], s=Object.assign({id:s0.id,name:s0.name,ana:a.id},names,{nx:m.nx,ny:m.ny,x:m.x,y:m.y,z:m.z}); MATZ_OK.add(s.z); books[bi]=Object.assign({},b,{sheets:[s]}); }
+  p.mats=books; }
+// The patch a save of analyses needs: their matrices too, when any has one.
+const anaPatch=(o,p)=>matBooks(p).some(b=>b.sheets.some(s=>s.ana))?Object.assign(o,{mats:p.mats}):o;
+// The sheet of an analysis's matrix, and the map of it.
+const anaMatSheet=a=>{ const b=a&&a.out&&a.out.mat?matBooks().find(x=>x.id===a.out.mat):null; return b&&b.sheets[0]||null; };
+function anaMatPlot(id){ const a=anaOf(id), s=anaMatSheet(a); if(!s){ toast("There is no matrix to draw: Recalculate first."); return; } plotMatrix(s.id,"image"); }
 function anaApply(a,p,out,notes,sig){
   if(!out||out.fail||out.error){ a.res=Object.assign({},a.res||{},{err:(out&&(out.fail||out.error))||"It could not be worked out"}); a.sig=sig; return false; }
   out.report.notes=notes.concat(out.notes||[]);
-  anaWrite(a,p,out.tables[0]); a.res={report:out.report,notes:out.report.notes,err:null}; a.sig=sig; a.at=Date.now(); return true; }
+  anaWrite(a,p,out.tables[0]); if(out.mat) anaWriteMat(a,p,out.mat); a.res={report:out.report,notes:out.report.notes,err:null}; a.sig=sig; a.at=Date.now(); return true; }
 // Analyses being worked out by the worker: id → {sig, pid, stop}. Not stored: a reload starts again.
 const ANA_BIG=200000, ANA_JOBS=new Map();
 function anaJob(a,ins,notes,sig){ const prev=ANA_JOBS.get(a.id); if(prev) prev.stop=true;
@@ -20148,8 +20376,8 @@ function anaDone(id,j,r,notes){ const p=P(); if(!p||S.pid!==j.pid) return; const
   const ana=anaList(p).map(x=>Object.assign({},x)), a=ana.find(x=>x.id===id);
   if(r&&r.stopped){ a.res=Object.assign({},a.res||{},{err:"Stopped before it was done"}); save({ana},`stopped working out ${a.name}`); renderAll(); toast(`${a.name} stopped: Recalculate works it out.`); return; }
   // No worker after all (or one that failed to start): on the page.
-  if(r==null){ const ok=runAna(a,p,{sync:true}); save({ana,cols:p.cols},`worked out ${a.name}`); renderAll(); return ok; }
-  const ok=anaApply(a,p,r,notes,j.sig); save({ana,cols:p.cols},ok?`worked out ${a.name}`:`could not work out ${a.name}: ${a.res.err}`); renderAll();
+  if(r==null){ const ok=runAna(a,p,{sync:true}); save(anaPatch({ana,cols:p.cols},p),`worked out ${a.name}`); renderAll(); return ok; }
+  const ok=anaApply(a,p,r,notes,j.sig); save(anaPatch({ana,cols:p.cols},p),ok?`worked out ${a.name}`:`could not work out ${a.name}: ${a.res.err}`); renderAll();
   if(ok) toast(`${a.name} worked out.`); else toast(`${a.name} could not be worked out: ${a.res.err}.`); }
 // The table into the result sheet: a column per key, kept by id across recalculations.
 function anaWrite(a,p,t){ const sid=a.out.sheet, have=new Map(p.cols.filter(c=>c.ana===a.id).map(c=>[c.ak,c])), keep=new Set();
@@ -20168,7 +20396,7 @@ function anaWrite(a,p,t){ const sid=a.out.sheet, have=new Map(p.cols.filter(c=>c
 function followAnas(){ const p=P(); if(!p||S.readOnly||S.editing||!anaList(p).length) return false; let did=[];
   const ana=anaList(p).map(a=>Object.assign({},a));
   ana.forEach(a=>{ if(a.recalc!=="auto") return; const s=anaSig(a); if(s===a.sig) return; runAna(a,p); did.push(a.name); });
-  if(!did.length) return false; save({ana,cols:p.cols},`worked out ${andList(did)} again, following its data`); return true; }
+  if(!did.length) return false; save(anaPatch({ana,cols:p.cols},p),`worked out ${andList(did)} again, following its data`); return true; }
 // The worksheet's result sheet is read only: anything that writes to it is refused, saying so.
 function anaRO(){ if(S.sheet!=="raw") return false; const a=anaOfSheet(curSheet()); if(!a) return false;
   toast(`These are the results of ${a.name}: change its settings instead.`,{action:"Change settings…",run:()=>anaDlg(a.kind,{id:a.id})}); return true; }
@@ -20486,6 +20714,37 @@ const ANA_FORMS={
     wire(box){ const on=()=>sigWinWire(box); box.addEventListener("change",on); on(); },
     read(v){ const n=parseNum(String(v.aWn||"")), o=parseNum(String(v.aWo||"")); return Object.assign(sigWinRead(v),{nseg:n>0?Math.round(n):null,over:Number.isFinite(o)&&String(v.aWo||"").trim()!==""?Math.round(o):null,detrend:v.aFd||"constant"}); },
     valid(v){ const n=String(v.aWn||"").trim(), o=String(v.aWo||"").trim(); return sigWinOk(v)&&(!n||parseNum(n)>=2)&&(!o||parseNum(o)>=0); }},
+  interp:{noGroup:true, html(p){ const C=(S.anaCand||[]).filter(c=>c.role==="y"), g=p.grid||"n";
+      return `<div class="grid2"><label for="aPm">Method</label><select id="aPm">${INTERP_METHODS.map(([k,t])=>`<option value="${k}"${k===(p.method||"linear")?" selected":""}>${t}</option>`).join("")}</select>
+      <label for="aPd0" id="aPd0L" class="tipd" title="The slope at the first and the last point, in Y per X: 0 when empty">End slopes</label><span class="anarows" id="aPdS"><input type="text" id="aPd0" inputmode="decimal" value="${Number.isFinite(+p.d0)&&p.d0!==null?+p.d0:""}" placeholder="0" aria-label="Slope at the first point"><span class="muted">and</span><input type="text" id="aPd1" inputmode="decimal" value="${Number.isFinite(+p.d1)&&p.d1!==null?+p.d1:""}" placeholder="0" aria-label="Slope at the last point"></span>
+      <label for="aPl" id="aPlL" class="tipd" title="How smooth: larger is smoother, 0 passes through every point. Empty: chosen by generalised cross-validation">λ</label><input type="text" id="aPl" inputmode="decimal" value="${Number.isFinite(+p.lam)&&p.lam!==null&&p.lam!==""?+p.lam:""}" placeholder="by cross-validation">
+      <label for="aPg">Read at</label><select id="aPg"><option value="n">Evenly spaced X, so many</option><option value="step"${g==="step"?" selected":""}>Evenly spaced X, every…</option><option value="col"${g==="col"?" selected":""}${C.length?"":" disabled"}>Another column's X</option></select>
+      <label for="aPn" id="aPnL">Points</label><input type="text" id="aPn" inputmode="numeric" value="${p.n>0?Math.round(p.n):""}" placeholder="as many as the data">
+      <label for="aPs" id="aPsL">Step</label><input type="text" id="aPs" inputmode="decimal" value="${+p.step>0?+p.step:""}">
+      <label for="aPr0" id="aPr0L">From</label><span class="anarows" id="aPrS"><input type="text" id="aPr0" inputmode="decimal" value="${Number.isFinite(+p.x0)&&p.x0!==null&&p.x0!==""?+p.x0:""}" placeholder="the first X" aria-label="From X"><span class="muted">to</span><input type="text" id="aPr1" inputmode="decimal" value="${Number.isFinite(+p.x1)&&p.x1!==null&&p.x1!==""?+p.x1:""}" placeholder="the last X" aria-label="To X"></span>
+      ${rsSel("aPa","Its X",p.at||(C[1]||C[0]||{}).id,null,C)}
+      <label for="aPe" class="tipd" title="What is written for an X outside the column's own range">Past the data</label><select id="aPe">${INTERP_EXT.map(([k,t])=>`<option value="${k}"${k===(p.ext||"none")?" selected":""}>${t}</option>`).join("")}</select></div>`; },
+    wire(box){ const on=()=>{ const m=box.querySelector("#aPm").value, g=box.querySelector("#aPg").value, sh=(id,b)=>{ const e=box.querySelector("#"+id), l=box.querySelector(`label[for="${id}"]`); if(e) e.hidden=!b; if(l) l.hidden=!b; };
+        sh("aPdS",m==="clamped"); box.querySelector("#aPd0L").hidden=m!=="clamped"; sh("aPl",m==="smooth"); sh("aPn",g==="n"); sh("aPs",g==="step"); sh("aPrS",g!=="col"); box.querySelector("#aPr0L").hidden=g==="col"; sh("aPa",g==="col"); };
+      box.addEventListener("change",on); on(); },
+    read(v){ const num=k=>{ const t=String(v[k]||"").trim(); return t?parseNum(t):null; }; const o={method:v.aPm||"linear",grid:v.aPg||"n",ext:v.aPe||"none"};
+      if(o.method==="clamped"){ o.d0=num("aPd0")||0; o.d1=num("aPd1")||0; } if(o.method==="smooth") o.lam=num("aPl");
+      if(o.grid==="n") o.n=num("aPn"); if(o.grid==="step") o.step=num("aPs"); if(o.grid!=="col"){ o.x0=num("aPr0"); o.x1=num("aPr1"); } else o.at=v.aPa||null; return o; },
+    valid(v){ const t=k=>String(v[k]||"").trim(), okn=k=>!t(k)||Number.isFinite(parseNum(t(k)));
+      return ["aPd0","aPd1","aPl","aPr0","aPr1"].every(okn)&&(v.aPg!=="n"||!t("aPn")||parseNum(t("aPn"))>=2)&&(v.aPg!=="step"||parseNum(t("aPs"))>0)&&(v.aPg!=="col"||!!v.aPa)&&(v.aPm!=="smooth"||!t("aPl")||parseNum(t("aPl"))>=0); },
+    extra(p){ return p.grid==="col"&&p.at?[p.at]:[]; }},
+  grid:{noGroup:true, html(p){ const C=(S.anaCand||[]).filter(c=>anyVal(c.data)), xd=p.x||rsFirst(c=>c.role==="x"), yd=p.y||rsFirst(()=>true,[xd]), zd=p.z||rsFirst(c=>c.role==="y",[xd,yd]), m=p.method||"tri";
+      return `<div class="grid2">${rsSel("aGx","X",xd,null,C)}${rsSel("aGy","Y",yd,null,C)}${rsSel("aGz","Z (the value)",zd,null,C)}
+      <label for="aGm">Method</label><select id="aGm">${GRID_METHODS.map(([k,t])=>`<option value="${k}"${k===m?" selected":""}>${t}</option>`).join("")}</select>
+      <label for="aGs" id="aGsL" class="tipd" title="0 passes through every point; larger is smoother, in Z's units squared">Smoothing</label><input type="text" id="aGs" inputmode="decimal" value="${+p.smooth>0?+p.smooth:""}" placeholder="0">
+      <label for="aGr" id="aGrL" class="tipd" title="Only points within this distance count, in X and Y's units: empty for half the points' diameter times √(19/n)">Radius</label><input type="text" id="aGr" inputmode="decimal" value="${+p.radius>0?+p.radius:""}" placeholder="automatic">
+      <label for="aGnx">Columns × rows</label><span class="anarows"><input type="text" id="aGnx" inputmode="numeric" value="${p.nx||50}" aria-label="Columns (X)"><span class="muted">×</span><input type="text" id="aGny" inputmode="numeric" value="${p.ny||50}" aria-label="Rows (Y)"></span>
+      <label for="aGx0">X from</label><span class="anarows"><input type="text" id="aGx0" inputmode="decimal" value="${Number.isFinite(+p.x0)&&p.x0!==null&&p.x0!==""?+p.x0:""}" placeholder="the smallest" aria-label="X from"><span class="muted">to</span><input type="text" id="aGx1" inputmode="decimal" value="${Number.isFinite(+p.x1)&&p.x1!==null&&p.x1!==""?+p.x1:""}" placeholder="the largest" aria-label="X to"></span>
+      <label for="aGy0">Y from</label><span class="anarows"><input type="text" id="aGy0" inputmode="decimal" value="${Number.isFinite(+p.y0)&&p.y0!==null&&p.y0!==""?+p.y0:""}" placeholder="the smallest" aria-label="Y from"><span class="muted">to</span><input type="text" id="aGy1" inputmode="decimal" value="${Number.isFinite(+p.y1)&&p.y1!==null&&p.y1!==""?+p.y1:""}" placeholder="the largest" aria-label="Y to"></span></div>`; },
+    wire(box){ const on=()=>{ const m=box.querySelector("#aGm").value; ["aGs","aGsL"].forEach(i=>{ box.querySelector("#"+i).hidden=m!=="tps"; }); ["aGr","aGrL"].forEach(i=>{ box.querySelector("#"+i).hidden=m!=="shepard"; }); }; box.addEventListener("change",on); on(); },
+    read(v){ const num=k=>{ const t=String(v[k]||"").trim(); return t?parseNum(t):null; }; return {x:v.aGx||null,y:v.aGy||null,z:v.aGz||null,method:v.aGm||"tri",smooth:num("aGs"),radius:num("aGr"),nx:Math.round(num("aGnx")||50),ny:Math.round(num("aGny")||50),x0:num("aGx0"),x1:num("aGx1"),y0:num("aGy0"),y1:num("aGy1")}; },
+    valid(v){ const o=ANA_FORMS.grid.read(v); return !!(o.x&&o.y&&o.z)&&new Set([o.x,o.y,o.z]).size===3&&o.nx>=2&&o.ny>=2&&o.nx*o.ny<=MAT_MAX; },
+    extra(p){ return [p.x,p.y,p.z]; }},
   cmpmod:{noGroup:true, html(p){ const C=cmpCands(), keys=(Array.isArray(p.fits)?p.fits:[]).map(s=>s.key), def=[C.find(c=>c.key==="screen")?"screen":"m:linear","m:poly2"], opts=sel=>C.map(c=>c.group?`<optgroup label="${esc(c.group)}">`:c.end?"</optgroup>":`<option value="${esc(c.key)}"${c.key===sel?" selected":""}>${esc(c.name)}</option>`).join("");
       return `<div class="grid2">${[0,1,2,3,4].map(i=>`<label for="aMm${i}">${i<2?`Setting ${i+1}`:`Setting ${i+1}, if any`}</label><select id="aMm${i}">${i>=2?`<option value="">—</option>`:""}${opts(keys[i]||(i<2?def[i]:""))}</select>`).join("")}
       ${cmpCommonHtml(p)}</div>`; },
@@ -20626,13 +20885,13 @@ async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[kin
   if(F.extra) (F.extra(kp)||[]).forEach(id=>{ if(id&&!inp.cols.includes(id)&&colById(id)) inp.cols.push(id); });
   if(F.inp) F.inp(kp,inp);   // a form's own inputs (a surface fit's matrix)
   if(a0){ const a=ana.find(x=>x.id===a0.id); if(!a) return; pushUndo(`the settings of ${a.name}`); Object.assign(a,{in:inp,p:kp,recalc:v.aRc,by:who()}); runAna(a,q);
-    save({ana,cols:q.cols},`changed the settings of ${a.name}`); showSheet(a.out.sheet,{quiet:true}); toast(`${a.name} worked out again.`,{action:"Undo",run:undo}); return; }
+    save(anaPatch({ana,cols:q.cols},q),`changed the settings of ${a.name}`); showSheet(a.out.sheet,{quiet:true}); toast(`${a.name} worked out again.`,{action:"Undo",run:undo}); return; }
   pushUndo(K.label.toLowerCase()); stampSheets(q);
   const used=new Set(ana.map(x=>x.name).concat(sheetList(q).map(s=>s.name))); let n=1; while(used.has(`${K.base} ${n}`)) n++;
   const name=`${K.base} ${n}`, sh={id:newSheetId(),name}, a={id:newAnaId(),kind,name,in:inp,p:kp,out:{sheet:sh.id},recalc:v.aRc==="manual"?"manual":"auto",at:Date.now(),by:who()};
   sh.ana=a.id; const ss=sheetList(q).concat([sh]); q.sheets=ss; ana.push(a); runAna(a,q);
   const tw=typeof K.typedWhat==="function"?K.typedWhat(kp):K.typedWhat;
-  save({ana,sheets:ss,cols:q.cols},`worked out ${name} (${K.label.toLowerCase()}) of ${K.typed?(tw||"the counts typed"):andList(cols.map(id=>colRef(colById(id))))}`);
+  save(anaPatch({ana,sheets:ss,cols:q.cols},q),`worked out ${name} (${K.label.toLowerCase()}) of ${K.typed?(tw||"the counts typed"):andList(cols.map(id=>colRef(colById(id))))}`);
   showSheet(sh.id,{quiet:true}); const a1=anaOf(a.id);
   if(a1&&a1.res&&a1.res.err) toast(`${name} could not be worked out: ${a1.res.err}.`,{action:"Change settings…",run:()=>anaDlg(kind,{id:a.id})});
   else toast(`${name}: the results of ${K.typed?(tw||"the counts typed"):andList(cols.map(id=>specName(colById(id))))}, on a sheet of their own.`,{action:"Undo",run:undo}); }
@@ -20659,12 +20918,14 @@ function graphSummary(cid){ const p=P(); if(!p||S.readOnly) return;
 /* What an analysis's result offers beside its report (STATS_SPEC 2.2): a normality test's Q–Q plot, the
    outliers masked or marked. The report's buttons (Results, the History) and the tab menu list them. */
 // A signal analysis's result plotted (SIGNAL_SPEC, wave 5): each Y column of its sheet against its X, on a new graph.
-const SIG_PLOT={fft:"Plot the spectrum",psd:"Plot the spectrum",ifft:"Plot the signal",xcorr:"Plot the correlation",coh:"Plot the coherence"};
+const SIG_PLOT={fft:"Plot the spectrum",psd:"Plot the spectrum",ifft:"Plot the signal",xcorr:"Plot the correlation",coh:"Plot the coherence",interp:"Plot the result"};
 function sigPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const ys=p.cols.filter(c=>c.ana===id&&c.role==="y");
   if(!ys.length){ toast("There is nothing to plot: Recalculate first."); return; }
   plotCols(ys.map(c=>c.id),{series:Object.fromEntries(ys.map(c=>[c.id,{type:"line"}])),undo:`plotting ${a.name}`,say:a.name}); }
 function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&rep.marks?rep.marks.length:0;
   if(!rep) return [];
+  if(ANA_KINDS[a.kind]&&ANA_KINDS[a.kind].mat) return [{key:"map",label:"Draw the map",title:"The analysis's matrix, as an image with its colour bar, on a new graph",enabled:!ro&&!!anaMatSheet(a),run:()=>anaMatPlot(a.id)},
+    {key:"open",label:"Open the matrix",title:"The matrix's cells in its window",enabled:!!anaMatSheet(a),run:()=>{ const s=anaMatSheet(a); if(s) matOpen(a.out.mat,s.id); }}];
   if(SIG_PLOT[a.kind]) return [{key:"plot",label:SIG_PLOT[a.kind],title:"The result's main column against its X, on a new graph",enabled:!ro,run:()=>sigPlot(a.id)}];
   if(a.kind==="corr") return [{key:"scatter",label:"Scatter matrix",title:"Each pair's values against each other, a graph a pair, in a figure",enabled:!ro&&(a.in.cols||[]).length>1,run:()=>anaScatter(a.id)}];
   if(a.kind==="anovan") return [{key:"inter",label:"Interaction plot",title:"The cells' means by the first factor, a line for each level of the second, with their intervals, on a graph",enabled:!ro,run:()=>anaInterPlot(a.id)},
@@ -20797,19 +21058,21 @@ function anaMenuItems(a){ const ro=S.readOnly||!P(), st=anaStale(a);
     {label:"Delete the analysis…",danger:true,enabled:!ro,title:"The analysis and its sheet",run:()=>anaDelete(a.id)},"-"]; }
 function anaEdit(id,label,fn,log){ const p=P(); if(!p||S.readOnly) return; const ana=anaList(p).map(x=>Object.assign({},x)), a=ana.find(x=>x.id===id); if(!a) return;
   pushUndo(label); const patch=fn(a,ana,p)||{}; save(Object.assign({ana:patch.ana||ana},patch),log); renderAll(); }
-function anaRecalc(id){ const a0=anaOf(id); if(!a0) return; anaEdit(id,`recalculating ${a0.name}`,(a,ana,p)=>{ runAna(a,p); return {ana,cols:p.cols}; },`worked out ${a0.name} again`);
+function anaRecalc(id){ const a0=anaOf(id); if(!a0) return; anaEdit(id,`recalculating ${a0.name}`,(a,ana,p)=>{ runAna(a,p); return anaPatch({ana,cols:p.cols},p); },`worked out ${a0.name} again`);
   const a=anaOf(id); if(a&&a.res&&a.res.err) toast(`${a.name} could not be worked out: ${a.res.err}.`); }
 function anaSetRecalc(id,v){ const a0=anaOf(id); if(!a0||a0.recalc===v) return; anaEdit(id,"how it recalculates",a=>{ a.recalc=v; },v==="auto"?`set ${a0.name} to be worked out again whenever its data change`:`set ${a0.name} to be worked out only when asked`); }
 function anaCut(id){ const a0=anaOf(id); if(!a0) return;
   anaEdit(id,`cutting ${a0.name} from its data`,(a,ana,p)=>{ p.cols.forEach(c=>{ if(c.ana===id){ delete c.ana; delete c.ak; } });
     const ss=sheetList(p).map(s=>s.ana===id?Object.assign({},s,{ana:undefined}):s); ss.forEach(s=>{ if(s.ana===undefined) delete s.ana; }); p.sheets=ss;
-    return {ana:ana.filter(x=>x.id!==id),sheets:ss,cols:p.cols}; },`cut ${a0.name} from its data: its values are an ordinary sheet now`);
+    const mats=matBooks(p).map(b=>b.sheets.some(s=>s.ana===id)?Object.assign({},b,{sheets:b.sheets.map(s=>{ const o=Object.assign({},s); delete o.ana; return o; })}):b);
+    return Object.assign({ana:ana.filter(x=>x.id!==id),sheets:ss,cols:p.cols},mats.length?{mats}:{}); },`cut ${a0.name} from its data: its values are an ordinary sheet now`);
   toast(`${a0.name}'s values are an ordinary sheet now.`,{action:"Undo",run:undo}); }
 async function anaDelete(id){ const a0=anaOf(id); if(!a0) return; const p=P(), mine=new Set(p.cols.filter(c=>c.ana===id).map(c=>c.id));
   const readers=p.cols.filter(c=>!mine.has(c.id)&&(c.fx&&Object.values(c.fx.refs||{}).some(r=>mine.has(r))||c.src&&mine.has(c.src))).length+(p.graphs||[]).filter(g=>(g.cols||[]).some(i=>mine.has(i))).length;
   if(readers&&!(await confirmDlg(`Delete ${a0.name}?`,`${readers} formula${readers===1?"":"s"} or graph${readers===1?"":"s"} read its columns, and will lose them.`,"Delete",true))) return;
   const sid=a0.out.sheet; anaEdit(id,`deleting ${a0.name}`,(a,ana,q)=>{ const ss=sheetList(q).filter(s=>s.id!==sid); q.cols=q.cols.filter(c=>c.ana!==id&&sheetOf(c,q)!==sid); q.sheets=ss.length?ss:[SHEET0];
-    if(curSheet()===sid) S.sheetAt[S.pid]=q.sheets[0].id; return {ana:ana.filter(x=>x.id!==id),sheets:q.sheets,cols:q.cols}; },`deleted ${a0.name} and its sheet`);
+    if(curSheet()===sid) S.sheetAt[S.pid]=q.sheets[0].id; const mats=matBooks(q).filter(b=>!b.sheets.some(s=>s.ana===id));
+    return Object.assign({ana:ana.filter(x=>x.id!==id),sheets:q.sheets,cols:q.cols},matBooks(q).length!==mats.length?{mats}:{}); },`deleted ${a0.name} and its sheet`);
   toast(`${a0.name} deleted.`,{action:"Undo",run:undo}); }
 // The report as HTML, from the report object (the same object the copied table and the CSV read).
 function anaReportHtml(a){ const r=a.res||{}, rep=r.report, st=anaStale(a); let h=ANA_JOBS.has(a.id)?noteHtml("info",`Being worked out beside the page.`):st?noteHtml("warn",`Out of date: ${st}.`):"";
@@ -20847,7 +21110,7 @@ function anaClean(p){ if(p.ana!==undefined&&!Array.isArray(p.ana)) delete p.ana;
     .map(a=>{ if(typeof a.name!=="string"||!a.name) a.name=ANA_KINDS[a.kind].base; if(a.recalc!=="manual") a.recalc="auto"; if(!a.in.read||typeof a.in.read!=="object") a.in.read={}; a.in.cols=a.in.cols.filter(x=>typeof x==="string");
       if(a.in.rows!==undefined&&!(Array.isArray(a.in.rows)&&a.in.rows.length===2&&a.in.rows.every(x=>x==null||(Number.isInteger(x)&&x>=1))&&a.in.rows.some(x=>x!=null))) delete a.in.rows;
       if(a.in.miss!==undefined&&a.in.miss!=="list") delete a.in.miss; if(!a.p||typeof a.p!=="object"||Array.isArray(a.p)) a.p={};
-      if(a.in.mat!==undefined&&typeof a.in.mat!=="string") delete a.in.mat;
+      if(a.in.mat!==undefined&&typeof a.in.mat!=="string") delete a.in.mat; if(a.out.mat!==undefined&&typeof a.out.mat!=="string") delete a.out.mat;
       if(a.in.where!==undefined){ const w=a.in.where, o={}; if(w&&typeof w==="object"&&!Array.isArray(w)) Object.keys(w).forEach(id=>{ if(filtOk(w[id])) o[id]=w[id]; }); if(Object.keys(o).length) a.in.where=o; else delete a.in.where; }
       return a; });
   const ids=new Set((p.ana||[]).map(a=>a.id)), own=new Map((p.ana||[]).map(a=>[a.out.sheet,a.id]));
@@ -21698,6 +21961,7 @@ function matClean(p){ if(p.mats==null) return; if(!Array.isArray(p.mats)){ delet
       let nm=str(s.name).trim(); if(!/^[A-Za-z][A-Za-z0-9_]*$/.test(nm)||names.has(nm.toLowerCase())){ let k=1; while(names.has(("M"+k).toLowerCase())) k++; nm="M"+k; } names.add(nm.toLowerCase());
       const o={id:s.id,name:nm,nx:s.nx,ny:s.ny,x:ax(s.x,s.nx),y:ax(s.y,s.ny),z};
       ["xname","xunit","yname","yunit","zname","zunit"].forEach(k=>{ if(typeof s[k]==="string"&&s[k]) o[k]=str(s[k]); });
+      if(typeof s.ana==="string"&&s.ana) o.ana=s.ana;
       if(s.fx&&typeof s.fx==="object"&&typeof s.fx.src==="string"&&s.fx.refs&&typeof s.fx.refs==="object"){ o.fx={src:s.fx.src.slice(0,4000),refs:Object.assign(Object.create(null),...Object.entries(s.fx.refs).filter(([k,v])=>typeof v==="string").map(([k,v])=>({[k]:v})))}; if(typeof s.fx.err==="string") o.fx.err=s.fx.err; }
       if(s.raw&&typeof s.raw==="object"&&Array.isArray(s.raw.hist)) o.raw={fp:typeof s.raw.fp==="string"?s.raw.fp:"",hist:s.raw.hist.filter(e=>e&&typeof e==="object"&&typeof e.text==="string").slice(-60)};
       return o; });
@@ -21776,6 +22040,7 @@ function matRecalc(mats,ids,p){ const done=new Set(), q=[...ids]; let out=mats;
 /* The one writer: sheet `sid` changed by fn (a new sheet, or {fail} in words), what reads it worked
    out again, a recorded sheet's record given an entry (`rec`, its text), one undo step and a log line. */
 function matPut(sid,fn,o){ const p=P(); if(!p||S.readOnly) return false; const s=matOf(sid); if(!s) return false;
+  if(s.ana){ const a=anaOf(s.ana); if(a){ toast(`This matrix holds the results of ${a.name}: change its settings instead.`,{action:"Change settings…",run:()=>anaDlg(a.kind,{id:a.id})}); return false; } }
   const ns=fn(s); if(!ns) return false; if(ns.fail){ toast(ns.fail); return false; }
   if(ns.z!==s.z) MATZ_OK.add(ns.z);
   if(o.rec&&!ns.fx) ns.raw=matRecord(ns,o.rec);
@@ -22144,7 +22409,7 @@ function matMenuItems(sid){ const s=matOf(sid), ro=S.readOnly, on=!!s&&!ro;
     {label:"Delete this matrix…",danger:true,enabled:on,run:()=>matDeleteSheet(sid)}].filter(Boolean); }
 // Data › Matrix.
 function matDataItems(){ const ro=S.readOnly||!P(), sid=matFront(), s=matOf(sid), books=matBooks();
-  const out=[{label:"New matrix…",enabled:!ro,run:matNewDlg},{label:"From columns…",enabled:!ro,title:"The block selected in the worksheet: its columns the matrix's columns, its rows the rows",run:matFromColsDlg},{label:"From a picture…",enabled:!ro,title:"A PNG or JPEG: its grey values, or one channel, 0 to 255",run:matFromPicture}];
+  const out=[{label:"New matrix…",enabled:!ro,run:matNewDlg},{label:"From columns…",enabled:!ro,title:"The block selected in the worksheet: its columns the matrix's columns, its rows the rows",run:matFromColsDlg},{label:"From a picture…",enabled:!ro,title:"A PNG or JPEG: its grey values, or one channel, 0 to 255",run:matFromPicture},{label:"From scattered X, Y, Z…",enabled:!ro,title:ANA_KINDS.grid.help,run:()=>anaDlg("grid")}];
   if(books.length) out.push({label:"Open",sub:()=>books.map(b=>({label:b.name,note:b.sheets.length>1?`${b.sheets.length} sheets`:`${b.sheets[0].ny} × ${b.sheets[0].nx}`,run:()=>matOpen(b.id)}))});
   if(s) out.push("-",{group:s.name});
   return s?out.concat(matMenuItems(sid)):out; }
@@ -27626,7 +27891,8 @@ function analyzeMenu(){
       t("conv"), t("deconv")]},
     {label:"Calculus", sub:()=>[t("deriv"),
       {label:"Derivative, as a new column…", title:"Keeps this column and adds its derivative beside it", run:()=>{ const id=newDerived("final",{quiet:true,name:`d/dx ${specName(activeYCol())}`}); if(id) openTool("deriv",{col:id}); }, enabled:edit&&has},
-      t("cumint")]},
+      t("cumint"), "-",
+      {label:"Interpolate…", title:ANA_KINDS.interp.help, run:()=>anaDlg("interp"), enabled:!S.readOnly&&!!P()}]},
     {label:"Statistics", sub:()=>[{label:"Quick statistics…", title:"The Statistics window: each column's numbers at a glance, the integral of the range in view, the noise and the signal to noise, with no sheet made", run:go("desc"), enabled:has},
       {label:"Descriptive", sub:()=>[{label:"Statistics on columns…", title:ANA_KINDS.desc.help, run:()=>anaDlg("desc"), enabled:!S.readOnly&&!!P()},
         {label:"Frequency counts…", title:ANA_KINDS.freq.help, run:()=>anaDlg("freq"), enabled:!S.readOnly&&!!P()},
@@ -30462,8 +30728,8 @@ ${DL([["Pearson's r","p by t on N − 2 degrees of freedom; its interval by Fish
 <p>Its tab carries a lock: the sheet is read only, since its values are worked out. Its columns can be plotted, read by a formula and copied; one moved to another sheet becomes a copy, cut from the analysis. The results are not original data, so they leave the check code alone.</p>
 <h2 id="recalc">Recalculating</h2>
 <p>Right-click its tab: ${DL([["Report","What it found, with its notes."],["Change settings…","The dialog again."],["Recalculate","When it is out of date."],["Recalculate by itself","The default: worked out again whenever a value, a step or a mask of what it reads changes, with a line in the log."],["Only when asked","A change marks its tab out of date instead, with the reason in its tooltip."],["Cut from its data","The values stay as an ordinary sheet; the analysis goes."],["Delete the analysis…","With its sheet."]])} Each is one undo step.</p>`},
-{id:"signal", g:"Analysis", t:"Signal processing", kw:"signal processing fft fourier transform discrete spectrum frequency amplitude power phase real imaginary periodogram power spectral density psd welch segments overlap window hann hanning hamming blackman harris flat top kaiser tukey bartlett gaussian rectangle boxcar leakage padding zero padding detrend nyquist sampling rate inverse ifft irfft bluestein db decibel unwrap filter designed iir fir butterworth chebyshev elliptic cauer bessel thomson low-pass high-pass band-pass band-stop lowpass highpass bandpass bandstop order cut-off cutoff edge ripple attenuation zero phase filtfilt sosfiltfilt forwards backwards causal notch hum mains 50 hz 60 hz harmonics quality factor correlation autocorrelation cross-correlation xcorr lag lags delay shift coherence cross-spectrum csd convolution convolve kernel blur broaden instrument function line shape deconvolution deconvolve wiener sharpen",
- lead:"The Fourier transform of a column, its power spectrum by Welch's method and the inverse, correlation and coherence, each as a sheet of results worked out again when its data change; filters designed by their kind, band and order, a notch, convolution and deconvolution, as steps.",
+{id:"signal", g:"Analysis", t:"Signal processing", kw:"signal processing fft fourier transform discrete spectrum frequency amplitude power phase real imaginary periodogram power spectral density psd welch segments overlap window hann hanning hamming blackman harris flat top kaiser tukey bartlett gaussian rectangle boxcar leakage padding zero padding detrend nyquist sampling rate inverse ifft irfft bluestein db decibel unwrap filter designed iir fir butterworth chebyshev elliptic cauer bessel thomson low-pass high-pass band-pass band-stop lowpass highpass bandpass bandstop order cut-off cutoff edge ripple attenuation zero phase filtfilt sosfiltfilt forwards backwards causal notch hum mains 50 hz 60 hz harmonics quality factor correlation autocorrelation cross-correlation xcorr lag lags delay shift coherence cross-spectrum csd convolution convolve kernel blur broaden instrument function line shape deconvolution deconvolve wiener sharpen interpolate interpolation extrapolate extrapolation spline cubic natural not-a-knot clamped akima makima pchip smoothing spline gcv cross-validation resample grid gridding scattered xyz delaunay triangles thin plate tps rbf shepard inverse distance matrix",
+ lead:"The Fourier transform of a column, its power spectrum by Welch's method and the inverse, correlation and coherence, interpolation, each as a sheet of results worked out again when its data change; scattered points gridded into a matrix; filters designed by their kind, band and order, a notch, convolution and deconvolution, as steps.",
  body:`<h2 id="fft">FFT</h2>
 <p>${MP("Analyze › Signal processing › FFT…")}: the discrete Fourier transform of each column ticked, at any length (a prime length too, by Bluestein's algorithm). The columns written are chosen: frequency always, then amplitude, power, the power spectral density, phase, the real and imaginary parts, power in dB. One side runs from 0 to half the sampling rate; two sides add the negative frequencies, in NumPy's order or from −fs/2 when shifted. The normalisations are stated in the report: a sine of amplitude A reads A in the amplitude and A²/2 in the power (its mean square), and the density integrates over frequency to the mean square, so a window does not change what a peak reads. The real and imaginary parts are the transform unscaled, as NumPy gives it, so the inverse takes them back.</p>
 <p>The sampling interval is the column's X step, and the frequency is in the reciprocal of X's unit (Hz for seconds, cm for cm⁻¹). X out of order is sorted first; X not evenly spaced (steps differing by more than a millionth) is read on an even grid by straight lines; both are said in the notes. A trend taken off (the mean, or a straight line) keeps a large value at frequency 0 from leaking into its neighbours; padding with zeros gives a finer frequency step to read, not new information.</p>
@@ -30483,6 +30749,10 @@ ${DL([["Pearson's r","p by t on N − 2 degrees of freedom; its interval by Fish
 <p>${MP("Analyze › Signal processing › Coherence…")}: two columns read on one grid over the X they share, cut into Welch's segments; at each frequency |Pxy|²/(Pxx·Pyy), from 0 (unrelated) to 1 (one a filtered copy of the other), with the cross-spectrum's magnitude and phase. With one segment it is 1 everywhere, and the notes say so.</p>
 <h2 id="conv">Convolution and deconvolution</h2>
 <p>${MP("Analyze › Signal processing › Convolution…")} adds a step: each point replaced by its neighbours weighted by a kernel, a Gaussian, Lorentzian, box, triangle or one-sided exponential of a width in X's unit, or another column (a measured line shape, read at this column's spacing; its origin at X = 0 when its X spans 0, else at its top). Scaled to sum to 1, the area is kept and a band comes out wider (Gaussians add in quadrature). Past the ends the column is mirrored, or taken as zero as NumPy's <code>convolve</code> does. ${MP("Deconvolution…")} undoes a known blur by Wiener's filter: divided by the kernel's transform where it is large, held back where it is small by the noise-to-signal ratio, typed or estimated from the column's highest frequencies; the step says the ratio and how many times the noise rises.</p>
+<h2 id="interp">Interpolation</h2>
+<p>${MP("Analyze › Calculus › Interpolate…")}: each column ticked read at new X: so many evenly spaced points or a step, over its own range or one typed, or the X of another column (to put two columns on one X). ${DL([["Straight lines","Between neighbours, as NumPy's interp."],["Cubic spline","Smooth through every point; its ends not a knot (the default), natural (no curvature) or clamped (the end slopes typed)."],["Akima, modified Akima","Smooth, and calmer than a spline near a sudden step."],["PCHIP","Never overshoots: a monotone stretch stays monotone."],["Smoothing spline","Does not pass through the points: λ sets how smooth, empty chooses it by generalised cross-validation; the report gives λ and the degrees of freedom."]])} All as SciPy's. Past the data the cells are empty unless asked (the method's curve continued, a straight line from the end, the end's value). A column beside the values says, row by row, measured (an X that was measured keeps its value), interpolated or extrapolated. Repeated X are averaged first, and said.</p>
+<h2 id="grid">Scattered points into a matrix</h2>
+<p>${MP("Data › Matrix › From scattered X, Y, Z…")}: three columns, a value at each place measured, onto an even grid of so many columns and rows over the points' extent or a range typed, as a matrix that belongs to the analysis (read only, worked out again when the columns change, cut from it or deleted with it). Delaunay's triangles in straight lines (empty outside the points' outline, as SciPy's griddata), a thin-plate spline (through every point, or smoothed; up to ${"3 000"} points), or Shepard's weights within a radius (empty where no point is near). Its tab menu's <em>Draw the map</em> plots it as an image.</p>
 <h2>The results</h2>
 <p>Each is a result sheet (see ${DA("analyses","Analyses and result sheets")}): read only, worked out again when its column changes, its report giving the settings and, for the FFT, the frequency of the largest amplitude away from 0. Right-click its tab › <em>Plot</em> draws the main column against frequency. Past 400 000 points the work is done in the background, with Stop.</p>`},
 {id:"stats", g:"Analysis", t:"Statistics", win:"stats", kw:"statistics quick statistics descriptive n count mean median sd se standard error spectral measures noise signal to noise area centroid correlation pearson integrate visible range",

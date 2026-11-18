@@ -178,5 +178,36 @@ console.log("5.3 correlation and convolution");
   ok(/Wiener's deconvolution/.test(ds.note) && /estimated/.test(ds.note) && /rises/.test(ds.note), `the deconvolution step says its ratio and the noise's rise: "${ds.note.slice(0, 90)}…"`);
   const big = Array.from({ length: 1e5 }, () => gauss()), [, ms] = time(() => correlate(big, big.map((v) => v + gauss()), { norm: "coeff" })); ok(ms < 600, `the correlation of two columns of 10⁵ in ${ms.toFixed(0)} ms (budget 0.2 s in the browser)`);
 }
+console.log("5.7 interpolation");
+{ const interp1 = get("interp1"), gridXYZ = get("gridXYZ"), smoothSpline = get("smoothSpline");
+  const x = Array.from({ length: 25 }, (_, i) => i * 0.7 + Math.sin(i) * 0.2), y = x.map((v) => Math.sin(v) * 3 + v);
+  const M = ["linear", "notaknot", "natural", "clamped", "akima", "makima", "pchip"];
+  ok(M.every((m) => interp1(x, y, x, { method: m }).y.every((v, i) => v === y[i])), "every interpolant passes through its own points exactly");
+  const line = x.map((v) => 2.5 * v - 1), q = Array.from({ length: 60 }, (_, i) => -1 + i * 0.3);
+  ok(M.filter((m) => m !== "clamped").every((m) => interp1(x, line, q, { method: m, ext: "method" }).y.every((v, i) => Math.abs(v - (2.5 * q[i] - 1)) < 1e-12)), "a straight line kept by every method, inside and past the ends");
+  ok(M.every((m) => interp1(x, x.map(() => 4), q, { method: m }).y.every((v) => v === null || Math.abs(v - 4) < 1e-14)), "a constant kept by every method");
+  const r = interp1(x, y, [-5, x[3], (x[3] + x[4]) / 2, 50], { method: "pchip", ext: "none" }); ok(r.how.join() === ",0,1," && r.y[0] === null && r.y[3] === null, "measured, interpolated, and empty past the data unless asked");
+  const r2 = interp1(x, y, [-5, 50], { method: "pchip", ext: "line" }); ok(r2.how.join() === "2,2" && r2.y.every(Number.isFinite), "…extrapolated when asked, and marked so");
+  const r3 = interp1([0, 1, 1, 2], [0, 1, 3, 4], [1], { method: "linear" }); ok(r3.merged === 1 && r3.y[0] === 2, "a repeated X: its values averaged, and counted");
+  const s0 = smoothSpline(x, y, { lam: 1e-9 }), s1 = smoothSpline(x, y, { lam: 1 }), s2 = smoothSpline(x, y, { lam: 100 });
+  ok(Math.abs(s0.edf - 25) < 1e-3 && s1.edf < s0.edf && s2.edf < s1.edf && s2.edf > 2, `the smoothing spline: degrees of freedom ${s0.edf.toFixed(2)} → ${s1.edf.toFixed(2)} → ${s2.edf.toFixed(2)} as λ grows, towards a straight line's 2`);
+  // gridding: a plane kept by triangles and the thin-plate spline; a constant by Shepard's weights
+  let sd = 3; const rr = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; }, X = Array.from({ length: 300 }, rr), Y = X.map(() => rr() * 5), Z = X.map((v, i) => 3 * v - 0.4 * Y[i] + 7);
+  const gt = gridXYZ(X, Y, Z, { method: "tri", nx: 30, ny: 30 }), gp = gridXYZ(X, Y, Z, { method: "tps", nx: 30, ny: 30 }), gs = gridXYZ(X, Y, X.map(() => 5), { method: "shepard", nx: 30, ny: 30 });
+  const plane = (g) => g.z.every((v, k) => { if (v == null) return true; const i = k % g.nx, j = Math.floor(k / g.nx), u = g.x0 + (g.x1 - g.x0) * i / (g.nx - 1), w = g.y0 + (g.y1 - g.y0) * j / (g.ny - 1); return Math.abs(v - (3 * u - 0.4 * w + 7)) < 1e-9; });
+  ok(plane(gt) && gt.empty > 0 && plane(gp) && gp.empty === 0 && gs.z.every((v) => v == null || Math.abs(v - 5) < 1e-12), `a plane kept by the triangles (${gt.empty} cells outside the outline empty) and the thin-plate spline; a constant by Shepard's weights`);
+  ok(/one line/.test(gridXYZ([1, 2, 3, 4], [1, 1, 1, 1], [1, 2, 3, 4], {}).fail || ""), "points on one line refused in words");
+  // the analyses whole
+  const pts = (x, y) => ({ x, y, e: x.map(() => null), rows: x.map((_, i) => i) }), qa = { id: "a", name: "A", unit: "V", xu: "s", xn: "Time", pts: pts(x, y) }, qb = { id: "b", name: "B", unit: "V", xu: "s", pts: pts([1, 2, 3, 100], [0, 0, 0, 0]) };
+  const R = anaRunKind("interp", [qa, qb], { method: "notaknot", grid: "col", at: "b", ext: "none" }), C = Object.fromEntries(R.tables[0].cols.map((c) => [c.k, c]));
+  ok(C.x0.vals.join() === "1,2,3,100" && C.y0.vals[3] === null && C.h0.vals.join() === "interpolated,interpolated,interpolated," && C.x0.name === "A: Time" === false, "Interpolate at another column's X: A read at B's X, past its data empty, each row marked");
+  const G = anaRunKind("grid", [{ id: "x", name: "X", unit: "mm", vals: X, rows: X.map((_, i) => i) }, { id: "y", name: "Y", unit: "mm", vals: Y, rows: Y.map((_, i) => i) }, { id: "z", name: "Height", unit: "nm", vals: Z, rows: Z.map((_, i) => i) }], { x: "x", y: "y", z: "z", method: "tri", nx: 20, ny: 10 });
+  ok(G.mat && G.mat.nx === 20 && G.mat.ny === 10 && G.mat.zunit === "nm" && G.mat.z.length === 200, "Gridding returns a matrix of 10 × 20 with its names and units");
+  const big = Array.from({ length: 1e6 }, (_, i) => i), bv = big.map((v) => Math.sin(v * 1e-3)), bq = big.map((v) => v + 0.5);
+  const [, ms] = time(() => interp1(big, bv, bq, { method: "pchip" })); ok(ms < 1500, `PCHIP of 10⁶ points read at 10⁶ others in ${ms.toFixed(0)} ms (budget 0.5 s in the browser)`);
+  const Xb = Array.from({ length: 2000 }, rr), Yb = Xb.map(() => rr()), Zb = Xb.map((v, i) => Math.sin(5 * v) * Yb[i]);
+  const [gb, mt] = time(() => gridXYZ(Xb, Yb, Zb, { method: "tps", nx: 200, ny: 200 })); ok(!gb.fail && mt < 9000, `a thin-plate spline of 2000 points onto 200 × 200 in ${mt.toFixed(0)} ms (budget 6 s in the worker, perf.mjs)`);
+  const [, msh] = time(() => gridXYZ(Xb, Yb, Zb, { method: "shepard", nx: 200, ny: 200 })); ok(msh < 600, `Shepard's weights of 2000 points onto 200 × 200 in ${msh.toFixed(0)} ms`);
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

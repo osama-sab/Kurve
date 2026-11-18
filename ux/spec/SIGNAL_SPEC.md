@@ -334,6 +334,15 @@ cross-correlations of many columns; blind deconvolution.
 
 ## 5.7 Interpolation into columns
 
+Done 18.11, as below, with these changes of plan: Renka–Cline (SciPy's Clough–Tocher, its gradients by global minimisation) is
+left for later, the three griddings here meeting the slice's cases; the thin-plate spline takes 3 000 points at most and 2 000
+onto 200 × 200 take about 5 s in the worker (its system of 2 003 by blocked LU, which halved the time; a symmetric indefinite
+factorisation would halve it again), so its budget is 6 s; the smoothing spline is Reinsch's (the same curve as SciPy's B-splines,
+7e-12 from 40 digits where SciPy is 2e-11), its λ by GCV through a port of SciPy's bounded search, judged within that search's
+1e-5; the thin plate is judged to 1e-8, its system's condition reaching 3e9 for points 2 500 times wider than tall (Kurve 3.8e-9
+from 40 digits, SciPy 5.3e-9); the gridding is the first analysis with a matrix of its own (decision 7), the layer 5.5 and 5.6
+use: `anaWriteMat`, read only through `matPut`, cut and deleted with the analysis.
+
 **What.** Analyze › Calculus › *Interpolate…* (an analysis: one column or several, the method —
 straight lines, cubic spline natural, not-a-knot or clamped with the end slopes given, Akima,
 PCHIP, smoothing spline with λ given or by cross-validation — onto n points over a range, a step

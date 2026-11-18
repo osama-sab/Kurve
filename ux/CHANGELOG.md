@@ -1024,6 +1024,21 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 5, slice 5.7: interpolation into columns (2026-11-18)
+
+- **Analyze › Calculus › Interpolate…**: columns read at so many evenly spaced X, a step, or another column's X, by straight
+  lines, cubic splines (not a knot, natural, clamped), Akima and modified Akima, PCHIP, or a smoothing spline (λ typed or by
+  cross-validation), all as SciPy's; extrapolation only when asked; a column saying measured, interpolated or extrapolated.
+- **Data › Matrix › From scattered X, Y, Z…**: three columns onto a grid by Delaunay's triangles, a thin-plate spline or Shepard's
+  weights, as a matrix that belongs to the analysis: read only, worked out again with its columns, drawn as a map from its tab's
+  menu, cut from it or deleted with it, undone.
+- The dense solver behind the thin-plate spline is blocked as LAPACK blocks it: twice as fast.
+
+Checked: 108 new reference checks against SciPy (`fixtures/sig-interp.json`: every interpolant in and past the data to 3e-15, the
+smoothing spline and its GCV λ, griddata, RBFInterpolator, Shepard's weights; Kurve and SciPy measured against 40 digits where they
+differed); `sig-test.mjs` 14 more (through every point, a line and a constant kept, a plane kept by the griddings, the analyses
+whole, the speeds); `sig-drive.mjs` 16 more; two budgets in `perf.mjs`.
+
 ## Closing the gap with Origin, wave 5, slice 5.3: correlation and convolution (2026-11-18)
 
 - **Analyze › Signal processing › Correlation…**: auto- or cross-correlation into a result sheet, lags in X's unit from where each

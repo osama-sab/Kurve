@@ -261,6 +261,70 @@ for w, nsr in ((4.0, 1e-3), (6.0, 1e-2), (2.0, 1e-5)):
     cases.append({"fn": "wienerDeconv", "name": f"Wiener: Gaussian {w} points, nsr {nsr}", "args": [r6(blurred), kk.tolist(), nsr], "want": wiener_ref(r6(blurred), kk.tolist(), nsr), "kind": "obj"})
 out["sig-corr"] = cases
 
+# ---- 5.7 interpolation: scipy.interpolate's interp1d, CubicSpline (not-a-knot, natural, clamped), Akima1DInterpolator (akima,
+# makima), PchipInterpolator and make_smoothing_spline (λ given, and by GCV), inside the data and continued past it; griddata
+# (linear, rescale), RBFInterpolator (thin plate) and Shepard's modified weights written from Franke and Little ----
+from scipy import interpolate as _ip
+cases = []
+rng = np.random.default_rng(20261121)
+for n in (2, 3, 4, 7, 30, 200):
+    x = np.sort(rng.choice(np.arange(10 * n), n, replace=False).astype(float) * 0.37 + rng.uniform(-5, 5)); x = np.array(r6(x))
+    y = np.array(r6(np.sin(x / 3) * 4 + rng.normal(0, 0.3, n) + 0.05 * x))
+    xq = np.sort(np.concatenate([rng.uniform(x[0], x[-1], 40), x[[0, -1]], x[:: max(1, n // 5)], [x[0] - 0.7, x[-1] + 1.1]])); xq = np.array(r6(xq))
+    inside = (xq >= x[0]) & (xq <= x[-1])
+    for m, f in (("linear", lambda: _ip.interp1d(x, y, kind="linear", fill_value="extrapolate")), ("notaknot", lambda: _ip.CubicSpline(x, y, bc_type="not-a-knot")),
+                 ("natural", lambda: _ip.CubicSpline(x, y, bc_type="natural")), ("clamped", lambda: _ip.CubicSpline(x, y, bc_type=((1, 0.4), (1, -1.3)))),
+                 ("akima", lambda: _ip.Akima1DInterpolator(x, y, method="akima", extrapolate=True)), ("makima", lambda: _ip.Akima1DInterpolator(x, y, method="makima", extrapolate=True)),
+                 ("pchip", lambda: _ip.PchipInterpolator(x, y, extrapolate=True)), ("smooth", lambda: _ip.make_smoothing_spline(x, y, lam=0.8))):
+        if m == "notaknot" and n == 3: pass
+        if m == "smooth" and n < 5: continue
+        try: F = f()
+        except Exception as e: continue
+        want = F(xq); o = {"method": m, "ext": "method", "d0": 0.4, "d1": -1.3, "lam": 0.8}
+        fn = "smoothCurve" if m == "smooth" else "interp1"
+        cases.append({"fn": fn, "name": f"{m}, {n} points, continued past the ends", "args": [x.tolist(), y.tolist(), xq.tolist(), o], "want": {"y": want}, "kind": "obj"})
+        cases.append({"fn": fn, "name": f"{m}, {n} points, empty past the ends", "args": [x.tolist(), y.tolist(), xq.tolist(), dict(o, ext="none")], "want": {"y": [float(v) if ins else None for v, ins in zip(want, inside)]}, "kind": "obj"})
+for n in (8, 25, 120):
+    x = np.array(r6(np.sort(rng.uniform(0, 20, n)))); y = np.array(r6(np.cos(x / 2) + rng.normal(0, 0.2, n)))
+    import inspect as _insp, scipy.interpolate._bsplines as _bs
+    lam = None
+    # the λ SciPy's GCV finds, read back from its fitted spline by solving for it is not exposed: recompute it the way SciPy does
+    src = _bs.make_smoothing_spline
+    import scipy.optimize as _opt
+    calls = []
+    orig = _opt.minimize_scalar
+    def spy(*a, **k):
+        r = orig(*a, **k); calls.append(float(r.x)); return r
+    _bs.minimize_scalar = spy
+    try: F = _ip.make_smoothing_spline(x, y)
+    finally: _bs.minimize_scalar = orig
+    xq = np.array(r6(np.linspace(x[0], x[-1], 50)))
+    cases.append({"fn": "smoothSpline", "name": f"smoothing spline by GCV, {n} points: λ", "args": [x.tolist(), y.tolist(), {}], "want": {"lam": calls[-1]}, "kind": "obj"})
+    # the curve at SciPy's λ (the search stops within 1e-5 of λ, so two searches may differ by that much; λ is judged so above)
+    cases.append({"fn": "smoothCurve", "name": f"smoothing spline by GCV, {n} points: the curve at SciPy's λ", "args": [x.tolist(), y.tolist(), xq.tolist(), {"method": "smooth", "lam": calls[-1]}], "want": {"y": F(xq)}, "kind": "obj"})
+# scattered points onto a grid
+def shepard_ref(P, GX, GY, R):
+    Z = np.full(GX.shape, np.nan)
+    for idx in np.ndindex(GX.shape):
+        d = np.hypot(GX[idx] - P[:, 0], GY[idx] - P[:, 1])
+        if np.any(d == 0): Z[idx] = P[d == 0, 2][0]; continue
+        w = np.where(d < R, ((R - d) / (R * d)) ** 2, 0.0)
+        if w.sum() > 0: Z[idx] = (w * P[:, 2]).sum() / w.sum()
+    return Z
+for n, sx, sy in ((40, 1.0, 1.0), (150, 50.0, 0.02), (400, 3.0, 7.0)):
+    P = np.column_stack([rng.uniform(0, sx, n), rng.uniform(0, sy, n)]); P = np.array([[float(f"{v:.6g}") for v in r] for r in P])
+    z = np.array(r6(np.sin(P[:, 0] / sx * 3) * np.cos(P[:, 1] / sy * 2) * 10 + 5)); nx, ny = 23, 17
+    gx = np.linspace(P[:, 0].min(), P[:, 0].max(), nx); gy = np.linspace(P[:, 1].min(), P[:, 1].max(), ny); GX, GY = np.meshgrid(gx, gy)
+    tri = _ip.griddata(P, z, (GX, GY), method="linear", rescale=True)
+    args = [P[:, 0].tolist(), P[:, 1].tolist(), z.tolist()]
+    cases.append({"fn": "gridXYZ", "name": f"griddata linear (rescaled), {n} points", "args": args + [{"method": "tri", "nx": nx, "ny": ny}], "want": {"z": [None if v != v else float(v) for v in tri.ravel()]}, "kind": "obj"})
+    for sm in (0.0, 0.5):
+        rb = _ip.RBFInterpolator(P, z, kernel="thin_plate_spline", smoothing=sm, degree=1)(np.column_stack([GX.ravel(), GY.ravel()]))
+        cases.append({"fn": "gridXYZ", "name": f"thin-plate spline, smoothing {sm}, {n} points", "args": args + [{"method": "tps", "nx": nx, "ny": ny, "smooth": sm}], "want": {"z": rb}, "kind": "obj"})
+    D = math.hypot(np.ptp(P[:, 0]), np.ptp(P[:, 1])); R = D / 2 * math.sqrt(19 / n); sh = shepard_ref(np.column_stack([P, z]), GX, GY, R)
+    cases.append({"fn": "gridXYZ", "name": f"Shepard's weights, {n} points", "args": args + [{"method": "shepard", "nx": nx, "ny": ny}], "want": {"z": [None if v != v else float(v) for v in sh.ravel()]}, "kind": "obj"})
+out["sig-interp"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

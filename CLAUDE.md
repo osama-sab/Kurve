@@ -1642,7 +1642,24 @@ graph first, with the taskbar kept at the bottom of the screen.
   est}`). In the ANA block `sigAtStep`, `XC_NORMS`, kinds `xcorr` (`norm`, `maxlag`, `demean`; `lag`, `c`; the report's "That
   is" in words) and `coh` (`win`, `wpar`, `nseg`, `over`, `detrend`; `f`, `coh`, `mag`, `ph`), forms `#aXn`, `#aXm`, `#aXd`.
   In PIPE `CONV_KERNS`, `convKernelOf(d, p, ctx, sp, unit)`; steps `conv` (`kern`, `w`, `col` through `refData`, `norm`, `ends`)
-  and `deconv` (`kern`, `w`, `col`, `nsr` blank), both `dep`.
+  and `deconv` (`kern`, `w`, `col`, `nsr` blank), both `dep`. **5.7**: `interpPrep` (sorted, repeated X averaged), `triSolve`,
+  `slopesOfM`, `splineSlopes(x, y, "not-a-knot"|"natural"|"clamped", d0, d1)` (second derivatives, not-a-knot folded into the
+  first and last rows; three points not a knot the parabola), `akimaSlopes(x, y, makima)`, `pchipEdge`/`pchipSlopes` (SciPy's),
+  `fminBounded(f, lo, hi, xatol, maxfun)` (SciPy's _minimize_scalar_bounded), `smoothCore(x, y, w, λ)` (Reinsch: band LDLᵀ, the
+  band of the inverse by Hutchinson–de Hoog for tr A; `{g, M, gcv, edf}`), `smoothSpline(x, y, {lam, w})` (λ by GCV over (0, n)),
+  `hermiteAt(x, y, d, xq, ext)` (PPoly form; ext "none"|"method"|"line"|"end"; `how` 0 measured, 1 interpolated, 2 extrapolated),
+  `INTERP_METHODS`, `interp1(x, y, xq, {method, lam, ext, d0, d1})`, `GRID_METHODS`, `TPS_MAX` (3000), `gridXYZ(X, Y, Z, {method
+  "tri"|"tps"|"shepard", nx, ny, x0, x1, y0, y1, smooth, radius})` (triangles through `delaunay`, rasterised by each triangle's box;
+  the thin plate's ½·r²·ln r²; Shepard's points bucketed by R), `gaussSolve(A, b, N)` (blocked LU, 64 columns a panel); for the bench
+  `smoothCurve`. ANA: `INTERP_EXT`, kinds `interp` (`method`, `lam`, `d0`, `d1`, `grid` "n"|"step"|"col", `n`, `step`, `x0`, `x1`,
+  `at`, `ext`; per column `x<t>`, `y<t>`, `h<t>` text) and `grid` (`typed`, `xs`, `mat`: `x`, `y`, `z` ids matched by row, `method`,
+  `nx`, `ny`, ranges, `smooth`, `radius`; a summary sheet and `out.mat`). **An analysis's matrix** (decision 7): a kind with `mat`
+  returns `mat {nx, ny, x, y, z, names…}`; `anaApply` → `anaWriteMat(a, p, m)` (a book `matBookNew` named as the analysis, its sheet
+  `ana: a.id`; `a.out.mat` the book's id), `anaPatch(o, p)` adds `mats` to every save of analyses, `anaMatSheet(a)`, `anaMatPlot(id)`
+  (`plotMatrix(…, "image")`); `matPut` refuses a sheet with `ana`; `matClean` keeps `ana`, `anaClean` a string `out.mat`; `anaCut`
+  makes the matrix ordinary, `anaDelete` removes its book. Forms `#aPm`, `#aPd0`/`#aPd1`, `#aPl`, `#aPg`, `#aPn`, `#aPs`,
+  `#aPr0`/`#aPr1`, `#aPa`, `#aPe`; `#aGx`, `#aGy`, `#aGz`, `#aGm`, `#aGs`, `#aGr`, `#aGnx`/`#aGny`, `#aGx0`… Analyze › Calculus ›
+  Interpolate…, Data › Matrix › From scattered X, Y, Z….
 - **Worksheet** (`renderWs`, `setupWs`): a spreadsheet grid as in Excel, with Origin's label
   rows. Columns have fixed widths (`WS_W`, 100 px; `p.wsw[colId]` when dragged or autofitted by
   a double click on the header's edge, `wsSetWidth`, `wsAutofit`), never stretched to the
@@ -5341,7 +5358,9 @@ Next, in order:
    SciPy agreeing to 2e-15), done 18.11; slice 5.2, filters designed (Butterworth, Chebyshev I and II, elliptic, Bessel and FIR
    as SciPy designs them, in sections forwards and backwards, the response drawn; a notch; SciPy agreeing section by section), done
    18.11; slice 5.3, correlation and convolution (auto- and cross-correlation with lags in X's unit, coherence, convolution with a
-   shape or a column, Wiener's deconvolution; NumPy and SciPy agreeing to 2e-15), done 18.11
+   shape or a column, Wiener's deconvolution; NumPy and SciPy agreeing to 2e-15), done 18.11; slice 5.7, interpolation into
+   columns (eight interpolants as SciPy's, extrapolation asked for, the smoothing spline by GCV; scattered points into a matrix of
+   the analysis's own by triangles, a thin-plate spline or Shepard's weights), done 18.11
 
 ## Known gaps
 

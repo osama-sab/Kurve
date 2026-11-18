@@ -104,6 +104,7 @@ Data
     New matrix…
     From columns…
     From a picture…
+    From scattered X, Y, Z…  ## + (SIGNAL_SPEC 5.7): an analysis writing a matrix of its own
     Open  ## ↓ until there is a matrix
     Set values…  ## ↓ this and what follows until there is a matrix: the one in front's
     Keep the values only  ## ↓ while it has a formula
@@ -253,6 +254,7 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
   Calculus  ## ← Analysis › Mathematics (DS2)
     Derivative…  ## + "Derivative, as a new spectrum…": a choice in the tool
     Cumulative integral…
+    Interpolate…  ## + (SIGNAL_SPEC 5.7): an analysis into a result sheet
   Statistics  ## ← the Statistics menu (DS2)
     Quick statistics…  ## ~ "Descriptive statistics…" (STATS_SPEC 2.1: the name went to the analyses); + "Integrate the visible range", "Noise and signal to noise": sections of the one window
     Descriptive  ## + (STATS_SPEC 2.1): the analyses that make result sheets, as Origin's Descriptive Statistics

@@ -961,5 +961,21 @@
  },
  "wienerDeconv.gain": {
   "tol": 1e-12
+ },
+ "interp1.y": {
+  "tol": 1e-12
+ },
+ "smoothSpline.lam": {
+  "tol": 1e-06,
+  "floor": 2e-05,
+  "why": "SciPy's bounded search stops within xatol = 1e-5 of the minimum; Kurve runs the same search, and a GCV value differing in its last digit may turn one step"
+ },
+ "gridXYZ.z": {
+  "tol": 1e-08,
+  "why": "a thin-plate system of points 2500 times wider than tall has a condition of 3e9: against 40 digits (18.11) Kurve was 3.8e-9 off, SciPy 5.3e-9"
+ },
+ "smoothCurve.y": {
+  "tol": 3e-11,
+  "why": "the smoothing spline's system loses digits as λ falls: at λ = 1.45 on 120 points, against 40 digits (18.11) Kurve's Reinsch form was 7.4e-12 off, SciPy's B-splines 1.7e-11"
  }
 }
