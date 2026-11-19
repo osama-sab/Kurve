@@ -1024,6 +1024,23 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## The user's reports: =9 on an empty sheet, a radius drawn as a line (2026-11-19)
+
+- **=9 on an empty sheet**: a column formula that reads no column (a number, `i`, a column's mean) has 32 rows on a sheet with no
+  values yet (`FX_ROWS0`, as a new Origin sheet), the sheet's rows once there are values, a column of names counted
+  (`fxSheetRows`); the toast says why 32. It gave none.
+- **A radius from 280 down to 50 drawn as a line**: the line joins the points in the order of X where X runs one way apart from
+  noise, each part on its own across a jump back over half the data (an angle past 360°), as recorded otherwise (a loop); a curve's
+  *Join the points* (right-click) and *Order* (Format pane) choose Automatic, as recorded or by X (`lineRuns`, `lineSeqs`,
+  `LORD_KINDS`, the style key `lord`). The drawing alone; exports the same. The import takes a first column that runs one way
+  apart from noise as X (`nearOneWay`), and *radius*, *radial*, *azimuth*, θ and φ as axis names; 2θ and φ never matched (`\b`
+  after a Greek letter), the name list ends in a look-ahead for letters now.
+- **Checked**: `tools/review-drive.mjs` 19.11 (typed as the user did, the rows following the sheet, a column of names, a reload;
+  the jittered radius imported as X and drawn with no step back, the zigzags back as recorded, masked points, an SVG export, 9000
+  points per pixel column, an angle past 360° in two runs, a hysteresis loop round as recorded, 2θ and φ), `tools/parser-test.mjs`
+  (the import's rule, `nearOneWay` on a loop, groups and a short column). A million wavering points ordered in 0.6 s once, a million
+  in random order left in 36 ms.
+
 ## Closing the gap with Origin, wave 6, slice 6.4: discriminant analysis (2026-11-19)
 
 - **Analyze › Statistics › Multivariate › Discriminant analysis…**: the columns of numbers and a column of groups (text), priors

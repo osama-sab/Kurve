@@ -898,6 +898,27 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-19: the user's reports: =9 on an empty sheet, a radius drawn as a line
+
+- **A formula on an empty sheet has rows.** A column formula reading no column (a number, `i`, a column's mean) took the sheet's
+  rows, and a new sheet has none: `9` typed into its F(x)= row showed nothing, and said "0 values". Origin's new sheet has 32 rows,
+  so Kurve gives such a formula 32 until the sheet holds values, and the toast says so. A column of names counts as rows (its text
+  cells were not counted). The rows stay the sheet's once there are values: no number of rows of its own to keep in step.
+- **A line joins the points in the order that reads, not always the rows'.** A radius read from 280 down to 50 with jitter in its
+  positions stepped back now and then, and a line through it in the rows' order zigzagged on the steep parts, where a spreadsheet's
+  line chart (X as its rows) and a seaborn line (sorted) did not. Automatic: in the order of X when every point is within a few
+  places of where its X puts it (noise in X); each part on its own across a jump back over half the data (an angle from 359° to 0°,
+  a sweep starting again), so no line crosses the graph; as recorded otherwise, for a loop or a sweep there and back, which go back as
+  far as they came and mean their order, as Origin and matplotlib join them. *In the order recorded* and *In the order of X* choose
+  it by hand, from the curve's right-click (*Join the points*) and the Format pane (*Order*). The drawing alone: the points, the fit
+  and every step keep the rows' order. No periodic axis: an angle across 0° is two parts on a linear axis, which is what the numbers
+  are; a formula column (`if(A<180, A+360, A)`) makes one axis of it.
+- **The import takes such a radius as X.** It took a column that rises or falls steadily (97 % of its steps), else one named as
+  an axis, else none; a jittered radius was neither, and the user's file came in as two curves against the row number. A first
+  column that runs one way apart from noise is X now, and *radius*, *radial*, *azimuth*, θ and φ name an axis. 2θ and φ never
+  matched: the name list ended in `\b`, and a Greek letter is not a word character to JavaScript; it ends in a look-ahead for
+  letters now.
+
 ### 2026-11-19: discriminant analysis (MULTI_SPEC 6.4)
 
 - **The statistics packages' covariance, said.** The pooled within-group covariance divides by n − G, as SPSS, R's MASS and

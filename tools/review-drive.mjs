@@ -368,6 +368,85 @@ await page(async p => {
   check("the stage chip says a preview in two words", chipT === "Preview: Smooth", chipT);
 }, { name: "11.11", timeout: 120000 });
 
+console.log("19.11: =9 in the F(x)= row of an empty sheet gave no values; a radius from 280 down to 50 zigzagged as a line");
+// The path of a curve's line on the graph: its runs, and how often a run's X turns back.
+const lineOf = (p, id) => p.evaluate(i => { const e = document.querySelector(`#plot g[data-ser="${i}"] path[stroke-linejoin]`); return e ? e.getAttribute("d") : ""; }, id);
+const runsOf = d => d.split("M").filter(Boolean).map(sub => [...("M" + sub).matchAll(/[ML](-?[\d.]+),(-?[\d.]+)/g)].map(m => [+m[1], +m[2]]));
+const turns = d => runsOf(d).reduce((r, xy) => { let dir = 0; for (let k = 1; k < xy.length; k++) { const dd = Math.sign(xy[k][0] - xy[k - 1][0]); if (dd && dir && dd !== dir) r++; if (dd) dir = dd; } return r; }, 0);
+await page(async p => {
+  // As the user did: a new project, 9 typed into column B's F(x)= cell.
+  const at = await p.evaluate(() => { const r = [...document.querySelectorAll("#ws tr")].find(tr => /F\(x\)=/.test(tr.textContent)); const b = r.querySelectorAll("td")[1].getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; });
+  await p.mouse.click(at[0], at[1]); await p.waitForTimeout(150);
+  await p.keyboard.type("9"); await p.keyboard.press("Enter"); await p.waitForTimeout(400);
+  const r1 = await p.evaluate(() => { const c = P().cols.find(c => c.fx); return { n: c ? c.data.length : 0, all: c ? c.data.every(v => v === 9) : false, shown: [...document.querySelectorAll("#ws tbody td")].filter(td => td.textContent.trim() === "9").length, toast: (document.querySelector(".toast") || {}).textContent || "" }; });
+  check("=9 on an empty sheet: 32 values of 9, as a new Origin sheet has rows", r1.n === 32 && r1.all, JSON.stringify(r1));
+  check("…shown in the cells", r1.shown >= 20, r1.shown);
+  check("…and the toast says why 32", /32 rows until/.test(r1.toast), r1.toast);
+  // Values typed into column A: the formula takes the sheet's rows.
+  await p.evaluate(() => { wsSelect(0, 0, false); }); await p.waitForTimeout(100);
+  for (const v of ["1", "2", "3", "4", "5"]) { await p.keyboard.type(v); await p.keyboard.press("Enter"); await p.waitForTimeout(60); }
+  await p.waitForTimeout(900);
+  check("…values typed into column A: B takes the sheet's 5 rows", await p.evaluate(() => P().cols.find(c => c.fx).data.length) === 5);
+  // A column of names alone: its text rows count as the sheet's rows.
+  const nm = await p.evaluate(() => { const p = P(), a = p.cols.find(c => c.role === "x"); a.data = []; a.txt = Object.fromEntries("abcdefghij".split("").map((c, i) => [i, c])); a.fmt = "text"; save({ cols: p.cols }, "names"); renderAll(); return P().cols.find(c => c.fx).data.length; });
+  check("…a sheet of ten names: B = 9 has ten rows", nm === 10, nm);
+  await p.reload(); await ready(p);
+  check("…after a reload", await p.evaluate(() => { const c = P().cols.find(c => c.fx); return c && c.data.length === 10 && c.data.every(v => v === 9); }));
+
+  // A radius read from 280 down to 50 with jitter in its positions, as the user's measurement.
+  let s0 = 3; const rnd = () => { s0 = (s0 * 16807) % 2147483647; return s0 / 2147483647 - 0.5; };
+  let t = "Radius (mm)\tB (mT)\n"; for (let r = 280; r >= 50; r -= 1) { const rr = r + 3 * rnd(); t += rr.toFixed(2) + "\t" + (100 * Math.exp(-(((rr - 150) / 18) ** 2)) + 20).toFixed(3) + "\n"; }
+  await viaDialog(p, "radial.txt", t);
+  const roles = await p.evaluate(() => sheetCols(curSheet()).map(c => c.role + ":" + c.name).join(","));
+  check("the jittered radius comes in as X, B against it", roles === "x:Radius,y:B", roles);
+  const bid = await p.evaluate(() => { const c = sheetCols(curSheet()).find(c => c.name === "B"); plotCols([c.id], { type: "line" }); return c.id; }); await p.waitForTimeout(600);
+  let d = await lineOf(p, bid);
+  check("…drawn as a line through every point with no step back (in the order of X)", turns(d) === 0 && runsOf(d)[0].length === 231, `${turns(d)} turns, ${runsOf(d).map(r => r.length)}`);
+  await p.evaluate(i => setSeriesStyle(i, { lord: "data" }, "as recorded"), bid); await p.waitForTimeout(300);
+  d = await lineOf(p, bid);
+  check("…In the order recorded gives the zigzags back", turns(d) > 20, turns(d));
+  await p.evaluate(i => setSeriesStyle(i, { lord: "x" }, "by X"), bid); await p.waitForTimeout(300);
+  check("…In the order of X: none", turns(await lineOf(p, bid)) === 0);
+  await p.evaluate(i => setSeriesStyle(i, { lord: "auto" }, "auto"), bid); await p.waitForTimeout(300);
+  const menu = await p.evaluate(i => { const it = graphMenuItems(i).find(q => q && q.label === "Join the points"); return it ? it.sub().map(q => q.label + (q.checked ? "*" : "")).join("|") : ""; }, bid);
+  check("…the curve's right-click has Join the points, Automatic chosen", menu === "Automatic*|In the order recorded|In the order of X", menu);
+  await p.evaluate(i => { openPlotDetails(i, "series"); }, bid); await p.waitForTimeout(400);
+  check("…and the Format pane its Order", await p.evaluate(() => { const e = document.getElementById("pdLord"); return !!e && e.value === "auto"; }));
+  await p.evaluate(() => closeWin("format"));
+  // Masked points: left out, the rest still in the order of X.
+  await p.evaluate(i => { const p = P(), c = colById(i); c.mask = [10, 11, 12, 100]; save({ cols: p.cols }, "masked"); renderAll(); }, bid); await p.waitForTimeout(300);
+  d = await lineOf(p, bid);
+  check("…with four points masked: 227 joined, no step back", turns(d) === 0 && runsOf(d)[0].length === 227, `${turns(d)} ${runsOf(d).map(r => r.length)}`);
+  // An export draws it the same way.
+  const svg = await p.evaluate(async () => { let out = ""; const keep = window.saveFile; window.saveFile = async (n, data) => { out = typeof data === "string" ? data : await data.text(); return true; }; try { await exportSvg(); } finally { window.saveFile = keep; } return out; });
+  const ed = (svg.match(new RegExp(`data-ser="${bid}"[^>]*>[\\s\\S]*?<path d="([^"]+)"[^>]*stroke-linejoin`)) || [])[1] || "";
+  check("…an SVG export joins them in the order of X too", ed && turns(ed) === 0, ed.slice(0, 80));
+
+  // 9000 jittered points: drawn per pixel column, still no step back.
+  let big = "Radius (mm)\tB (mT)\n"; for (let i = 0; i < 9000; i++) { const r = 280 - i * 0.0255 + 0.08 * rnd(); big += r.toFixed(4) + "\t" + (100 * Math.exp(-(((r - 150) / 18) ** 2)) + 20).toFixed(3) + "\n"; }
+  await viaDialog(p, "radial-big.txt", big);
+  const b2 = await p.evaluate(() => { const c = sheetCols(curSheet()).find(c => c.name === "B"); plotCols([c.id], { type: "line" }); return c.id; }); await p.waitForTimeout(700);
+  d = await lineOf(p, b2);
+  check("9000 jittered points, drawn per pixel column: no step back", turns(d) === 0 && runsOf(d).length === 1, `${turns(d)} turns, ${runsOf(d).length} runs`);
+
+  // An angle from 280° through 360° to 50°: no line back across the graph, each run on its own.
+  let a = "Angle (deg)\tIntensity\n"; for (let u = 280; u <= 410; u += 0.5) a += (u % 360) + "\t" + (50 + 30 * Math.cos((u - 345) * Math.PI / 60)).toFixed(3) + "\n";
+  await viaDialog(p, "angle.txt", a);
+  const ai = await p.evaluate(() => { const c = sheetCols(curSheet()).find(c => c.name === "Intensity"); plotCols([c.id], { type: "line" }); return c.id; }); await p.waitForTimeout(600);
+  d = await lineOf(p, ai); const pw = await p.evaluate(() => S.geo.pw);
+  const longest = Math.max(...runsOf(d).map(xy => Math.max(0, ...xy.slice(1).map((q, k) => Math.abs(q[0] - xy[k][0])))));
+  check("an angle past 360°: two runs, no line back across the graph", runsOf(d).length === 2 && longest < pw * 0.05, `${runsOf(d).length} runs, longest step ${longest} of ${pw}`);
+  // A hysteresis loop: as recorded, round the loop.
+  let lp = "H (A/m)\tM\n"; for (let k = 0; k <= 200; k++) { const h = 100 * Math.cos(k * Math.PI / 100); lp += h.toFixed(3) + "\t" + Math.tanh((h + (k < 100 ? -20 : 20)) / 20).toFixed(4) + "\n"; }
+  await viaDialog(p, "loop.txt", lp);
+  const li = await p.evaluate(() => { const cs = sheetCols(curSheet()), h = cs.find(c => c.name === "H"), m = cs.find(c => c.name === "M"); setColRole(h.id, "x"); plotCols([m.id], { type: "line" }); return m.id; }); await p.waitForTimeout(600);
+  d = await lineOf(p, li);
+  check("a hysteresis loop is joined as recorded: one run, round the loop", runsOf(d).length === 1 && turns(d) === 1 && runsOf(d)[0].length === 201, `${runsOf(d).length} runs, ${turns(d)} turns`);
+  // 2θ and φ name an axis (they never did: \b after a Greek letter never matched).
+  const r2 = await p.evaluate(() => [analyzeFile("I\t2θ (deg)\n" + Array.from({ length: 30 }, (_, i) => `${(Math.sin(i) + 2).toFixed(3)}\t${(10 + i * 0.5 + (i % 3 ? 0.9 : -0.9)).toFixed(2)}`).join("\n")).roles.join(), analyzeFile("I\tφ\n2\t3\n1\t1\n3\t2\n1\t5\n").roles.join()]);
+  check("2θ and φ name an axis", r2[0] === "y,x" && r2[1] === "y,x", JSON.stringify(r2));
+}, { name: "19.11", timeout: 150000 });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

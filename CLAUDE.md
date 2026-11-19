@@ -247,7 +247,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   columns by type), `fxAgg` (Neumaier sums, the deviations' sum taken out for sd/var/se,
   `quantileSorted` for median and percentile), `fxUsesRow`. `fxRun(cm, V, T, X, nDef)` works one out:
   its rows are the longest column it reads outside aggregates (`rowP`, `rowX`; a constant is no
-  column), else `nDef`, the sheet's; an aggregate reads the rows of the columns inside it, else those.
+  column), else `nDef`, the sheet's (`fxSheetRows`: a column of names' text rows counted; 32 on a sheet with
+  no values yet, `FX_ROWS0`, as a new Origin sheet, so =9 typed into a new sheet shows its values, the
+  user's report of 19.11); an aggregate reads the rows of the columns inside it, else those.
   `fxCalc(src, cols, txt, X, nDef)` (by names) and `fxCalcAt(…, r)` are for the bench and the fuzzer. `guessUserParams(names, X, Y)` starts parameters from their
   names (y0/c baseline, A/H height, xc/x0 position of the largest point, w/sigma a tenth of the
   range, t/tau a third, k a rate, m a slope, anything else 1). `erfFn`/`erfcFn` are W. J. Cody's
@@ -918,7 +920,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   only parses if you treat `;` plus comma-decimal as one hypothesis), `findBlock` (the longest run
   of consistent numeric lines, so an instrument preamble and a trailing footer are found rather
   than fought), `parseMeta`, `detectRoles` (X is the first column that rises or falls steadily,
-  else the first whose name matches `X_NAME`, an axis's name; with neither, `xi` is -1 and every
+  else the first whose name matches `X_NAME`, an axis's name (radius, radial, azimuth, θ and φ among
+  them; it ends in a look-ahead for letters with the `u` flag, as `\b` after a Greek letter never
+  matched), else the first column when it runs one way apart from noise (`nearOneWay`: every value
+  within a few places of where its value puts it in order, a position read with jitter; the user's
+  report of 19.11); with none, `xi` is -1 and every
   column is a Y against its row number, error columns still found by name: `ERR_NAME`, err, sd,
   sigma, σ, uncertainty and their German, French, Italian and Spanish names), `detectPaired`,
   `analyzeFile` (a last header line of units under a line of names, `isUnitsRow`/`isUnitWord`/
@@ -3109,7 +3115,14 @@ graph first, with the taskbar kept at the bottom of the screen.
   the colour bar as for symbols coloured by a column; no legend entry. `tmapItems(c)` (a `tmap`
   curve's right-click *Map*: drawn as, levels, colour map, a failure as its heading), `pointsOfCol(c)`.
   **Styling**: `serStyle`'s `conn` (`CONN_KINDS`: `smoothD`, Catmull–Rom or a
-  clamped uniform B-spline, up to 4000 points), `zcol`/`scol` (`zMapOf`: a third column's
+  clamped uniform B-spline, up to 4000 points), `lord` (`LORD_KINDS`, the order a line joins its
+  points, the user's report of 19.11: `auto`, as recorded unless X runs one way apart from noise,
+  then by X, and not across a jump back over half the span (an angle past 360°, a sweep starting
+  again), each run on its own; a loop or a sweep there and back as recorded; `data`; `x`.
+  `lineRuns(pts)` (memoised per list of points in `LORD`: `{ord, run}` or null; a loop or a cloud,
+  as many steps back as forward, left before sorting) and `lineSeqs` give `seriesSvg` the runs for a
+  line, line and symbols, steps and an area, decimated or not, masked points out; the curve's
+  right-click *Join the points*, the Format pane's *Order* `#pdLord`), `zcol`/`scol` (`zMapOf`: a third column's
   value at each point's recorded row, as a colour from the map or a size; the first series
   coloured gets a colour bar, `zbar`, room made in the margin; the first series sized gets a
   size legend, `sb`, after it: a few round values from `axisTicks` within the range, largest at
@@ -3599,7 +3612,10 @@ junk from storage; 05.11, a day of lab work: a million-row file saved quickly, c
 graph, an undo in one tab keeping the other's newer column and cell, a tab closed mid-edit reaching
 the other tab, a window's corner dragged past the browser's edge, rows sized, kept and reset, error
 columns in other languages, a narrow window of its own, the dock's edge dragged to the far left
-and back); add a section to it for each report fixed.
+and back; 19.11, =9 typed into an empty sheet's F(x)= row giving 32 values that follow the sheet,
+and a radius from 280 down to 50 with jitter imported as X and drawn with no step back, as recorded
+when asked, masked, exported and decimated, an angle past 360° in two runs, a loop kept round, 2θ
+and φ as axis names); add a section to it for each report fixed.
 `node tools/lab-day.mjs [path] [minutes] [seed]` (Playwright) is a working day of erratic use through
 the pointer and keys (typing junk into cells and fields, sizing columns and rows, zooming, every
 pointer tool, wandering the menus and right-click menus, dialogs answered at random, windows
@@ -4815,6 +4831,18 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   point near the long axis inside a thin ellipse (s near −1, s + 1 cancelling); worked in w = s + 1 instead it lost them near the
   curve (s near 0). It is worked in s, and again in w when the root is below −½, and the distance taken as |s| times a vector
   that has no difference of nearly equal numbers. 40-digit references at the hard places found both; a sampled curve did not.
+- **An empty sheet has no rows, so a formula of no column had none.** `=9` in a new sheet showed
+  nothing and said "0 values": the rows of a formula that reads no column were the sheet's, and only
+  values make rows. Text cells did not count either. Ask what a size taken from "the sheet" is when
+  the sheet is empty, and when it holds only text.
+- **A line through the rows' order is a statement about the rows.** A radius read from 280 down to
+  50 stepped back where its positions jittered, and the line zigzagged on the steep parts; a loop
+  must keep its order, a jittered axis must not, and an angle past 360° must not be joined back
+  across the graph. Tell them apart by how far each point is from where its X puts it, not by
+  whether X is sorted.
+- **`\b` after a non-ASCII letter never matches.** `2θ` and `φ` were in the list of axis names for
+  as long as it existed and never matched: to JavaScript's `\b` a Greek letter is not a word
+  character. Unicode names end in a look-ahead for `\p{L}` with the `u` flag.
 - **A variable taken out is grepped for.** Removing the Explorer's files took `fids` out of
   `autoImport`, and three `return {fids}` further down threw on every dropped file; the syntax
   check passes a reference to a name that does not exist. `review-drive`'s drop caught it. After
@@ -5801,6 +5829,10 @@ Next, in order:
   what the peak fit is for. Bands are shaded only in the overlaid and double-Y layouts
 - The Overview's judgements (a spike's height, a flat background, 7 points for smoothing,
   5 below zero) are fixed thresholds; it describes the analysed spectrum only, not a batch
+- A line joins its points in the order of X only where X wavers (each point within a few places of
+  its sorted place, and no more than half as far back as forward); noisier, it is joined as recorded
+  (or by X when asked). An angle past 360° is drawn as two parts on a linear axis: there is no
+  periodic axis that runs on through 0°
 - Double Y puts every other spectrum on one right axis; there are no free graph layers or
   per-panel settings in the stacked layout. An inset shows the graph's own spectra over a
   range, overlaid or offset, never in a heat map, and not another graph

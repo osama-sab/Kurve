@@ -12026,6 +12026,15 @@ function isMonotonic(a){
   if(seen<2) return 0;
   if(up/seen>0.97) return 1; if(down/seen>0.97) return -1; return 0;
 }
+/* Values that run one way apart from noise, as a position read with jitter does (the user's report of
+   19.11: a radius from 280 down to 50 stepping back now and then): each within a few places of where its
+   value puts it in order. ±1, or 0: a loop, a sweep there and back, measurements side by side. */
+function nearOneWay(a){
+  const v=a.filter(x=>x!=null&&Number.isFinite(x)), n=v.length; if(n<8) return 0;
+  let up=0, dn=0; for(let i=1;i<n;i++){ if(v[i]>v[i-1]) up++; else if(v[i]<v[i-1]) dn++; }
+  if(!up&&!dn) return 0; const s=up>=dn?1:-1;
+  const idx=v.map((_,i)=>i).sort((i,j)=>s*(v[i]-v[j])||i-j); let D=0; idx.forEach((k,t)=>{ const d=Math.abs(k-t); if(d>D) D=d; });
+  return D<=Math.min(0.1*n,Math.max(8,n/50))?s:0; }
 // X,Y,X,Y exports: every even column is its own monotonic axis.
 function detectPaired(cols){
   if(cols.length<4||cols.length%2) return false;
@@ -12034,7 +12043,7 @@ function detectPaired(cols){
 }
 /* A column named as an axis is named after what was set, not measured: a time, a
    wavelength, a concentration. Read as X when no column rises or falls steadily. */
-const X_NAME=/^\s*(x|t|time|elapsed|wavelength|wave\s*number|wavenumber|raman\s*shift|shift|energy|binding\s*energy|channel|frequency|freq|temperature|temp|position|distance|depth|angle|2\s*theta|2θ|potential|voltage|field|concentration|conc|dose|date|day|hour|minute|second|cycle|scan|index|row|n)\b/i;
+const X_NAME=/^\s*(x|t|time|elapsed|wavelength|wave\s*number|wavenumber|raman\s*shift|shift|energy|binding\s*energy|channel|frequency|freq|temperature|temp|position|distance|radius|radial(?:\s*(?:distance|position|coordinate))?|depth|angle|azimuth|polar\s*angle|theta|θ|phi|φ|2\s*theta|2θ|potential|voltage|field|concentration|conc|dose|date|day|hour|minute|second|cycle|scan|index|row|n)(?![\p{L}\p{N}_])/iu;
 // An error column's name, in the languages lab files come in (err, sd, sigma, σ, uncertainty;
 // Fehler, Std.Abw., Unsicherheit; erreur, incertitude; errore, incertezza; incertidumbre).
 const ERR_NAME=/(^|[\s_.(-])(err|error|errors|sd|std|stdev|sigma|σ|dev|unc|uncertainty|fehler|messfehler|stabw|stdabw|std\.?\s?abw|unsicherheit|erreur|incertitude|errore|incertezza|incertidumbre)([\s_.)-]|$)/i;
@@ -12043,10 +12052,12 @@ function detectRoles(header,cols){
   // One column has nothing to be plotted against but its row number (xi -1).
   if(n===1) return {roles,xi:-1};
   // X is the first column that rises or falls steadily, else the first named as an
-  // axis; with neither, every column is a Y against its row number (UX_SPEC 3.7):
+  // axis, else the first column when it runs one way apart from noise (a position read
+  // with jitter); with none, every column is a Y against its row number (UX_SPEC 3.7):
   // groups of measurements side by side have no X, and making the first one X lost it.
   let xi=cols.findIndex(c=>isMonotonic(c)!==0);
   if(xi<0&&header) xi=header.findIndex((h,i)=>X_NAME.test(String(h||""))&&!/err|error|unc|sigma|σ|\bsd\b/i.test(String(h||""))&&cols[i]&&cols[i].some(v=>v!=null));
+  if(xi<0&&cols[0]&&nearOneWay(cols[0])!==0&&!(header&&ERR_NAME.test(String(header[0]||"")))) xi=0;
   if(xi<0){ if(header) header.forEach((h,i)=>{ if(ERR_NAME.test(String(h))) roles[i]="e"; }); return {roles,xi:-1}; }
   roles[xi]="x";
   if(header) header.forEach((h,i)=>{ if(i!==xi&&ERR_NAME.test(String(h))) roles[i]="e"; });
@@ -14772,7 +14783,7 @@ function serStyle(id,active,pal,forExport,cfg){
   return {type:o.type||gtype||(hb?"column":!cfg.style||cfg.style==="auto"?autoType(id):active?cfg.style:"line"), bw:hb?((finalOf(colById(id)).bins)||{}).w||null:null, color:o.color||gcol||yTint(id,forExport,sc), lw:o.lw!=null?+o.lw:(active?1.4:1.2), leg:o.leg!==false,
     dash:o.dash||mono, sym:o.sym||gsym||"circle", ss:o.ss!=null?+o.ss:null, fill:o.fill!=null?+o.fill:0.18, label:o.label||"", op:o.op!=null?+o.op:(active?1:0.8),
     eb:o.eb||"bars", ebColor:o.ebColor||"", ebLw:o.ebLw!=null?+o.ebLw:1, ebCap:o.ebCap!=null?+o.ebCap:5, ebOp:o.ebOp!=null?+o.ebOp:0.22,
-    conn:o.conn||"straight", gap:o.gap===true, zcol:o.zcol||"", scol:o.scol||"", hatch:o.hatch||"none", fillTo:o.fillTo||"", fill2:o.fill2||"", tkind:TMAP_KINDS.some(q=>q[0]===o.tkind)?o.tkind:"image"};
+    conn:o.conn||"straight", lord:LORD_KINDS.some(q=>q[0]===o.lord)?o.lord:"auto", gap:o.gap===true, zcol:o.zcol||"", scol:o.scol||"", hatch:o.hatch||"none", fillTo:o.fillTo||"", fill2:o.fill2||"", tkind:TMAP_KINDS.some(q=>q[0]===o.tkind)?o.tkind:"image"};
 }
 function symD(t,x,y,r){
   const f=v=>v.toFixed(1), b=t.replace(/^o/,"");
@@ -14820,6 +14831,48 @@ function openSymbolGrid(btn,cur,pick,o){ o=o||{}; closeFontPicker(); closeColorP
    area between two spectra filled, in a second colour where the first is the
    lower; fills hatched for black and white. */
 const CONN_KINDS=[["straight","Straight lines"],["spline","A spline through the points"],["bspline","A B-spline, smooth, near the points"]];
+/* The order a line joins a curve's points (the user's report of 19.11: a radius read from 280 down to
+   50 zigzagged where its X stepped back, a spreadsheet's line chart did not). Automatic: as recorded,
+   unless X runs one way apart from noise (each point within a few places of where its X puts it in
+   order: by X then), and a jump back across half the span or more (an angle past 360° to 0°, a sweep
+   starting again) is not drawn, each run on its own. A loop, a sweep there and back, a closed curve
+   go back as far as they came, and are joined as recorded, as Origin and matplotlib join them. */
+const LORD_KINDS=[["auto","Automatic"],["data","In the order recorded"],["x","In the order of X"]];
+const LORD=new WeakMap(), XSORTM=new WeakMap();
+const LORD_TIPS={auto:"By X where X only wavers (a position read with jitter), each run on its own across a jump back (an angle past 360°), as recorded otherwise (a loop)",data:"Row after row, as the worksheet has them",x:"From the lowest X to the highest, whatever the rows' order"};
+function lineRuns(pts){ if(LORD.has(pts)) return LORD.get(pts); const r=lineRuns0(pts); LORD.set(pts,r); return r; }
+function lineRuns0(pts){
+  const n=pts.length; if(n<3) return null;
+  let nF=0, nB=0, lo=Infinity, hi=-Infinity;
+  for(let k=0;k<n;k++){ const x=pts[k].x; if(x<lo) lo=x; if(x>hi) hi=x; if(k){ const d=x-pts[k-1].x; if(d>0) nF++; else if(d<0) nB++; } }
+  // One way already; or steps back about as many as forward (a loop, a cloud), left before sorting anything.
+  if(!nF||!nB||Math.min(nF,nB)>0.75*Math.max(nF,nB)) return null;
+  const s=nF>=nB?1:-1, span=hi-lo, fw=[];
+  for(let k=1;k<n;k++){ const d=s*(pts[k].x-pts[k-1].x); if(d>0) fw.push(d); }
+  fw.sort((a,b)=>a-b); const m=fw[fw.length>>1];
+  // A jump back across half the span and twenty steps at least: a wrap, or a sweep starting again.
+  const cut=[0]; let F=0, B=0;
+  for(let k=1;k<n;k++){ const d=s*(pts[k].x-pts[k-1].x); if(d<0&&-d>=0.5*span&&-d>=20*m) cut.push(k); else if(d>0) F+=d; else B-=d; }
+  cut.push(n);
+  // Wavering goes back a small share of the way; a loop goes back as far as it came.
+  if(B>0.5*F) return null;
+  const ord=new Int32Array(n), run=new Int32Array(n); let moved=cut.length>2;
+  for(let r=0;r+1<cut.length;r++){ const a=cut[r], b=cut[r+1], L=b-a, idx=new Array(L);
+    for(let t=0;t<L;t++) idx[t]=a+t;
+    let back=false; for(let k=a+1;k<b;k++) if(s*(pts[k].x-pts[k-1].x)<0){ back=true; break; }
+    if(back){ idx.sort((i,j)=>s*(pts[i].x-pts[j].x)||i-j);
+      let D=0; for(let t=0;t<L;t++){ const v=Math.abs(idx[t]-a-t); if(v>D) D=v; }
+      if(D>Math.min(0.1*L,Math.max(8,L/50))) return null;
+      moved=true; }
+    for(let t=0;t<L;t++){ ord[a+t]=idx[t]; run[a+t]=r; } }
+  return moved?{ord,run}:null; }
+// The runs a line is drawn as: null for one, the points as they are (keep). Masked points left out.
+function lineSeqs(pts,pv,keep,masked,st){
+  if(st.gap||st.lord==="data"||pv!==pts||pts.length<3) return null;
+  if(st.lord==="x"){ let o=XSORTM.get(pts); if(!o){ o=pts.slice().sort((a,b)=>a.x-b.x); XSORTM.set(pts,o); } return [masked?o.filter(q=>!masked(q.i)):o]; }
+  const r=lineRuns(pts); if(!r) return null;
+  const out=[]; for(let t=0;t<r.ord.length;t++){ const q=pts[r.ord[t]]; if(masked&&masked(q.i)) continue; const k=r.run[t]; (out[k]||(out[k]=[])).push(q); }
+  return out.filter(Boolean); }
 const HATCHES=[["none","None"],["/","Diagonal /"],["\\","Diagonal \\"],["x","Crossed"],["-","Horizontal"],["|","Vertical"],["dots","Dots"]];
 // A smooth path through (spline) or near (B-spline) points on the page: its start and its cubic segments.
 function smoothD(xy,kind){
@@ -14951,8 +15004,11 @@ function seriesSvg(pts,st,X,Y,geo,pal,masked){
   // A line of many points: its M4 straight from the points, with no pair made for each.
   const crosses=()=>{ if(!masked) return ""; const r=3.4; let d=""; pv.forEach(q=>{ if(!masked(q.i)) return; const x=X(q.x), y=Y(q.y); d+=`M${f1(x-r)},${f1(y-r)}L${f1(x+r)},${f1(y+r)}M${f1(x+r)},${f1(y-r)}L${f1(x-r)},${f1(y+r)}`; });
     return d?`<path d="${d}" stroke="${pal.masked}" stroke-width="1.4" fill="none"/>`:""; };
-  if(st.type==="line"&&!geo.full&&keep.length>DEC_MIN&&!(st.conn==="spline"||st.conn==="bspline")){ const dash=DASHES[st.dash], xy=dash===null?[]:m4pts(keep,X,Y,decW());
-    return (xy.length>1?`<path d="M${xy.map(q=>f1(q[0])+","+f1(q[1])).join("L")}" fill="none" stroke="${col}" stroke-width="${st.lw}"${dash?` stroke-dasharray="${dash}"`:""} stroke-linejoin="round"${st.op<1?` opacity="${st.op}"`:""}/>`:"")+crosses(); }
+  // The runs the line joins, in the order it joins them (lineSeqs): null, the points as they are.
+  const lruns=st.type==="line"||st.type==="linesym"||st.type==="step"||st.type==="area"?lineSeqs(pts,pv,keep,masked,st):null;
+  if(st.type==="line"&&!geo.full&&keep.length>DEC_MIN&&!(st.conn==="spline"||st.conn==="bspline")){ const dash=DASHES[st.dash]; let d="";
+    if(dash!==null) (lruns||[keep]).forEach(r=>{ const xy=m4pts(r,X,Y,decW()); if(xy.length>1) d+="M"+xy.map(q=>f1(q[0])+","+f1(q[1])).join("L"); });
+    return (d?`<path d="${d}" fill="none" stroke="${col}" stroke-width="${st.lw}"${dash?` stroke-dasharray="${dash}"`:""} stroke-linejoin="round"${st.op<1?` opacity="${st.op}"`:""}/>`:"")+crosses(); }
   const lo=geo.T+geo.mh, zero=geo.logY?lo:Math.max(geo.T,Math.min(lo,Y(0)));
   const ln=st.type==="line"||st.type==="linesym"||st.type==="area"||st.type==="step", sym=st.type==="scatter"||st.type==="linesym";
   const dash=DASHES[st.dash]; const op=st.op<1?` opacity="${st.op}"`:"";
@@ -14960,9 +15016,13 @@ function seriesSvg(pts,st,X,Y,geo,pal,masked){
   // Joined by a spline or a B-spline (up to a few thousand points; past that a line is as smooth).
   const smooth=(st.conn==="spline"||st.conn==="bspline")&&xy0.length>2&&xy0.length<=4000&&st.type!=="step";
   const dec=decOn(xy0.length,geo.full), dw=dec?decW():1, xy=dec&&!smooth?m4(xy0,dw):xy0;
-  if(st.type==="area"&&xy.length>1){ let ord=xy0.slice().sort((a,b)=>a[0]-b[0]); if(dec&&!smooth) ord=m4(ord,dw); const sm=smooth?smoothD(ord,st.conn):null;
-    const d=sm?`M${f1(ord[0][0])},${f1(zero)}L${sm.m.slice(1)}${sm.c}L${f1(ord[ord.length-1][0])},${f1(zero)}Z`:`M${f1(ord[0][0])},${f1(zero)}L${ord.map(q=>f1(q[0])+","+f1(q[1])).join("L")}L${f1(ord[ord.length-1][0])},${f1(zero)}Z`;
-    s+=`<path d="${d}" fill="${col}" fill-opacity="${st.fill}" stroke="none"/>`+hatchSvg(d,st.hatch,col,"hz-"+(st.hid||"s"),{L:geo.L!=null?geo.L:0,T:geo.T,W:geo.pw!=null?geo.pw:2000,H:geo.mh}); }
+  // The line's runs on the page: one, xy, unless it is joined in another order or in runs.
+  const onPg=a=>{ const o=[]; for(const q of a){ const u=X(q.x), v=Y(q.y); if(Number.isFinite(u)&&Number.isFinite(v)) o.push([u,v]); } return o; };
+  const xyR=lruns?lruns.map(r=>{ const o=onPg(r); return dec&&!smooth?m4(o,dw):o; }):[xy];
+  if(st.type==="area"&&xy.length>1){ let d="";
+    (lruns?lruns.map(onPg):[xy0]).forEach(r=>{ if(r.length<2) return; let ord=r.slice().sort((a,b)=>a[0]-b[0]); if(dec&&!smooth) ord=m4(ord,dw); const sm=smooth&&ord.length>2?smoothD(ord,st.conn):null;
+      d+=sm?`M${f1(ord[0][0])},${f1(zero)}L${sm.m.slice(1)}${sm.c}L${f1(ord[ord.length-1][0])},${f1(zero)}Z`:`M${f1(ord[0][0])},${f1(zero)}L${ord.map(q=>f1(q[0])+","+f1(q[1])).join("L")}L${f1(ord[ord.length-1][0])},${f1(zero)}Z`; });
+    if(d) s+=`<path d="${d}" fill="${col}" fill-opacity="${st.fill}" stroke="none"/>`+hatchSvg(d,st.hatch,col,"hz-"+(st.hid||"s"),{L:geo.L!=null?geo.L:0,T:geo.T,W:geo.pw!=null?geo.pw:2000,H:geo.mh}); }
   // Columns: from zero to each value, a bin wide (a histogram) or most of the spacing,
   // side by side when several spectra are columns on one graph.
   if(st.type==="column"&&keep.length){ const ord=keep.filter(q=>Number.isFinite(q.x)&&Number.isFinite(q.y)).sort((a,b)=>a.x-b.x);
@@ -14975,15 +15035,16 @@ function seriesSvg(pts,st,X,Y,geo,pal,masked){
     if(d) s+=`<path d="${d}" fill="${col}" fill-opacity="${(Math.max(0.15,Math.min(1,0.85*st.op))).toFixed(2)}" stroke="${pal.bg}" stroke-width="${st.bw>0||n>1?0.7:0.9}"/>`+hatchSvg(d,st.hatch,col,"hc-"+(st.hid||"s"),{L:geo.L!=null?geo.L:0,T:geo.T,W:geo.pw!=null?geo.pw:2000,H:geo.mh}); }
   if(st.type==="stick"){ let d=""; (dec?m4(xy0,dw/2):xy).forEach(q=>{ d+=`M${f1(q[0])},${f1(zero)}V${f1(q[1])}`; }); if(d) s+=`<path d="${d}" stroke="${col}" stroke-width="${st.lw}" fill="none"${op}/>`; }
   if(ln&&dash!==null&&xy.length>1){
-    let d;
-    if(st.type==="step"){ d="M"+f1(xy[0][0])+","+f1(xy[0][1]); for(let k=1;k<xy.length;k++){ const mx=(xy[k-1][0]+xy[k][0])/2; d+=`H${f1(mx)}V${f1(xy[k][1])}`; } d+=`H${f1(xy[xy.length-1][0])}`; }
-    else if(smooth){ const sm=smoothD(xy,st.conn); d=sm.m+sm.c; }
+    let d="";
     // A line that breaks where a row is empty (gap: a dendrogram's ⊓s, a biplot's lines from the origin): a run per stretch of
     // consecutive rows.
-    else if(st.gap&&!dec){ d=""; let prev=null; for(const q of keep){ const a=X(q.x), b=Y(q.y); if(!Number.isFinite(a)||!Number.isFinite(b)){ prev=null; continue; }
+    if(st.gap&&!dec&&st.type!=="step"&&!smooth){ let prev=null; for(const q of keep){ const a=X(q.x), b=Y(q.y); if(!Number.isFinite(a)||!Number.isFinite(b)){ prev=null; continue; }
         d+=(prev!=null&&q.i===prev+1?"L":"M")+f1(a)+","+f1(b); prev=q.i; } }
-    else d="M"+xy.map(q=>f1(q[0])+","+f1(q[1])).join("L");
-    s+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="${st.lw}"${dash?` stroke-dasharray="${dash}"`:""} stroke-linejoin="round"${op}/>`;
+    else xyR.forEach(xy=>{ if(xy.length<2) return;
+      if(st.type==="step"){ d+="M"+f1(xy[0][0])+","+f1(xy[0][1]); for(let k=1;k<xy.length;k++){ const mx=(xy[k-1][0]+xy[k][0])/2; d+=`H${f1(mx)}V${f1(xy[k][1])}`; } d+=`H${f1(xy[xy.length-1][0])}`; }
+      else if(smooth&&xy.length>2){ const sm=smoothD(xy,st.conn); d+=sm.m+sm.c; }
+      else d+="M"+xy.map(q=>f1(q[0])+","+f1(q[1])).join("L"); });
+    if(d) s+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="${st.lw}"${dash?` stroke-dasharray="${dash}"`:""} stroke-linejoin="round"${op}/>`;
   }
   if(sym){
     const r=st.ss!=null?st.ss:(n>400?2:n>150?2.8:3.4);
@@ -17797,6 +17858,7 @@ function graphMenuItems(id,at){
       ...(st.type==="tmap"?[{label:"Map",note:(TMAP_KINDS.find(q=>q[0]===st.tkind)||TMAP_KINDS[0])[1],sub:()=>tmapItems(c)}]:[]),
       ...(st.type==="column"?[{label:"Columns",note:(COL_STACK.find(q=>q[0]===(cfg.colStack||"side"))||COL_STACK[0])[1],sub:()=>colStackItems()}]:[]),
       {label:"Connect",sub:()=>CONN_KINDS.map(([k,l])=>({label:l,radio:true,checked:st.conn===k,enabled:!ro,run:()=>setSeriesStyle(c.id,{conn:k},`joined the points of ${specName(c)} by ${l.toLowerCase()}`)}))},
+      {label:"Join the points",note:st.lord==="auto"?"":(LORD_KINDS.find(q=>q[0]===st.lord)||LORD_KINDS[0])[1].replace(/^In the order /,"").replace(/^of /,"by "),title:"The order the line goes through them",sub:()=>LORD_KINDS.map(([k,l])=>({label:l,radio:true,checked:st.lord===k,enabled:!ro,title:LORD_TIPS[k],run:()=>setSeriesStyle(c.id,{lord:k},`joined the points of ${specName(c)} ${k==="auto"?"in the order chosen for them":l.toLowerCase()}`)}))},
       {label:"Fill between it and",sub:()=>[{label:"Nothing",radio:true,checked:!st.fillTo,enabled:!ro,run:()=>setSeriesStyle(c.id,{fillTo:""},`left the area by ${specName(c)} unfilled`)}].concat(yCols().filter(o=>o!==c&&graphShows(o)).map(o=>({label:specName(o),radio:true,checked:st.fillTo===o.id,enabled:!ro,run:()=>setSeriesStyle(c.id,{fillTo:o.id},`filled between ${specName(c)} and ${specName(o)}`)})))},
       hasErrCols(c.id)||(finalOf(c).e||[]).some(v=>v>0)?{label:"Error bars",sub:()=>[{group:errSourceText(c)}].concat([["bars","Bars"],["band","A shaded band"],["box","Boxes (X and Y)"],["none","None"]].map(([k,l])=>({label:l,radio:true,checked:st.eb===k,enabled:!ro,run:()=>setSeriesStyle(c.id,{eb:k},`drew the error bars of ${specName(c)} as ${l.toLowerCase()}`)})))}:null);
     { const u=curveUse(c.id), ov=cfg.layout==="overlay", sib=sheetCols(sheetOf(c)).filter(o=>o.id!==c.id&&(o.data||[]).some(v=>v!=null));
@@ -18232,7 +18294,7 @@ function renderPlotDetails(o){
         +grp("Legend",`<label for="pdFitLab">Label</label><input type="text" id="pdFitLab" data-pd="series.__fit.label" value="${esc((cfg.series.__fit||{}).label||"")}" placeholder="fit"${ro}>`+chk("pdFitLeg","series.__fit.leg",(cfg.series.__fit||{}).leg!==false,"Show in the legend")); }
     else if(selC){ const c=selC, isA=c===act, st=serStyle(c.id,isA,pal,false,cfg), b="series."+c.id, own=(cfg.series||{})[c.id]||{};
       h+=grp("Spectrum",(isA?"":chk("pdShow","hidden."+c.id,!cfg.hidden.includes(c.id),"Show on the graph"))+`<label for="pdLabel">Legend label</label><div class="rfield"><div class="pair"><input type="text" id="pdLabel" data-pd="${b}.label" data-rich value="${esc(st.label)}" placeholder="${esc(specName(c))}"${ro}>${rtool("pdLabel")}</div>${texPv("pdLabel",st.label)}</div>`+chk("pdInLeg",b+".leg",st.leg!==false,"Show in the legend"));
-      h+=grp("Line",`<label for="pdType">Plot type</label>${sel("pdType",PLOT_TYPES,st.type,b+".type")}<label for="pdConn">Connect</label>${sel("pdConn",CONN_KINDS,st.conn,b+".conn")}<label>Colour</label>${cb(b+".color",own.color,"Automatic",st.color)}<label>Style</label>${seg(b+".dash",DASH_OPTS.concat([["none","None","No line"]]),st.dash,"Line style")}<label for="pdLw">Width</label>${cmb("pdLw",st.lw,b+".lw",0.5,6,CMB.lw)}`);
+      h+=grp("Line",`<label for="pdType">Plot type</label>${sel("pdType",PLOT_TYPES,st.type,b+".type")}<label for="pdConn">Connect</label>${sel("pdConn",CONN_KINDS,st.conn,b+".conn")}<label for="pdLord" class="tipd" title="${esc(LORD_TIPS.auto)}">Order</label>${sel("pdLord",LORD_KINDS,st.lord,b+".lord")}<label>Colour</label>${cb(b+".color",own.color,"Automatic",st.color)}<label>Style</label>${seg(b+".dash",DASH_OPTS.concat([["none","None","No line"]]),st.dash,"Line style")}<label for="pdLw">Width</label>${cmb("pdLw",st.lw,b+".lw",0.5,6,CMB.lw)}`);
       const zo=zColOptions(c), symT=st.type==="scatter"||st.type==="linesym";
       h+=grp("Symbols",`<label for="pdSym">Symbol</label><button type="button" class="btn sm symbtn" id="pdSym" data-pdsym="${b}" data-pdsymc="${esc(st.color)}" aria-haspopup="dialog" aria-expanded="false" title="Choose the symbol"${ro}>${symGlyph(st.sym,st.color,18)}<span>${esc(symName(st.sym))}</span></button><label for="pdSs">Size</label>${cmb("pdSs",st.ss==null?3:st.ss,b+".ss",1,10,CMB.ss)}`
         +`<label for="pdZc">Colour by</label>${sel("pdZc",zo,st.zcol,b+".zcol")}<label for="pdSc">Size by</label>${sel("pdSc",zo,st.scol,b+".scol")}`
@@ -19650,9 +19712,14 @@ function fxEval(c,cols){
     V.push(tl>a.length?a.concat(new Array(tl-a.length).fill(null)):a); T.push(txtOf(o)); }
   let X=null;
   if(cm.usesX){ const xc=c.role==="x"?null:xColFor(c); if(!xc||xc===c) return {err:"x is the row's X value, and this column has no X column to its left"}; X=xc.data; }
-  const sid=sheetOf(c), nDef=cols.filter(o=>!o.src&&!o.fx&&sheetOf(o)===sid).reduce((a,o)=>Math.max(a,o.data.length),0);
-  return {data:fxRun(cm,V,T,X,nDef)};
+  return {data:fxRun(cm,V,T,X,fxSheetRows(cols,sheetOf(c))||FX_ROWS0)};
 }
+/* The rows of a formula that reads no column at the row (a constant, i, an aggregate of a column
+   elsewhere): its sheet's, text cells counted (a column of names), or 32 on a sheet with none, as a
+   new Origin workbook has, so =9 typed into an empty sheet shows its values; the column takes the
+   sheet's rows once values are typed or imported (the user's report of 19.11). */
+const FX_ROWS0=32;
+function fxSheetRows(cols,sid){ let n=0; for(const o of cols){ if(o.src||o.fx||sheetOf(o)!==sid) continue; n=Math.max(n,(o.data||[]).length,txtOf(o)?txtLen(o):0); } return n; }
 /* ---- The project's constants (SHEET_SPEC 3.1) ---------------------------------------------------
    p.consts: [{id, name, v, unit, note}], named as a formula names them, read by any column formula
    (kept there by id, "k:" + id in its refs, so a renamed constant follows); Data › Constants…
@@ -19767,7 +19834,7 @@ function setColFormula(ci,text){
   const rr=had?recordRaw(`replaced the ${had} original value${had===1?"":"s"} of column ${L} by the formula ${shown}`):null;
   save(Object.assign({cols:p.cols,activeY:p.activeY},rr?{raw:rr}:{}),`set column ${L} = ${shown}${had?`, replacing its ${had} original value${had===1?"":"s"}`:""}`); renderAll();
   if(fromX) toast(`Column ${L} = ${shown} is computed from X values: use it as the X axis of ${andList(xReaders(colById(cid)).map(y=>specName(y)))}?`,{action:"Use as X",run:()=>useAsXFor(cid)});
-  else toast(err?`Column ${L}: ${err}.`:`Column ${L} = ${shown}: ${nv} value${nv===1?"":"s"}${had?`, in place of ${had} typed or imported`:""}, computed again whenever the columns it uses change.`,{action:"Undo",run:undo});
+  else toast(err?`Column ${L}: ${err}.`:`Column ${L} = ${shown}: ${nv} value${nv===1?"":"s"}${had?`, in place of ${had} typed or imported`:""}${!had&&nv&&!fxSheetRows(p.cols,sheetOf(col))?`. The sheet has no values yet, so the column has ${FX_ROWS0} rows until it does`:", computed again whenever the columns it uses change"}.`,{action:"Undo",run:undo});
 }
 // While a formula is typed, the bar above the grid says whether it reads.
 function wsFxHint(text){
@@ -31389,7 +31456,7 @@ ${DL([["Transpose","Rows become columns, and X becomes Y."],["Flip","Left to rig
 <p>A column can have several rules; the first one that has something to say of a cell fills it, and a new rule goes first. <em>Manage the rules…</em> lists them in order, to move up or down, change (the pencil) or delete; <em>Clear the rules</em> takes a column's, or the sheet's, away. Each change is one step to undo.</p>
 <h2>What it is not</h2>
 <p>A view kept with the project: the values, graphs, fits, exports and the check code are untouched, and the fills are not in the CSV or the report. The fills are made from the sheet's own colour, so words on them read in both themes; a selected range shows the selection over them.</p>`},
-{id:"formulas", g:"Data", t:"Column formulas", kw:"formula f(x) set column values compute calculate expression function log sqrt fit resid residuals fitted values if condition compare mean sum count median sd percentile cumsum running sum previous row offset other sheet constant k_B text equals missing",
+{id:"formulas", g:"Data", t:"Column formulas", kw:"formula f(x) set column values rows empty sheet 32 constant compute calculate expression function log sqrt fit resid residuals fitted values if condition compare mean sum count median sd percentile cumsum running sum previous row offset other sheet constant k_B text equals missing",
  lead:"A column can be computed, row by row, from other columns: Origin's F(x)= row.",
  body:`<h2>Writing one</h2>
 <p>Type into a column's <strong>F(x)=</strong> cell, type <code>=</code> and the formula into any cell of the column, or choose <em>Set column values…</em> from its header or cell menu. The bar above the grid checks the formula as you type: a formula not finished yet (a bracket still open, a name half typed) is said quietly, and a mistake is marked in red.</p>
@@ -31397,6 +31464,7 @@ ${DL([["<code>A</code>, <code>B</code>, …","The value of that column in the sa
 <h2 id="rows">Other rows, and the whole column</h2>
 ${DL([["<code>B[i-1]</code>","Column B at another row: the row above here. <code>B[1]</code> is its first row, <code>B[i+1]</code> the row below; a row before the first or past the last is empty, and so is a row number that is not whole. <code>x[i-1]</code> is the X value of the row above."],["<code>mean(B)</code>","One number from every row of B: <code>sum</code>, <code>mean</code>, <code>sd</code>, <code>var</code> and <code>se</code> (dividing by n − 1), <code>median</code>, <code>count</code> (how many numbers), <code>min(B)</code> and <code>max(B)</code> with one value, and <code>percentile(B, 90)</code>. Text and empty cells are left out. Any expression can go inside: <code>sum(B*C)</code>."],["<code>cumsum(B)</code>","The running sum down to this row; an empty cell adds nothing."]])}
 <p>A column never reads itself, at another row either: for a running total use <code>cumsum</code>. A filter, a sort or hidden rows change nothing a formula computes: it reads every row.</p>
+<p id="howmany">A formula has as many rows as the longest column it reads at the row. One that reads none (a number such as <code>9</code>, <code>i</code>, a column's <code>mean</code>) has the sheet's rows, a column of names counted, and on a sheet with no values yet 32, as a new sheet in Origin has, so <code>9</code> typed into a new sheet shows its values; it takes the sheet's rows once values are typed or imported.</p>
 <h2 id="conditions">Conditions and text</h2>
 ${DL([["<code>B > 0</code>","A comparison: 1 where it holds, 0 where it does not. <code>&lt; &lt;= > >= == !=</code> (and <code>&lt;></code>); inside brackets a single <code>=</code> is equality too, as in a spreadsheet."],["<code>if(B > 0, B, 0/0)</code>","The second value where the condition holds, else the third. <code>0/0</code> leaves the cell empty."],["<code>and(…)</code>, <code>or(…)</code>, <code>not(…)</code>","Conditions joined."],["<code>C == \"control\"</code>","A text in quotes, compared with a column's cells exactly (capitals and spaces count). A number never equals a text. Only <code>==</code> and <code>!=</code> compare text."],["<code>missing(B)</code>","1 where B is empty, text, or not a number (0/0), else 0."]])}
 <p>An empty cell gives an empty result through everything it enters, a comparison too; <code>if</code> works out only the value it chooses, so <code>if(missing(B), C, B)</code> fills B's gaps from C.</p>
@@ -31625,13 +31693,13 @@ ${DL([["Rows and columns","The panels fill them in reading order."],["Share X","
 <p>Any export of a panel (SVG, PDF, EPS, PNG, or ${MP("Publish › Graph for a paper or slides…")}) writes the whole figure, at its proportions on screen or at the size asked for, each panel with its own ids. A figure is one item in <em>All graphs as one SVG</em> (or PNG), with its panels lettered inside it.</p>
 <h2>Deleting</h2>
 <p><em>Delete the figure</em> makes its panels graphs of their own again; <em>Delete the figure and its panels</em> removes those graphs too (never their columns). Closing it keeps it in the project, as a graph.</p>`},
-{id:"style", g:"Graph", t:"Formatting the graph", kw:"format plot details spline b-spline smooth connect colour by color by size by third column colormap fill between hatch hatching pattern black and white style colour color line symbol width dash fill axes axis ticks tick length mirror position offset zero frame box grid background margin legend columns layout overlay offset stack double y heat map font scheme title quick styles every graph formats saved template journal slides break broken axis gap leave out second x axis top axis wavelength raman shift wavenumber energy ev micrometre conversion project colleagues share",
+{id:"style", g:"Graph", t:"Formatting the graph", kw:"format plot details spline b-spline smooth connect join order zigzag unsorted sort by x jitter wrap angle 360 colour by color by size by third column colormap fill between hatch hatching pattern black and white style colour color line symbol width dash fill axes axis ticks tick length mirror position offset zero frame box grid background margin legend columns layout overlay offset stack double y heat map font scheme title quick styles every graph formats saved template journal slides break broken axis gap leave out second x axis top axis wavelength raman shift wavenumber energy ev micrometre conversion project colleagues share",
  lead:"The Format pane holds every setting of the figure, page by page, docked beside the graph. Every change shows on the graph at once and is kept: there is no OK, and each burst of changes is one undo step.",
  body:`<p>Open it from ${MP("Figure › Format graph…")}, the graph's right-click menu, a double-click on an axis's numbers, or <em>Format…</em> on anything drawn. <em>Selected</em>, at its top, chooses what it sets: a curve or the fit, an axis, or a part of the graph; a click on the graph (a curve, the fit, an axis's numbers, a line or a label, the legend) chooses it too. Drag its tab out of the dock to float it. <em>Defaults</em> resets the page shown; ${K("Ctrl","Z")} takes back the last change.</p>
 <h2 id="data">Data</h2>
 <p>For each curve: whether it is shown, its legend label, plot type (line, symbols, line and symbols, sticks, area, steps, columns), colour, line style and width, symbol and size, fill and opacity. The fit curve has its own page, with the shading and colours of fitted peaks.</p>
-${DL([["Connect","Straight lines between the points, a spline through them, or a B-spline (smooth, near them but not through them). Up to a few thousand points; past that the line is drawn straight, which looks the same."],["Colour by, size by","Symbols coloured by the values of a third column (a temperature, a time, a concentration), each point by the value in its own row, with a colour bar titled with the column; or sized by them, small to large, with a legend of a few round values and their sizes beside the graph (the curve's page turns it off). For the Symbols and Line + symbols types. The colour map is the graph's (Map › Colour map)."],["Fill between it and","The area between this curve and another, over the X they share, in its colour where it is the higher and in a second colour (<em>Where it is lower</em>) where it is not. Overlaid curves only."],["Hatching","Lines across an area or a fill between two curves (diagonal, crossed, horizontal, vertical, dots), for a figure printed in black and white. Set the fill's opacity to nothing for hatching alone."]])}
-<p>The curve's right-click menu has <em>Connect</em> and <em>Fill between it and</em> too.</p>
+${DL([["Connect","Straight lines between the points, a spline through them, or a B-spline (smooth, near them but not through them). Up to a few thousand points; past that the line is drawn straight, which looks the same."],["Order (Join the points)","<em>Automatic</em> joins the points as the rows have them, unless X runs one way apart from noise (a position read with jitter, which would zigzag on the steep parts): then in the order of X, as a spreadsheet's line chart looks. A jump back across most of the data (an angle from 359° to 0°, a sweep starting again) is not drawn: each part is a line of its own. A loop or a sweep there and back is joined as recorded. <em>In the order recorded</em> and <em>In the order of X</em> choose for it. The points themselves, the fit and every step keep the rows' order."],["Colour by, size by","Symbols coloured by the values of a third column (a temperature, a time, a concentration), each point by the value in its own row, with a colour bar titled with the column; or sized by them, small to large, with a legend of a few round values and their sizes beside the graph (the curve's page turns it off). For the Symbols and Line + symbols types. The colour map is the graph's (Map › Colour map)."],["Fill between it and","The area between this curve and another, over the X they share, in its colour where it is the higher and in a second colour (<em>Where it is lower</em>) where it is not. Overlaid curves only."],["Hatching","Lines across an area or a fill between two curves (diagonal, crossed, horizontal, vertical, dots), for a figure printed in black and white. Set the fill's opacity to nothing for hatching alone."]])}
+<p>The curve's right-click menu has <em>Connect</em>, <em>Join the points</em> and <em>Fill between it and</em> too.</p>
 <h2 id="axes">Axes</h2>
 ${DL([["Title","Its text (empty: made from the data's name and unit), shown or hidden, and where it sits along the axis: left, centre or right (bottom, middle or top on a Y axis). Its font is the axis titles' font."],["Scale","From, to (empty fits the data), the major step, reversed, and its type: linear, log₁₀, ln, log₂, reciprocal, offset reciprocal, square root or probability. "+DA("scales","Axis scales")],["Position","On its edge (bottom or top, left or right), at zero, or at any value of the other axis; pushed outward from the plot by an offset."],["Line and ticks","The axis line and its colour and width; ticks inside, outside, both or none; major and minor lengths, minor ticks between majors, tick width; the edge across from the axis with ticks of its own direction (or none) and, if asked, numbers too."],["Numbers","Shown or not, their format and decimals, turned 0°, 45° or 90°, and their font."],["Breaks","Ranges left out of the X or Y axis (below)."]])}
 <h2 id="breaks">Breaks</h2>

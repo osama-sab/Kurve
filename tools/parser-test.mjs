@@ -13,7 +13,7 @@ const m = html.match(/==PARSER:START==[\s\S]*?\*\/([\s\S]*?)\/\* ==PARSER:END==/
 if (!m) { console.error("Could not find the parser block in kurve.html"); process.exit(1); }
 
 // checkColumns formats numbers with the app's fmt(); a plain stub is enough here.
-const src = `const fmt=(v)=>String(v);\n${m[1]}\nreturn {analyzeFile,colFields,toNumber,detectFormat,checkColumns,splitLine,splitColName,detectRoles,parseLineList,parseFillList,timeOf,spcFile,spcTable,opusFile,speBinFile,xlsxRead,xlsxSheetText,xlsxParts,xlsxBytes,zipWrite,zipEntries,zipData,inflateRaw,crc32,xlsxDateFmt,xlsxSerialToUnix,htmlTable,xmlRead,XL_TXT};`;
+const src = `const fmt=(v)=>String(v);\n${m[1]}\nreturn {analyzeFile,colFields,toNumber,detectFormat,checkColumns,splitLine,splitColName,detectRoles,nearOneWay,parseLineList,parseFillList,timeOf,spcFile,spcTable,opusFile,speBinFile,xlsxRead,xlsxSheetText,xlsxParts,xlsxBytes,zipWrite,zipEntries,zipData,inflateRaw,crc32,xlsxDateFmt,xlsxSerialToUnix,htmlTable,xmlRead,XL_TXT};`;
 const P = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -512,6 +512,17 @@ check("negative kept", close(P.toNumber("-999", "."), -999));
   check("no X: a column named as an axis is X even unsorted", n.roles.join() === "x,y", n.roles.join());
   const m = P.analyzeFile("t,y\n0,5\n1,4\n2,3.5\n3,3.1\n");
   check("no X: a column that rises is X as before", m.roles.join() === "x,y", m.roles.join());
+  // A radius read from 280 down to 50 with jitter (the user's report of 19.11): not steady, still the axis.
+  { let s0 = 3; const rnd = () => { s0 = (s0 * 16807) % 2147483647; return s0 / 2147483647 - 0.5; }; const rows = [];
+    for (let r = 280; r >= 50; r -= 1) { const rr = r + 3 * rnd(); rows.push(rr.toFixed(2) + "," + (100 * Math.exp(-(((rr - 150) / 18) ** 2)) + 20).toFixed(3)); }
+    const j = P.analyzeFile("Pos,Signal\n" + rows.join("\n"));
+    check("no X: a first column running one way apart from noise is X", j.roles.join() === "x,y" && P.nearOneWay(j.cols[0]) === -1, j.roles.join());
+    const k = P.analyzeFile("Radius (mm),B\n" + rows.join("\n"));
+    check("no X: radius names an axis", k.roles.join() === "x,y", k.roles.join()); }
+  check("nearOneWay: rising with a swap of neighbours, falling, a loop, groups, short", P.nearOneWay([1, 2, 4, 3, 5, 6, 7, 8, 9, 10, 11]) === 1 && P.nearOneWay([9, 8, 7, 6, 5, 4, 3, 2, 1]) === -1
+    && P.nearOneWay(Array.from({ length: 40 }, (_, i) => Math.cos(i * Math.PI / 20))) === 0 && P.nearOneWay([310, 295, 330, 301, 288, 305, 299, 312, 290]) === 0 && P.nearOneWay([1, 3, 2]) === 0);
+  const th = P.analyzeFile("I\t2θ (deg)\n" + Array.from({ length: 30 }, (_, i) => `${(Math.sin(i) + 2).toFixed(3)}\t${(10 + i * 0.5 + (i % 3 ? 0.9 : -0.9)).toFixed(2)}`).join("\n"));
+  check("no X: 2θ names an axis (a Greek letter ends a name)", th.roles.join() === "y,x", th.roles.join());
   const e = P.analyzeFile("A,A err,B\n5,0.1,7\n3,0.2,9\n6,0.1,8\n4,0.2,6\n");
   check("no X: error columns are still errors", e.roles.join() === "y,e,y", e.roles.join());
 }
