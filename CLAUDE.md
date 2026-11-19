@@ -1712,8 +1712,24 @@ graph first, with the taskbar kept at the bottom of the screen.
   `#aMs` with `data-auto`, `#aMg`/`#aMgL`, `#aMh`/`#aMhL`), `mvFormWire`, `mvFormRead`, `ANA_FORMS.pca` (`#aMk`, `#aMa`, `#aMx`,
   `#aMy`), `pcaPlot(id, "scree"|"scores"|"loadings"|"tq"|"biplot")`, `pcaMaskOut(id)`. Analyze › Statistics › Multivariate ›
   Principal component analysis…; Help `multi`. References: `tools/ref/mv_fixtures.py` → `fixtures/mv-*.json` (scikit-learn,
-  NumPy, 40-digit mpmath), judged in `ref-test.mjs`'s Many variables section (`svd`, `sval`, `eig`, `obj`, `fail`); the fuzzer's
-  `svd.s`, `symEig.vals`, `pcaFlat`.
+  NumPy, SciPy, 40-digit mpmath), judged in `ref-test.mjs`'s Many variables section (`svd`, `sval`, `eig`, `obj`, `vec`, `fail`);
+  the fuzzer's `svd.s`, `symEig.vals`, `pcaFlat`, `kmeansFrom`, `linkFlat`. **6.3**: `mvRows(Z, n)` (a row-major Float64Array),
+  `mvD2`, `mvRenumber` (labels by the data, decision 8), `kmPP(R, n, m, k, rnd)` (greedy k-means++, 2 + ⌊ln k⌋ trials, refusing
+  fewer distinct observations than k), `kmLloyd(R, n, m, C0, maxIter)` (Lloyd's with Hamerly's bounds, the lowest-numbered of equal
+  centres, an empty cluster given the farthest observation), `kmeans(R, n, m, {k, seed, restarts, maxIter})` (the least within
+  sum of squares of the starts), `kmeansFrom` and `silFlat` (the bench's), `silhouette(R, n, m, lab, cap, seed)` (a sample of cap
+  past it), `mvPair`, `mvDist(R, n, m, metric)` (condensed; Euclidean or 1 − r), `LINK_METHODS`, `linkage(D, n, method)` (SciPy's:
+  single by the spanning tree, the rest by the nearest-neighbour chain with Lance and Williams' updates; sorted and numbered by
+  union–find), `cutTree(Z, n, {k | h})`, `dendroXY(Z, n)` (`{leaves, x, y}`, a ⊓ a merge, null between), `cophenet`, `linkFlat`,
+  `mvClusterCols` (`cvx`/`cv`, `c<j>` the centres in the data's units, `px<j>`/`py<j>` the clusters on two variables, the clusters
+  against the groups), `KM_MAX` (2·10⁵), `HC_MAX` (3000), `ANA_KINDS.kmeans` (`resIn`; `obs`, `cl` text, `grp`, `dist`, `sil`; `kc`,
+  `kn`, `kss`, `ksil`; `svx<j>`/`svy<j>` the silhouettes; `kk`, `kin`, `ksi` k compared; `report.clu {k, lay, rows, vids, pair,
+  scan, sil}`) and `ANA_KINDS.hclust` (`obs`, `cl`, `grp`, `lord`; `mi`, `ma`, `mb`, `mh`, `ms` the merges; `dx`/`dy` the dendrogram,
+  `cx`/`cy` the cut; `report.clu {…, leaves, n, hcut}`). A series' `gap` (true) breaks its line where a row is empty (`seriesSvg`).
+  Page: `mvPairHtml` (`#aKx`, `#aKy`), `mvPairWire`, `mvPairRead`, `mvPairOk`, `ANA_FORMS.kmeans` (`#aKk`, `#aKs`, `#aKr`, `#aKm`),
+  `ANA_FORMS.hclust` (`#aHm`, `#aHd` (1 − r off for Ward's), `#aHc` with `#aHk`/`#aHh`), `cluPlot(id, "dendro"|"clus"|"sil"|"scan")`,
+  `cluPut(id)` (a categorical column `Cluster (<name>)` at the end of the data's sheet, a record entry). Analyze › Statistics ›
+  Multivariate › k-means clustering…, Hierarchical clustering….
 - **Worksheet** (`renderWs`, `setupWs`): a spreadsheet grid as in Excel, with Origin's label
   rows. Columns have fixed widths (`WS_W`, 100 px; `p.wsw[colId]` when dragged or autofitted by
   a double click on the header's edge, `wsSetWidth`, `wsAutofit`), never stretched to the

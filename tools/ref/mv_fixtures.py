@@ -164,6 +164,35 @@ cases.append({"fn": "pca", "name": "a constant variable under unit variance", "a
 cases.append({"fn": "pca", "name": "one observation", "args": [[[1.0, 2.0]], {}], "want": {"fail": "n"}, "kind": "fail"})
 out["mv-pca"] = cases
 
+# ---- 6.3 clustering: Lloyd's k-means against scikit-learn from the same starting centres, silhouettes against scikit-learn,
+# linkage, cophenetic correlation, the dendrogram's leaves and cuts against SciPy; labels renumbered by the data (decision 8) ----
+from scipy.cluster import hierarchy as _hc
+from scipy.spatial.distance import pdist as _pdist
+cases = []
+rng = np.random.default_rng(20261121)
+def renum(lab):
+    mp = {}; return [mp.setdefault(int(v), len(mp)) for v in lab]
+def blobs(n, m, k, spread):
+    C = rng.normal(0, 4, size=(k, m)); lab = rng.integers(0, k, n); return np.array(r6m(C[lab] + rng.normal(0, spread, size=(n, m))))
+for n, m, k, spread in ((30, 2, 3, 1.0), (100, 4, 4, 1.5), (200, 3, 5, 2.5), (60, 10, 2, 3.0), (12, 2, 4, 0.5)):
+    X = blobs(n, m, k, spread); init = X[rng.choice(n, k, replace=False)]
+    from sklearn.cluster import KMeans
+    K = KMeans(n_clusters=k, init=init, n_init=1, algorithm="lloyd", tol=0.0, max_iter=300).fit(X)
+    lab = renum(K.labels_); order = []; [order.append(int(v)) for v in K.labels_ if int(v) not in order]
+    C = K.cluster_centers_[order]
+    cases.append({"fn": "kmeansFrom", "name": f"k-means of {n} × {m}, k {k}", "args": [X.tolist(), init.tolist()], "want": {"lab": lab, "C": C.ravel(), "inertia": float(K.inertia_)}, "kind": "obj"})
+    from sklearn.metrics import silhouette_samples
+    cases.append({"fn": "silFlat", "name": f"silhouettes of {n} × {m}, k {k}", "args": [X.tolist(), lab], "want": silhouette_samples(X, lab), "kind": "vec"})
+for n, m in ((8, 2), (25, 3), (60, 5), (40, 30)):
+    X = blobs(n, m, 3, 2.0)
+    for method in ("single", "complete", "average", "ward"):
+        for metric in (("euclidean", "correlation") if method != "ward" and m > 2 else ("euclidean",)):
+            D = _pdist(X, metric); Z = _hc.linkage(D, method=method); want = {"pairs": Z[:, [0, 1, 3]].ravel(), "h": Z[:, 2], "coph": float(_hc.cophenet(Z, D)[0]), "leaves": _hc.dendrogram(Z, no_plot=True)["leaves"]}
+            for k in range(2, min(5, n) + 1): want["k%d" % k] = renum(_hc.fcluster(Z, k, criterion="maxclust"))
+            cases.append({"fn": "linkFlat", "name": f"{method} on {metric}, {n} × {m}", "args": [X.tolist(), method, metric], "want": want, "kind": "obj"})
+cases.append({"fn": "linkFlat", "name": "Ward on correlation", "args": [[[1.0, 2.0, 3.0], [2.0, 1.0, 0.0], [5.0, 5.0, 4.0]], "ward", "correlation"], "want": {"fail": "ward"}, "kind": "fail"})
+out["mv-clu"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

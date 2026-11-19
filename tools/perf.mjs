@@ -91,6 +91,8 @@ const BUDGET = {
   "SVD: 50 × 50": [15, "every singular value and vector of a 50 × 50 matrix (MULTI_SPEC 6.1)"],
   "Eigen: 200 × 200": [200, "every eigenvalue and vector of a symmetric 200 × 200 matrix, tridiagonal QL (MULTI_SPEC 6.1)"],
   "PCA: 10^6 rows × 10": [3000, "principal components of a million rows of 10 columns under unit variance, three kept, T² and Q (in the worker in the app; MULTI_SPEC 6.2)"],
+  "k-means: 10^5 × 10, k 10": [3000, "k-means of 100 000 rows of 10 columns into 10 clusters, 10 k-means++ starts, Lloyd's iterations with Hamerly's bounds (in the worker in the app; MULTI_SPEC 6.3)"],
+  "Hierarchical: 3000, Ward's": [1500, "the distances of 3000 observations of 5 variables and Ward's linkage by the nearest-neighbour chain (in the worker in the app; MULTI_SPEC 6.3)"],
   "PCA: 300 curves × 2000": [2400, "principal components of 300 curves of 2000 points, centred, ten kept, T² and Q (in the worker in the app; MULTI_SPEC 6.2)"],
 };
 const got = {};
@@ -262,6 +264,10 @@ await withPage(async (p) => {
     const a = performance.now(); symEig(S); return performance.now() - a; }));
   got["PCA: 10^6 rows × 10"] = await best(() => p.evaluate(() => { const mb = mulberry32(30), n = 1e6, a0 = Float64Array.from({ length: n }, () => mb() - 0.5), C = [a0].concat(Array.from({ length: 9 }, (_, j) => Float64Array.from(a0, (v) => (j < 3 ? v : 0) + mb() - 0.5)));
     const a = performance.now(); pca({ cols: C, n }, { scale: "unit", k: 3, rows: false }); return performance.now() - a; }));
+  got["k-means: 10^5 × 10, k 10"] = await best(() => p.evaluate(() => { const mb = mulberry32(32), n = 1e5, m = 10, R = Float64Array.from({ length: n * m }, (_, i) => mb() + 6 * ((Math.floor(i / m) % 10) - 5) * (i % m === 0));
+    const a = performance.now(); kmeans(R, n, m, { k: 10, seed: 1, restarts: 10 }); return performance.now() - a; }));
+  got["Hierarchical: 3000, Ward's"] = await best(() => p.evaluate(() => { const mb = mulberry32(33), N = 3000, Q = Float64Array.from({ length: N * 5 }, () => mb());
+    const a = performance.now(); linkage(mvDist(Q, N, 5, "euclidean"), N, "ward"); return performance.now() - a; }));
   got["PCA: 300 curves × 2000"] = await best(() => p.evaluate(() => { const mb = mulberry32(31), C = Array.from({ length: 2000 }, () => Float64Array.from({ length: 300 }, () => mb() - 0.5));
     const a = performance.now(); pca({ cols: C, n: 300 }, { scale: "none", k: 10, rows: false }); return performance.now() - a; }));
 });

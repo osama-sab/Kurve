@@ -238,6 +238,13 @@ PCA of a matrix sheet (its rows as observations) unless asked.
 
 ## 6.3 Clustering
 
+Done 19.11, as below, with these changes of plan: Lloyd's iterations use Hamerly's bounds (the same clusters as scikit-learn's, in
+half the time: 10⁵ rows of 10, k 10, 10 starts in 0.81 s); the dendrogram is a curve whose line breaks at its empty rows (a new
+series setting, `gap`, the biplot's lines use it too), its names turned past twelve; membership is read from the result sheet's
+column when copied, so the report carries no list of a hundred thousand labels; k compared is off unless asked (each k costs the
+starts again). Measured: the clusters, merges, leaves and cuts exactly as scikit-learn's and SciPy's, heights to 2e-15, centres to
+5e-16, silhouettes to 3e-14.
+
 **What.** Analyze › Statistics › Multivariate › *k-means clustering…* and *Hierarchical clustering…*.
 k-means: the layout, the variables standardised or not (unit variance, Pareto, as is), k, the seed,
 the restarts (10), Lloyd's iterations from k-means++ starts until no observation changes cluster (at

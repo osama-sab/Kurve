@@ -1241,6 +1241,45 @@ def pca_post(c, out):
     return e, f"{why} {e:.2e}"
 POST["pcaFlat"] = pca_post
 
+# Clustering: Lloyd's k-means from the same starts as scikit-learn, and SciPy's linkage (every method, both distances), on random
+# blobs; labels renumbered by the data must agree exactly, heights and centres over the largest.
+def _renum(lab):
+    mp = {}; return [mp.setdefault(int(v), len(mp)) for v in lab]
+def _blobs():
+    n = int(rng.integers(3, 150)); m = int(rng.integers(1, 12)); k = int(rng.integers(1, min(n, 7) + 1)); C = rng.normal(0, 5, size=(k, m))
+    return rng.normal(0, float(lognum(-1, 0.6)), size=(n, m)) + C[rng.integers(0, k, n)] + rng.uniform(-1e3, 1e3) , n, m, k
+@gen("kmeansFrom", 1e-12, 0.15)
+def _():
+    from sklearn.cluster import KMeans
+    X, n, m, k = _blobs(); init = X[rng.choice(n, k, replace=False)]
+    K = KMeans(n_clusters=k, init=init, n_init=1, algorithm="lloyd", tol=0.0, max_iter=300).fit(X)
+    if len(set(K.labels_)) < k: raise ValueError("an empty cluster: relocation is not compared")
+    order = []; [order.append(int(v)) for v in K.labels_ if int(v) not in order]
+    return [X.tolist(), init.tolist()], {"lab": _renum(K.labels_), "C": K.cluster_centers_[order].ravel().tolist(), "inertia": float(K.inertia_), "sc": float(np.max(np.abs(X)))}
+def km_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or "lab" not in out: return float("inf"), f"refused: {str(out)[:80]}"
+    if list(out["lab"]) != w["lab"]: return float("inf"), "the clusters differ"
+    e = max(abs(val(a) - b) for a, b in zip(out["C"], w["C"])) / w["sc"]; e = max(e, abs(val(out["inertia"]) - w["inertia"]) / max(w["inertia"], 1e-300))
+    return e, f"centres and inertia {e:.2e}"
+POST["kmeansFrom"] = km_post
+@gen("linkFlat", 1e-12, 0.15)
+def _():
+    from scipy.cluster import hierarchy as hc
+    from scipy.spatial.distance import pdist
+    X, n, m, k = _blobs(); n = min(n, 80); X = X[:n]
+    method = str(rng.choice(["single", "complete", "average", "ward"])); metric = "euclidean" if method == "ward" or m < 3 else str(rng.choice(["euclidean", "correlation"]))
+    D = pdist(X, metric); Z = hc.linkage(D, method=method)
+    if len(Z) > 1 and np.min(np.diff(np.sort(Z[:, 2]))) < 1e-9 * np.max(Z[:, 2]): raise ValueError("near ties: the order of merges is not determined")
+    return [X.tolist(), method, metric], {"pairs": Z[:, [0, 1, 3]].ravel().tolist(), "h": Z[:, 2].tolist(), "leaves": hc.dendrogram(Z, no_plot=True)["leaves"]}
+def link_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or "h" not in out: return float("inf"), f"refused: {str(out)[:80]}"
+    if [int(v) for v in out["pairs"]] != [int(v) for v in w["pairs"]]: return float("inf"), "the merges differ"
+    if list(out["leaves"]) != w["leaves"]: return float("inf"), "the leaves' order differs"
+    big = max(abs(v) for v in w["h"]) or 1.0; e = max(abs(val(a) - b) for a, b in zip(out["h"], w["h"])) / big; return e, f"heights {e:.2e}"
+POST["linkFlat"] = link_post
+
 cases = []
 ONLY = os.environ.get("ONLY")  # ONLY=name,name: those generators alone
 for name, (f, tol) in GEN.items():

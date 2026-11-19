@@ -625,6 +625,7 @@ if (fixtures.implicit) {
       if (c.kind === "obj") { for (const [k, w] of Object.entries(c.want)) { const name = `${c.fn}.${k}`, g = r[k];
           if (Array.isArray(w)) { const big = Math.max(...w.map(Math.abs)) || 1, gg = g && Array.from(g); note(name, gg && gg.length === w.length ? Math.max(...w.map((v, i) => Math.abs(gg[i] - v) / big)) : Infinity, c.name); }
           else note(name, relErr(g, w), c.name); } continue; }
+      if (c.kind === "vec") { const big = Math.max(...c.want.map(Math.abs)) || 1, g = r && Array.from(r); note(c.fn, g && g.length === c.want.length ? Math.max(...c.want.map((v, i) => v === null ? (g[i] === null ? 0 : Infinity) : Math.abs(g[i] - v) / big)) : Infinity, c.name); continue; }
       const A = c.args[0];
       if (c.kind === "sval") { note("svd.graded", Math.max(...c.want.s.map((w, i) => relErr(r.s[i], w))), c.name); continue; }
       if (c.kind === "svd") {

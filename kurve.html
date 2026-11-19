@@ -11293,6 +11293,219 @@ ANA_KINDS.pca={label:"Principal components", base:"PCA", cats:true, pts:p=>mvLay
     const marks=past.map(o=>({i:o.i,row:T.rows?T.rows[o.i]:-1,name:o.nm}));
     const method=`${lay==="curves"?`Each curve an observation and its ${T.m} points the variables`:`${T.m} columns the variables and ${T.n} rows the observations`}; ${mvScaleWord(how)}; the components by the singular value decomposition of that, each turned so that its loading of largest magnitude is positive; T²'s limit by the beta distribution (Tracy, Young and Mason), Q's by ${R.qhow==="box"?"Box's g·χ²(h)":"Jackson and Mudholkar"}.${R.bfac?` The biplot's loadings are times √λ and ${fmt(R.bfac,4)}.`:""}`;
     return {tables:[{cols}],report:{sections:secs,method,marks,pca:{k,px,py,lay,vids:T.vids,groups:GL.length,curves:lay==="curves",biplot:!!R.bfac}},notes}; }};
+/* ---- Clustering (MULTI_SPEC 6.3) ----
+   The observations as one row-major Float64Array (n × m, R[i·m + j]), so a distance is one pass over a contiguous stretch. */
+const mvRows=(Z,n)=>{ const m=Z.length, R=new Float64Array(n*m); for(let j=0;j<m;j++){ const z=Z[j]; for(let i=0;i<n;i++) R[i*m+j]=z[i]; } return R; };
+const mvD2=(R,m,i,C,c)=>{ let d=0; const o=i*m, q=c*m; for(let j=0;j<m;j++){ const t=R[o+j]-C[q+j]; d+=t*t; } return d; };
+// Labels renumbered by the data (MULTI_SPEC decision 8): 0 the cluster of the first observation, 1 of the first not in 0, …
+function mvRenumber(lab){ const map=new Map(), out=new Int32Array(lab.length); for(let i=0;i<lab.length;i++){ if(!map.has(lab[i])) map.set(lab[i],map.size); out[i]=map.get(lab[i]); } return {lab:out,map}; }
+/* k-means++ starts, greedy as scikit-learn's: each new centre the best of 2 + ⌊ln k⌋ observations drawn with chances in
+   proportion to their squared distance from the centres so far. {C (k × m flat)} or {fail} when fewer than k observations
+   differ. */
+function kmPP(R,n,m,k,rnd){ const C=new Float64Array(k*m), D=new Float64Array(n), nd=new Float64Array(n), best=new Float64Array(n), trials=2+Math.floor(Math.log(k));
+  const take=(c,i)=>{ for(let j=0;j<m;j++) C[c*m+j]=R[i*m+j]; };
+  take(0,Math.min(n-1,Math.floor(rnd()*n))); let pot=0; for(let i=0;i<n;i++){ D[i]=mvD2(R,m,i,C,0); pot+=D[i]; }
+  for(let c=1;c<k;c++){ if(!(pot>0)) return {fail:`Only ${c} of the observations differ: there cannot be ${k} clusters`};
+    let bp=Infinity, bi=-1;
+    for(let t=0;t<trials;t++){ let r=rnd()*pot, i=0; for(;i<n-1;i++){ r-=D[i]; if(r<0) break; }
+      // never a centre already taken (a distance of 0), whatever the rounding of the running sum
+      if(!(D[i]>0)){ let j=i; while(j<n&&!(D[j]>0)) j++; if(j===n){ j=i; while(j>0&&!(D[j]>0)) j--; } i=j; }
+      take(c,i); let p=0; for(let q=0;q<n;q++){ const d=Math.min(D[q],mvD2(R,m,q,C,c)); nd[q]=d; p+=d; }
+      if(p<bp){ bp=p; bi=i; best.set(nd); } }
+    take(c,bi); D.set(best); pot=bp; }
+  return {C}; }
+/* Lloyd's iterations from the centres C (k × m flat) until no observation changes cluster (at most maxIter): each to its
+   nearest centre (the lowest-numbered of equals), each centre the mean of its own; a cluster left empty takes the observation
+   farthest from its centre (scikit-learn's relocation). The nearest centre is found with Hamerly's bounds (2010): a distance to
+   the own centre from above, to the second from below, and half the gap to the next centre, kept as the centres move, so an
+   observation the bounds settle is not measured again; the clusters are Lloyd's own. {lab, C, inertia (Σ squared distances),
+   iter, conv} */
+function kmLloyd(R,n,m,C0,maxIter){ const k=C0.length/m, C=Float64Array.from(C0), Cold=new Float64Array(k*m), lab=new Int32Array(n).fill(-1), cnt=new Float64Array(k), S=new Float64Array(k*m);
+  const u=new Float64Array(n), l=new Float64Array(n), sh=new Float64Array(k), dl=new Float64Array(k);
+  const scan=i=>{ const o=i*m; let b=0, d1=Infinity, d2=Infinity; for(let c=0;c<k;c++){ let d=0; const q=c*m; for(let j=0;j<m;j++){ const t=R[o+j]-C[q+j]; d+=t*t; if(d>=d2) break; } if(d<d1){ d2=d1; d1=d; b=c; } else if(d<d2) d2=d; } u[i]=Math.sqrt(d1); l[i]=Math.sqrt(d2); return b; };
+  const dc=(i,c)=>{ let d=0; const o=i*m, q=c*m; for(let j=0;j<m;j++){ const t=R[o+j]-C[q+j]; d+=t*t; } return Math.sqrt(d); };
+  let it=0, conv=false;
+  for(;it<maxIter;it++){ let ch=0;
+    if(it===0){ for(let i=0;i<n;i++){ lab[i]=scan(i); ch++; } }
+    else { for(let c=0;c<k;c++){ let mn=Infinity; for(let e=0;e<k;e++){ if(e===c) continue; let d=0; for(let j=0;j<m;j++){ const t=C[c*m+j]-C[e*m+j]; d+=t*t; } if(d<mn) mn=d; } sh[c]=Math.sqrt(mn)/2; }
+      for(let i=0;i<n;i++){ const a=lab[i], bound=Math.max(sh[a],l[i]); if(u[i]<=bound) continue; u[i]=dc(i,a); if(u[i]<=bound) continue;
+        const b=scan(i); if(b!==a){ lab[i]=b; ch++; } } }
+    if(!ch&&it>0){ conv=true; break; }
+    Cold.set(C); cnt.fill(0); S.fill(0); for(let i=0;i<n;i++){ const c=lab[i], o=i*m, q=c*m; cnt[c]++; for(let j=0;j<m;j++) S[q+j]+=R[o+j]; }
+    const used=new Set();
+    for(let c=0;c<k;c++) if(!cnt[c]){ let far=-1, fd=-1; for(let i=0;i<n;i++){ if(used.has(i)||cnt[lab[i]]<=1) continue; const d=dc(i,lab[i]); if(d>fd){ fd=d; far=i; } } if(far<0) continue;
+      used.add(far); const old=lab[far], o=far*m; cnt[old]--; for(let j=0;j<m;j++){ S[old*m+j]-=R[o+j]; S[c*m+j]=R[o+j]; } cnt[c]=1; lab[far]=c; u[far]=0; l[far]=0; }
+    for(let c=0;c<k;c++) if(cnt[c]) for(let j=0;j<m;j++) C[c*m+j]=S[c*m+j]/cnt[c];
+    // how far each centre moved: the bounds loosen by as much
+    let m1=0, m2=0, i1=-1; for(let c=0;c<k;c++){ let d=0; for(let j=0;j<m;j++){ const t=C[c*m+j]-Cold[c*m+j]; d+=t*t; } dl[c]=Math.sqrt(d); if(dl[c]>m1){ m2=m1; m1=dl[c]; i1=c; } else if(dl[c]>m2) m2=dl[c]; }
+    for(let i=0;i<n;i++){ const a=lab[i]; u[i]+=dl[a]; l[i]-=a===i1?m2:m1; }
+    if(!ch){ conv=true; break; } }
+  let inertia=0; for(let i=0;i<n;i++) inertia+=mvD2(R,m,i,C,lab[i]);
+  return {lab,C,inertia,iter:it,conv}; }
+/* k-means: `restarts` runs from k-means++ starts drawn from mulberry32(seed), the least within sum of squares kept (the first
+   of equals). {lab (renumbered by the data), C (k × m flat, in that numbering), inertia, iter, conv, runs} or {fail}. */
+function kmeans(R,n,m,o){ o=o||{}; const k=Math.floor(o.k), runs=Math.max(1,Math.min(100,Math.floor(o.restarts)||10)), maxIter=Math.max(1,Math.floor(o.maxIter)||300);
+  if(!(k>=1)) return {fail:"The number of clusters must be 1 or more"}; if(k>n) return {fail:`${n} observations cannot make ${k} clusters`};
+  const rnd=mulberry32((Math.floor(o.seed)||1)>>>0); let best=null;
+  for(let r=0;r<runs;r++){ const s=kmPP(R,n,m,k,rnd); if(s.fail) return s; const L=kmLloyd(R,n,m,s.C,maxIter); if(!best||L.inertia<best.inertia) best=L; }
+  const rn=mvRenumber(best.lab), C=new Float64Array(k*m); rn.map.forEach((nw,old)=>{ for(let j=0;j<m;j++) C[nw*m+j]=best.C[old*m+j]; });
+  return {lab:rn.lab,C,inertia:best.inertia,iter:best.iter,conv:best.conv,runs,k}; }
+// For the bench: Lloyd's from the starting centres given (rows), renumbered by the data; the centres flat in that numbering.
+function kmeansFrom(X,init,maxIter){ const n=X.length, m=X[0].length, R=Float64Array.from(X.flat()), L=kmLloyd(R,n,m,Float64Array.from(init.flat()),maxIter||300), rn=mvRenumber(L.lab), k=init.length, C=new Array(k*m).fill(null);
+  rn.map.forEach((nw,old)=>{ for(let j=0;j<m;j++) C[nw*m+j]=L.C[old*m+j]; }); return {lab:Array.from(rn.lab),C,inertia:L.inertia}; }
+/* Each observation's silhouette (b − a)/max(a, b): a its mean Euclidean distance to the rest of its cluster, b the least mean
+   distance to another cluster's; 0 alone in its cluster, as scikit-learn's. Past `cap` observations, a sample of cap drawn
+   from mulberry32(seed) (the others null). {s, mean, n} */
+function silhouette(R,n,m,lab,cap,seed){ cap=cap||5000; let idx=Array.from({length:n},(_,i)=>i);
+  if(n>cap){ const rnd=mulberry32((seed||1)>>>0); for(let i=0;i<cap;i++){ const j=i+Math.floor(rnd()*(n-i)); const t=idx[i]; idx[i]=idx[j]; idx[j]=t; } idx=idx.slice(0,cap).sort((a,b)=>a-b); }
+  const k=amax(Array.from(lab))+1, cnt=new Float64Array(k), sel=new Int32Array(idx), s=new Array(n).fill(null), sum=new Float64Array(k);
+  for(const i of sel) cnt[lab[i]]++;
+  let tot=0, ns=0;
+  for(const i of sel){ sum.fill(0); const o=i*m; for(const q of sel){ if(q===i) continue; let d=0; const p=q*m; for(let j=0;j<m;j++){ const t=R[o+j]-R[p+j]; d+=t*t; } sum[lab[q]]+=Math.sqrt(d); }
+    const c=lab[i]; if(cnt[c]<=1){ s[i]=0; } else { const a=sum[c]/(cnt[c]-1); let b=Infinity; for(let g=0;g<k;g++) if(g!==c&&cnt[g]>0){ const v=sum[g]/cnt[g]; if(v<b) b=v; } s[i]=b===Infinity?0:(b-a)/Math.max(a,b)||0; }
+    tot+=s[i]; ns++; }
+  return {s,mean:ns?tot/ns:NaN,n:ns}; }
+/* The distances between observations, condensed (the pairs i < j in order, as SciPy's pdist): Euclidean, or 1 − r of the two
+   observations' values (the correlation's, as SciPy's "correlation"). */
+const mvPair=(n,i,j)=>n*i-i*(i+1)/2+(j-i-1);
+function mvDist(R,n,m,metric){ const D=new Float64Array(n*(n-1)/2); let k=0;
+  if(metric==="correlation"){ const c=new Float64Array(n*m), nr=new Float64Array(n);
+    for(let i=0;i<n;i++){ const o=i*m; let s=0; for(let j=0;j<m;j++) s+=R[o+j]; const mu=s/m; let q=0; for(let j=0;j<m;j++){ const v=R[o+j]-mu; c[o+j]=v; q+=v*v; } nr[i]=Math.sqrt(q); }
+    for(let i=0;i<n-1;i++){ const o=i*m; for(let j=i+1;j<n;j++){ const p=j*m; let d=0; for(let t=0;t<m;t++) d+=c[o+t]*c[p+t]; D[k++]=Math.max(0,1-d/(nr[i]*nr[j])); } }
+    return D; }
+  for(let i=0;i<n-1;i++){ const o=i*m; for(let j=i+1;j<n;j++){ const p=j*m; let d=0; for(let t=0;t<m;t++){ const v=R[o+t]-R[p+t]; d+=v*v; } D[k++]=Math.sqrt(d); } }
+  return D; }
+/* Agglomerative clustering as SciPy's linkage: single by the minimum spanning tree, complete, average and Ward by the nearest-
+   neighbour chain with Lance and Williams' updates (Ward's on Euclidean distances); the merges sorted by height (stable) and
+   numbered as SciPy's (a leaf 0…n − 1, the i-th merge n + i, the smaller first). Z: [[a, b, height, size]…] or {fail}. */
+const LINK_METHODS=[["ward","Ward's"],["average","Average"],["complete","Complete"],["single","Single"]];
+function linkage(D,n,method){ if(n<2) return {fail:"Two observations are needed"}; const Z=[];
+  const d=(i,j)=>i<j?D[mvPair(n,i,j)]:D[mvPair(n,j,i)], set=(i,j,v)=>{ if(i<j) D[mvPair(n,i,j)]=v; else D[mvPair(n,j,i)]=v; };
+  if(method==="single"){ const merged=new Uint8Array(n), Dm=new Float64Array(n).fill(Infinity); let y=0;
+    for(let k=0;k<n-1;k++){ const x=y; let cur=Infinity; merged[x]=1;
+      for(let i=0;i<n;i++){ if(merged[i]) continue; const v=d(x,i); if(Dm[i]>v) Dm[i]=v; if(Dm[i]<cur){ y=i; cur=Dm[i]; } }
+      Z.push([x,y,cur]); } }
+  else { D=Float64Array.from(D); const size=new Float64Array(n).fill(1), chain=[];
+    for(let k=0;k<n-1;k++){ let x=0, y=0, cur=Infinity;
+      if(!chain.length){ for(let i=0;i<n;i++) if(size[i]>0){ chain.push(i); break; } }
+      for(;;){ x=chain[chain.length-1]; if(chain.length>1){ y=chain[chain.length-2]; cur=d(x,y); } else cur=Infinity;
+        for(let i=0;i<n;i++){ if(size[i]===0||i===x) continue; const v=d(x,i); if(v<cur){ cur=v; y=i; } }
+        if(chain.length>1&&y===chain[chain.length-2]) break; chain.push(y); }
+      chain.pop(); chain.pop(); if(x>y){ const t=x; x=y; y=t; }
+      const nx=size[x], ny=size[y]; Z.push([x,y,cur]);
+      for(let i=0;i<n;i++){ const ni=size[i]; if(ni===0||i===y||i===x) continue; const dx=d(i,x), dy=d(i,y);
+        set(i,y,method==="complete"?Math.max(dx,dy):method==="average"?(nx*dx+ny*dy)/(nx+ny):Math.sqrt(((ni+nx)*dx*dx+(ni+ny)*dy*dy-ni*cur*cur)/(nx+ny+ni))); }
+      size[x]=0; size[y]=nx+ny; } }
+  // sorted by height (a stable sort), then numbered by union–find as SciPy's label()
+  const o=Z.map((_,i)=>i).sort((a,b)=>Z[a][2]-Z[b][2]||a-b), par=new Int32Array(2*n-1).map((_,i)=>i), sz=new Float64Array(2*n-1).fill(1), nextL=new Int32Array(2*n-1).map((_,i)=>i);
+  const find=x=>{ while(par[x]!==x){ par[x]=par[par[x]]; x=par[x]; } return x; };
+  const out=o.map((zi,i)=>{ const [a,b,h]=Z[zi], ra=find(a), rb=find(b), la=nextL[ra], lb=nextL[rb], s=sz[ra]+sz[rb], nw=n+i;
+    par[ra]=nw; par[rb]=nw; sz[nw]=s; nextL[nw]=nw; return [Math.min(la,lb),Math.max(la,lb),h,s]; });
+  return out; }
+// The clusters of cutting Z: into k (its first n − k merges) or at a height h (every merge at or below it); renumbered by the data.
+function cutTree(Z,n,o){ const par=new Int32Array(2*n-1).map((_,i)=>i), find=x=>{ while(par[x]!==x){ par[x]=par[par[x]]; x=par[x]; } return x; };
+  const upto=o.k!=null?Math.max(0,n-Math.max(1,Math.min(n,Math.floor(o.k)))):Z.filter(z=>z[2]<=o.h).length;
+  for(let i=0;i<upto;i++){ par[find(Z[i][0])]=n+i; par[find(Z[i][1])]=n+i; }
+  return mvRenumber(Array.from({length:n},(_,i)=>find(i))).lab; }
+// The order of the leaves (SciPy's dendrogram: from the last merge, its first child before its second) and the lines: each merge
+// a ⊓ from its children's places and heights to its own height, a gap (null) between merges. Leaves at 1…n.
+function dendroXY(Z,n){ const leaves=[], pos=new Float64Array(2*n-1), hgt=new Float64Array(2*n-1), st=[2*n-2];
+  if(n===1) return {leaves:[0],x:[],y:[]};
+  while(st.length){ const id=st.pop(); if(id<n){ leaves.push(id); continue; } const z=Z[id-n]; st.push(z[1],z[0]); }
+  leaves.forEach((id,i)=>{ pos[id]=i+1; });
+  const x=[], y=[]; Z.forEach((z,i)=>{ const a=z[0], b=z[1], id=n+i; pos[id]=(pos[a]+pos[b])/2; hgt[id]=z[2]; x.push(pos[a],pos[a],pos[b],pos[b],null); y.push(hgt[a],z[2],z[2],hgt[b],null); });
+  return {leaves,x,y}; }
+// The cophenetic correlation: Pearson's r of the distances and the heights at which each pair first shares a cluster.
+function cophenet(Z,D,n){ const mem=Array.from({length:2*n-1},(_,i)=>i<n?[i]:null), C=new Float64Array(D.length);
+  Z.forEach((z,i)=>{ const A=mem[z[0]], B=mem[z[1]]; for(const a of A) for(const b of B) C[a<b?mvPair(n,a,b):mvPair(n,b,a)]=z[2]; mem[n+i]=A.concat(B); mem[z[0]]=mem[z[1]]=null; });
+  const N=D.length; let sd=0, sc=0; for(let i=0;i<N;i++){ sd+=D[i]; sc+=C[i]; } const md=sd/N, mc=sc/N; let xy=0, xx=0, yy=0;
+  for(let i=0;i<N;i++){ const u=D[i]-md, v=C[i]-mc; xy+=u*v; xx+=u*u; yy+=v*v; } return xy/Math.sqrt(xx*yy); }
+// For the bench: each row's silhouette under the labels given, every row.
+function silFlat(X,lab){ const n=X.length, m=X[0].length; return silhouette(Float64Array.from(X.flat()),n,m,Int32Array.from(lab),n+1).s; }
+// For the bench: SciPy's linkage of the rows, its cophenetic correlation, the leaves' order, and cuts into 2 to 5.
+function linkFlat(X,method,metric){ const n=X.length, m=X[0].length, R=Float64Array.from(X.flat()), D=mvDist(R,n,m,metric||"euclidean");
+  if(method==="ward"&&metric==="correlation") return {fail:"Ward's method needs Euclidean distances"};
+  const Z=linkage(D,n,method); if(Z.fail) return Z; const dg=dendroXY(Z,n), cuts={};
+  for(let k=2;k<=Math.min(5,n);k++) cuts["k"+k]=Array.from(cutTree(Z,n,{k}));
+  return Object.assign({pairs:Z.map(z=>[z[0],z[1],z[3]]).flat(),h:Z.map(z=>z[2]),coph:n>2?cophenet(Z,D,n):null,leaves:dg.leaves},cuts); }
+/* The clusters' result columns, shared by both kinds: a row an observation (its name, cluster as text, group), the centres
+   (a row a variable: columns' names, or the curves' X with a curve a cluster), the plot's pairs a cluster, and the clusters
+   against the groups when there are groups. */
+function mvClusterCols(T,lab,k,cols,secs,o){ const n=T.n, m=T.m, lay=o.lay, name=c=>String(c+1);
+  // each cluster's centre in the data's own units (the mean of its members), whatever the scaling clustered
+  const cnt=new Float64Array(k), cen=Array.from({length:k},()=>new Float64Array(m));
+  for(let i=0;i<n;i++) cnt[lab[i]]++; for(let j=0;j<m;j++){ const x=T.Xc[j]; for(let i=0;i<n;i++) cen[lab[i]][j]+=x[i]; } cen.forEach((c,q)=>{ for(let j=0;j<m;j++) c[j]/=cnt[q]||1; });
+  if(lay==="curves") cols.push({k:"cvx",name:T.xn,unit:T.xu,role:"x",vals:T.vx}); else cols.push({k:"cv",name:"Variable",vals:T.vnames});
+  for(let c=0;c<k;c++) cols.push({k:"c"+(c+1),name:lay==="curves"?`Cluster ${c+1}`:`Centre of ${c+1}`,unit:T.unit,role:lay==="curves"?"y":"ignore",vals:Array.from(cen[c])});
+  if(lay==="cols"&&m<=30) secs.push({title:"Centres",tables:[{head:["Variable"].concat(Array.from({length:k},(_,c)=>`Cluster ${c+1}`)),rows:T.vnames.map((v,j)=>[v].concat(cen.map(c=>c[j])))}]});
+  // the clusters on two variables, a pair of columns a cluster (columns layout)
+  if(lay==="cols"){ const vx=Math.min(m,Math.max(1,o.vx||1))-1, vy0=Math.min(m,Math.max(1,o.vy||2))-1, vy=vy0===vx?(vx===0?Math.min(1,m-1):0):vy0;
+    for(let c=0;c<k;c++){ const ix=[]; for(let i=0;i<n;i++) if(lab[i]===c) ix.push(i); cols.push({k:"px"+c,name:T.vnames[vx],unit:"",role:"x",vals:ix.map(i=>T.Xc[vx][i])},{k:"py"+c,name:`Cluster ${c+1}`,role:"y",vals:ix.map(i=>T.Xc[vy][i])}); }
+    o.pair=[T.vnames[vx],T.vnames[vy]]; }
+  // the clusters against the groups: a count a cell
+  if(T.groups){ const gl=[...new Set(T.groups.map(g=>g==null?"(no group)":g))].slice(0,60), tab=gl.map(()=>new Array(k).fill(0));
+    T.groups.forEach((g,i)=>{ const r=gl.indexOf(g==null?"(no group)":g); if(r>=0) tab[r][lab[i]]++; });
+    secs.push({title:"Clusters against the groups",tables:[{head:["Group"].concat(Array.from({length:k},(_,c)=>`Cluster ${c+1}`)),rows:gl.map((g,r)=>[g].concat(tab[r]))}]}); }
+  return cen; }
+const KM_MAX=200000, HC_MAX=3000;
+ANA_KINDS.kmeans={label:"k-means clustering", base:"k-means", cats:true, resIn:true, pts:p=>mvLayout(p)==="curves",
+  help:"The observations (rows of several columns, or curves) into k clusters by Lloyd's algorithm from k-means++ starts, the best of several: each one's cluster, distance to its centre and silhouette, the centres, the within sum of squares, and k compared over a range.",
+  heavy:(p,ins)=>ins.reduce((t,q)=>t+((q.pts&&q.pts.x.length)||(q.vals&&q.vals.length)||0),0)*Math.max(1,+p.k||3)*Math.max(1,+p.restarts||10)>2e6,
+  run(ins,p){ p=p||{}; const T=mvTable(ins,p); if(T.fail) return T; const lay=mvLayout(p), how=mvScaleOf(p), notes=T.notes.slice(), cols=[], secs=[], n=T.n, m=T.m;
+    if(n>KM_MAX) return {fail:`${n} observations: k-means here takes ${KM_MAX} at most`};
+    const k=Math.max(1,Math.floor(+p.k)||3), seed=Math.max(1,Math.floor(+p.seed)||1), runs=Math.max(1,Math.min(100,Math.floor(+p.restarts)||10));
+    const sc=mvScale(T.Xc,how,T.vnames); if(sc.fail) return sc; const R=mvRows(sc.Z,n);
+    const K=kmeans(R,n,m,{k,seed,restarts:runs}); if(K.fail) return K;
+    const si=n>1&&k>1?silhouette(R,n,m,K.lab,5000,seed):{s:new Array(n).fill(null),mean:NaN,n:0};
+    if(si.n<n&&k>1) notes.push(`The silhouettes are of a sample of ${si.n} of the ${n} observations, drawn from the seed.`);
+    if(!K.conv) notes.push(`The best start had not settled after ${K.iter} iterations.`);
+    const dist=Array.from({length:n},(_,i)=>Math.sqrt(mvD2(R,m,i,K.C,K.lab[i])));
+    cols.push({k:"obs",name:"Observation",vals:T.obs},{k:"cl",name:"Cluster",vals:Array.from(K.lab,c=>String(c+1))});
+    if(T.groups) cols.push({k:"grp",name:T.gname||p.meta||"Group",vals:T.groups.map(g=>g==null?"(no group)":g)});
+    cols.push({k:"dist",name:"Distance to its centre",vals:dist},{k:"sil",name:"Silhouette",vals:si.s});
+    // per cluster
+    const cnt=new Array(k).fill(0), wss=new Array(k).fill(0), ssum=new Array(k).fill(0), sn=new Array(k).fill(0);
+    for(let i=0;i<n;i++){ const c=K.lab[i]; cnt[c]++; wss[c]+=dist[i]*dist[i]; if(si.s[i]!=null){ ssum[c]+=si.s[i]; sn[c]++; } }
+    let tss=0; for(const z of sc.Z) for(let i=0;i<n;i++) tss+=z[i]*z[i];
+    cols.push({k:"kc",name:"Cluster",role:"x",vals:cnt.map((_,c)=>c+1)},{k:"kn",name:"Size",vals:cnt},{k:"kss",name:"Within sum of squares",vals:wss},{k:"ksil",name:"Mean silhouette",vals:sn.map((v,c)=>v?ssum[c]/v:null)});
+    secs.push({title:"Clusters",tables:[{head:["Cluster","Size","Within sum of squares","Mean silhouette"],rows:cnt.map((v,c)=>[c+1,v,wss[c],sn[c]?ssum[c]/sn[c]:null])}]});
+    secs.push({title:"The whole",tables:[{head:["Clusters","Within sum of squares","Between","Total","Between ÷ total","Mean silhouette"],rows:[[k,K.inertia,tss-K.inertia,tss,tss>0?(tss-K.inertia)/tss:null,Number.isFinite(si.mean)?si.mean:null]]}]});
+    const o={lay,vx:+p.vx,vy:+p.vy}; mvClusterCols(T,K.lab,k,cols,secs,o);
+    // the silhouettes as columns, a cluster each, each sorted from the highest, a gap between clusters
+    if(k>1&&si.n===n){ let x=0; for(let c=0;c<k;c++){ const v=[]; for(let i=0;i<n;i++) if(K.lab[i]===c) v.push(si.s[i]); v.sort((a,b)=>b-a); const xs=v.map(()=>++x); x+=2; cols.push({k:"svx"+c,name:"Observation",role:"x",vals:xs},{k:"svy"+c,name:`Cluster ${c+1}`,role:"y",vals:v}); } }
+    // k compared: from 2 to kmax, each the best of the same restarts
+    const kmax=Math.min(Math.floor(+p.kmax)||0,Math.min(n,30)); let scan=null;
+    if(kmax>=2){ scan=[]; for(let kk=2;kk<=kmax;kk++){ const r=kk===k?K:kmeans(R,n,m,{k:kk,seed,restarts:runs}); if(r.fail) break; const s2=silhouette(R,n,m,r.lab,Math.min(5000,n),seed); scan.push([kk,r.inertia,s2.mean]); }
+      cols.push({k:"kk",name:"Clusters",role:"x",vals:scan.map(r=>r[0])},{k:"kin",name:"Within sum of squares",role:"y",vals:scan.map(r=>r[1])},{k:"ksi",name:"Mean silhouette",role:"y",vals:scan.map(r=>r[2])});
+      secs.push({title:"k compared",tables:[{head:["Clusters","Within sum of squares","Mean silhouette"],rows:scan}]}); }
+    const method=`${lay==="curves"?`Each curve an observation and its ${m} points the variables`:`${m} columns the variables and ${n} rows the observations`}; ${mvScaleWord(how)}; Lloyd's algorithm from k-means++ starts (seed ${seed}, ${runs} start${runs===1?"":"s"}, the least within sum of squares kept), Euclidean distances; the clusters numbered by their first observation; silhouettes by Euclidean distance.`;
+    return {tables:[{cols}],report:{sections:secs,method,clu:{k,lay,rows:T.rows,vids:T.vids,pair:o.pair||null,scan:!!scan,sil:k>1&&si.n===n}},notes}; }};
+ANA_KINDS.hclust={label:"Hierarchical clustering", base:"Clusters", cats:true, resIn:true, pts:p=>mvLayout(p)==="curves",
+  help:"The observations (rows of several columns, or curves) joined two at a time by Ward's, average, complete or single linkage, on Euclidean or correlation distances: the merges and their heights, the dendrogram, each observation's cluster for a number of clusters or a height, the cophenetic correlation.",
+  heavy:(p,ins)=>{ const n=mvLayout(p)==="curves"?ins.length:ins.reduce((t,q)=>Math.max(t,(q.vals&&q.vals.length)||0),0); return n>800; },
+  run(ins,p){ p=p||{}; const T=mvTable(ins,p); if(T.fail) return T; const lay=mvLayout(p), how=mvScaleOf(p), notes=T.notes.slice(), cols=[], secs=[], n=T.n, m=T.m;
+    if(n>HC_MAX) return {fail:`${n} observations: hierarchical clustering here takes ${HC_MAX} at most (its distances alone would be ${Math.round(n*(n-1)/2*8/1e6)} MB); k-means takes more`};
+    const method=LINK_METHODS.some(([k])=>k===p.method)?p.method:"ward", metric=p.metric==="correlation"?"correlation":"euclidean";
+    if(method==="ward"&&metric==="correlation") return {fail:"Ward's method needs Euclidean distances: choose another method, or Euclidean"};
+    const sc=mvScale(T.Xc,how,T.vnames); if(sc.fail) return sc; const R=mvRows(sc.Z,n), D=mvDist(R,n,m,metric);
+    const Z=linkage(D,n,method); if(Z.fail) return Z;
+    const byH=p.cut==="h"&&Number.isFinite(+p.h), k0=Math.max(1,Math.min(n,Math.floor(+p.k)||3)), lab=cutTree(Z,n,byH?{h:+p.h}:{k:k0}), k=amax(Array.from(lab))+1;
+    const hcut=byH?+p.h:(n-k0-1>=0&&n-k0<Z.length?(Z[n-k0-1][2]+Z[n-k0][2])/2:n-k0-1>=0?Z[n-k0-1][2]*1.05:Z[0][2]/2);
+    const coph=n>2?cophenet(Z,D,n):null, dg=dendroXY(Z,n);
+    const nm=id=>id<n?T.obs[id]:`Merge ${id-n+1}`;
+    cols.push({k:"obs",name:"Observation",vals:T.obs},{k:"cl",name:"Cluster",vals:Array.from(lab,c=>String(c+1))});
+    if(T.groups) cols.push({k:"grp",name:T.gname||p.meta||"Group",vals:T.groups.map(g=>g==null?"(no group)":g)});
+    cols.push({k:"lord",name:"Place in the dendrogram",vals:(()=>{ const r=new Array(n); dg.leaves.forEach((id,i)=>{ r[id]=i+1; }); return r; })()});
+    cols.push({k:"mi",name:"Merge",vals:Z.map((_,i)=>i+1)},{k:"ma",name:"Joins",vals:Z.map(z=>nm(z[0]))},{k:"mb",name:"and",vals:Z.map(z=>nm(z[1]))},{k:"mh",name:"Height",vals:Z.map(z=>z[2])},{k:"ms",name:"Size",vals:Z.map(z=>z[3])});
+    cols.push({k:"dx",name:"Observation",role:"x",vals:dg.x},{k:"dy",name:"Dendrogram",role:"y",vals:dg.y},{k:"cx",name:"Observation",role:"x",vals:[0.5,n+0.5]},{k:"cy",name:byH?"The cut":`The cut into ${k}`,role:"y",vals:[hcut,hcut]});
+    const cnt=new Array(k).fill(0); for(let i=0;i<n;i++) cnt[lab[i]]++;
+    secs.push({title:"Clusters",tables:[{head:["Clusters","Cut at","Cophenetic correlation"].concat(cnt.map((_,c)=>`Size of ${c+1}`)),rows:[[k,hcut,coph].concat(cnt)]}]});
+    const last=Z.slice(-Math.min(Z.length,15)).reverse();
+    secs.push({title:Z.length>15?"The last 15 merges":"The merges",tables:[{head:["Merge","Joins","and","Height","Size"],rows:last.map((z,i)=>[Z.length-i,nm(z[0]),nm(z[1]),z[2],z[3]])}]});
+    const o={lay,vx:+p.vx,vy:+p.vy}; mvClusterCols(T,lab,k,cols,secs,o);
+    const mword=LINK_METHODS.find(([q])=>q===method)[1];
+    const meth=`${lay==="curves"?`Each curve an observation and its ${m} points the variables`:`${m} columns the variables and ${n} rows the observations`}; ${mvScaleWord(how)}; ${mword} linkage on ${metric==="correlation"?"1 − r between observations":"Euclidean distances"}, as SciPy's linkage; ${byH?`cut at the height ${fmt(+p.h,6)}`:`cut into ${k0} clusters, drawn at a height between the merges either side`}; the clusters numbered by their first observation.`;
+    return {tables:[{cols}],report:{sections:secs,method:meth,clu:{k,lay,rows:T.rows,vids:T.vids,pair:o.pair||null,leaves:dg.leaves.map(i=>T.obs[i]),n,hcut}},notes}; }};
 /* ==MV:END== */
 
 /* ============================================================
@@ -14426,7 +14639,7 @@ function serStyle(id,active,pal,forExport,cfg){
   return {type:o.type||gtype||(hb?"column":!cfg.style||cfg.style==="auto"?autoType(id):active?cfg.style:"line"), bw:hb?((finalOf(colById(id)).bins)||{}).w||null:null, color:o.color||gcol||yTint(id,forExport,sc), lw:o.lw!=null?+o.lw:(active?1.4:1.2), leg:o.leg!==false,
     dash:o.dash||mono, sym:o.sym||gsym||"circle", ss:o.ss!=null?+o.ss:null, fill:o.fill!=null?+o.fill:0.18, label:o.label||"", op:o.op!=null?+o.op:(active?1:0.8),
     eb:o.eb||"bars", ebColor:o.ebColor||"", ebLw:o.ebLw!=null?+o.ebLw:1, ebCap:o.ebCap!=null?+o.ebCap:5, ebOp:o.ebOp!=null?+o.ebOp:0.22,
-    conn:o.conn||"straight", zcol:o.zcol||"", scol:o.scol||"", hatch:o.hatch||"none", fillTo:o.fillTo||"", fill2:o.fill2||"", tkind:TMAP_KINDS.some(q=>q[0]===o.tkind)?o.tkind:"image"};
+    conn:o.conn||"straight", gap:o.gap===true, zcol:o.zcol||"", scol:o.scol||"", hatch:o.hatch||"none", fillTo:o.fillTo||"", fill2:o.fill2||"", tkind:TMAP_KINDS.some(q=>q[0]===o.tkind)?o.tkind:"image"};
 }
 function symD(t,x,y,r){
   const f=v=>v.toFixed(1), b=t.replace(/^o/,"");
@@ -14632,6 +14845,10 @@ function seriesSvg(pts,st,X,Y,geo,pal,masked){
     let d;
     if(st.type==="step"){ d="M"+f1(xy[0][0])+","+f1(xy[0][1]); for(let k=1;k<xy.length;k++){ const mx=(xy[k-1][0]+xy[k][0])/2; d+=`H${f1(mx)}V${f1(xy[k][1])}`; } d+=`H${f1(xy[xy.length-1][0])}`; }
     else if(smooth){ const sm=smoothD(xy,st.conn); d=sm.m+sm.c; }
+    // A line that breaks where a row is empty (gap: a dendrogram's ⊓s, a biplot's lines from the origin): a run per stretch of
+    // consecutive rows.
+    else if(st.gap&&!dec){ d=""; let prev=null; for(const q of keep){ const a=X(q.x), b=Y(q.y); if(!Number.isFinite(a)||!Number.isFinite(b)){ prev=null; continue; }
+        d+=(prev!=null&&q.i===prev+1?"L":"M")+f1(a)+","+f1(b); prev=q.i; } }
     else d="M"+xy.map(q=>f1(q[0])+","+f1(q[1])).join("L");
     s+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="${st.lw}"${dash?` stroke-dasharray="${dash}"`:""} stroke-linejoin="round"${op}/>`;
   }
@@ -21113,6 +21330,11 @@ function mvFormWire(box){ const l=box.querySelector("#aMl"), s=box.querySelector
   const on=()=>{ const cur=l.value==="curves"; ["aMg","aMgL"].forEach(i=>{ const e=box.querySelector("#"+i); if(e) e.hidden=cur; }); ["aMh","aMhL"].forEach(i=>{ const e=box.querySelector("#"+i); if(e) e.hidden=!cur; });
     if(s&&s.dataset.auto==="1") s.value=mvScaleOf({layout:l.value}); };
   l.addEventListener("change",on); if(s) s.addEventListener("change",()=>{ s.dataset.auto=""; }); on(); }
+// The two variables the clusters are drawn on (the columns layout), by their place among the columns ticked.
+const mvPairHtml=p=>`<label for="aKx" id="aKxL" class="tipd" title="The clusters are drawn on two of the variables, numbered as the columns ticked">Plotted</label><span class="anarows" id="aKxS"><input type="text" id="aKx" inputmode="numeric" value="${+p.vx>0?Math.round(+p.vx):1}" aria-label="Variable along X"><span class="muted">against</span><input type="text" id="aKy" inputmode="numeric" value="${+p.vy>0?Math.round(+p.vy):2}" aria-label="Variable along Y"></span>`;
+function mvPairWire(box){ const l=box.querySelector("#aMl"); if(!l) return; const on=()=>{ ["aKxL","aKxS"].forEach(i=>{ const e=box.querySelector("#"+i); if(e) e.hidden=l.value==="curves"; }); }; l.addEventListener("change",on); on(); }
+const mvPairRead=v=>({vx:Math.max(1,Math.round(parseNum(String(v.aKx||"1"))||1)),vy:Math.max(1,Math.round(parseNum(String(v.aKy||"2"))||2))});
+const mvPairOk=v=>[v.aKx,v.aKy].every(t=>{ t=String(t||"").trim(); return !t||/^\d+$/.test(t)&&+t>=1; });
 function mvFormRead(v){ const lay=v.aMl==="curves"?"curves":"cols"; return {layout:lay,scale:MV_SCALES.some(([k])=>k===v.aMs)?v.aMs:null,grp:lay==="cols"&&v.aMg?v.aMg:null,meta:lay==="curves"&&v.aMh?v.aMh:null}; }
 const ANA_FORMS={
   desc:{html(p){ const want=new Set(descKeys(p)), qt=qtOk(p.qtype)?p.qtype:7, conf=p.conf>0&&p.conf<1?p.conf:0.95;
@@ -21386,6 +21608,28 @@ const ANA_FORMS={
     read(v){ const n=t=>{ const x=parseNum(String(t||"").trim()); return Number.isFinite(x)&&x>=1?Math.round(x):null; }; return Object.assign(mvFormRead(v),{k:n(v.aMk),level:+v.aMa||0.95,px:n(v.aMx)||1,py:n(v.aMy)||2}); },
     valid(v){ const ok=t=>{ t=String(t||"").trim(); return !t||/^\d+$/.test(t)&&+t>=1&&+t<=50; }; return ok(v.aMk)&&ok(v.aMx)&&ok(v.aMy); },
     extra(p){ return p.layout!=="curves"&&p.grp?[p.grp]:[]; }},
+  kmeans:{noGroup:true, noMiss:true, html(p){ const n=t=>t>0?Math.round(t):""; return mvFormHtml(p,{open:true})+`<label for="aKk">Clusters</label><input type="text" id="aKk" inputmode="numeric" value="${n(+p.k)||3}">
+      <label for="aKs" class="tipd" title="The k-means++ starts are drawn from it: the same seed gives the same clusters">Seed</label><input type="text" id="aKs" inputmode="numeric" value="${n(+p.seed)||1}">
+      <label for="aKr" class="tipd" title="Starts tried, the one with the least within sum of squares kept">Starts</label><input type="text" id="aKr" inputmode="numeric" value="${n(+p.restarts)||10}">
+      <label for="aKm" class="tipd" title="Every number of clusters from 2 to this, each the best of the same starts: their within sums of squares and silhouettes side by side, to help choose (empty: none)">Compare up to</label><input type="text" id="aKm" inputmode="numeric" value="${n(+p.kmax)}" placeholder="none">
+      ${mvPairHtml(p)}</div>`; },
+    wire(box){ mvFormWire(box); mvPairWire(box); },
+    read(v){ const n=t=>{ const x=parseNum(String(t||"").trim()); return Number.isFinite(x)&&x>=1?Math.round(x):null; }; return Object.assign(mvFormRead(v),{k:n(v.aKk)||3,seed:n(v.aKs)||1,restarts:n(v.aKr)||10,kmax:n(v.aKm)},mvPairRead(v)); },
+    valid(v){ const ok=(t,lo,hi,e)=>{ t=String(t||"").trim(); return e&&!t||/^\d+$/.test(t)&&+t>=lo&&+t<=hi; }; return ok(v.aKk,1,200)&&ok(v.aKs,1,2147483647)&&ok(v.aKr,1,100)&&ok(v.aKm,2,30,true)&&mvPairOk(v); },
+    extra(p){ return p.layout!=="curves"&&p.grp?[p.grp]:[]; }},
+  hclust:{noGroup:true, noMiss:true, html(p){ const n=t=>t>0?Math.round(t):"", m=LINK_METHODS.some(([k])=>k===p.method)?p.method:"ward";
+      return mvFormHtml(p,{open:true})+`<label for="aHm" class="tipd" title="How the distance between two clusters is measured: Ward's, the rise in the within sum of squares (compact clusters); average, the mean distance; complete, the farthest pair; single, the nearest pair (chains)">Method</label><select id="aHm">${LINK_METHODS.map(([k,t])=>`<option value="${k}"${k===m?" selected":""}>${t}</option>`).join("")}</select>
+      <label for="aHd" class="tipd" title="Euclidean in the scaled values, or 1 − r between two observations (how alike their shapes are, whatever their size)">Distance</label><select id="aHd"><option value="euclidean">Euclidean</option><option value="correlation"${p.metric==="correlation"?" selected":""}>1 − correlation</option></select>
+      <label for="aHc">Cut</label><span class="anarows"><select id="aHc" aria-label="Cut by"><option value="k">Into</option><option value="h"${p.cut==="h"?" selected":""}>At the height</option></select><input type="text" id="aHk" inputmode="numeric" value="${n(+p.k)||3}" aria-label="Clusters"><input type="text" id="aHh" inputmode="decimal" value="${Number.isFinite(+p.h)&&p.h!=null&&p.h!==""?+p.h:""}" aria-label="Height"><span class="muted" id="aHkL">clusters</span></span>
+      ${mvPairHtml(p)}</div>`; },
+    wire(box){ mvFormWire(box); mvPairWire(box); const m=box.querySelector("#aHm"), d=box.querySelector("#aHd"), c=box.querySelector("#aHc");
+      const on=()=>{ const w=m.value==="ward"; d.querySelector('option[value="correlation"]').disabled=w; if(w) d.value="euclidean"; d.title=w?"Ward's method needs Euclidean distances":"";
+        const h=c.value==="h"; box.querySelector("#aHk").hidden=h; box.querySelector("#aHkL").hidden=h; box.querySelector("#aHh").hidden=!h; };
+      m.addEventListener("change",on); c.addEventListener("change",on); on(); },
+    read(v){ const n=t=>{ const x=parseNum(String(t||"").trim()); return Number.isFinite(x)&&x>=1?Math.round(x):null; }, h=parseNum(String(v.aHh||"").trim());
+      return Object.assign(mvFormRead(v),{method:v.aHm||"ward",metric:v.aHd==="correlation"&&v.aHm!=="ward"?"correlation":"euclidean",cut:v.aHc==="h"?"h":"k",k:n(v.aHk)||3,h:Number.isFinite(h)?h:null},mvPairRead(v)); },
+    valid(v){ return (v.aHc==="h"?Number.isFinite(parseNum(String(v.aHh||"").trim()))&&parseNum(String(v.aHh).trim())>=0:/^\d+$/.test(String(v.aHk||"").trim())&&+v.aHk>=1)&&mvPairOk(v); },
+    extra(p){ return p.layout!=="curves"&&p.grp?[p.grp]:[]; }},
   grid:{noGroup:true, html(p){ const C=(S.anaCand||[]).filter(c=>anyVal(c.data)), xd=p.x||rsFirst(c=>c.role==="x"), yd=p.y||rsFirst(()=>true,[xd]), zd=p.z||rsFirst(c=>c.role==="y",[xd,yd]), m=p.method||"tri";
       return `<div class="grid2">${rsSel("aGx","X",xd,null,C)}${rsSel("aGy","Y",yd,null,C)}${rsSel("aGz","Z (the value)",zd,null,C)}
       <label for="aGm">Method</label><select id="aGm">${GRID_METHODS.map(([k,t])=>`<option value="${k}"${k===m?" selected":""}>${t}</option>`).join("")}</select>
@@ -21618,6 +21862,12 @@ function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&
   if(a.kind==="surf"){ const sv=rep.surf; return [{key:"fmat",label:"Fitted surface as a matrix",title:sv&&sv.mat?"The fitted surface on the matrix's own grid, as a matrix computed by its formula, drawn as a map":"The fitted surface on 101 × 101 points over the data's extent, as a matrix computed by its formula, drawn as a map",enabled:!ro&&!!sv,run:()=>surfToMatrix(a.id,"fit")}]
       .concat(sv&&sv.mat?[{key:"rmat",label:"Residuals as a matrix",title:"Each cell of the matrix less the fitted surface, as a matrix computed from it, drawn as a map",enabled:!ro,run:()=>surfToMatrix(a.id,"res")}]
         :sv?[{key:"rmap",label:"Residual map",title:"The points' X and Y coloured by their residual, on a graph",enabled:!ro,run:()=>surfResMap(a.id)}]:[]); }
+  if(a.kind==="kmeans"||a.kind==="hclust"){ const cl=rep.clu||{}, cur=cl.lay==="curves";
+    return (a.kind==="hclust"?[{key:"dendro",label:"Dendrogram",title:"The merges drawn as a tree, the observations named along X, the cut as a dashed line, on a graph",enabled:!ro,run:()=>cluPlot(a.id,"dendro")}]:[])
+      .concat([{key:"clus",label:cur?"Cluster means":"Plot the clusters",title:cur?"Each cluster's mean curve against X, on a graph":`The observations on ${cl.pair?cl.pair.join(" and "):"two variables"}, a curve a cluster, on a graph`,enabled:!ro,run:()=>cluPlot(a.id,"clus")}])
+      .concat(a.kind==="kmeans"&&cl.sil?[{key:"sil",label:"Silhouette plot",title:"Each observation's silhouette as a column, a cluster each, sorted, on a graph",enabled:!ro,run:()=>cluPlot(a.id,"sil")}]:[])
+      .concat(a.kind==="kmeans"&&cl.scan?[{key:"scan",label:"Plot against k",title:"The within sum of squares and the mean silhouette against the number of clusters (the silhouette on the right axis), on a graph",enabled:!ro,run:()=>cluPlot(a.id,"scan")}]:[])
+      .concat(!cur?[{key:"put",label:"Put the clusters in the data",title:"Each row's cluster as a categorical column at the end of the data's sheet: a copy, one undo step, not changed by a recalculation",enabled:!ro&&!!(cl.rows&&cl.rows.length),run:()=>cluPut(a.id)}]:[]); }
   if(a.kind==="pca"){ const pc=rep.pca||{}; return [{key:"scree",label:"Scree plot",title:"Each component's eigenvalue against its number, on a graph",enabled:!ro,run:()=>pcaPlot(a.id,"scree")},
       {key:"scores",label:"Scores plot",title:pc.groups>1?"The observations' scores on the two components plotted, a curve a group, on a graph":"The observations' scores on the two components plotted, on a graph",enabled:!ro,run:()=>pcaPlot(a.id,"scores")},
       {key:"load",label:"Loadings plot",title:pc.curves?"Each component's loadings against X, a curve each, on a graph":"Each variable's loadings on the two components plotted, named, on a graph",enabled:!ro,run:()=>pcaPlot(a.id,"loadings")},
@@ -21702,16 +21952,42 @@ function anaRocPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return
    observations past them named) and the biplot (the standardised scores, and the loadings as lines from the origin, named). */
 function pcaPlot(id,what){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const pc=a.res&&a.res.report&&a.res.report.pca;
   const col=k=>p.cols.find(c=>c.ana===id&&c.ak===k); if(!pc||!col("ev")){ toast("There is nothing to plot: Recalculate first."); return; }
-  const PC=i=>"PC"+(i+1), ids=[], series={}, use={}; let xt="", yt="", nm="";
+  const PC=i=>"PC"+(i+1), ids=[], series={}, use={}; let xt="", yt="", nm="", step=null;
   const add=(c,o,lab)=>{ if(!c) return; ids.push(c.id); series[c.id]=o; if(lab) use[c.id]={lab:lab.id}; };
-  if(what==="scree"){ add(col("ev"),{type:"linesym"}); xt="Component"; yt="Eigenvalue"; nm="scree plot"; }
+  if(what==="scree"){ add(col("ev"),{type:"linesym"}); xt="Component"; yt="Eigenvalue"; nm="scree plot"; if((col("ev").data||[]).length<=20) step=1; }
   if(what==="scores"){ p.cols.filter(c=>c.ana===id&&/^sy\d+$/.test(c.ak||"")).forEach(c=>add(c,{type:"scatter"})); xt=`Score ${PC(pc.px)}`; yt=`Score ${PC(pc.py)}`; nm="scores plot"; }
   if(what==="loadings"){ if(pc.curves){ for(let i=1;i<=pc.k;i++) add(col("l"+i),{type:"line"}); yt="Loading"; } else { add(col("ly"),{type:"scatter"},col("ln")); xt=`Loading ${PC(pc.px)}`; yt=`Loading ${PC(pc.py)}`; } nm="loadings plot"; }
   if(what==="tq"){ add(col("hy"),{type:"scatter"},col("hl")); add(col("tly"),{type:"line",dash:"dash"}); add(col("qly"),{type:"line",dash:"dash"}); xt="Hotelling's T²"; yt="Q residual"; nm="T² against Q"; }
-  if(what==="biplot"){ add(col("zy"),{type:"scatter"}); add(col("by"),{type:"line"},col("bl")); xt=PC(pc.px); yt=PC(pc.py); nm="biplot"; }
+  if(what==="biplot"){ add(col("zy"),{type:"scatter"}); add(col("by"),{type:"line",gap:true},col("bl")); xt=PC(pc.px); yt=PC(pc.py); nm="biplot"; }
   if(!ids.length){ toast("There is nothing to plot: Recalculate first."); return; }
   plotCols(ids,{series,use,undo:`plotting the ${nm} of ${a.name}`,say:`The ${nm} of ${a.name}`});
-  if(GID()){ const ax=Object.assign({},GP().ax||{}); if(xt) ax.x=Object.assign({},ax.x||{},{title:xt}); if(yt) ax.y=Object.assign({},ax.y||{},{title:yt}); savePlot({ax}); } }
+  if(GID()){ const ax=Object.assign({},GP().ax||{}); if(xt) ax.x=Object.assign({},ax.x||{},{title:xt}); if(yt) ax.y=Object.assign({},ax.y||{},{title:yt}); if(step) ax.x=Object.assign({},ax.x||{},{step}); savePlot({ax}); } }
+/* A clustering's graphs (MULTI_SPEC 6.3), from its result sheet's columns, one undo step: the dendrogram (the observations named
+   along X, the cut dashed), the clusters (a curve each: on two variables, or each cluster's mean curve), the silhouettes as
+   columns, the sums of squares and silhouettes against k. */
+function cluPlot(id,what){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const cl=a.res&&a.res.report&&a.res.report.clu;
+  const col=k=>p.cols.find(c=>c.ana===id&&c.ak===k), all=re=>p.cols.filter(c=>c.ana===id&&re.test(c.ak||"")); if(!cl){ toast("There is nothing to plot: Recalculate first."); return; }
+  const ids=[], series={}, use={}; let xt="", yt="", nm="", cats=null, step=null;
+  const add=(c,o,u)=>{ if(!c) return; ids.push(c.id); series[c.id]=o; if(u) use[c.id]=u; };
+  if(what==="dendro"){ add(col("dy"),{type:"line",gap:true}); add(col("cy"),{type:"line",dash:"dash"}); yt="Height"; nm="dendrogram"; if(cl.leaves&&cl.leaves.length<=200) cats=cl.leaves.map((t,i)=>[i+1,String(t)]); }
+  if(what==="clus"){ if(cl.lay==="curves"){ all(/^c\d+$/).forEach(c=>add(c,{type:"line"})); nm="cluster means"; } else { all(/^py\d+$/).forEach(c=>add(c,{type:"scatter"})); if(cl.pair){ xt=cl.pair[0]; yt=cl.pair[1]; } nm="clusters"; } }
+  if(what==="sil"){ all(/^svy\d+$/).forEach(c=>add(c,{type:"column"})); yt="Silhouette"; nm="silhouette plot"; }
+  if(what==="scan"){ add(col("kin"),{type:"linesym"}); add(col("ksi"),{type:"linesym"},{ax:"r"}); xt="Clusters"; yt="Within sum of squares"; nm="sums of squares against k"; step=1; }
+  if(!ids.length){ toast("There is nothing to plot: Recalculate first."); return; }
+  plotCols(ids,{series,use,undo:`plotting the ${nm} of ${a.name}`,say:`The ${nm} of ${a.name}`});
+  if(GID()){ const ax=Object.assign({},GP().ax||{}); if(xt) ax.x=Object.assign({},ax.x||{},{title:xt}); if(yt) ax.y=Object.assign({},ax.y||{},{title:yt}); if(cats) ax.x=Object.assign({},ax.x||{},{cats,title:"",lrot:cats.length>12?90:0}); if(step) ax.x=Object.assign({},ax.x||{},{step}); savePlot({ax}); } }
+// Each row's cluster copied into the data's sheet as a categorical column of text (decision 8): one undo step, a record entry.
+function cluPut(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const cl=a.res&&a.res.report&&a.res.report.clu; if(!cl||!cl.rows) return;
+  const src=(cl.vids||[]).map(colById).find(Boolean); if(!src) return; const sid=sheetOf(src);
+  // the labels as the result sheet holds them (a row an observation, in the order of cl.rows)
+  const lc=p.cols.find(q=>q.ana===id&&q.ak==="cl"); if(!lc||!lc.txt) return;
+  pushUndo("putting the clusters in the data"); stampSheets(p);
+  const txt={}; cl.rows.forEach((r,i)=>{ if(lc.txt[i]!=null) txt[r]=String(lc.txt[i]); }); const len=amax(cl.rows)+1;
+  const c=Object.assign(makeCol("ignore",`Cluster (${a.name})`,"",new Array(len).fill(null)),{sheet:sid,txt,fmt:"text",cat:{order:"asc"},comm:`The clusters of ${a.name}, copied on ${new Date().toISOString().slice(0,10)}`});
+  TXT_OK.add(txt); const last=sheetCols(sid).slice(-1)[0]; p.cols.splice(last?p.cols.indexOf(last)+1:p.cols.length,0,c); migrate(p);
+  const L=colLetter(colById(c.id)||c), raw=recordRaw(`added column ${L}: the clusters of ${a.name}`);
+  save(Object.assign({cols:p.cols},raw?{raw}:{}),`put the clusters of ${a.name} in column ${L}`); showSheet(sid,{quiet:true}); renderAll();
+  toast(`The clusters of ${a.name} are column ${L}: a copy, which a recalculation does not change.`,{action:"Undo",run:undo}); }
 // The observations past a limit masked in every column the PCA read (the columns layout), so a recalculation leaves them out.
 function pcaMaskOut(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const rp=a.res&&a.res.report, ms=(rp&&rp.marks||[]).filter(m=>m.row>=0), vids=(rp&&rp.pca&&rp.pca.vids)||[];
   const cs=vids.map(colById).filter(Boolean); if(!ms.length||!cs.length) return;
@@ -28622,7 +28898,9 @@ function analyzeMenu(){
         {label:"Fisher's exact test…", title:ANA_KINDS.fisher.help, run:()=>anaDlg("fisher"), enabled:!S.readOnly&&!!P()},
         {label:"Counts in tables…", title:ANA_KINDS.xtab.help, run:()=>anaDlg("xtab",{two:true}), enabled:!S.readOnly&&!!P()}]},
       {label:"Correlation…", title:ANA_KINDS.corr.help, run:()=>anaDlg("corr",{two:true}), enabled:!S.readOnly&&!!P()},
-      {label:"Multivariate", sub:()=>[{label:"Principal component analysis…", title:ANA_KINDS.pca.help, run:()=>anaDlg("pca",{all:true}), enabled:!S.readOnly&&!!P()}]},
+      {label:"Multivariate", sub:()=>[{label:"Principal component analysis…", title:ANA_KINDS.pca.help, run:()=>anaDlg("pca",{all:true}), enabled:!S.readOnly&&!!P()},
+        {label:"k-means clustering…", title:ANA_KINDS.kmeans.help, run:()=>anaDlg("kmeans",{all:true}), enabled:!S.readOnly&&!!P()},
+        {label:"Hierarchical clustering…", title:ANA_KINDS.hclust.help, run:()=>anaDlg("hclust",{all:true}), enabled:!S.readOnly&&!!P()}]},
       {label:"ROC curve…", title:ANA_KINDS.roc.help, run:()=>anaDlg("roc",{two:true}), enabled:!S.readOnly&&!!P()},
       {label:"Power and sample size…", title:ANA_KINDS.power.help, run:()=>anaDlg("power"), enabled:!S.readOnly&&!!P()},
       {label:"Histogram", title:"The distribution of the selected columns' values (or the active column's), as a column of its own on a graph of its own", run:()=>histogramCols(hist()), enabled:has&&!S.readOnly}]},
@@ -30457,7 +30735,7 @@ const CMDK_SYN=[["background","baseline","detrend","continuum"],["fourier","fft"
   ["derivative","differentiate","slope","gradient","calculus"],["integral","integrate","area","cumulative"],["normalize","normalise","normalization","scale to 1"],["logarithm","log","ln"],
   ["fit","fitting","regression","model","curve fit","least squares"],["peak","peaks","maximum","maxima","band","bands"],["export","download","publish","exporting"],
   ["picture","image","png","clipboard","screenshot"],["histogram","distribution","bins","frequency count"],["statistics","stats","mean","average","sd","median","describe"],
-  ["correlation","pearson","correlate"],["pca","principal components","principal component analysis","multivariate","chemometrics","dimension reduction","eigenvalues","loadings","scores"],["spike","cosmic ray","despike","glitch"],["calibration","calibrate","energy"],["units","wavelength","wavenumber","raman shift","convert"],
+  ["correlation","pearson","correlate"],["pca","principal components","principal component analysis","multivariate","chemometrics","dimension reduction","eigenvalues","loadings","scores"],["cluster","clusters","clustering","k-means","kmeans","dendrogram","hierarchical","segmentation","classify"],["spike","cosmic ray","despike","glitch"],["calibration","calibrate","energy"],["units","wavelength","wavenumber","raman shift","convert"],
   ["crop","trim","cut","range"],["mask","exclude","leave out","ignore"],["axis","axes","scale","log scale","reverse"],["font","typeface","text size"],
   ["annotate","annotation","label","text","arrow","line","box","ellipse","inset"],["report","html","summary"],["theme","dark","light"],["preferences","settings","options"],
   ["import","open","load","read","csv","file"],["worksheet","spreadsheet","sheet","table","cells"],["plot","graph","chart","figure"],["reader","cursor","read","value","crosshair"],
@@ -31507,7 +31785,7 @@ ${DL([["Noise σ","From second differences, so a band's slope does not count as 
 <h2>Correlation</h2>
 <p>Pearson r between columns on the same X axis, interpolated onto the active column's X where they overlap. With p, intervals and other coefficients: ${DA("analyses#corr","Correlation")}.</p>
 <p><em>Copy</em> gives every table as tab-separated text.</p>`},
-{id:"multi", g:"Analysis", t:"Many variables", kw:"multivariate many variables pca principal component analysis components eigenvalue eigenvalues eigenvector loadings scores scree biplot hotelling t2 t² q residual spe squared prediction error limits outliers covariance correlation autoscale unit variance pareto centred centering chemometrics spectra observations variables layout header field groups dimension reduction svd singular value decomposition",
+{id:"multi", g:"Analysis", t:"Many variables", kw:"cluster clusters clustering k-means kmeans k-means++ lloyd seed starts restarts silhouette elbow within sum of squares inertia hierarchical agglomerative dendrogram tree linkage ward average complete single upgma nearest farthest neighbour cophenetic cut membership multivariate many variables pca principal component analysis components eigenvalue eigenvalues eigenvector loadings scores scree biplot hotelling t2 t² q residual spe squared prediction error limits outliers covariance correlation autoscale unit variance pareto centred centering chemometrics spectra observations variables layout header field groups dimension reduction svd singular value decomposition",
  lead:"Several variables at once: the components of greatest variance of a set of columns, or of a set of curves taken as observations, each as a sheet of results worked out again when its data change.",
  body:`<h2 id="layout">Two layouts</h2>
 <p>${DL([["Columns are the variables","Each column ticked is one variable and each row one observation, as a table of measurements has it. A row counts only where every column ticked has a value; the rows left out are counted in the notes. A column of text (Groups) names each row's group."],["Each column is an observation","Each column ticked is a curve, and its points are the variables, as spectroscopy has it: twelve curves of 2000 points are twelve observations of 2000 variables. Curves that do not share their X are read on the first curve's X over the stretch they all cover, by straight lines between their own points, and the notes say so. A field of the curves' files (their header) names each curve's group."]])}</p>
@@ -31516,7 +31794,12 @@ ${DL([["Noise σ","From second differences, so a band's slope does not count as 
 <p>${MP("Analyze › Statistics › Multivariate › Principal component analysis…")}: the directions in which the observations vary most, found by the singular value decomposition of the scaled data. The result sheet holds:</p>
 ${DL([["Eigenvalues","Each component's variance, its share of the total and the running total, every component (one fewer than the observations, or the variables, whichever is fewer)."],["Loadings","A row a variable: its mean, what it was divided by, and its weight in each of the components kept. With curves, each loading is a curve against X, which shows which bands a component moves."],["Scores","A row an observation: where it lies on each component, its Hotelling's T² (its distance from the centre within the components kept, each in units of its own spread) and its Q residual (the squared distance left outside them)."],["Limits","T²'s and Q's at the level chosen (90, 95 or 99 %): T²'s by the beta distribution for the observations themselves (Tracy, Young and Mason), Q's by Jackson and Mudholkar from the eigenvalues left out. The observations past either are listed; a limit is a number, not a verdict."]])}
 <p>A component's sign means nothing: each is turned so that its loading of largest magnitude is positive (scikit-learn's rule), so the numbers can be compared with other programs'. <em>Components</em> is how many loadings and scores are written and kept for T² and Q (10 by default); every eigenvalue is listed whatever it is. <em>Plotted</em> chooses the two components the scores, loadings and biplot draw.</p>
-<p>From the report (Results, or the result sheet's tab): <em>Scree plot</em> (each eigenvalue against its number), <em>Scores plot</em> (a curve a group), <em>Loadings plot</em>, <em>T² against Q</em> (the limits as dashed lines, the observations past them named), <em>Biplot</em> (columns only: the scores standardised and the loadings, times √λ, as lines from the origin, both scaled together by the factor the method line gives), and <em>Mask</em> (columns only: the observations past a limit masked in every column read, so the analysis is worked out again without them).</p>`},
+<p>From the report (Results, or the result sheet's tab): <em>Scree plot</em> (each eigenvalue against its number), <em>Scores plot</em> (a curve a group), <em>Loadings plot</em>, <em>T² against Q</em> (the limits as dashed lines, the observations past them named), <em>Biplot</em> (columns only: the scores standardised and the loadings, times √λ, as lines from the origin, both scaled together by the factor the method line gives), and <em>Mask</em> (columns only: the observations past a limit masked in every column read, so the analysis is worked out again without them).</p>
+<h2 id="kmeans">k-means clustering</h2>
+<p>${MP("Analyze › Statistics › Multivariate › k-means clustering…")}: the observations into <em>Clusters</em> groups, each observation in the group whose centre is nearest, each centre the mean of its group (Lloyd's algorithm). It starts from centres spread by k-means++, drawn from the <em>Seed</em>, and tries several <em>Starts</em>, keeping the one with the least within sum of squares: the same seed gives the same clusters. Clusters are numbered by the data: cluster 1 holds the first observation. The result sheet holds each observation's cluster (as text), its distance to its centre and its silhouette (how much nearer its own cluster is than the next, from −1 to 1); each cluster's size, within sum of squares and mean silhouette; the centres in the data's own units (with curves, each centre a curve against X). <em>Compare up to</em> runs every number of clusters from 2 to the one typed and lists their sums of squares and silhouettes side by side, to help choose; a number of clusters is the user's choice, not the analysis's.</p>
+<h2 id="hclust">Hierarchical clustering</h2>
+<p>${MP("Analyze › Statistics › Multivariate › Hierarchical clustering…")}: the two nearest observations or clusters joined, again and again, until one is left, as SciPy's linkage does. ${DL([["Ward's","The two whose joining raises the within sum of squares least: compact clusters of similar size. Needs Euclidean distances."],["Average","The mean distance between their members."],["Complete","The farthest pair."],["Single","The nearest pair: long chains."]])} <em>Distance</em> is Euclidean in the scaled values, or 1 − r between two observations (alike in shape, whatever their size: curves that differ only in height are close). <em>Cut</em> into a number of clusters, or at a height. The result sheet holds each observation's cluster, the merges with their heights (the last fifteen in the report), and the cophenetic correlation (how well the tree's heights keep the distances).</p>
+<p>From the report: <em>Dendrogram</em> (the tree, the observations named along X, the cut dashed), <em>Plot the clusters</em> (on two of the columns ticked, a curve a cluster) or <em>Cluster means</em> (curves), <em>Silhouette plot</em>, <em>Plot against k</em>, and <em>Put the clusters in the data</em> (columns only: each row's cluster as a categorical column at the end of the data's sheet, a copy that a recalculation leaves alone, ready to group a box chart or a scores plot by). A clustering may read a principal component analysis's scores: open it with the PCA's sheet in front.</p>`},
 /* ---------------------------------------------------------------- Fitting */
 {id:"fit", g:"Fitting", t:"Fitting", win:"fit", kw:"fit fitting curve peak model levenberg marquardt converge range from to use the view from view points zoom all spectrum done close residuals weighting weights weight counting statistics poisson 1/y instrumental arbitrary column of weights apparent fit log scale logarithmic axis straight line on log axes constraint constraints tie equal follows inequality order starting value formula start max(y) xat fwhm saved fit settings preset template recipe save settings fit again when the data change follow refit recalculate automatic in the results report sections",
  lead:"Two kinds of fit, in the Fit window: a curve fit puts one model through the data; a peak fit describes a column as a sum of peaks on a baseline.",

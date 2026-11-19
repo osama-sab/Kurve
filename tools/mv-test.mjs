@@ -98,5 +98,52 @@ const pca = get("pca"), run = get("anaRunKind");
   const C = Array.from({ length: 300 }, () => Array.from({ length: 2000 }, gauss)); const [r2, ms2] = time(() => pca(C, { scale: "none", k: 10 })); ok(!r2.fail && ms2 < 4500, `300 curves of 2000 points in ${ms2.toFixed(0)} ms (budget 1.5 s in the worker; node cold gets three times)`);
 }
 
+console.log("6.3 clustering");
+{ const kmLloyd = get("kmLloyd"), kmeans = get("kmeans"), linkage = get("linkage"), mvDist = get("mvDist"), cutTree = get("cutTree"), dendroXY = get("dendroXY"), silhouette = get("silhouette");
+  const blob = (n, m, k, sp) => { const C = mat(k, m, () => 8 * gauss()), lab = Array.from({ length: n }, (_, i) => i % k); return { X: lab.map((c) => C[c].map((v) => v + sp * gauss())), lab }; };
+  const { X, lab } = blob(90, 3, 3, 0.4), n = 90, m = 3, R = Float64Array.from(X.flat());
+  const K = kmeans(R, n, m, { k: 3, seed: 7, restarts: 5 });
+  ok(K.lab.every((c, i) => c === lab[i]), "three blobs far apart: k-means finds them, numbered by their first observation");
+  let ine = 0; for (let i = 0; i < n; i++) for (let j = 0; j < m; j++) ine += (X[i][j] - K.C[K.lab[i] * m + j]) ** 2;
+  ok(Math.abs(ine - K.inertia) < 1e-9 * ine, "…its within sum of squares the squared distances to the centres");
+  ok(JSON.stringify(Array.from(kmeans(R, n, m, { k: 3, seed: 7, restarts: 5 }).lab)) === JSON.stringify(Array.from(K.lab)), "the same seed: the same clusters");
+  const perm = Array.from({ length: n }, (_, i) => (i * 37) % n), Rp = Float64Array.from(perm.map((i) => X[i]).flat()), C0 = Float64Array.from([X[0], X[1], X[2]].flat());
+  const a1 = kmLloyd(R, n, m, C0, 300), a2 = kmLloyd(Rp, n, m, C0, 300);
+  ok(perm.every((i, j) => a2.lab[j] === a1.lab[i]), "from the same starts, the rows reordered: each row in the same cluster");
+  ok(kmeans(R, n, m, { k: 91 }).fail && /cannot make 91 clusters/.test(kmeans(R, n, m, { k: 91 }).fail), "more clusters than observations refused in words");
+  const same = Float64Array.from(Array.from({ length: 10 }, () => [1, 2]).flat()); ok(/differ/.test(kmeans(same, 10, 2, { k: 2 }).fail || ""), "ten equal observations into two clusters refused in words");
+  const D = mvDist(R, n, m, "euclidean"), W = linkage(D, n, "ward"), ws = (members) => { let t = 0; for (let j = 0; j < m; j++) { const mu = members.reduce((s, i) => s + X[i][j], 0) / members.length; t += members.reduce((s, i) => s + (X[i][j] - mu) ** 2, 0); } return t; };
+  const mem = Array.from({ length: 2 * n - 1 }, (_, i) => (i < n ? [i] : null)); let wErr = 0;
+  W.forEach((z, i) => { const A = mem[z[0]], B = mem[z[1]], d = ws(A.concat(B)) - ws(A) - ws(B); wErr = Math.max(wErr, Math.abs(z[2] * z[2] / 2 - d) / Math.max(d, 1e-12)); mem[n + i] = A.concat(B); });
+  ok(wErr < 1e-10, `Ward's heights: h²/2 the rise in the within sum of squares at each merge (${wErr.toExponential(1)})`);
+  // single linkage: its heights the minimum spanning tree's edges (Kruskal's, by itself)
+  const S1 = linkage(D, n, "single").map((z) => z[2]), edges = []; for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) edges.push([Math.hypot(...X[i].map((v, t) => v - X[j][t])), i, j]);
+  edges.sort((a, b) => a[0] - b[0]); const par = Array.from({ length: n }, (_, i) => i), f = (x) => (par[x] === x ? x : (par[x] = f(par[x]))), mst = [];
+  for (const [w, i, j] of edges) { const a = f(i), b = f(j); if (a !== b) { par[a] = b; mst.push(w); } }
+  ok(maxDiff(S1, mst) < 1e-12 * mst[mst.length - 1], "single linkage's heights are the minimum spanning tree's edges");
+  ok([1, 2, 3, 5, 90].every((k) => new Set(cutTree(W, n, { k })).size === k), "cut into k gives k clusters (1, 2, 3, 5, 90)");
+  ok(Array.from(cutTree(W, n, { k: 3 })).every((c, i) => c === lab[i]), "…Ward's three clusters are the blobs, numbered by their first observation");
+  const dg = dendroXY(W, n); let dOk = true; for (let i = 0; i < W.length; i++) { const y = dg.y.slice(5 * i, 5 * i + 4); if (y[1] !== W[i][2] || y[2] !== W[i][2] || dg.y[5 * i + 4] !== null) dOk = false; }
+  ok(dOk && new Set(dg.leaves).size === n, "the dendrogram: each merge a ⊓ at its height, a gap after it, every leaf once");
+  const si = silhouette(R, n, m, Int32Array.from([0].concat(Array(n - 1).fill(1))), 1e9); ok(si.s[0] === 0, "an observation alone in its cluster has a silhouette of 0");
+  ok(/Ward's method needs Euclidean/.test(run("hclust", [{ id: "a", name: "A", vals: [1, 2, 3, 4], rows: [0, 1, 2, 3] }, { id: "b", name: "B", vals: [2, 1, 4, 3], rows: [0, 1, 2, 3] }], { method: "ward", metric: "correlation" }).fail || ""), "Ward's on correlation distances refused in words");
+  const big = run("hclust", [{ id: "a", name: "A", vals: Array.from({ length: 3001 }, gauss), rows: Array.from({ length: 3001 }, (_, i) => i) }, { id: "b", name: "B", vals: Array.from({ length: 3001 }, gauss), rows: Array.from({ length: 3001 }, (_, i) => i) }], {});
+  ok(/3001 observations/.test(big.fail || "") && /k-means/.test(big.fail || ""), "3001 observations hierarchically refused in words, k-means named");
+  // the kinds whole
+  const ins = [0, 1, 2].map((j) => ({ id: "v" + j, name: "V" + j, unit: "mm", vals: X.map((r) => r[j]), rows: X.map((_, i) => i) }));
+  const KM = run("kmeans", ins, { k: 3, kmax: 5, scale: "none" }), col = (R, k) => R.tables[0].cols.find((c) => c.k === k);
+  ok(!KM.fail && col(KM, "cl").vals.slice(0, 4).join() === "1,2,3,1" && col(KM, "kin").vals.length === 4 && col(KM, "c1").vals.length === 3 && col(KM, "py2").name === "Cluster 3", "the k-means analysis: clusters as text, centres a row a variable, k compared from 2 to 5, a curve a cluster", KM.fail);
+  const HC = run("hclust", ins, { k: 3, scale: "none" });
+  ok(!HC.fail && col(HC, "cl").vals.slice(0, 4).join() === "1,2,3,1" && col(HC, "dy").vals.length === 5 * (n - 1) && col(HC, "cy").vals[0] > W[n - 4][2] && col(HC, "cy").vals[0] < W[n - 3][2], "the hierarchical analysis: Ward's clusters, the dendrogram's lines, the cut drawn between the merges either side", HC.fail);
+  const curves = Array.from({ length: 12 }, (_, c) => { const x = Array.from({ length: 50 }, (_, i) => i); return { id: "k" + c, name: "S" + c, unit: "V", xn: "t", xu: "s", pts: { x, y: x.map((v) => (c % 2 ? Math.sin(v / 5) : Math.cos(v / 7)) + 0.05 * gauss()), e: [], rows: x } }; });
+  const KC = run("kmeans", curves, { layout: "curves", k: 2 });
+  ok(!KC.fail && col(KC, "cl").vals.join() === "1,2,1,2,1,2,1,2,1,2,1,2" && col(KC, "cvx").role === "x" && col(KC, "c1").role === "y" && col(KC, "c1").vals.length === 50, "twelve curves of two shapes: two clusters, each cluster's mean a curve against X", KC.fail);
+  const HCc = run("hclust", curves, { layout: "curves", method: "average", metric: "correlation", k: 2 }); ok(!HCc.fail && col(HCc, "cl").vals.join() === "1,2,1,2,1,2,1,2,1,2,1,2", "…and by average linkage on 1 − r", HCc.fail);
+}
+{ const kmeans = get("kmeans"), linkage = get("linkage"), mvDist = get("mvDist"), n = 1e5, m = 10, R = Float64Array.from({ length: n * m }, (_, i) => gauss() + 6 * ((Math.floor(i / m) % 10) - 5) * (i % m === 0));
+  const [K, ms] = time(() => kmeans(R, n, m, { k: 10, seed: 1, restarts: 10 })); ok(!K.fail && ms < 9000, `k-means of 10⁵ rows of 10, k 10, 10 starts, in ${ms.toFixed(0)} ms (budget 3 s in the worker; node cold gets three times)`);
+  const N = 3000, Q = Float64Array.from({ length: N * 5 }, gauss); const [, ms2] = time(() => linkage(mvDist(Q, N, 5, "euclidean"), N, "ward")); ok(ms2 < 9000, `Ward's linkage of 3000 observations in ${ms2.toFixed(0)} ms (budget 3 s in the worker; node cold gets three times)`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

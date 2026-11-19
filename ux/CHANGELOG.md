@@ -1024,6 +1024,23 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 6, slice 6.3: clustering (2026-11-19)
+
+- **Analyze › Statistics › Multivariate › k-means clustering…**: the layouts, scaling and groups of 6.2; the clusters, a seed,
+  the starts (10), k compared from 2 to a number typed; Lloyd's algorithm from k-means++ starts with Hamerly's bounds. The sheet:
+  each observation's cluster (text), distance to its centre and silhouette; each cluster's size, within sum of squares and mean
+  silhouette; the centres in the data's units (with curves, a mean curve a cluster); the clusters against the groups.
+- **Hierarchical clustering…**: Ward's, average, complete or single linkage, on Euclidean or 1 − r distances, cut into a number
+  of clusters or at a height; the merges with their heights, each observation's cluster, the cophenetic correlation.
+- **From the report**: Dendrogram (a curve that breaks at its empty rows, the observations named along X), Plot the clusters or
+  Cluster means, Silhouette plot, Plot against k, Put the clusters in the data (a categorical column, a copy). A clustering may
+  read a PCA's scores (with the PCA's sheet in front).
+- **Checked**: against scikit-learn's KMeans from the same starts (the clusters exactly, centres to 5e-16) and silhouettes (3e-14),
+  SciPy's linkage, cophenet, dendrogram leaves and fcluster (merges, leaves and cuts exactly, heights to 2e-15); fuzz generators for
+  both; `tools/mv-test.mjs` (Ward's heights the rise in the within sum of squares, single linkage the minimum spanning tree, the
+  same seed the same clusters, reordered rows, refusals); `tools/mv-drive.mjs` (18 checks). 10⁵ rows of 10 into 10 clusters with
+  10 starts in 0.81 s; Ward's linkage of 3000 in 0.29 s.
+
 ## Closing the gap with Origin, wave 6, slice 6.2: principal components (2026-11-19)
 
 - **Analyze › Statistics › Multivariate › Principal component analysis…**: columns as the variables, or each column a curve

@@ -143,6 +143,55 @@ await page(async p => {
   check("…its eigenvalues and scores the page's own", !r.err && near(r.t.ev.slice(0, 10), ref.ev.slice(0, 10), 1e-13) && near(r.t.t2h, ref.t2, 1e-12), r.err);
 }, { name: "6.2" });
 
+console.log("6.3 Clustering");
+await page(async p => {
+  await p.evaluate(TABLE); await p.waitForTimeout(300);
+  await menu(p, "analyze", "Statistics", "Multivariate", "k-means clustering…");
+  const f = await p.evaluate(() => ({ k: $("#aKk").value, s: $("#aKs").value, r: $("#aKr").value, ticked: [...document.querySelectorAll('input[id^="aI_"]')].filter(x => x.checked).length, pair: !$("#aKx").closest("span").hidden }));
+  check("Analyze › Statistics › Multivariate › k-means clustering…: 3 clusters, seed 1, 10 starts, the four columns of numbers ticked, the plotted pair shown", f.k === "3" && f.s === "1" && f.r === "10" && f.ticked === 4 && f.pair, JSON.stringify(f));
+  await p.fill("#aKk", "0"); await p.waitForTimeout(60); check("…0 clusters refused (OK off)", await p.isDisabled("#formOk"));
+  await p.fill("#aKk", "2"); await p.fill("#aKm", "5"); await p.selectOption("#aMg", await p.evaluate(() => P().cols.find(c => c.name === "Part").id));
+  await p.click("#formOk"); await p.waitForTimeout(700);
+  let r = await RES(p);
+  const ref = await p.evaluate(() => { const cs = sheetCols(SHEET0.id).filter(c => c.role === "y"), sc = mvScale(cs.map(c => Float64Array.from(c.data)), "unit"), R = mvRows(sc.Z, 60), K = kmeans(R, 60, 4, { k: 2, seed: 1, restarts: 10 }); return { lab: Array.from(K.lab, c => String(c + 1)), ine: K.inertia }; });
+  check("a result sheet: each row's cluster as text, as kmeans() gives it on the same scaled table", r && !r.err && r.t.cl.join() === ref.lab.join() && r.t.cl[0] === "1", r && (r.err || r.t.cl.slice(0, 10).join()));
+  check("…k compared from 2 to 5, the clusters against the groups in the report", r.t.kk.join() === "2,3,4,5" && r.rep.sections.some(s => s.title === "Clusters against the groups"));
+  check("…the method names Lloyd's algorithm, k-means++, the seed and the starts", /Lloyd's algorithm from k-means\+\+ starts \(seed 1, 10 starts/.test(r.rep.method), r.rep.method);
+  const btns = await p.evaluate(id => anaActs(anaOf(id)).map(x => x.label), r.id);
+  check("the report offers Plot the clusters, Silhouette plot, Plot against k, Put the clusters in the data", ["Plot the clusters", "Silhouette plot", "Plot against k", "Put the clusters in the data"].every(t => btns.includes(t)), JSON.stringify(btns));
+  for (const [k, n] of [["clus", 2], ["sil", 2], ["scan", 2]]) { await p.evaluate(([id, k]) => cluPlot(id, k), [r.id, k]); await p.waitForTimeout(400);
+    const g = await p.evaluate(() => { const g = P().graphs[P().graphs.length - 1]; return { n: g.cols.length, r: Object.values((g.plot && g.plot.use) || {}).some(u => u.ax === "r"), t: g.cols.map(id => (P().graphs[P().graphs.length - 1].plot.series || {})[id] && P().graphs[P().graphs.length - 1].plot.series[id].type) }; });
+    check(`…${k}: a graph of ${n} curves`, g.n === n && (k !== "scan" || g.r) && (k !== "sil" || g.t.every(t => t === "column")), JSON.stringify(g)); }
+  await p.evaluate(id => cluPut(id), r.id); await p.waitForTimeout(500);
+  const put = await p.evaluate(() => { const c = P().cols.find(c => /^Cluster \(k-means 1\)$/.test(c.name)); return c && { home: sheetOf(c) === SHEET0.id, cat: c.cat, t0: c.txt[0], t6: c.txt[6], n: Object.keys(c.txt).length, rec: P().raw.hist.slice(-1)[0].text }; });
+  check("Put the clusters in the data: a categorical column of text on the data's sheet, a record entry", put && put.home && put.cat && put.t0 === "1" && put.n === 60 && /clusters of k-means 1/.test(put.rec || ""), JSON.stringify(put));
+  await p.evaluate(() => undo()); await p.waitForTimeout(400);
+  check("…undo takes it away", await p.evaluate(() => !P().cols.some(c => /^Cluster \(/.test(c.name))));
+  // hierarchical, with the dendrogram
+  await p.evaluate(() => showSheet(SHEET0.id, { quiet: true })); await p.waitForTimeout(100);
+  await menu(p, "analyze", "Statistics", "Multivariate", "Hierarchical clustering…");
+  const h = await p.evaluate(() => ({ m: $("#aHm").value, d: $("#aHd").value, corr: $('#aHd option[value="correlation"]').disabled, kHid: $("#aHk").hidden, hHid: $("#aHh").hidden }));
+  check("Hierarchical clustering…: Ward's, Euclidean, 1 − correlation off for Ward's, cut into clusters", h.m === "ward" && h.d === "euclidean" && h.corr && !h.kHid && h.hHid, JSON.stringify(h));
+  await p.selectOption("#aHm", "average"); await p.waitForTimeout(60);
+  check("…average linkage lets 1 − correlation be chosen", await p.evaluate(() => !$('#aHd option[value="correlation"]').disabled));
+  await p.selectOption("#aHm", "ward"); await p.selectOption("#aHc", "h"); await p.waitForTimeout(60);
+  check("…cut at a height shows the height's field", await p.evaluate(() => $("#aHk").hidden && !$("#aHh").hidden));
+  await p.selectOption("#aHc", "k"); await p.fill("#aHk", "3"); await p.click("#formOk"); await p.waitForTimeout(700);
+  r = await RES(p, 1);
+  const hr = await p.evaluate(() => { const cs = sheetCols(SHEET0.id).filter(c => c.role === "y"), sc = mvScale(cs.map(c => Float64Array.from(c.data)), "unit"), R = mvRows(sc.Z, 60), D = mvDist(R, 60, 4, "euclidean"), Z = linkage(D, 60, "ward"); return { lab: Array.from(cutTree(Z, 60, { k: 3 }), c => String(c + 1)), h: Z.map(z => z[2]) }; });
+  check("its clusters and heights are linkage()'s and cutTree()'s on the same scaled table", !r.err && r.t.cl.join() === hr.lab.join() && near(r.t.mh, hr.h, 1e-14), r.err);
+  await p.evaluate(id => cluPlot(id, "dendro"), r.id); await p.waitForTimeout(500);
+  const dg = await p.evaluate(() => { const g = P().graphs[P().graphs.length - 1], ax = g.plot.ax || {}; return { n: g.cols.length, cats: (ax.x && ax.x.cats || []).length, y: ax.y && ax.y.title, first: ax.x && ax.x.cats && ax.x.cats[0] }; });
+  check("Dendrogram: the tree and the cut, the 60 observations named along X, Height up Y", dg.n === 2 && dg.cats === 60 && dg.y === "Height" && /^Row /.test(dg.first[1]), JSON.stringify(dg));
+  // on a PCA's scores: a clustering reads another analysis's result columns
+  await p.evaluate(() => showSheet(SHEET0.id, { quiet: true })); await p.waitForTimeout(100);
+  await p.evaluate(() => { anaDlg("pca", { all: true }); }); await p.waitForTimeout(300); await p.fill("#aMk", "2"); await p.click("#formOk"); await p.waitForTimeout(600);
+  await p.evaluate(() => { anaDlg("kmeans"); }); await p.waitForTimeout(300);
+  const offered = await p.evaluate(() => [...document.querySelectorAll('input[id^="aI_"]')].map(x => { const c = colById(x.id.slice(3)); return c && c.ak; }));
+  check("from a PCA's sheet in front, k-means offers its scores", offered.includes("t1") && offered.includes("t2"), JSON.stringify(offered));
+  await p.click("#formCancel").catch(() => p.keyboard.press("Escape")); await p.waitForTimeout(200);
+}, { name: "6.3" });
+
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

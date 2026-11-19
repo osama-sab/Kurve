@@ -898,6 +898,22 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-19: clustering (MULTI_SPEC 6.3)
+
+- **Clusters are numbered by the data.** k-means' numbers come from its random starts and SciPy's from the order of merges, so
+  the same clusters could come out as 2, 3, 1 on another run; cluster 1 is always the one holding the first observation, so
+  two runs, two methods and a reload name the same group the same way.
+- **The seed is a setting, and shown.** k-means starts at random; a seed (1 by default) makes it repeat, and the report says
+  which seed and how many starts. A clustering that changed by itself when its data had not would read as a bug.
+- **A dendrogram is a curve.** The tree is drawn as one curve whose line breaks at its empty rows (a series setting, `gap`), the
+  observations named along X (turned when there are more than twelve), the cut a dashed line between the merges either side:
+  nothing new for the graph to learn, and every format, export and zoom works on it.
+- **Choosing k is helped, not decided.** *Compare up to* lists every k's within sum of squares and mean silhouette side by side,
+  and *Plot against k* draws both (the silhouette on the right axis); the number of clusters stays the user's.
+- **Membership goes back into the data as a copy.** *Put the clusters in the data* writes a categorical column of text at the
+  end of the data's sheet, recorded as any added column is; it does not follow a later recalculation, which the toast says, so
+  a box chart or a test grouped by it never changes under the user's feet.
+
 ### 2026-11-19: principal components (MULTI_SPEC 6.2)
 
 - **Two layouts, said.** A table of measurements has its variables in columns; a set of spectra has its observations in
