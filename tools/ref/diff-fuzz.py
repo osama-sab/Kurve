@@ -1080,7 +1080,8 @@ POST["interp1"] = lambda c, out: _vec_post("y")(dict(c, scale=c["want"]["sc"]), 
 # 1e-11: the robust rounds weight each point by its residual over six times the residuals' median, and on a window of a few points
 # that median is a small difference of nearly equal numbers. Seed 1 (19.11), six neighbours and one robust round: Kurve 4.5e-16 of
 # max|y| from 40 digits without the round, 1.3e-12 with it; statsmodels 1.8e-9.
-@gen("lowessY", 1e-11, 0.3)
+# (a generator of its own name, so this tolerance is the fuzzer's and targets.json's 1e-12 still holds the fixtures)
+@gen("lowessFz", 1e-11, 0.3)
 def _():
     import statsmodels.api as _smz
     n = int(rng.integers(3, 800)); x = np.sort(rng.uniform(0, 1, n)) * float(lognum(-2, 3)) + float(rng.uniform(-100, 100))
@@ -1091,7 +1092,7 @@ def _():
     # each slope: against 40 digits (18.11, X near 45 over a span of 0.014) it was 4e-11 off where Kurve, which works in each point's
     # own offsets, was 2.4e-15. So a case is judged on max|y| times max|x| over X's span.
     sc = (float(np.max(np.abs(y))) or 1.0) * max(1.0, float(np.max(np.abs(x))) / float(x[-1] - x[0]))
-    return [x.tolist(), y.tolist(), {"frac": frac, "it": it, "delta": delta}], {"y": fit.tolist(), "sc": sc}
+    return [x.tolist(), y.tolist(), {"frac": frac, "it": it, "delta": delta}], {"y": fit.tolist(), "sc": sc}, "lowessY"
 # The same algorithm in 40 digits (statsmodels' order of work: sorted X, the window moved along, tricube weights, a weighted line,
 # delta's skip, bisquare rounds), for a case where Kurve and statsmodels disagree: a disagreement is settled by a third. Seed 1
 # (19.11) found statsmodels 1.8e-9 off on a window of six points far from 0, Kurve 1.3e-12.
@@ -1135,7 +1136,7 @@ def lowess_post(c, out):
     if e <= c["tol"]: return e, msg
     x, y, o = c["args"]; ref, _ = _lowess_mp(x, y, o["frac"], o["it"], o["delta"]); sc = max(abs(v) for v in y) or 1.0
     e2 = max(abs(val(a) - b) / sc for a, b in zip(out, ref)); return e2, f"{msg} from statsmodels; against 40 digits {e2:.2e} of max|y|"
-POST["lowessY"] = lowess_post
+POST["lowessFz"] = lowess_post
 @gen("ruleOn", 1e-13, 0.3)
 def _():
     n = int(edge([2, 3, 4, 5], lambda: int(rng.integers(2, 600)))); x = np.cumsum(10 ** rng.uniform(-1, 1, n)) * float(lognum(-3, 3)) + float(rng.uniform(-1e3, 1e3))
