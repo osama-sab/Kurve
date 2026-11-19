@@ -1024,6 +1024,34 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 6, slice 6.2: principal components (2026-11-19)
+
+- **Analyze › Statistics › Multivariate › Principal component analysis…**: columns as the variables, or each column a curve
+  taken as an observation (its points the variables; curves on different X read on the first's over the stretch they share,
+  said); centred, unit variance or Pareto; groups from a column of text or a field of the curves' files; the components kept
+  (10 by default), the limits' level, the two components plotted. Every column of numbers is ticked to start with.
+- **The result sheet**: every eigenvalue with its share and running total; the loadings (a row a variable, with its mean and
+  what it was divided by; with curves, against X); the scores, Hotelling's T² and the Q residual of each observation; the scores
+  of each group as a pair of columns; T² against Q with each limit as a line; the biplot's columns. The report: the eigenvalues,
+  the loadings, the limits at the level and the observations past them, the method (layout, scaling, the SVD, the sign rule).
+- **From the report**: Scree plot, Scores plot, Loadings plot, T² against Q (those past a limit named), Biplot (columns), Mask
+  (columns: the observations past a limit masked in every column read, worked out again without them).
+- **Checked**: against scikit-learn's PCA (14 fixtures; eigenvalues to 6e-15, loadings and scores to 6e-14), T² and Q with their
+  limits against NumPy written from Tracy, Young and Mason and from Jackson and Mudholkar (5e-16 and 3e-15); a fuzz generator of
+  random tables, scalings and components; `tools/mv-test.mjs` (the data given back by every component, the eigenvalues adding up
+  to the total variance, T²'s mean k(n − 1)/n, unit variance blind to units, rows reordered, the curves layout as the transposed
+  columns layout, refusals); `tools/mv-drive.mjs` (36 checks, the worker among them). A million rows of 10 columns in 1.06 s,
+  300 curves of 2000 points in 0.56 s, both in the worker in the app.
+- **Found on the way**: the sign rule decided by the last bit of rounding when two loadings are equal (±1/√2): now the first of
+  equal ones to 10⁻¹² decides; a million small row arrays spending two seconds in garbage collection: the table is kept as a typed
+  array per column, and `svd` takes columns and leaves out the factor a PCA does not use.
+
+## Closing the gap with Origin, wave 6, slice 6.1: the SVD and the symmetric eigenproblem (2026-11-19)
+
+- `svd` (QR with column pivoting, then one-sided Jacobi on Rᵀ) and `symEig` (tridiagonal QL) in NUMERICS, with nothing a user
+  sees: the wave's engine. Against NumPy and 40-digit mpmath: singular values to 6e-15 of the largest (Hilbert matrices to
+  12 × 12), a graded matrix's to 1.2e-15 of themselves, vectors to 2e-15, eigenvalues to 3e-15; a fuzz generator for each.
+
 ## Closing the gap with Origin, wave 5's end (2026-11-18)
 
 - **The line endings.** The commit of slice 5.1 had written `kurve.html` with LF line endings, against the project's rule, so every

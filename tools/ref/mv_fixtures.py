@@ -52,7 +52,7 @@ out = {}
 def flip(U, V):
     U, V = U.copy(), V.copy()
     for c in range(V.shape[1]):
-        b = int(np.argmax(np.abs(V[:, c])))
+        a = np.abs(V[:, c]); b = int(np.argmax(a >= a.max() * (1 - 1e-12)))   # the first of equal ones, to 1e-12
         if V[b, c] < 0: V[:, c] *= -1; U[:, c] *= -1
     return U, V
 
@@ -121,6 +121,48 @@ T = np.diag(np.full(20, 2.0)) - np.diag(np.ones(19), 1) - np.diag(np.ones(19), -
 eig_case(r6m(np.cov(rng.normal(size=(50, 8)) @ rng.normal(size=(8, 8)), rowvar=False)), "a covariance matrix 8")
 cases.append({"fn": "symEig", "name": "not square", "args": [[[1.0, 2.0, 3.0], [2.0, 1.0, 0.0]]], "want": {"fail": "square"}, "kind": "fail"})
 out["mv-svd"] = cases
+
+# ---- 6.2 principal components, against scikit-learn's PCA (svd_solver="full", whose signs follow the same rule since 1.5);
+# Hotelling's T² and the Q residuals with their limits written from Tracy, Young and Mason (1992) and Jackson and Mudholkar
+# (1979) in NumPy, the quantiles by scipy.stats ----
+from scipy import stats as _st
+cases = []
+rng = np.random.default_rng(20261120)
+def pca_ref(X, scale, k, level):
+    X = np.array(X, dtype=float); n, m = X.shape; mu = X.mean(axis=0); sd = X.std(axis=0, ddof=1)
+    f = sd if scale == "unit" else np.sqrt(sd) if scale == "pareto" else np.ones(m)
+    Z = (X - mu) / f; r = min(n - 1, m); k = max(1, min(r, k))
+    from sklearn.decomposition import PCA
+    P = PCA(n_components=min(n, m), svd_solver="full").fit(Z)
+    ev_all = P.explained_variance_; ev = ev_all[:r]; share = P.explained_variance_ratio_[:r]
+    V = P.components_[:k].T; T = P.transform(Z)[:, :k]
+    t2 = np.sum(T ** 2 / ev[:k], axis=1); E = Z - T @ V.T; q = np.sum(E ** 2, axis=1); a = 1 - level
+    t2lim = (n - 1) ** 2 / n * _st.beta.isf(a, k / 2, (n - k - 1) / 2) if n - k - 1 > 0 else None
+    rest = ev_all[k:]; rest = rest[rest > 0]; t1, tt2, t3 = rest.sum(), (rest ** 2).sum(), (rest ** 3).sum(); qlim = None
+    if t1 > 1e-12 * ev_all[ev_all > 0].sum() and tt2 > 0:
+        h0 = 1 - 2 * t1 * t3 / (3 * tt2 ** 2); c = _st.norm.isf(a); b = c * np.sqrt(2 * tt2 * h0 * h0) / t1 + 1 + tt2 * h0 * (h0 - 1) / t1 ** 2
+        qlim = t1 * b ** (1 / h0) if h0 > 0 and b > 0 else (tt2 / t1) * _st.chi2.isf(a, t1 * t1 / tt2)
+    out = {"ev": ev, "share": share, "V": V.ravel(), "T": T.ravel(), "t2": t2, "q": q, "mean": mu, "f": f}
+    if t2lim is not None: out["t2lim"] = t2lim
+    if qlim is not None: out["qlim"] = qlim
+    return out
+def pca_case(X, scale, k, level, name):
+    cases.append({"fn": "pcaFlat", "name": name, "args": [np.array(X).tolist(), {"scale": scale, "k": k, "level": level}], "want": pca_ref(X, scale, k, level), "kind": "obj"})
+for n, m, scale, k, level in ((10, 3, "unit", 2, 0.95), (40, 6, "unit", 3, 0.95), (40, 6, "none", 2, 0.99), (40, 6, "pareto", 4, 0.9), (200, 12, "unit", 5, 0.95),
+                              (5, 4, "none", 2, 0.95), (3, 2, "unit", 1, 0.95), (25, 25, "unit", 6, 0.95), (60, 30, "none", 10, 0.95)):
+    L = rng.normal(size=(m, max(1, m // 2))); X = r6m(rng.normal(size=(n, L.shape[1])) @ L.T + 0.3 * rng.normal(size=(n, m)) + rng.uniform(-50, 50, m))
+    pca_case(X, scale, k, level, f"{n} observations of {m}, {scale}, k {k}")
+# curves: each an observation, its points the variables (n < m)
+xs = np.arange(300)
+for n in (8, 20):
+    Y = np.array([3 * (1 + rng.random()) * np.exp(-((xs - 100) / 15) ** 2) + 2 * rng.random() * np.exp(-((xs - 180) / 9) ** 2) + 0.02 * rng.normal(size=300) for _ in range(n)])
+    pca_case(r6m(Y), "none", 3, 0.95, f"{n} curves of 300 points, centred")
+# a variable at another scale: unit variance does not see it
+X = rng.normal(size=(30, 4)) @ rng.normal(size=(4, 4)); X[:, 2] *= 1e6
+pca_case(r6m(X), "unit", 2, 0.95, "one variable a million times the others, unit variance")
+cases.append({"fn": "pca", "name": "a constant variable under unit variance", "args": [[[1.0, 2.0], [1.0, 3.0], [1.0, 5.0]], {"scale": "unit"}], "want": {"fail": "constant"}, "kind": "fail"})
+cases.append({"fn": "pca", "name": "one observation", "args": [[[1.0, 2.0]], {}], "want": {"fail": "n"}, "kind": "fail"})
+out["mv-pca"] = cases
 
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}

@@ -621,6 +621,10 @@ if (fixtures.implicit) {
       let r; try { r = get(c.fn)(...c.args); } catch (e) { note(c.fn, Infinity, `${c.name}: threw ${e.message}`); continue; }
       if (c.kind === "fail") { note(`${c.fn}.fail`, r && r.fail ? 0 : Infinity, `${c.name}: the reference refused, Kurve did not`); continue; }
       if (!r || r.fail) { note(c.fn, Infinity, `${c.name}: refused, ${r && r.fail}`); continue; }
+      // an object of arrays and numbers (an analysis's numbers flat): each key over the reference's largest |value|, under fn.key
+      if (c.kind === "obj") { for (const [k, w] of Object.entries(c.want)) { const name = `${c.fn}.${k}`, g = r[k];
+          if (Array.isArray(w)) { const big = Math.max(...w.map(Math.abs)) || 1, gg = g && Array.from(g); note(name, gg && gg.length === w.length ? Math.max(...w.map((v, i) => Math.abs(gg[i] - v) / big)) : Infinity, c.name); }
+          else note(name, relErr(g, w), c.name); } continue; }
       const A = c.args[0];
       if (c.kind === "sval") { note("svd.graded", Math.max(...c.want.s.map((w, i) => relErr(r.s[i], w))), c.name); continue; }
       if (c.kind === "svd") {

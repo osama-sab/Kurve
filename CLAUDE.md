@@ -1693,6 +1693,27 @@ graph first, with the taskbar kept at the bottom of the screen.
   smaller, as R's `delta`; its band check on the band and the neighbours scaled to 60 points together, with no robust rounds); `fitIntegral(f, a, b)` (through `fitView`, the error by
   central differences through the covariance) and `fitIntegralDlg` (Analyze › Fit › Integrate the fitted curve…: `#fiA`, `#fiB`,
   `#fiOut`; a log line and a toast with Copy). Analyze › Calculus › Integrate as an analysis…, Area between two curves….
+- **Many variables** (MULTI_SPEC, wave 6): the pure `==MV:START/END==` block (after SIG; loaded by the compute worker,
+  `tools/ref/run.mjs`, `tools/mv-test.mjs`). **6.2**: `MV_LAYOUTS` (`cols`, `curves`), `MV_SCALES` (`unit`, `none`, `pareto`),
+  `mvLayout(p)`, `mvScaleOf(p)` (unit for columns, centred for curves unless chosen), `mvScaleWord`, `mvAnd`, `mvGrp`, `mvAt` (a
+  curve read at X by straight lines), `mvTable(ins, p)` (the layouts into `{Xc (a Float64Array a variable), n, m, obs, rows, vnames,
+  vx, vids, groups, unit, xn, xu, notes, gname}`: columns, a row when every variable has a value (by row, no Map); curves, each
+  input's `pts` an observation, curves off the first's X read on it over the stretch they share, said; groups from `p.grp` or a
+  header field `p.meta`, an input's `gv`), `mvCols`, `mvScale(C, how, names)` (columns; refuses a constant variable under unit or
+  Pareto), `pcaLimits(ev, k, n, level)` (T² by the beta, Q by Jackson and Mudholkar, Box's g·χ²(h) where h₀ ≤ 0), `pca(X | {cols,
+  n}, {scale, k, level, names, rows})` (`svd` of the scaled columns, `noU`; `{ev, share, cum, tot, k, r, mean, sd, f, Vc, Tc, t2, q,
+  t2lim, qlim, qhow, rank}` and `V`/`T` as rows unless `rows:false`; Q 0 with nothing left), `pcaFlat` (the bench's), `PCA_LEVELS`,
+  `ANA_KINDS.pca` (`cats`, `pts` a function of the layout, `heavy`; the sheet: `pc` X, `ev`, `pct`, `cum`; `vx` X (curves) or `var`;
+  `mean`, `scl`, `l<a>` (Y for curves); `lx`, `ly`, `ln` (columns); `obs`, `grp`, `t<a>`, `t2h`, `qr`; per group `sx<j>` X, `sy<j>`,
+  `sl<j>`; `hx`, `hy`, `hl` (named past a limit); `tlx`/`tly`, `qlx`/`qly` the limits; `zx`, `zy`, `bx`, `by`, `bl` the biplot (columns,
+  60 variables at most); `report.pca {k, px, py, lay, vids, groups, curves, biplot}`, `marks`). A kind's `pts` may be a function of
+  its settings (`anaInputs`); `anaPts` carries `gv` (the header field `a.p.meta`), `anaSig` reads it; `F.noMiss` hides Missing
+  values; `anaDlg`'s `o.all` ticks every column of numbers. Page: `mvMetaKeys`, `mvFormHtml(p, {noScale, needGroups, open})` (`#aMl`,
+  `#aMs` with `data-auto`, `#aMg`/`#aMgL`, `#aMh`/`#aMhL`), `mvFormWire`, `mvFormRead`, `ANA_FORMS.pca` (`#aMk`, `#aMa`, `#aMx`,
+  `#aMy`), `pcaPlot(id, "scree"|"scores"|"loadings"|"tq"|"biplot")`, `pcaMaskOut(id)`. Analyze › Statistics › Multivariate ›
+  Principal component analysis…; Help `multi`. References: `tools/ref/mv_fixtures.py` → `fixtures/mv-*.json` (scikit-learn,
+  NumPy, 40-digit mpmath), judged in `ref-test.mjs`'s Many variables section (`svd`, `sval`, `eig`, `obj`, `fail`); the fuzzer's
+  `svd.s`, `symEig.vals`, `pcaFlat`.
 - **Worksheet** (`renderWs`, `setupWs`): a spreadsheet grid as in Excel, with Origin's label
   rows. Columns have fixed widths (`WS_W`, 100 px; `p.wsw[colId]` when dragged or autofitted by
   a double click on the header's edge, `wsSetWidth`, `wsAutofit`), never stretched to the

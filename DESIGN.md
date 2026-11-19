@@ -898,6 +898,27 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-19: principal components (MULTI_SPEC 6.2)
+
+- **Two layouts, said.** A table of measurements has its variables in columns; a set of spectra has its observations in
+  columns (each curve one sample, its points the variables). Both are common, and guessing from the data would sometimes
+  guess wrong, so the layout is the dialog's first setting and the report's method line names it. It starts as *each column
+  an observation* when the active column looks like a spectrum, else as columns.
+- **The scaling follows the layout until it is chosen.** Unit variance is right for columns of different quantities and
+  wrong for curves in one unit (it would weigh the noise of an empty stretch like a band); left untouched, the scaling changes
+  with the layout, and once chosen it stays.
+- **A graph per question, each a curve per group.** The scree, scores, loadings, T² against Q and the biplot are buttons of
+  the report, each one undo step, drawn from the result sheet's own columns, so they follow a recalculation. The scores are a
+  curve per group (written as a pair of columns per group) so each group has its colour and its entry in the legend, with no
+  colouring rule of its own. With curves, the loadings are curves against X: they show which bands a component moves, which is
+  the spectroscopist's question.
+- **Numbers, not verdicts, for outliers too.** T² and Q have limits at a level chosen; the observations past them are listed,
+  named on the T²–Q plot, and can be masked, never called outliers. Q with every component kept is 0, not the rounding noise
+  it would otherwise print.
+- **A sign by a rule, and a tie that does not flip it.** Components have no sign of their own; each is turned so its largest
+  loading is positive, and loadings equal to 10⁻¹² (two variables under unit variance give ±1/√2) leave the first to decide, so
+  the sign does not depend on the last bit of rounding.
+
 ### 2026-11-18: wave 5's end
 
 - **A placeholder is words, set as words.** A field for a number is monospaced, so its digits line up; its placeholder ("the first

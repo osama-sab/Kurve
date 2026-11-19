@@ -90,6 +90,8 @@ const BUDGET = {
   "SVD: 300 × 2000, 10 vectors": [1800, "the singular values of 300 curves of 2000 points and the first 10 pairs of vectors, QR with pivoting and one-sided Jacobi (in the worker in the app; MULTI_SPEC 6.1)"],
   "SVD: 50 × 50": [15, "every singular value and vector of a 50 × 50 matrix (MULTI_SPEC 6.1)"],
   "Eigen: 200 × 200": [200, "every eigenvalue and vector of a symmetric 200 × 200 matrix, tridiagonal QL (MULTI_SPEC 6.1)"],
+  "PCA: 10^6 rows × 10": [3000, "principal components of a million rows of 10 columns under unit variance, three kept, T² and Q (in the worker in the app; MULTI_SPEC 6.2)"],
+  "PCA: 300 curves × 2000": [2400, "principal components of 300 curves of 2000 points, centred, ten kept, T² and Q (in the worker in the app; MULTI_SPEC 6.2)"],
 };
 const got = {};
 const best = async (fn) => { let m = Infinity; for (let i = 0; i < RUNS; i++) m = Math.min(m, await fn()); return m; };
@@ -258,6 +260,10 @@ await withPage(async (p) => {
     const a = performance.now(); svd(A); return performance.now() - a; }));
   got["Eigen: 200 × 200"] = await best(() => p.evaluate(() => { const mb = mulberry32(29), B = Array.from({ length: 200 }, () => Array.from({ length: 200 }, () => mb() - 0.5)), S = B.map((r, i) => r.map((v, j) => (v + B[j][i]) / 2));
     const a = performance.now(); symEig(S); return performance.now() - a; }));
+  got["PCA: 10^6 rows × 10"] = await best(() => p.evaluate(() => { const mb = mulberry32(30), n = 1e6, a0 = Float64Array.from({ length: n }, () => mb() - 0.5), C = [a0].concat(Array.from({ length: 9 }, (_, j) => Float64Array.from(a0, (v) => (j < 3 ? v : 0) + mb() - 0.5)));
+    const a = performance.now(); pca({ cols: C, n }, { scale: "unit", k: 3, rows: false }); return performance.now() - a; }));
+  got["PCA: 300 curves × 2000"] = await best(() => p.evaluate(() => { const mb = mulberry32(31), C = Array.from({ length: 2000 }, () => Float64Array.from({ length: 300 }, () => mb() - 0.5));
+    const a = performance.now(); pca({ cols: C, n: 300 }, { scale: "none", k: 10, rows: false }); return performance.now() - a; }));
 });
 
 await browser.close(); server.close();

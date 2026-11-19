@@ -1046,5 +1046,16 @@
   "symEig.vec": {"tol": 1e-12},
   "symEig.recon": {"tol": 1e-14},
   "symEig.orth": {"tol": 1e-13},
-  "symEig.fail": {"tol": 0}
+  "symEig.fail": {"tol": 0},
+  "pcaFlat.ev": {"tol": 1e-12},
+  "pcaFlat.share": {"tol": 1e-12},
+  "pcaFlat.V": {"tol": 1e-12},
+  "pcaFlat.T": {"tol": 1e-12},
+  "pcaFlat.t2": {"tol": 1e-12},
+  "pcaFlat.q": {"tol": 1e-12},
+  "pcaFlat.t2lim": {"tol": 1e-12},
+  "pcaFlat.qlim": {"tol": 1e-12},
+  "pcaFlat.mean": {"tol": 1e-14},
+  "pcaFlat.f": {"tol": 1e-14},
+  "pca.fail": {"tol": 0}
 }

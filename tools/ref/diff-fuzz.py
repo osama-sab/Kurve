@@ -1209,6 +1209,38 @@ def _():
     return [A.tolist()], {"vals": w.tolist(), "A": A.tolist()}, "symEig"
 POST["symEig.vals"] = _fac_post("eig")
 
+# PCA against scikit-learn: a random table (3 to 80 observations, 2 to 40 variables, some correlated, scaled at random), a
+# scaling and a number of components; judged by its eigenvalues, loadings, scores, T² and Q over each one's largest.
+@gen("pcaFlat", 1e-11, 0.15)
+def _():
+    from sklearn.decomposition import PCA
+    n = int(rng.integers(3, 81)); m = int(rng.integers(2, 41)); f = int(rng.integers(1, m + 1))
+    X = rng.normal(size=(n, f)) @ rng.normal(size=(f, m)) + rng.normal(size=(n, m)) * float(lognum(-3, 0)); X = X * 10 ** rng.uniform(-3, 3, m) + rng.uniform(-100, 100, m)
+    scale = str(rng.choice(["none", "unit", "pareto"])); r = min(n - 1, m); k = int(rng.integers(1, r + 1))
+    mu = X.mean(axis=0); sd = X.std(axis=0, ddof=1); fz = sd if scale == "unit" else np.sqrt(sd) if scale == "pareto" else np.ones(m); Z = (X - mu) / fz
+    P = PCA(n_components=min(n, m), svd_solver="full").fit(Z); ev = P.explained_variance_[:r]; V = P.components_[:k].T; T = P.transform(Z)[:, :k]
+    # vectors of nearly equal eigenvalues are not determined: such a case is made again
+    gaps = np.abs(np.diff(P.explained_variance_[:k + 1])) if k < len(P.explained_variance_) else np.abs(np.diff(P.explained_variance_[:k]))
+    if len(gaps) and np.min(gaps) < 1e-6 * ev[0]: raise ValueError("near tie")
+    t2 = np.sum(T ** 2 / ev[:k], axis=1); q = np.sum((Z - T @ V.T) ** 2, axis=1)
+    return [X.tolist(), {"scale": scale, "k": k}], {"ev": ev.tolist(), "V": V.ravel().tolist(), "T": T.ravel().tolist(), "t2": t2.tolist(), "q": q.tolist(), "gap": float(np.min(gaps)) if len(gaps) else float(ev[0]), "zz": float(np.max(np.sum(Z ** 2, axis=1)))}
+def pca_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or "ev" not in out: return float("inf"), f"refused or nothing: {str(out)[:80]}"
+    e = 0.0; why = ""
+    for key in ("ev", "V", "T", "t2", "q"):
+        a = np.array([val(v) for v in out[key]]); b = np.array(w[key]); big = np.max(np.abs(b)) or 1.0
+        if a.shape != b.shape: return float("inf"), f"{key}: {a.shape} against {b.shape}"
+        d = float(np.max(np.abs(a - b)) / big)
+        if key in ("V", "T"):   # a vector is known to the rounding over its gap; its sign by the rule, tested on fixtures where no tie decides it
+            k = c["args"][1]["k"]; A = a.reshape(-1, k); B = b.reshape(-1, k); A = A * np.where(np.sum(A * B, axis=0) < 0, -1, 1)
+            d = float(np.max(np.abs(A - B)) / big) * w["gap"] / (abs(w["ev"][0]) or 1.0)
+        if key == "t2": d *= np.sqrt(w["ev"][c["args"][1]["k"] - 1] / w["ev"][0])   # each score over √λ: known to ε·s₁/s_k
+        if key == "q": d = float(np.max(np.abs(a - b)) / w["zz"])          # Q is what is left of an observation's Σz²: judged against that
+        if d > e: e, why = d, key
+    return e, f"{why} {e:.2e}"
+POST["pcaFlat"] = pca_post
+
 cases = []
 ONLY = os.environ.get("ONLY")  # ONLY=name,name: those generators alone
 for name, (f, tol) in GEN.items():

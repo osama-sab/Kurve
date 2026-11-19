@@ -3637,19 +3637,27 @@ function svdVals(A){ const r=A.length, U=A.map(row=>Float64Array.from(row));
    the others again (Gram–Schmidt, twice). Returns {s (descending), U (m × r, rows), V (n × r, rows), rank, sweeps},
    r = min(m, n), the rank the count of s above max(m, n)·ε·s₁; each pair turned so that the entry of largest magnitude
    of its V column is positive (svdFlip, MULTI_SPEC decision 2). o.vectors false gives s, rank and sweeps alone; o.k the
-   first k pairs of vectors only (a PCA writes a few: forming the rest is most of the time for a wide matrix).
+   first k pairs of vectors only (a PCA writes a few: forming the rest is most of the time for a wide matrix). A may also be
+   {cols, m}, its columns (each m values, a Float64Array or an array): a table of a million rows is then never made of a
+   million small arrays. o.cols returns U and V as columns (Float64Arrays) in place of rows; o.noU leaves U out.
    {fail} in words for an empty matrix, rows of different lengths, or a value that is not a finite number. */
 const SVD_EPS=2.220446049250313e-16;
-function svdCheck(A){ if(!Array.isArray(A)||!A.length||!A[0]||!A[0].length) return "The matrix is empty";
+function svdCheck(A){ if(A&&!Array.isArray(A)&&Array.isArray(A.cols)){ const m=A.m, C=A.cols; if(!C.length||!(m>0)) return "The matrix is empty";
+    for(let j=0;j<C.length;j++){ const c=C[j]; if(!c||c.length!==m) return `Column ${j+1} has ${c?c.length:0} values where it should have ${m}`; for(let i=0;i<m;i++) if(!Number.isFinite(c[i])) return `The value in row ${i+1}, column ${j+1} is not a finite number`; }
+    return null; }
+  if(!Array.isArray(A)||!A.length||!A[0]||!A[0].length) return "The matrix is empty";
   const n=A[0].length; for(let i=0;i<A.length;i++){ const r=A[i]; if(!r||r.length!==n) return `Row ${i+1} has ${r?r.length:0} values where the first has ${n}`;
     for(let j=0;j<n;j++) if(typeof r[j]!=="number"||!Number.isFinite(r[j])) return `The value in row ${i+1}, column ${j+1} is not a finite number`; }
   return null; }
 // The power of two that brings the largest |value| near 1, so no square overflows or underflows.
 const svdPow2=big=>big>0?Math.pow(2,-Math.round(Math.log2(big))):1;
+// The entry that decides a vector's sign (MULTI_SPEC decision 2): the first whose magnitude is the largest, to 10⁻¹².
+function svdLead(v){ let mx=0; for(let i=0;i<v.length;i++){ const a=Math.abs(v[i]); if(a>mx) mx=a; } for(let i=0;i<v.length;i++) if(Math.abs(v[i])>=mx*(1-1e-12)) return i; return 0; }
 function svd(A,o){ o=o||{}; const why=svdCheck(A); if(why) return {fail:why};
-  const m=A.length, n=A[0].length, tr=m<n, M=tr?n:m, N=tr?m:n, vec=o.vectors!==false;
-  let big=0; for(const r of A) for(const v of r){ const a=Math.abs(v); if(a>big) big=a; } const sc=svdPow2(big);
-  const C=Array.from({length:N},(_,j)=>{ const c=new Float64Array(M); for(let i=0;i<M;i++) c[i]=(tr?A[j][i]:A[i][j])*sc; return c; });
+  const isC=!Array.isArray(A), m=isC?A.m:A.length, n=isC?A.cols.length:A[0].length, tr=m<n, M=tr?n:m, N=tr?m:n, vec=o.vectors!==false;
+  let big=0; for(const r of (isC?A.cols:A)) for(const v of r){ const a=Math.abs(v); if(a>big) big=a; } const sc=svdPow2(big);
+  // B's columns: A's (tall) or its rows (wide), scaled.
+  const C=Array.from({length:N},(_,j)=>{ const c=new Float64Array(M); if(isC===tr){ for(let i=0;i<M;i++) c[i]=(tr?A.cols[i][j]:A[i][j])*sc; } else { const s0=tr?A[j]:A.cols[j]; for(let i=0;i<M;i++) c[i]=s0[i]*sc; } return c; });
   // Householder QR with column pivoting.
   const perm=Array.from({length:N},(_,j)=>j), vn1=new Float64Array(N), vn2=new Float64Array(N), tau=new Float64Array(N), tol3z=Math.sqrt(SVD_EPS);
   const nrm=(c,k)=>{ let s=0; for(let i=k;i<c.length;i++) s+=c[i]*c[i]; return Math.sqrt(s); };
@@ -3692,16 +3700,18 @@ function svd(A,o){ o=o||{}; const why=svdCheck(A); if(why) return {fail:why};
       const q=nrm(x,0); if(q>0.5){ for(let i=0;i<N;i++) x[i]/=q; ok=true; } }
     X[c]=x; }
   // Q·W, the factor from the rotations, M × N; Q applied from its reflectors (LAPACK's dorg2r order) to W.
-  const QW=ord.slice(0,K).map(j=>{ const w=W[j], y=new Float64Array(M); for(let i=0;i<N;i++) y[i]=w[i];
+  const skipQ=o.noU&&!tr, QW=skipQ?null:ord.slice(0,K).map(j=>{ const w=W[j], y=new Float64Array(M); for(let i=0;i<N;i++) y[i]=w[i];
     for(let k=N-1;k>=0;k--){ if(!tau[k]) continue; const c=C[k]; let t=y[k]; for(let i=k+1;i<M;i++) t+=c[i]*y[i]; t*=tau[k]; y[k]-=t; for(let i=k+1;i<M;i++) y[i]-=t*c[i]; }
     return y; });
   // B = (Q·W)·Σ·(P·X)ᵀ; for A = Bᵀ the two factors trade places.
-  const PX=X.slice(0,K).map(x=>{ const y=new Float64Array(N); for(let i=0;i<N;i++) y[perm[i]]=x[i]; return y; });
+  const PX=o.noU&&tr?null:X.slice(0,K).map(x=>{ const y=new Float64Array(N); for(let i=0;i<N;i++) y[perm[i]]=x[i]; return y; });
   const Ucol=tr?PX:QW, Vcol=tr?QW:PX;
-  // The sign rule: the entry of V's column of largest magnitude positive (the first of equal ones).
-  for(let c=0;c<K;c++){ const v=Vcol[c]; let b=0; for(let i=1;i<v.length;i++) if(Math.abs(v[i])>Math.abs(v[b])) b=i; if(v[b]<0){ for(let i=0;i<v.length;i++) v[i]=-v[i]; const u=Ucol[c]; for(let i=0;i<u.length;i++) u[i]=-u[i]; } }
+  // The sign rule: the entry of V's column of largest magnitude positive, the first of equal ones (equal within 10⁻¹², so
+  // two loadings of 1/√2 do not flip the sign by their last bit).
+  for(let c=0;c<K;c++){ const v=Vcol[c], b=svdLead(v); if(v[b]<0){ for(let i=0;i<v.length;i++) v[i]=-v[i]; const u=Ucol&&Ucol[c]; if(u) for(let i=0;i<u.length;i++) u[i]=-u[i]; } }
+  if(o.cols) return {s,U:Ucol,V:Vcol,rank,sweeps};
   const rows=(cols,len)=>Array.from({length:len},(_,i)=>cols.map(c=>c[i]));
-  return {s,U:rows(Ucol,m),V:rows(Vcol,n),rank,sweeps}; }
+  return {s,U:Ucol?rows(Ucol,m):null,V:rows(Vcol,n),rank,sweeps}; }
 /* symEig(A): the eigenvalues and eigenvectors of a symmetric matrix (its lower triangle read, as LAPACK's 'L'),
    by Householder tridiagonalisation and the implicit QL iteration (EISPACK's tred2 and tql2, as JAMA has them), the
    matrix first scaled by a power of two. {vals (descending), vecs (rows: vecs[i][j] the i-th entry of the j-th
@@ -3736,7 +3746,7 @@ function symEig(A){ const why=svdCheck(A); if(why) return {fail:why}; const n=A.
     d[l]+=f; e[l]=0; }
   const ord=Array.from({length:n},(_,j)=>j).sort((a,b)=>d[b]-d[a]||a-b), vals=ord.map(j=>d[j]/sc);
   const vecs=Array.from({length:n},()=>new Array(n));
-  ord.forEach((j,c)=>{ let b=0; for(let i=1;i<n;i++) if(Math.abs(V[i][j])>Math.abs(V[b][j])) b=i; const sg=V[b][j]<0?-1:1; for(let i=0;i<n;i++) vecs[i][c]=sg*V[i][j]; });
+  ord.forEach((j,c)=>{ const b=svdLead(V.map(r=>r[j])), sg=V[b][j]<0?-1:1; for(let i=0;i<n;i++) vecs[i][c]=sg*V[i][j]; });
   return {vals,vecs}; }
 /* ==NUMERICS:END== */
 
@@ -11127,6 +11137,163 @@ function iirSos(o){ const D=iirDesign(o); return D.fail?D:D.sos.flat(); }
 function iirFreq(o,w){ const D=iirDesign(o); if(D.fail) return D; const H=sosFreqz(D.sos,w); return {re:H.map(h=>h[0]),im:H.map(h=>h[1])}; }
 function sosFreqzRI(sos,w){ const H=sosFreqz(sos,w); return {re:H.map(h=>h[0]),im:H.map(h=>h[1])}; }
 /* ==SIG:END== */
+/* ==MV:START== Many variables (ux/spec/MULTI_SPEC.md, wave 6), pure: principal components (6.2); the later slices'
+   clustering, discriminant analysis and PLS beside them. Plain arrays in and out, a refusal {fail} in words, nothing read
+   from the page; loaded by the compute worker, tools/ref/run.mjs and tools/mv-test.mjs. The factorisations are NUMERICS'
+   (svd, symEig); a component's sign follows MULTI_SPEC decision 2. */
+const MV_LAYOUTS=[["cols","Columns are the variables"],["curves","Each column is an observation"]];
+const MV_SCALES=[["unit","Unit variance (the correlation)"],["none","Centred (the covariance)"],["pareto","Pareto (the square root of the SD)"]];
+const mvLayout=p=>p&&p.layout==="curves"?"curves":"cols";
+// The scaling: as set, else unit variance for columns (their units differ) and centred for curves (decision 4).
+const mvScaleOf=p=>MV_SCALES.some(([k])=>k===(p&&p.scale))?p.scale:(mvLayout(p)==="curves"?"none":"unit");
+const mvScaleWord=s=>s==="unit"?"each variable centred and divided by its standard deviation (n − 1), so the correlation":s==="pareto"?"each variable centred and divided by the square root of its standard deviation (Pareto)":"each variable centred, so the covariance";
+// A list of names in words, the first six and how many more past that.
+const mvAnd=a=>a.length>6?a.slice(0,6).join(", ")+` and ${a.length-6} more`:a.length<2?a.join(""):a.slice(0,-1).join(", ")+" and "+a[a.length-1];
+const mvGrp=v=>v==null||v===""?null:typeof v==="number"?fmt(v,8):String(v);
+// A curve's Y read at X by straight lines between its own points (sorted by X; an X given twice keeps its last).
+function mvAt(x,y,xs){ const o=x.map((_,i)=>i).sort((a,b)=>x[a]-x[b]||a-b), X=o.map(i=>x[i]), Y=o.map(i=>y[i]), n=X.length;
+  return xs.map(v=>{ if(!(v>=X[0]&&v<=X[n-1])) return NaN; let lo=0, hi=n-1; while(hi-lo>1){ const m=(lo+hi)>>1; if(X[m]<=v) lo=m; else hi=m; }
+    if(X[hi]===v) return Y[hi]; if(X[lo]===v) return Y[lo]; const t=(v-X[lo])/(X[hi]-X[lo]); return Y[lo]+t*(Y[hi]-Y[lo]); }); }
+/* The table of observations and variables from an analysis's inputs, by its layout (decision 1). Columns: every input of
+   numbers but the group column is a variable, a row an observation when every variable has a value there. Curves: every
+   input's processed points (pts) are one observation, its points the variables; curves that do not share an X are read on
+   the first's over the range they all cover. {Xc (m columns of n, Float64Arrays), n, m, obs, rows (columns: each observation's raw row),
+   vnames, vx (curves: each variable's X), vids, groups (text or null per observation, or null), unit, xn, xu, notes} */
+function mvTable(ins,p){ const notes=[], lay=mvLayout(p);
+  if(lay==="curves"){ const cs=ins.filter(q=>q.pts), emp=cs.filter(q=>q.pts.x.length<2).map(q=>q.name), C=cs.filter(q=>q.pts.x.length>=2);
+    if(emp.length) notes.push(`${mvAnd(emp)} ${emp.length===1?"has":"have"} fewer than two points: left out.`);
+    if(C.length<2) return {fail:"Tick two curves or more: each is one observation"};
+    let lo=-Infinity, hi=Infinity; C.forEach(q=>{ lo=Math.max(lo,amin(q.pts.x)); hi=Math.min(hi,amax(q.pts.x)); });
+    const x0=C[0].pts.x, span=Math.max(Math.abs(amax(x0)-amin(x0)),Math.abs(amax(x0)),1e-300), tol=1e-9*span;
+    const same=C.every(q=>q.pts.x.length===x0.length&&q.pts.x.every((v,i)=>Math.abs(v-x0[i])<=tol));
+    let vx, X;
+    if(same){ vx=x0.slice(); X=C.map(q=>q.pts.y); }
+    else { if(!(hi>=lo)) return {fail:"The curves share no stretch of X"};
+      vx=x0.filter(v=>v>=lo-tol&&v<=hi+tol); if(vx.length<2) return {fail:`The curves share too little of X: ${C[0].name} has ${vx.length} point${vx.length===1?"":"s"} in the stretch they all cover`};
+      X=C.map(q=>mvAt(q.pts.x,q.pts.y,vx));
+      notes.push(`The curves do not share their X: each is read on ${C[0].name}'s ${vx.length} points from ${fmt(Math.min(lo,hi),6)} to ${fmt(Math.max(lo,hi),6)}, by straight lines between its own points.`); }
+    const us=[...new Set(C.map(q=>q.unit||""))], groups=p.meta?C.map(q=>mvGrp(q.gv)):null;
+    const Xc=vx.map((_,j)=>Float64Array.from(X,y=>y[j]));
+    return {Xc,n:C.length,m:vx.length,obs:C.map(q=>q.name),rows:null,vnames:vx.map(v=>fmt(v,8)),vx,vids:null,groups,unit:us.length===1?us[0]:"",xn:C[0].xn||"X",xu:C[0].xu||"",notes,ids:C.map(q=>q.id)}; }
+  const g=p.grp?ins.find(q=>q.id===p.grp):null, txt=ins.filter(q=>q!==g&&q.cats).map(q=>q.name), V=ins.filter(q=>q!==g&&!q.cats&&q.vals);
+  if(txt.length) notes.push(`${mvAnd(txt)} ${txt.length===1?"holds":"hold"} text: left out.`);
+  if(V.length<2) return {fail:"Tick two columns of numbers or more: each is one variable"};
+  // Each variable by its row (a row with no value NaN), so a million rows need no Map.
+  let R=0; V.forEach(q=>q.rows.forEach(r=>{ if(r>=R) R=r+1; }));
+  const by=V.map(q=>{ const a=new Float64Array(R).fill(NaN); q.rows.forEach((r,i)=>{ const v=q.vals[i]; if(r>=0&&Number.isFinite(v)) a[r]=v; }); return a; });
+  const common=[]; let any=0; for(let r=0;r<R;r++){ let all=true, one=false; for(const a of by){ if(a[r]===a[r]) one=true; else all=false; } if(all) common.push(r); if(one) any++; }
+  const left=any-common.length;
+  if(common.length<2) return {fail:`${common.length===1?"One row has":"No row has"} a value in every column ticked: two are needed`};
+  if(left) notes.push(`Only the ${common.length} rows with a value in every column: ${left} row${left===1?"":"s"} left out.`);
+  let groups=null;
+  if(g){ const gm=new Map(); g.rows.forEach((r,i)=>{ const v=g.cats?g.cats.keys[i]:g.vals[i]; if(v!=null&&v!==""&&(g.cats||Number.isFinite(v))) gm.set(r,mvGrp(v)); });
+    groups=common.map(r=>gm.has(r)?gm.get(r):null); const nn=groups.filter(v=>v==null).length; if(nn) notes.push(`${nn} row${nn===1?" has":"s have"} no group in ${g.name}.`); }
+  const us=[...new Set(V.map(q=>q.unit||""))];
+  return {Xc:by.map(a=>Float64Array.from(common,r=>a[r])),n:common.length,m:V.length,obs:common.map(r=>`Row ${r+1}`),rows:common,vnames:V.map(q=>q.name),vx:null,vids:V.map(q=>q.id),groups,unit:us.length===1?us[0]:"",notes,gname:g?g.name:null}; }
+// A table of rows as its columns (Float64Arrays).
+const mvCols=X=>X[0].map((_,j)=>Float64Array.from(X,r=>r[j]));
+/* Each variable (a column, n values) centred, then divided by its standard deviation (n − 1, "unit"), by its square root
+   ("pareto") or by 1 ("none"); the mean by its sum corrected by the mean deviation's, as NumPy's two passes. {Z (columns),
+   mean, sd, f} or {fail} naming a variable that does not vary, under a scaling that would divide by it. */
+function mvScale(C,how,names){ const m=C.length, n=C[0].length, mean=new Float64Array(m), sd=new Float64Array(m), f=new Float64Array(m), Z=new Array(m);
+  for(let j=0;j<m;j++){ const x=C[j]; let s=0; for(let i=0;i<n;i++) s+=x[i]; let mu=s/n, c=0; for(let i=0;i<n;i++) c+=x[i]-mu; mu+=c/n; let q=0; for(let i=0;i<n;i++){ const d=x[i]-mu; q+=d*d; }
+    mean[j]=mu; sd[j]=n>1?Math.sqrt(q/(n-1)):0;
+    if(how==="unit"||how==="pareto"){ if(!(sd[j]>0)) return {fail:`${names?names[j]:"Variable "+(j+1)} has the same value in every observation: it cannot be divided by its standard deviation (choose Centred, or leave it out)`}; f[j]=how==="unit"?sd[j]:Math.sqrt(sd[j]); } else f[j]=1;
+    const z=new Float64Array(n), fj=f[j]; for(let i=0;i<n;i++) z[i]=(x[i]-mu)/fj; Z[j]=z; }
+  return {Z,mean:Array.from(mean),sd:Array.from(sd),f:Array.from(f)}; }
+/* Principal components (MULTI_SPEC 6.2): the singular value decomposition of the scaled data Z = U·S·Vᵀ; each component's
+   variance (eigenvalue) s²/(n − 1), its share of the total variance (the sum of the variables' variances, from Z), the
+   loadings V (each column turned by decision 2) and the scores Z·V of the first k; Hotelling's T² (Σ t²/λ over the k) and the
+   Q residual (the squared distance of each observation from the k components, from the residual Z − T·Vᵀ itself), with
+   limits at the level: T²'s for the observations themselves by the beta distribution (Tracy, Young and Mason 1992),
+   (n − 1)²/n · B(k/2, (n − k − 1)/2), Q's by Jackson and Mudholkar (1979) from the remaining eigenvalues, or by Box's g·χ²(h)
+   where their h₀ is not above 0. X a table of rows, or {cols, n} its columns; o: {scale, k, level, names}. The loadings Vc and
+   scores Tc as columns (k each); V and T as rows when asked for (o.rows). */
+function pcaLimits(ev,k,n,level){ const a=1-level, out={t2:null,q:null,qhow:null};
+  if(n-k-1>0) out.t2=(n-1)*(n-1)/n*DIST.beta.isf(a,k/2,(n-k-1)/2);
+  const rest=ev.slice(k); let t1=0, t2=0, t3=0; rest.forEach(l=>{ if(l>0){ t1+=l; t2+=l*l; t3+=l*l*l; } });
+  const tot=ev.reduce((s,l)=>s+Math.max(l,0),0);
+  if(t1>1e-12*tot&&t2>0){ const h0=1-2*t1*t3/(3*t2*t2), c=DIST.norm.isf(a);
+    const b=c*Math.sqrt(2*t2*h0*h0)/t1+1+t2*h0*(h0-1)/(t1*t1);
+    if(h0>0&&b>0){ out.q=t1*Math.pow(b,1/h0); out.qhow="jm"; }
+    else { const g=t2/t1, h=t1*t1/t2; out.q=g*DIST.chi2.isf(a,h); out.qhow="box"; } }
+  return out; }
+function pca(X,o){ o=o||{}; const rows=Array.isArray(X); if(rows&&(!X.length||!X[0]||!X[0].length)) return {fail:"The table is empty"};
+  const C=rows?mvCols(X):X.cols, n=rows?X.length:X.n; if(n<2) return {fail:"Two observations are needed"}; const m=C.length;
+  const sc=mvScale(C,o.scale||"none",o.names); if(sc.fail) return sc; const Z=sc.Z, r=Math.min(n-1,m), level=o.level||0.95;
+  const k=Math.max(1,Math.min(r,o.k>0?Math.floor(o.k):Math.min(10,r)));
+  const S=svd({cols:Z,m:n},{k,cols:true,noU:true}); if(S.fail) return S;
+  let tot=0; for(const z of Z) for(let i=0;i<n;i++) tot+=z[i]*z[i]; tot/=(n-1);
+  const ev=S.s.slice(0,r).map(s=>s*s/(n-1)), share=ev.map(l=>tot>0?l/tot:NaN), cum=[]; let c=0; share.forEach(v=>{ c+=v; cum.push(c); });
+  if(!(tot>0)) return {fail:"Every variable has the same value in every observation: there is no variance to take apart"};
+  // The scores Z·V, a column a component; T² over them; Q from the residual Z − T·Vᵀ, a variable at a time.
+  const Vc=S.V, Tc=Vc.map(v=>{ const t=new Float64Array(n); for(let j=0;j<m;j++){ const w=v[j], z=Z[j]; if(w) for(let i=0;i<n;i++) t[i]+=z[i]*w; } return t; });
+  const t2=new Float64Array(n), q=new Float64Array(n), e=new Float64Array(n);
+  for(let a=0;a<k;a++){ const t=Tc[a], l=ev[a]; if(l>0) for(let i=0;i<n;i++) t2[i]+=t[i]*t[i]/l; }
+  for(let j=0;j<m;j++){ e.set(Z[j]); for(let a=0;a<k;a++){ const w=Vc[a][j], t=Tc[a]; if(w) for(let i=0;i<n;i++) e[i]-=t[i]*w; } for(let i=0;i<n;i++) q[i]+=e[i]*e[i]; }
+  const lim=pcaLimits(ev.concat(S.s.slice(r).map(s=>s*s/(n-1))),k,n,level);
+  // Every component with variance kept: what is left is rounding, so Q is 0 (as the limit is none).
+  if(lim.q==null) q.fill(0);
+  const out={ev,share,cum,tot,k,r,n,m,mean:sc.mean,sd:sc.sd,f:sc.f,Vc,Tc,t2:Array.from(t2),q:Array.from(q),t2lim:lim.t2,qlim:lim.q,qhow:lim.qhow,level,rank:S.rank};
+  if(o.rows!==false&&n*k<=2e6&&m*k<=2e6){ out.V=Array.from({length:m},(_,j)=>Vc.map(v=>v[j])); out.T=Array.from({length:n},(_,i)=>Tc.map(t=>t[i])); }
+  return out; }
+// For the bench: a PCA's numbers flat, as scikit-learn and NumPy give them (V and T row by row).
+function pcaFlat(X,o){ const r=pca(X,o); if(r.fail) return r; return {ev:r.ev,share:r.share,V:r.V.flat(),T:r.T.flat(),t2:r.t2,q:r.q,t2lim:r.t2lim,qlim:r.qlim,mean:r.mean,f:r.f}; }
+const PCA_LEVELS=[0.9,0.95,0.99];
+ANA_KINDS.pca={label:"Principal components", base:"PCA", cats:true, pts:p=>mvLayout(p)==="curves",
+  help:"The components of greatest variance of several columns, or of a set of curves (each an observation): eigenvalues with their shares, loadings, scores, Hotelling's T² and the Q residuals with their limits; the scree, scores, loadings and T²–Q plots, and the biplot.",
+  heavy:(p,ins)=>ins.reduce((t,q)=>t+((q.pts&&q.pts.x.length)||(q.vals&&q.vals.length)||0),0)*Math.min(ins.length,50)>4e6,
+  run(ins,p){ p=p||{}; const T=mvTable(ins,p); if(T.fail) return T; const lay=mvLayout(p), how=mvScaleOf(p), level=PCA_LEVELS.includes(+p.level)?+p.level:0.95;
+    const R=pca({cols:T.Xc,n:T.n},{scale:how,k:p.k,level,names:T.vnames,rows:false}); if(R.fail) return R;
+    const notes=T.notes.slice(), cols=[], secs=[], k=R.k, pc=a=>"PC"+(a+1), nv=T.m, nmax=30;
+    const px=Math.min(k,Math.max(1,Math.floor(+p.px)||1))-1, py0=Math.min(k,Math.max(1,Math.floor(+p.py)||2))-1, py=py0===px?(k>1?(px===0?1:0):px):py0;
+    if(R.rank<Math.min(T.n,T.m)&&R.rank<R.r) notes.push(`The data have rank ${R.rank}: the components past it have no variance.`);
+    // eigenvalues, every component
+    cols.push({k:"pc",name:"Component",role:"x",vals:R.ev.map((_,a)=>a+1)},{k:"ev",name:"Eigenvalue",role:"y",vals:R.ev},{k:"pct",name:"% of variance",vals:R.share.map(v=>100*v)},{k:"cum",name:"Cumulative %",vals:R.cum.map(v=>100*v)});
+    const er=R.ev.slice(0,nmax).map((l,a)=>[a+1,l,100*R.share[a],100*R.cum[a]]);
+    secs.push({title:R.ev.length>nmax?`Eigenvalues (the first ${nmax} of ${R.ev.length}; the rest on the sheet)`:"Eigenvalues",tables:[{head:["Component","Eigenvalue","% of variance","Cumulative %"],rows:er}]});
+    // loadings: a row a variable
+    if(lay==="curves") cols.push({k:"vx",name:T.xn,unit:T.xu,role:"x",vals:T.vx});
+    else cols.push({k:"var",name:"Variable",vals:T.vnames});
+    cols.push({k:"mean",name:"Mean",unit:T.unit,vals:R.mean},{k:"scl",name:how==="none"?"Divided by":how==="unit"?"SD":"√SD",vals:R.f});
+    const Vc=R.Vc, Tc=R.Tc, A=a=>Array.from(a);
+    for(let a=0;a<k;a++) cols.push({k:"l"+(a+1),name:`Loading ${pc(a)}`,role:lay==="curves"?"y":"ignore",vals:A(Vc[a])});
+    if(lay==="cols"){ cols.push({k:"lx",name:`Loading ${pc(px)}`,role:"x",vals:A(Vc[px])},{k:"ly",name:`Loading ${pc(py)}`,role:"y",vals:A(Vc[py])},{k:"ln",name:"Variable",vals:T.vnames}); }
+    if(nv<=nmax&&lay==="cols") secs.push({title:"Loadings",tables:[{head:["Variable"].concat(Array.from({length:k},(_,a)=>pc(a))),rows:T.vnames.map((v,j)=>[v].concat(Vc.map(c=>c[j])))}]});
+    // scores: a row an observation
+    cols.push({k:"obs",name:"Observation",vals:T.obs}); if(T.groups) cols.push({k:"grp",name:T.gname||p.meta||"Group",vals:T.groups.map(g=>g==null?"(no group)":g)});
+    for(let a=0;a<k;a++) cols.push({k:"t"+(a+1),name:`Score ${pc(a)}`,vals:A(Tc[a])});
+    cols.push({k:"t2h",name:"Hotelling's T²",vals:R.t2},{k:"qr",name:"Q residual",vals:R.q});
+    // the scores plot's curves: a pair of columns per group, so each group has its colour and legend entry
+    const gl=T.groups?[...new Set(T.groups.map(g=>g==null?"(no group)":g))]:[null];
+    if(gl.length>DIST_GMAX) notes.push(`${gl.length} groups: the scores plot has one curve, not one a group.`);
+    const GL=gl.length>DIST_GMAX?[null]:gl;
+    GL.forEach((g,j)=>{ const ix=T.obs.map((_,i)=>i).filter(i=>g==null||(T.groups[i]==null?"(no group)":T.groups[i])===g);
+      cols.push({k:"sx"+j,name:`Score ${pc(px)}`,role:"x",vals:ix.map(i=>Tc[px][i])},{k:"sy"+j,name:g==null?`Score ${pc(py)}`:g,role:"y",vals:ix.map(i=>Tc[py][i])},{k:"sl"+j,name:"Observation",vals:ix.map(i=>T.obs[i])}); });
+    // T² against Q, with each limit as a line
+    const t2max=amax(R.t2), qmax=amax(R.q);
+    const out=T.obs.map((nm,i)=>(R.t2lim!=null&&R.t2[i]>R.t2lim)||(R.qlim!=null&&R.q[i]>R.qlim)?nm:"");
+    cols.push({k:"hx",name:"Hotelling's T²",role:"x",vals:R.t2},{k:"hy",name:"Q residual",role:"y",vals:R.q},{k:"hl",name:"Observation",vals:out});
+    if(R.t2lim!=null){ cols.push({k:"tlx",name:"T² limit",role:"x",vals:[R.t2lim,R.t2lim]},{k:"tly",name:`T² limit (${anaPct(level)})`,role:"y",vals:[0,Math.max(qmax,R.qlim||0)*1.05]}); }
+    if(R.qlim!=null){ cols.push({k:"qlx",name:"Q limit",role:"x",vals:[0,Math.max(t2max,R.t2lim||0)*1.05]},{k:"qly",name:`Q limit (${anaPct(level)})`,role:"y",vals:[R.qlim,R.qlim]}); }
+    // the biplot, of columns: the scores standardised, the loadings times √λ as lines from the origin, scaled together
+    if(lay==="cols"&&nv<=60){ const sx=Math.sqrt(R.ev[px])||1, sy=Math.sqrt(R.ev[py])||1, zx=A(Tc[px]).map(v=>v/sx), zy=A(Tc[py]).map(v=>v/sy);
+      const ax=A(Vc[px]).map(v=>v*sx), ay=A(Vc[py]).map(v=>v*sy), sm=Math.max(...zx.map((v,i)=>Math.hypot(v,zy[i]))), am=Math.max(...ax.map((v,i)=>Math.hypot(v,ay[i])));
+      const fct=am>0?0.85*sm/am:1, bx=[], by=[], bl=[]; ax.forEach((v,j)=>{ bx.push(0,v*fct,null); by.push(0,ay[j]*fct,null); bl.push("",T.vnames[j],""); });
+      cols.push({k:"zx",name:`Score ${pc(px)}, standardised`,role:"x",vals:zx},{k:"zy",name:"Observations",role:"y",vals:zy},{k:"bx",name:`Loading ${pc(px)} × √λ`,role:"x",vals:bx},{k:"by",name:"Variables",role:"y",vals:by},{k:"bl",name:"Variable",vals:bl});
+      R.bfac=fct; }
+    // the limits, and the observations past them
+    const past=T.obs.map((nm,i)=>({i,nm,t2:R.t2[i],q:R.q[i],pt:R.t2lim!=null&&R.t2[i]>R.t2lim,pq:R.qlim!=null&&R.q[i]>R.qlim})).filter(o=>o.pt||o.pq);
+    const lh=["Components kept"], lr=[k]; if(R.t2lim!=null){ lh.push("Hotelling's T² limit","Past it"); lr.push(R.t2lim,R.t2.filter(v=>v>R.t2lim).length); } if(R.qlim!=null){ lh.push("Q limit","Past it"); lr.push(R.qlim,R.q.filter(v=>v>R.qlim).length); }
+    secs.push({title:`Limits at ${anaPct(level)}`,tables:[{head:lh,rows:[lr]}]});
+    if(R.t2lim==null) notes.push(`With ${k} components of ${T.n} observations T² has no limit (n − k − 1 must be above 0).`);
+    if(R.qlim==null) notes.push("Every component with variance is kept: nothing is left outside them, so Q is 0 and has no limit.");
+    if(R.qhow==="box") notes.push("Q's limit is Box's g·χ²(h): Jackson and Mudholkar's h₀ is not above 0 for these eigenvalues.");
+    if(past.length) secs.push({title:past.length>50?`Past a limit (the first 50 of ${past.length})`:"Past a limit",tables:[{head:["Observation","Hotelling's T²"].concat(R.qlim!=null?["Q residual"]:[]),rows:past.slice(0,50).map(o=>[o.nm,o.t2].concat(R.qlim!=null?[o.q]:[]))}]});
+    const marks=past.map(o=>({i:o.i,row:T.rows?T.rows[o.i]:-1,name:o.nm}));
+    const method=`${lay==="curves"?`Each curve an observation and its ${T.m} points the variables`:`${T.m} columns the variables and ${T.n} rows the observations`}; ${mvScaleWord(how)}; the components by the singular value decomposition of that, each turned so that its loading of largest magnitude is positive; T²'s limit by the beta distribution (Tracy, Young and Mason), Q's by ${R.qhow==="box"?"Box's g·χ²(h)":"Jackson and Mudholkar"}.${R.bfac?` The biplot's loadings are times √λ and ${fmt(R.bfac,4)}.`:""}`;
+    return {tables:[{cols}],report:{sections:secs,method,marks,pca:{k,px,py,lay,vids:T.vids,groups:GL.length,curves:lay==="curves",biplot:!!R.bfac}},notes}; }};
+/* ==MV:END== */
 
 /* ============================================================
    Formatting helpers
@@ -20718,6 +20885,7 @@ function anaSig(a){ const parts=[a.kind,JSON.stringify(a.p||{}),JSON.stringify(a
   if(a.in.by){ const g=colById(a.in.by); parts.push(g?arrKey(g.data)+txtKey(g.txt)+JSON.stringify(g.cat||null):"gone:"+a.in.by); }
   // The columns its rows are chosen by (a filter's conditions taken as its own, SHEET_SPEC 3.3).
   Object.keys(a.in.where||{}).forEach(id=>{ const g=colById(id); parts.push(g?"w"+arrKey(g.data)+txtKey(g.txt):"gone:"+id); });
+  if(a.p&&a.p.meta) parts.push("meta:"+(a.in.cols||[]).map(id=>{ const c=colById(id); return c&&c.meta?String(c.meta[a.p.meta]??""):""; }).join("\u0001"));
   if(a.in.mat){ const ms=matOf(a.in.mat); parts.push(ms?`m${ms.nx}x${ms.ny}`+JSON.stringify([ms.x,ms.y])+arrKey(ms.z):"gone:"+a.in.mat); }
   return sha256(parts.join("\u0002")).slice(0,24); }
 // Out of date, and why (null when it is not).
@@ -20730,7 +20898,7 @@ const anaRowsOf=inp=>inp&&Array.isArray(inp.rows)&&inp.rows.length===2&&(inp.row
 /* The one input panel's reading (STATS_SPEC, the frame): each column's values through anaRead (or, for
    a kind that counts levels, its cells as categories), the rows chosen, listwise when asked (only rows
    with a value in every column), the groups of a column of groups; the notes say what was left out. */
-function anaInputs(a,cs,by,notes,K){ if(K&&K.cells) return anaCells(a,cs,notes); if(K&&K.pts) return anaPts(a,cs,notes);
+function anaInputs(a,cs,by,notes,K){ if(K&&K.cells) return anaCells(a,cs,notes); if(K&&(typeof K.pts==="function"?K.pts(a.p||{}):K.pts)) return anaPts(a,cs,notes);
   const rr=anaRowsOf(a.in), list=a.in.miss==="list"&&cs.length>1, lev0=!!(a.p&&a.p.levels);
   const inR=i=>!rr||(i>=0&&(rr[0]==null||i>=rr[0]-1)&&(rr[1]==null||i<=rr[1]-1));
   const rd=cs.map(c=>{ const r=anaRead(c,{read:(a.in.read||{})[c.id],masked:a.in.masked}), lev=!!(K&&K.cats&&(lev0||isCatCol(c)||textCount(c)>r.vals.length));
@@ -20780,7 +20948,7 @@ const cmpCommonRead=v=>{ const num=t=>{ const x=parseNum(String(t||"").trim()); 
 function anaPts(a,cs,notes){ return cs.map(c=>{ const d=finalOf(c), mk=new Set(a.in.masked?[]:(c.mask||[])), x=[], y=[], e=[], rows=[]; let nm=0;
     for(let k=0;k<d.x.length;k++){ const X=d.x[k], Y=d.y[k], i=d.idx?d.idx[k]:k; if(!Number.isFinite(X)||!Number.isFinite(Y)) continue; if(i>=0&&mk.has(i)){ nm++; continue; } x.push(X); y.push(Y); e.push(d.e&&d.e[k]!=null?d.e[k]:null); rows.push(i); }
     if(nm) notes.push(`${nm} masked point${nm===1?"":"s"} of ${specName(c)} left out.`);
-    return {id:c.id,name:specName(c),ref:colRef(c),unit:c.unit||"",xn:d.xn||"",xu:d.xu||"",pts:{x,y,e,rows},nMasked:nm}; }); }
+    return {id:c.id,name:specName(c),ref:colRef(c),unit:c.unit||"",xn:d.xn||"",xu:d.xu||"",pts:{x,y,e,rows},nMasked:nm,gv:a.p&&a.p.meta?((c.meta||{})[a.p.meta]??null):null}; }); }
 /* A reshaping kind's inputs (SHEET_SPEC 3.5): every column's cells as the worksheet holds them (numbers and text,
    the original data or a formula's values, not processed), rows aligned across the columns; the rows chosen and a
    filter's conditions taken as its rows applied to all of them at once. */
@@ -20808,7 +20976,7 @@ function runAna(a,p,o){ o=o||{}; const K=ANA_KINDS[a.kind]; p=p||P(); if(!K||!p)
   // A large one is worked out by the compute worker (1.3c), its result put in when it comes back
   // (anaDone), if what it read has not changed meanwhile; the page goes on.
   const nv=ins.reduce((t,q)=>t+(q.vals||q.cells||(q.pts&&q.pts.x)||[]).length,0);
-  if((nv>=ANA_BIG||K.heavy&&K.heavy(a.p||{},ins))&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({id:q.id,name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,cells:q.cells,sheet:q.sheet,role:q.role,order:q.order,rows:q.rows,groups:q.groups,grows:q.grows,missing:q.missing,cats:q.cats,pts:q.pts,xu:q.xu,mat:q.mat})),notes,sig); return "later"; }
+  if((nv>=ANA_BIG||K.heavy&&K.heavy(a.p||{},ins))&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({id:q.id,name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,cells:q.cells,sheet:q.sheet,role:q.role,order:q.order,rows:q.rows,groups:q.groups,grows:q.grows,missing:q.missing,cats:q.cats,pts:q.pts,xn:q.xn,xu:q.xu,gv:q.gv,mat:q.mat})),notes,sig); return "later"; }
   let out; try{ out=anaRunKind(a.kind,ins,a.p||{}); }catch(e){ out={fail:String(e&&e.message||e)}; }
   return anaApply(a,p,out,notes,sig); }
 /* An analysis's matrix (SIGNAL_SPEC decision 7): written into a book of its own (`a.out.mat`), its sheet marked `ana` so it is read
@@ -20930,6 +21098,22 @@ function sigWinWire(box){ const s=box.querySelector("#aWw"), e=box.querySelector
   e.hidden=l.hidden=!w[2]; if(w[2]){ l.textContent=w[2]; l.title=w[4]||""; e.placeholder=w[3]!=null?String(w[3]):"automatic"; } }
 function sigWinRead(v){ const k=SIG_WIN[v.aWw]?v.aWw:"boxcar", t=String(v.aWp||"").trim(), x=parseNum(t); return {win:k,wpar:SIG_WIN[k][2]&&t!==""&&Number.isFinite(x)?x:null}; }
 function sigWinOk(v){ const k=v.aWw, t=String(v.aWp||"").trim(); if(!SIG_WIN[k]||!SIG_WIN[k][2]||!t) return true; const x=parseNum(t); return Number.isFinite(x)&&(k!=="gaussian"||x>0)&&(k!=="tukey"||x>=0&&x<=1); }
+/* The many-variables kinds' shared fields (MULTI_SPEC decisions 1, 4, 9): the layout, the scaling (left to follow the
+   layout until it is chosen) and the groups: a column of text in the columns layout, a field of the curves' files in the
+   curves layout. o.noScale leaves the scaling out; o.needGroups names the groups' field as needed; o.open leaves the grid
+   open for the kind's own fields, so they line up. */
+function mvMetaKeys(){ const n={}; (S.anaCand||[]).forEach(c=>Object.keys(c.meta||{}).forEach(k=>{ n[k]=(n[k]||0)+1; })); return Object.keys(n).filter(k=>n[k]>=2).sort((a,b)=>n[b]-n[a]||a.localeCompare(b)); }
+function mvFormHtml(p,o){ o=o||{}; const act=activeYCol(), lay=p.layout?mvLayout(p):act&&looksLikeSpectrum(act)?"curves":"cols", sc=MV_SCALES.some(([k])=>k===p.scale)?p.scale:"";
+  const G=(S.anaCand||[]).filter(c=>isCatCol(c)||textCount(c)), mk=mvMetaKeys(), gl="Groups", none=o.needGroups?"":`<option value="">None</option>`;
+  return `<div class="grid2"><label for="aMl" class="tipd" title="Columns are the variables: each row an observation, read only where every column ticked has a value. Each column is an observation: each column ticked a curve, its points the variables, read on one X">Layout</label><select id="aMl">${MV_LAYOUTS.map(([k,t])=>`<option value="${k}"${k===lay?" selected":""}>${t}</option>`).join("")}</select>
+    ${o.noScale?"":`<label for="aMs" class="tipd" title="Unit variance weighs every variable alike, whatever its units; centred keeps each one's own spread, as curves in one unit should; Pareto is between them">Scaling</label><select id="aMs" data-auto="${sc?"":"1"}">${MV_SCALES.map(([k,t])=>`<option value="${k}"${k===(sc||mvScaleOf({layout:lay}))?" selected":""}>${t}</option>`).join("")}</select>`}
+    <label for="aMg" id="aMgL" class="tipd" title="A column of text naming each row's group">${gl}</label><select id="aMg">${none}${G.map(c=>`<option value="${c.id}"${c.id===p.grp?" selected":""}>${esc(colLetter(c)+" "+(c.name||""))}</option>`).join("")}</select>
+    <label for="aMh" id="aMhL" class="tipd" title="A field of the curves' files (their header) naming each curve's group">${gl}</label><select id="aMh">${none}${mk.map(k=>`<option value="${esc(k)}"${k===p.meta?" selected":""}>${esc(k)}</option>`).join("")}</select>${o.open?"":"</div>"}`; }
+function mvFormWire(box){ const l=box.querySelector("#aMl"), s=box.querySelector("#aMs"); if(!l) return;
+  const on=()=>{ const cur=l.value==="curves"; ["aMg","aMgL"].forEach(i=>{ const e=box.querySelector("#"+i); if(e) e.hidden=cur; }); ["aMh","aMhL"].forEach(i=>{ const e=box.querySelector("#"+i); if(e) e.hidden=!cur; });
+    if(s&&s.dataset.auto==="1") s.value=mvScaleOf({layout:l.value}); };
+  l.addEventListener("change",on); if(s) s.addEventListener("change",()=>{ s.dataset.auto=""; }); on(); }
+function mvFormRead(v){ const lay=v.aMl==="curves"?"curves":"cols"; return {layout:lay,scale:MV_SCALES.some(([k])=>k===v.aMs)?v.aMs:null,grp:lay==="cols"&&v.aMg?v.aMg:null,meta:lay==="curves"&&v.aMh?v.aMh:null}; }
 const ANA_FORMS={
   desc:{html(p){ const want=new Set(descKeys(p)), qt=qtOk(p.qtype)?p.qtype:7, conf=p.conf>0&&p.conf<1?p.conf:0.95;
       const tip={n:"The values counted",miss:"Rows read that hold no number",sd:"Standard deviation",se:"The standard error of the mean, SD / √N",ci:"The interval the mean lies in, at the level below (Student's t)",
@@ -21195,6 +21379,13 @@ const ANA_FORMS={
     valid(v){ const t=k=>String(v[k]||"").trim(), okn=k=>!t(k)||Number.isFinite(parseNum(t(k)));
       return ["aPd0","aPd1","aPl","aPr0","aPr1"].every(okn)&&(v.aPg!=="n"||!t("aPn")||parseNum(t("aPn"))>=2)&&(v.aPg!=="step"||parseNum(t("aPs"))>0)&&(v.aPg!=="col"||!!v.aPa)&&(v.aPm!=="smooth"||!t("aPl")||parseNum(t("aPl"))>=0); },
     extra(p){ return p.grid==="col"&&p.at?[p.at]:[]; }},
+  pca:{noGroup:true, noMiss:true, html(p){ return mvFormHtml(p,{open:true})+`<label for="aMk" class="tipd" title="The components whose loadings and scores are written, and kept for T² and Q: every eigenvalue is listed whatever this is">Components</label><input type="text" id="aMk" inputmode="numeric" value="${p.k>0?Math.round(p.k):""}" placeholder="10">
+      <label for="aMa" class="tipd" title="The level of T²'s and Q's limits">Limits at</label><select id="aMa">${PCA_LEVELS.map(c=>`<option value="${c}"${c===(PCA_LEVELS.includes(+p.level)?+p.level:0.95)?" selected":""}>${anaPct(c)}</option>`).join("")}</select>
+      <label for="aMx" class="tipd" title="The two components the scores, loadings and biplot draw">Plotted</label><span class="anarows"><input type="text" id="aMx" inputmode="numeric" value="${p.px>0?Math.round(p.px):1}" aria-label="Plotted along X"><span class="muted">against</span><input type="text" id="aMy" inputmode="numeric" value="${p.py>0?Math.round(p.py):2}" aria-label="Plotted along Y"></span></div>`; },
+    wire(box){ mvFormWire(box); },
+    read(v){ const n=t=>{ const x=parseNum(String(t||"").trim()); return Number.isFinite(x)&&x>=1?Math.round(x):null; }; return Object.assign(mvFormRead(v),{k:n(v.aMk),level:+v.aMa||0.95,px:n(v.aMx)||1,py:n(v.aMy)||2}); },
+    valid(v){ const ok=t=>{ t=String(t||"").trim(); return !t||/^\d+$/.test(t)&&+t>=1&&+t<=50; }; return ok(v.aMk)&&ok(v.aMx)&&ok(v.aMy); },
+    extra(p){ return p.layout!=="curves"&&p.grp?[p.grp]:[]; }},
   grid:{noGroup:true, html(p){ const C=(S.anaCand||[]).filter(c=>anyVal(c.data)), xd=p.x||rsFirst(c=>c.role==="x"), yd=p.y||rsFirst(()=>true,[xd]), zd=p.z||rsFirst(c=>c.role==="y",[xd,yd]), m=p.method||"tri";
       return `<div class="grid2">${rsSel("aGx","X",xd,null,C)}${rsSel("aGy","Y",yd,null,C)}${rsSel("aGz","Z (the value)",zd,null,C)}
       <label for="aGm">Method</label><select id="aGm">${GRID_METHODS.map(([k,t])=>`<option value="${k}"${k===m?" selected":""}>${t}</option>`).join("")}</select>
@@ -21345,6 +21536,7 @@ async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[kin
   S.anaCand=cand; S.anaSid=sid;
   if(!cand.length&&!K.typed){ toast(K.cats?"There is no column with values on this sheet to count.":"There is no column of numbers on this sheet to work out."); return; }
   const sel=new Set(a0?a0.in.cols:(o.cols||(wsSelColIds?wsSelColIds():[])).filter(id=>cand.some(c=>c.id===id)));
+  if(!sel.size&&cand.length&&o.all) cand.filter(c=>c.role!=="x"&&anyVal(c.data)).forEach(c=>sel.add(c.id));
   if(!sel.size&&cand.length){ const act=activeYCol(); if(act&&cand.includes(act)) sel.add(act.id); else sel.add(cand[0].id); if(o.two&&cand.length>1){ const nx=cand.find(c=>!sel.has(c.id)); if(nx) sel.add(nx.id); } }
   const rd=a0?a0.in.read||{}:{}, bys=F.noGroup?[]:sheetCols(sid).filter(c=>!c.ana&&(isCatCol(c)||textCount(c))), rr=a0?anaRowsOf(a0.in):null, p0=a0?a0.p||{}:(o.p||{});
   // A filter on the sheet is offered as the analysis's own rows (SHEET_SPEC 3.3): ticked for a new one; an analysis that has its own keeps them.
@@ -21355,7 +21547,7 @@ async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[kin
   const html=K.typed?`<div class="anadlg">${F.html?F.html(p0):""}</div>`:`<div class="anadlg"><p class="lab">Columns</p><div class="colpick anacols">${rowsH}</div>
     <div class="grid2">${bys.length?`<label for="aBy">Group by</label><select id="aBy"><option value="">Nothing</option>${bys.map(c=>`<option value="${c.id}"${a0&&a0.in.by===c.id?" selected":""}>${esc(colRef(c)+(c.name?" "+c.name:""))}</option>`).join("")}</select>`:""}
     <label for="aRow0">Rows</label><span class="anarows"><input type="text" id="aRow0" inputmode="numeric" placeholder="1" value="${rr&&rr[0]!=null?rr[0]:""}" aria-label="From row"><span class="muted">to</span><input type="text" id="aRow1" inputmode="numeric" placeholder="the last" value="${rr&&rr[1]!=null?rr[1]:""}" aria-label="To row"></span>
-    ${K.cells?"":`<label for="aMiss" class="tipd" title="Pairwise: each column its own values. Listwise: only the rows with a value in every column chosen">Missing values</label><select id="aMiss"><option value="pair">Each column's own</option><option value="list"${a0&&a0.in.miss==="list"?" selected":""}>Only rows complete in every column</option></select>`}</div>
+    ${K.cells||F.noMiss?"":`<label for="aMiss" class="tipd" title="Pairwise: each column its own values. Listwise: only the rows with a value in every column chosen">Missing values</label><select id="aMiss"><option value="pair">Each column's own</option><option value="list"${a0&&a0.in.miss==="list"?" selected":""}>Only rows complete in every column</option></select>`}</div>
     ${F.html?F.html(p0):""}
     <div class="grid2"><label for="aRc">Recalculate</label><select id="aRc"><option value="auto">By itself, when its data change</option><option value="manual"${a0&&a0.recalc==="manual"?" selected":""}>Only when asked</option></select></div>
     ${whereH}${K.cells?"":`<label class="chk"><input type="checkbox" id="aMask"${a0&&a0.in.masked?" checked":""}> Include masked points</label>`}</div>`;
@@ -21426,6 +21618,12 @@ function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&
   if(a.kind==="surf"){ const sv=rep.surf; return [{key:"fmat",label:"Fitted surface as a matrix",title:sv&&sv.mat?"The fitted surface on the matrix's own grid, as a matrix computed by its formula, drawn as a map":"The fitted surface on 101 × 101 points over the data's extent, as a matrix computed by its formula, drawn as a map",enabled:!ro&&!!sv,run:()=>surfToMatrix(a.id,"fit")}]
       .concat(sv&&sv.mat?[{key:"rmat",label:"Residuals as a matrix",title:"Each cell of the matrix less the fitted surface, as a matrix computed from it, drawn as a map",enabled:!ro,run:()=>surfToMatrix(a.id,"res")}]
         :sv?[{key:"rmap",label:"Residual map",title:"The points' X and Y coloured by their residual, on a graph",enabled:!ro,run:()=>surfResMap(a.id)}]:[]); }
+  if(a.kind==="pca"){ const pc=rep.pca||{}; return [{key:"scree",label:"Scree plot",title:"Each component's eigenvalue against its number, on a graph",enabled:!ro,run:()=>pcaPlot(a.id,"scree")},
+      {key:"scores",label:"Scores plot",title:pc.groups>1?"The observations' scores on the two components plotted, a curve a group, on a graph":"The observations' scores on the two components plotted, on a graph",enabled:!ro,run:()=>pcaPlot(a.id,"scores")},
+      {key:"load",label:"Loadings plot",title:pc.curves?"Each component's loadings against X, a curve each, on a graph":"Each variable's loadings on the two components plotted, named, on a graph",enabled:!ro,run:()=>pcaPlot(a.id,"loadings")},
+      {key:"tq",label:"T² against Q",title:"Each observation's Q residual against its Hotelling's T², the limits as lines, those past them named, on a graph",enabled:!ro,run:()=>pcaPlot(a.id,"tq")}]
+      .concat(pc.biplot?[{key:"bi",label:"Biplot",title:"The observations' standardised scores and the variables' loadings as lines from the origin, on one graph",enabled:!ro,run:()=>pcaPlot(a.id,"biplot")}]:[])
+      .concat(!pc.curves?[{key:"mask",label:"Mask",title:`The ${n===1?"observation":n+" observations"} past a limit: masked in every column read, one undo step`,enabled:!ro&&n>0,run:()=>pcaMaskOut(a.id)}]:[]); }
   if(a.kind==="anova1") return [{key:"means",label:"Means plot",title:"Each group's mean with its interval, on a graph",enabled:!ro,run:()=>anaMeansPlot(a.id)}];
   if(a.kind==="norm") return [{key:"qq",label:"Q–Q plot",title:"The sorted values against the normal quantiles, with the line through their quartiles, on a graph",enabled:!ro&&rep.qq>0,run:()=>anaQQ(a.id)}];
   if(a.kind==="outl"){ const w=`The ${n===1?"value":n+" values"} past the critical value`;
@@ -21499,6 +21697,27 @@ function anaRocPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return
   if(!ys.length){ toast("There is no ROC curve to draw: Recalculate first."); return; } const ids=ys.map(c=>c.id).concat(dg?[dg.id]:[]);
   plotCols(ids,{series:Object.fromEntries(ids.map(i=>[i,i===(dg&&dg.id)?{type:"line",dash:"dash"}:{type:"line"}])),undo:"plotting an ROC curve",say:`ROC curve of ${a.name}`});
   if(GID()){ const ax=Object.assign({},GP().ax||{}); ax.y=Object.assign({},ax.y||{},{title:"Sensitivity"}); savePlot({ax}); } }
+/* A PCA's graphs (MULTI_SPEC 6.2), each from its result sheet's columns, one undo step: the scree plot, the scores (a curve a
+   group), the loadings (curves: against X; columns: each variable a named point), T² against Q (the limits as lines, the
+   observations past them named) and the biplot (the standardised scores, and the loadings as lines from the origin, named). */
+function pcaPlot(id,what){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const pc=a.res&&a.res.report&&a.res.report.pca;
+  const col=k=>p.cols.find(c=>c.ana===id&&c.ak===k); if(!pc||!col("ev")){ toast("There is nothing to plot: Recalculate first."); return; }
+  const PC=i=>"PC"+(i+1), ids=[], series={}, use={}; let xt="", yt="", nm="";
+  const add=(c,o,lab)=>{ if(!c) return; ids.push(c.id); series[c.id]=o; if(lab) use[c.id]={lab:lab.id}; };
+  if(what==="scree"){ add(col("ev"),{type:"linesym"}); xt="Component"; yt="Eigenvalue"; nm="scree plot"; }
+  if(what==="scores"){ p.cols.filter(c=>c.ana===id&&/^sy\d+$/.test(c.ak||"")).forEach(c=>add(c,{type:"scatter"})); xt=`Score ${PC(pc.px)}`; yt=`Score ${PC(pc.py)}`; nm="scores plot"; }
+  if(what==="loadings"){ if(pc.curves){ for(let i=1;i<=pc.k;i++) add(col("l"+i),{type:"line"}); yt="Loading"; } else { add(col("ly"),{type:"scatter"},col("ln")); xt=`Loading ${PC(pc.px)}`; yt=`Loading ${PC(pc.py)}`; } nm="loadings plot"; }
+  if(what==="tq"){ add(col("hy"),{type:"scatter"},col("hl")); add(col("tly"),{type:"line",dash:"dash"}); add(col("qly"),{type:"line",dash:"dash"}); xt="Hotelling's T²"; yt="Q residual"; nm="T² against Q"; }
+  if(what==="biplot"){ add(col("zy"),{type:"scatter"}); add(col("by"),{type:"line"},col("bl")); xt=PC(pc.px); yt=PC(pc.py); nm="biplot"; }
+  if(!ids.length){ toast("There is nothing to plot: Recalculate first."); return; }
+  plotCols(ids,{series,use,undo:`plotting the ${nm} of ${a.name}`,say:`The ${nm} of ${a.name}`});
+  if(GID()){ const ax=Object.assign({},GP().ax||{}); if(xt) ax.x=Object.assign({},ax.x||{},{title:xt}); if(yt) ax.y=Object.assign({},ax.y||{},{title:yt}); savePlot({ax}); } }
+// The observations past a limit masked in every column the PCA read (the columns layout), so a recalculation leaves them out.
+function pcaMaskOut(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const rp=a.res&&a.res.report, ms=(rp&&rp.marks||[]).filter(m=>m.row>=0), vids=(rp&&rp.pca&&rp.pca.vids)||[];
+  const cs=vids.map(colById).filter(Boolean); if(!ms.length||!cs.length) return;
+  pushUndo("masking the observations past a limit"); cs.forEach(c=>{ c.mask=[...new Set((c.mask||[]).concat(ms.map(m=>m.row)))].sort((x,y)=>x-y); });
+  save({cols:p.cols},`masked ${ms.length===1?"row "+(ms[0].row+1):ms.length+" rows"} past a limit of ${a.name} in ${andList(cs.map(c=>colLetter(c)))}`); renderAll();
+  toast(`${ms.length===1?"Row "+(ms[0].row+1)+" is":ms.length+" rows are"} masked in ${cs.length} columns.`,{action:"Undo",run:undo}); }
 function anaPowerPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const y=p.cols.find(c=>c.ana===id&&c.ak==="cp");
   if(!y){ toast("There is no power curve to draw: Recalculate first."); return; }
   plotCols([y.id],{series:{[y.id]:{type:"line"}},undo:"plotting a power curve",say:`Power curve of ${a.name}`}); }
@@ -28403,6 +28622,7 @@ function analyzeMenu(){
         {label:"Fisher's exact test…", title:ANA_KINDS.fisher.help, run:()=>anaDlg("fisher"), enabled:!S.readOnly&&!!P()},
         {label:"Counts in tables…", title:ANA_KINDS.xtab.help, run:()=>anaDlg("xtab",{two:true}), enabled:!S.readOnly&&!!P()}]},
       {label:"Correlation…", title:ANA_KINDS.corr.help, run:()=>anaDlg("corr",{two:true}), enabled:!S.readOnly&&!!P()},
+      {label:"Multivariate", sub:()=>[{label:"Principal component analysis…", title:ANA_KINDS.pca.help, run:()=>anaDlg("pca",{all:true}), enabled:!S.readOnly&&!!P()}]},
       {label:"ROC curve…", title:ANA_KINDS.roc.help, run:()=>anaDlg("roc",{two:true}), enabled:!S.readOnly&&!!P()},
       {label:"Power and sample size…", title:ANA_KINDS.power.help, run:()=>anaDlg("power"), enabled:!S.readOnly&&!!P()},
       {label:"Histogram", title:"The distribution of the selected columns' values (or the active column's), as a column of its own on a graph of its own", run:()=>histogramCols(hist()), enabled:has&&!S.readOnly}]},
@@ -30237,7 +30457,7 @@ const CMDK_SYN=[["background","baseline","detrend","continuum"],["fourier","fft"
   ["derivative","differentiate","slope","gradient","calculus"],["integral","integrate","area","cumulative"],["normalize","normalise","normalization","scale to 1"],["logarithm","log","ln"],
   ["fit","fitting","regression","model","curve fit","least squares"],["peak","peaks","maximum","maxima","band","bands"],["export","download","publish","exporting"],
   ["picture","image","png","clipboard","screenshot"],["histogram","distribution","bins","frequency count"],["statistics","stats","mean","average","sd","median","describe"],
-  ["correlation","pearson","correlate"],["spike","cosmic ray","despike","glitch"],["calibration","calibrate","energy"],["units","wavelength","wavenumber","raman shift","convert"],
+  ["correlation","pearson","correlate"],["pca","principal components","principal component analysis","multivariate","chemometrics","dimension reduction","eigenvalues","loadings","scores"],["spike","cosmic ray","despike","glitch"],["calibration","calibrate","energy"],["units","wavelength","wavenumber","raman shift","convert"],
   ["crop","trim","cut","range"],["mask","exclude","leave out","ignore"],["axis","axes","scale","log scale","reverse"],["font","typeface","text size"],
   ["annotate","annotation","label","text","arrow","line","box","ellipse","inset"],["report","html","summary"],["theme","dark","light"],["preferences","settings","options"],
   ["import","open","load","read","csv","file"],["worksheet","spreadsheet","sheet","table","cells"],["plot","graph","chart","figure"],["reader","cursor","read","value","crosshair"],
@@ -31287,6 +31507,16 @@ ${DL([["Noise σ","From second differences, so a band's slope does not count as 
 <h2>Correlation</h2>
 <p>Pearson r between columns on the same X axis, interpolated onto the active column's X where they overlap. With p, intervals and other coefficients: ${DA("analyses#corr","Correlation")}.</p>
 <p><em>Copy</em> gives every table as tab-separated text.</p>`},
+{id:"multi", g:"Analysis", t:"Many variables", kw:"multivariate many variables pca principal component analysis components eigenvalue eigenvalues eigenvector loadings scores scree biplot hotelling t2 t² q residual spe squared prediction error limits outliers covariance correlation autoscale unit variance pareto centred centering chemometrics spectra observations variables layout header field groups dimension reduction svd singular value decomposition",
+ lead:"Several variables at once: the components of greatest variance of a set of columns, or of a set of curves taken as observations, each as a sheet of results worked out again when its data change.",
+ body:`<h2 id="layout">Two layouts</h2>
+<p>${DL([["Columns are the variables","Each column ticked is one variable and each row one observation, as a table of measurements has it. A row counts only where every column ticked has a value; the rows left out are counted in the notes. A column of text (Groups) names each row's group."],["Each column is an observation","Each column ticked is a curve, and its points are the variables, as spectroscopy has it: twelve curves of 2000 points are twelve observations of 2000 variables. Curves that do not share their X are read on the first curve's X over the stretch they all cover, by straight lines between their own points, and the notes say so. A field of the curves' files (their header) names each curve's group."]])}</p>
+<p><em>Scaling</em>: every variable is centred on its mean, then left as it is (<em>Centred</em>: the covariance, each variable keeping its own spread, right for curves in one unit), divided by its standard deviation (<em>Unit variance</em>: the correlation, every variable weighed alike whatever its units, right for columns of different quantities), or by the square root of it (<em>Pareto</em>, between the two). Left untouched, it follows the layout.</p>
+<h2 id="pca">Principal components</h2>
+<p>${MP("Analyze › Statistics › Multivariate › Principal component analysis…")}: the directions in which the observations vary most, found by the singular value decomposition of the scaled data. The result sheet holds:</p>
+${DL([["Eigenvalues","Each component's variance, its share of the total and the running total, every component (one fewer than the observations, or the variables, whichever is fewer)."],["Loadings","A row a variable: its mean, what it was divided by, and its weight in each of the components kept. With curves, each loading is a curve against X, which shows which bands a component moves."],["Scores","A row an observation: where it lies on each component, its Hotelling's T² (its distance from the centre within the components kept, each in units of its own spread) and its Q residual (the squared distance left outside them)."],["Limits","T²'s and Q's at the level chosen (90, 95 or 99 %): T²'s by the beta distribution for the observations themselves (Tracy, Young and Mason), Q's by Jackson and Mudholkar from the eigenvalues left out. The observations past either are listed; a limit is a number, not a verdict."]])}
+<p>A component's sign means nothing: each is turned so that its loading of largest magnitude is positive (scikit-learn's rule), so the numbers can be compared with other programs'. <em>Components</em> is how many loadings and scores are written and kept for T² and Q (10 by default); every eigenvalue is listed whatever it is. <em>Plotted</em> chooses the two components the scores, loadings and biplot draw.</p>
+<p>From the report (Results, or the result sheet's tab): <em>Scree plot</em> (each eigenvalue against its number), <em>Scores plot</em> (a curve a group), <em>Loadings plot</em>, <em>T² against Q</em> (the limits as dashed lines, the observations past them named), <em>Biplot</em> (columns only: the scores standardised and the loadings, times √λ, as lines from the origin, both scaled together by the factor the method line gives), and <em>Mask</em> (columns only: the observations past a limit masked in every column read, so the analysis is worked out again without them).</p>`},
 /* ---------------------------------------------------------------- Fitting */
 {id:"fit", g:"Fitting", t:"Fitting", win:"fit", kw:"fit fitting curve peak model levenberg marquardt converge range from to use the view from view points zoom all spectrum done close residuals weighting weights weight counting statistics poisson 1/y instrumental arbitrary column of weights apparent fit log scale logarithmic axis straight line on log axes constraint constraints tie equal follows inequality order starting value formula start max(y) xat fwhm saved fit settings preset template recipe save settings fit again when the data change follow refit recalculate automatic in the results report sections",
  lead:"Two kinds of fit, in the Fit window: a curve fit puts one model through the data; a peak fit describes a column as a sum of peaks on a baseline.",
@@ -32496,7 +32726,7 @@ function computeWorker(){
   try{ if(typeof Worker==="undefined"||typeof Blob==="undefined") throw new Error("no workers");
     const sc=[...document.scripts].find(s=>!s.src&&s.textContent.indexOf("==NUMERICS"+":START==")>=0), txt=sc?sc.textContent:"";
     const grab=tag=>{ const m=txt.match(new RegExp("=="+tag+":START==[\\s\\S]*?\\*\\/([\\s\\S]*?)\\/\\* =="+tag+":END==")); if(!m) throw new Error("no "+tag+" block"); return m[1]; };
-    const url=URL.createObjectURL(new Blob([["NUMERICS","PEAKS","PIPE","MODELS","STATS","ANA","MAT","SIG"].map(grab).join("\n")+"\n"+COMPUTE_TAIL],{type:"text/javascript"}));
+    const url=URL.createObjectURL(new Blob([["NUMERICS","PEAKS","PIPE","MODELS","STATS","ANA","MAT","SIG","MV"].map(grab).join("\n")+"\n"+COMPUTE_TAIL],{type:"text/javascript"}));
     const w=new Worker(url), me={w,n:0,wait:new Map(),url};
     w.onmessage=e=>{ const d=e.data, h=me.wait.get(d&&d.id); if(!h) return;
       if(d.progress!==undefined){ if(h.prog) try{ h.prog(d.progress); }catch(_){} return; }

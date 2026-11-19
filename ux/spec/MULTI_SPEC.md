@@ -203,6 +203,15 @@ huge matrix (the curves layout's matrices are a few hundred by a few thousand).
 
 ## 6.2 Principal components
 
+Done 19.11, as below, with these changes of plan: the table is kept as a typed array per column and `svd` takes columns and
+leaves out U (a million rows of 10 columns spent two seconds collecting a million small row arrays; now 1.06 s, and 300 curves of
+2000 points 0.56 s); the sign rule takes loadings equal to 10⁻¹² as equal (two variables under unit variance are ±1/√2, and the
+last bit of rounding decided the sign); Q is 0 when every component with variance is kept (it printed rounding as 6e-31); the
+biplot's lines reach 0.85 of the farthest point so their names stay inside the frame; the T²–Q plot names only the observations
+past a limit; every column of numbers is ticked when the dialog opens; Bartlett's test and KMO left out (assumption checks,
+STATS_SPEC decision 9). Measured: eigenvalues to 6e-15 of the largest, loadings and scores to 6e-14 against scikit-learn, the
+limits to 3e-15 against NumPy.
+
 **What.** Analyze › Statistics › Multivariate › *Principal component analysis…*. The layout (decision
 1), the scaling (decision 4), the number of components to write (k, all up to 10 by default, at most
 50), the group column or header field, the level of the limits (95 % by default, 99 %). Out, on the
