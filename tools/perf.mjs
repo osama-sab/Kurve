@@ -84,7 +84,7 @@ const BUDGET = {
   "Welch: 10^6 points": [300, "Welch's power spectral density of a million values, segments of 1024 (SIGNAL_SPEC 5.1)"],
   "Interpolate: PCHIP, 10^6 at 10^6": [500, "a million points read at a million others by PCHIP (SIGNAL_SPEC 5.7)"],
   "Grid: thin plate, 2000 points": [6000, "2000 scattered points onto 200 × 200 by a thin-plate spline, its system of 2003 by blocked LU (in the worker in the app; SIGNAL_SPEC 5.7)"],
-  "Envelope: 2^20 points": [600, "the analytic signal's amplitude of 1 048 576 points, two transforms (SIGNAL_SPEC 5.4)"],
+  "Envelope: 2^20 points": [1500, "the analytic signal's amplitude of 1 048 576 points, two transforms (SIGNAL_SPEC 5.4; 509 ms alone on 19.11, 688 after the drives: 600 had been set without a measurement)"],
   "Filter: order 20, 10^6 points": [300, "a Butterworth high-pass of order 20 designed, then run forwards and backwards over a million values (SIGNAL_SPEC 5.2)"],
   "Smooth: LOWESS, 10^5 points": [1200, "the Smooth step by LOWESS over 100 000 points, a fraction of 0.3 and three robust rounds, with its checks (SIGNAL_SPEC 5.8)"],
 };
