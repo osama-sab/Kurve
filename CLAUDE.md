@@ -1751,7 +1751,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   **6.5**: `PLS_ALGOS` (`nipals`, `simpls`), `PLS_CV` (`loo`, `blocks`, `venetian`), `PLS_MAX` (15), `plsDot`, `plsTop(M)` (the
   first eigenvector of a small symmetric matrix), `plsCore(Z, Yz, A, n, algo)` (on scaled columns: NIPALS as scikit-learn's at its
   limit, each weight the first left singular vector of XₖᵀYₖ, X and Y deflated by each score, the rotations r_a = w_a − Σ(p_iᵀw_a)r_i;
-  SIMPLS from what is left, X deflated along each loading and Y by each score, S worked out afresh; the sign rule on each weight;
+  SIMPLS from what is left, X deflated along each loading and Y by each score, S worked out afresh, r made orthogonal to the
+  loadings taken and the score X₀r itself made orthogonal to the earlier scores, r following, so T = X₀R; the sign rule on each weight;
   `{W, T, P, C, R, ssx, ssy, stop}`), `plsFit(Xc, Yc, {algo, a, scale, names, ynames, zeroOk})` (refusals in words: fewer than three
   observations (two for a fold's rest, `zeroOk`), a response of one value; `mvScale`'s `zeroOk` divides a constant variable by 1;
   `{…core, A, n, p, q, xm, xf, xsd, ym, yf, ss0x, sst, algo}`), `plsCoef(F, a)` (`{B, b0}` in the data's units), `plsPredict(F, a,
@@ -4875,6 +4876,11 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   `autoImport`, and three `return {fids}` further down threw on every dropped file; the syntax
   check passes a reference to a name that does not exist. `review-drive`'s drop caught it. After
   deleting a declaration, grep its name.
+- **A quantity worked out one way and used another way drifts apart.** SIMPLS took its score as X̃r, the deflated X times the
+  weight, and the model predicts by X₀r: equal in exact arithmetic, apart by each deflation's rounding, multiplied by 1/‖t‖ where
+  a later component was small. The fixtures, scaled tables, passed at 9e-14; the fuzzer's unscaled ones were 8e-8 off a 40-digit
+  answer while NIPALS kept 1e-14. A vector is computed by the operator that will use it (t = X₀r, kept orthogonal with r
+  following), and an algorithm is judged on the tables that defeat it, not on the ones it was written against.
 
 ## Roadmap
 

@@ -305,11 +305,13 @@ Done 19.11, as below, with these changes of plan: NIPALS is scikit-learn's taken
 vector of XᵀY, from the eigenvectors of its square for several responses: scikit-learn's power iteration stops 1e-8 short of it
 there, and is exact for one); SIMPLS works from what is left (X deflated along each loading, Y by each score, the cross products
 worked out afresh), since de Jong's update of S lost 1e-8 of the coefficients where the later components were small, against 40
-digits (9e-14 now); one response's coefficients, intercept and fitted values are judged against 40-digit SIMPLS, scikit-learn's
+digits; and its score is X₀r itself, made orthogonal to the earlier scores with r following, r orthogonal to the loadings taken
+(the wave's end: the fuzzer found the score taken from the deflated X 8e-8 off on unscaled columns, where NIPALS kept 1e-14; now
+as NIPALS, 4e-14 over 150 random tables against a 40-digit NIPALS); one response's coefficients, intercept and fitted values are judged against 40-digit SIMPLS, scikit-learn's
 intercept carrying 1e-12 of cancellation; a fold whose rest is two samples still fits one component, as scikit-learn's does (the
 fuzzer found the rest's mean given instead); the folds' rows are copied by loops (leave one out of 100 curves of 1 000 points, 10
 components, 2.2 s down to 1.1 s); in the curves layout the dialog says how many curves have a value of the series. Measured: the
-coefficients to 9e-14, the weights, scores and loadings to 4e-14, the cross-validated predictions to 7e-15; random tables against
+coefficients to 1.4e-14, the intercepts to 5e-13, the weights, scores and loadings to 4e-14, the cross-validated predictions to 7e-15; random tables against
 scikit-learn to 1e-12.
 
 **What.** Analyze › Statistics › Multivariate › *PLS regression…*, and Analyze › Fit › *PLS

@@ -11660,9 +11660,15 @@ function plsCore(Z,Yz,A,n,algo){ const p=Z.length, q=Yz.length, out={W:[],T:[],P
   if(algo==="simpls"){ const Xt=Z.map(z=>Float64Array.from(z)), Yt=Yz.map(y=>Float64Array.from(y)), V=[], u=new Float64Array(n);
     // S = X̃ᵀY₀ is X̃ᵀ(Y₀ − T·TᵀY₀) (X̃ᵀt = 0 for every score taken), both of them what is left, as NIPALS has it
     for(let a=0;a<A;a++){ const S=Xt.map(x=>Float64Array.from(Yt,y=>plsDot(x,y,n))); let c=[1]; if(q>1){ const M=Array.from({length:q},(_,u)=>Array.from({length:q},(_,v)=>{ let s=0; for(let j=0;j<p;j++) s+=S[j][u]*S[j][v]; return s; })); c=plsTop(M); if(!c){ out.stop="the cross products did not decompose"; break; } }
-      // t = X₀r, worked out as X̃r: r is orthogonal to the loadings taken (it is S·c), so the two are equal, and X̃ is what is left
       const r=Float64Array.from(S,row=>{ let s=0; for(let k=0;k<q;k++) s+=row[k]*c[k]; return s; }), t=new Float64Array(n);
-      for(let j=0;j<p;j++){ const z=Xt[j], v=r[j]; if(v) for(let i=0;i<n;i++) t[i]+=z[i]*v; }
+      // r orthogonal to the loadings taken, made so (twice, as Gram and Schmidt need), and the score t = X₀r itself, the operator the
+      // model predicts by, made orthogonal to the scores before with r following it (de Jong's own advice), so T = X₀R holds to the
+      // rounding. Taken as X̃r, X deflated, t drifted from X₀r by each deflation's rounding, and r's rounding along the loadings was
+      // multiplied by 1/‖t‖ where a later component is small: 8e-8 of the fitted values and 1e-11 of the coefficients against 40
+      // digits on unscaled columns, where NIPALS had 1e-14 (the fuzzer, 19.11); now 4e-14, as NIPALS.
+      for(let rep=0;rep<2;rep++) for(const u of V){ const d=plsDot(u,r,p); for(let j=0;j<p;j++) r[j]-=d*u[j]; }
+      for(let j=0;j<p;j++){ const z=Z[j], v=r[j]; if(v) for(let i=0;i<n;i++) t[i]+=z[i]*v; }
+      for(let rep=0;rep<2;rep++) out.T.forEach((tb,k)=>{ const d=plsDot(tb,t,n), rb=out.R[k]; for(let i=0;i<n;i++) t[i]-=d*tb[i]; for(let j=0;j<p;j++) r[j]-=d*rb[j]; });
       const tt=plsDot(t,t,n); if(!(tt>1e-26*ss0)){ out.stop="rank"; break; }
       const nt=Math.sqrt(tt), b=svdLead(r), sg=r[b]<0?-1/nt:1/nt; for(let j=0;j<p;j++) r[j]*=sg; for(let i=0;i<n;i++) t[i]*=sg;
       const pl=Float64Array.from(Z,z=>plsDot(z,t,n)), cl=Float64Array.from(Yz,y=>plsDot(y,t,n));

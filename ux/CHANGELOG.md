@@ -1048,7 +1048,10 @@ people type (`CMDK_SYN`).
   settings, a row typed and predicted, each plot and its undo, the series changed and followed, a reload). 100 curves of
   1 000 points, ten components, left one out: 1.1 s.
 - **Found on the way**: de Jong's update of SIMPLS's cross products lost 1e-8 of the coefficients where the later components
-  were small: S is worked out afresh from X and Y deflated (9e-14); a fold whose rest held two samples fell back to their mean
+  were small: S is worked out afresh from X and Y deflated; and at the wave's end the fuzzer found SIMPLS's fitted values 8e-8 off
+  a 40-digit answer on unscaled columns (NIPALS and scikit-learn 1e-14): its score was taken from the deflated X while the model
+  predicts by X₀. The score is X₀r now, made orthogonal to the earlier scores with r following, and SIMPLS keeps the coefficients
+  as NIPALS does (4e-14 over 150 random tables); a fold whose rest held two samples fell back to their mean
   where one component still fits (the fuzzer); copying each fold's rows with a function per value was a third of
   cross-validation's time (2.2 s down to 1.1 s).
 

@@ -1324,7 +1324,12 @@ def _():
     m = PLSRegression(n_components=a, scale=scale, tol=1e-15, max_iter=100000).fit(X, y)
     # a later component that takes nothing more of X is not determined: such a case is made again
     if np.min(np.sum(m.x_scores_ ** 2, axis=0)) < 1e-12 * np.sum(m.x_scores_[:, 0] ** 2): raise ValueError("a component of nothing")
-    return [X.tolist(), y.tolist(), {"a": a, "scale": scale, "algo": algo}], {"coef": m.coef_.ravel().tolist(), "fit": m.predict(X).ravel().tolist(), "xw": m.x_weights_.ravel().tolist(), "xs": m.x_scores_.ravel().tolist(), "algo": algo, "ys": float(np.max(np.abs(y)))}
+    # each weight is Xₐᵀyₐ normalised: where a later one is small beside the first (‖X₀ᵀy₀‖), its direction is known only to the
+    # rounding over that ratio, by any method (scikit-learn's own was 1.8e-11 off a 40-digit NIPALS where Kurve's was 3.4e-12, 19.11)
+    Z = (X - X.mean(0)) / (X.std(0, ddof=1) if scale else 1); f = (y - y.mean()) / (y.std(ddof=1) if scale else 1); nw = []
+    for _ in range(a):
+        w = Z.T @ f; nw.append(float(np.linalg.norm(w))); w = w / nw[-1]; t = Z @ w; tt = t @ t; Z = Z - np.outer(t, Z.T @ t / tt); f = f - t * (f @ t / tt)
+    return [X.tolist(), y.tolist(), {"a": a, "scale": scale, "algo": algo}], {"coef": m.coef_.ravel().tolist(), "fit": m.predict(X).ravel().tolist(), "xw": m.x_weights_.ravel().tolist(), "xs": m.x_scores_.ravel().tolist(), "algo": algo, "ys": float(np.max(np.abs(y))), "wk": min(nw) / nw[0]}
 def pls_post(c, out):
     w = c["want"]
     if not isinstance(out, dict) or "coef" not in out: return float("inf"), f"refused: {str(out)[:80]}"
@@ -1334,6 +1339,7 @@ def pls_post(c, out):
         a = np.array([val(v) for v in out[key]]); b = np.array(w[key])
         if a.shape != b.shape: return float("inf"), f"{key}: {a.shape} against {b.shape}"
         big = w["ys"] if key == "fit" else (np.max(np.abs(b)) or 1.0); d = float(np.max(np.abs(a - b)) / big)
+        if key in ("xw", "xs"): d *= w["wk"]
         if d > e: e, why = d, key
     return e, f"{why} {e:.2e}"
 POST["plsFlat"] = pls_post
