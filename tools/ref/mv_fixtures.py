@@ -250,6 +250,174 @@ cases.append({"fn": "ldaFlat", "name": "more variables than n − G", "args": [[
 cases.append({"fn": "ldaFlat", "name": "one group", "args": [[[1.0, 2.0], [2.0, 1.0], [3.0, 3.0]], [0, 0, 0], {}], "want": {"fail": "groups"}, "kind": "fail"})
 out["mv-lda"] = cases
 
+# ---- 6.5 PLS regression: scikit-learn's PLSRegression (tol 1e-15) for one Y; NIPALS taken to its limit (each X weight the first
+# left singular vector of XₖᵀYₖ, as scikit-learn's power iteration converges to) and SIMPLS from de Jong (1993) written in NumPy for
+# several; cross-validated predictions by refitting on each fold's rest in NumPy (KFold's contiguous blocks, leave one out, venetian
+# blinds as i mod k), checked against scikit-learn's cross_val_predict for one Y; VIP from Wold, Sjöström and Eriksson (2001) ----
+cases = []
+rng = np.random.default_rng(20261123)
+def lead(v):
+    a = np.abs(v); return int(np.argmax(a >= a.max() * (1 - 1e-12)))
+def pls_np(X, Y, a, scale, algo):
+    X = np.array(X, float); Y = np.array(Y, float).reshape(len(X), -1); n, p = X.shape; q = Y.shape[1]
+    xm, ym = X.mean(0), Y.mean(0)
+    if scale:
+        xs, ys = X.std(0, ddof=1), Y.std(0, ddof=1); xs[xs == 0] = 1; ys[ys == 0] = 1
+    else:
+        xs, ys = np.ones(p), np.ones(q)
+    Z, F = (X - xm) / xs, (Y - ym) / ys
+    W, T, P, C, R = [], [], [], [], []
+    if algo == "nipals":
+        Xk, Yk = Z.copy(), F.copy()
+        for k in range(a):
+            U_, s_, Vt = np.linalg.svd(Xk.T @ Yk, full_matrices=False); w = U_[:, 0].copy()
+            if w[lead(w)] < 0: w = -w
+            t = Xk @ w; tt = t @ t; pl = Xk.T @ t / tt; c = Yk.T @ t / tt
+            Xk = Xk - np.outer(t, pl); Yk = Yk - np.outer(t, c)
+            W.append(w); T.append(t); P.append(pl); C.append(c)
+        W, T, P, C = (np.array(v).T for v in (W, T, P, C))
+        R = W @ np.linalg.inv(P.T @ W)
+    else:
+        S = Z.T @ F; V = np.zeros((p, 0))
+        for k in range(a):
+            c = np.array([1.0]) if q == 1 else np.linalg.eigh(S.T @ S)[1][:, -1]
+            r = S @ c; t = Z @ r; nt = np.linalg.norm(t); t = t / nt; r = r / nt
+            if r[lead(r)] < 0: r, t = -r, -t
+            pl = Z.T @ t; cl = F.T @ t
+            v = pl - V @ (V.T @ pl); v = v - V @ (V.T @ v); v = v / np.linalg.norm(v)
+            V = np.column_stack([V, v]); S = S - np.outer(v, v @ S)
+            R.append(r); T.append(t); P.append(pl); C.append(cl); W.append(r / np.linalg.norm(r))
+        W, T, P, C, R = (np.array(v).T for v in (W, T, P, C, R))
+    B = R @ C.T; coef = (B * ys[None, :] / xs[:, None]).T; b0 = ym - coef @ xm; fit = ym + (X - xm) @ coef.T
+    ssy = np.sum(T ** 2, 0) * np.sum(C ** 2, 0); Wn = W / np.linalg.norm(W, axis=0); vip = np.sqrt(p * (Wn ** 2 @ ssy) / ssy.sum())
+    ssx = np.sum(T ** 2, 0) * np.sum(P ** 2, 0); r2x = np.cumsum(ssx) / np.sum(Z ** 2)
+    return {"coef": coef.ravel(), "b0": b0, "xw": W.ravel(), "xs": T.ravel(), "xl": P.ravel(), "yl": C.ravel(), "xr": R.ravel(), "fit": fit.ravel(), "vip": vip, "r2x": r2x}
+# SIMPLS in 40 digits: written as de Jong has it, S deflated a component at a time, which in doubles lost up to 2e-9 of the
+# coefficients where the later components are small (against NIPALS's, which in exact arithmetic are the same for one Y)
+def pls_mp(X, Y, a, scale):
+    mpmath.mp.dps = 40; mf = mpmath.mpf; X = np.array(X, float); Y = np.array(Y, float).reshape(len(X), -1); n, p = X.shape; q = Y.shape[1]
+    Xm = [[mf(float(v)) for v in r] for r in X]; Ym = [[mf(float(v)) for v in r] for r in Y]
+    xm = [mpmath.fsum(Xm[i][j] for i in range(n)) / n for j in range(p)]; ym = [mpmath.fsum(Ym[i][k] for i in range(n)) / n for k in range(q)]
+    if scale:
+        xs = [mpmath.sqrt(mpmath.fsum((Xm[i][j] - xm[j]) ** 2 for i in range(n)) / (n - 1)) for j in range(p)]; ys = [mpmath.sqrt(mpmath.fsum((Ym[i][k] - ym[k]) ** 2 for i in range(n)) / (n - 1)) for k in range(q)]
+        xs = [v if v != 0 else mf(1) for v in xs]; ys = [v if v != 0 else mf(1) for v in ys]
+    else:
+        xs, ys = [mf(1)] * p, [mf(1)] * q
+    Z = [[(Xm[i][j] - xm[j]) / xs[j] for j in range(p)] for i in range(n)]; F = [[(Ym[i][k] - ym[k]) / ys[k] for k in range(q)] for i in range(n)]
+    S = [[mpmath.fsum(Z[i][j] * F[i][k] for i in range(n)) for k in range(q)] for j in range(p)]; V = []
+    R, T, P, C, W = [], [], [], [], []
+    for _ in range(a):
+        if q == 1: c = [mf(1)]
+        else:
+            M = mpmath.matrix([[mpmath.fsum(S[j][u] * S[j][v] for j in range(p)) for v in range(q)] for u in range(q)]); E, Q = mpmath.eigsy(M)
+            b = max(range(q), key=lambda i: E[i]); c = [Q[k, b] for k in range(q)]
+        r = [mpmath.fsum(S[j][k] * c[k] for k in range(q)) for j in range(p)]; t = [mpmath.fsum(Z[i][j] * r[j] for j in range(p)) for i in range(n)]
+        nt = mpmath.sqrt(mpmath.fsum(v * v for v in t)); t = [v / nt for v in t]; r = [v / nt for v in r]
+        rf = np.array([float(v) for v in r])
+        if rf[lead(rf)] < 0: r = [-v for v in r]; t = [-v for v in t]
+        pl = [mpmath.fsum(Z[i][j] * t[i] for i in range(n)) for j in range(p)]; cl = [mpmath.fsum(F[i][k] * t[i] for i in range(n)) for k in range(q)]
+        v = pl[:]
+        for _r in range(2):
+            for u in V:
+                d = mpmath.fsum(u[j] * v[j] for j in range(p)); v = [v[j] - d * u[j] for j in range(p)]
+        nv = mpmath.sqrt(mpmath.fsum(x * x for x in v)); v = [x / nv for x in v]; V.append(v)
+        for k in range(q):
+            d = mpmath.fsum(v[j] * S[j][k] for j in range(p))
+            for j in range(p): S[j][k] -= v[j] * d
+        nr = mpmath.sqrt(mpmath.fsum(x * x for x in r))
+        R.append(r); T.append(t); P.append(pl); C.append(cl); W.append([x / nr for x in r])
+    A = len(R)
+    B = [[mpmath.fsum(R[l][j] * C[l][k] for l in range(A)) * ys[k] / xs[j] for j in range(p)] for k in range(q)]
+    b0 = [ym[k] - mpmath.fsum(B[k][j] * xm[j] for j in range(p)) for k in range(q)]
+    fit = [[ym[k] + mpmath.fsum(B[k][j] * (Xm[i][j] - xm[j]) for j in range(p)) for k in range(q)] for i in range(n)]
+    ssy = [mpmath.fsum(c * c for c in C[l]) for l in range(A)]; den = mpmath.fsum(ssy)
+    vip = [mpmath.sqrt(p * mpmath.fsum(ssy[l] * W[l][j] ** 2 for l in range(A)) / den) for j in range(p)]
+    ss0 = mpmath.fsum(z * z for r_ in Z for z in r_); cum = mpmath.mpf(0); r2x = []
+    for l in range(A): cum += mpmath.fsum(x * x for x in P[l]); r2x.append(cum / ss0)
+    fl = lambda L, m: [float(L[l][i]) for i in range(m) for l in range(A)]
+    return {"coef": [float(v) for b in B for v in b], "b0": [float(v) for v in b0], "xw": fl(W, p), "xs": fl(T, n), "xl": fl(P, p), "yl": fl(C, q), "xr": fl(R, p),
+            "fit": [float(v) for r_ in fit for v in r_], "vip": [float(v) for v in vip], "r2x": [float(v) for v in r2x]}
+def pls_sk(X, Y, a, scale):
+    from sklearn.cross_decomposition import PLSRegression
+    X = np.array(X, float); Y = np.array(Y, float).reshape(len(X), -1)
+    m = PLSRegression(n_components=a, scale=scale, tol=1e-15, max_iter=100000).fit(X, Y)
+    coef = m.coef_.reshape(Y.shape[1], -1)
+    return {"coef": coef.ravel(), "b0": m.intercept_ - coef @ X.mean(0), "xw": m.x_weights_.ravel(), "xs": m.x_scores_.ravel(), "xl": m.x_loadings_.ravel(),
+            "yl": m.y_loadings_.ravel(), "fit": m.predict(X).reshape(len(X), -1).ravel()}
+def folds(n, kind, k):
+    if kind == "loo": return [[i] for i in range(n)]
+    if kind == "venetian": return [list(range(f, n, k)) for f in range(k)]
+    from sklearn.model_selection import KFold
+    return [list(te) for _, te in KFold(k).split(np.zeros((n, 1)))]
+def cv_np(X, Y, A, scale, algo, kind, k):
+    X = np.array(X, float); Y = np.array(Y, float).reshape(len(X), -1); n, q = Y.shape; pred = np.full((A, n, q), np.nan)
+    for te in folds(n, kind, k):
+        tr = np.setdiff1d(np.arange(n), te); Xt, Yt = X[tr], Y[tr]
+        xm, ym = Xt.mean(0), Yt.mean(0)
+        if scale:
+            xs, ys = Xt.std(0, ddof=1), Yt.std(0, ddof=1); xs[xs == 0] = 1; ys[ys == 0] = 1
+        else:
+            xs, ys = np.ones(X.shape[1]), np.ones(q)
+        ref = pls_mp(Xt, Yt, A, scale) if algo == "simpls" else pls_np(Xt, Yt, A, scale, algo)
+        R = np.array(ref["xr"]).reshape(X.shape[1], A); C = np.array(ref["yl"]).reshape(q, A)
+        Zt = (X[te] - xm) / xs; acc = np.zeros((len(te), q))
+        for a in range(A):
+            acc = acc + np.outer(Zt @ R[:, a], C[:, a]); pred[a][te] = ym + ys * acc
+    return pred
+def cv_sk(X, Y, A, scale, kind, k):
+    from sklearn.cross_decomposition import PLSRegression
+    from sklearn.model_selection import cross_val_predict, LeaveOneOut, KFold, PredefinedSplit
+    X = np.array(X, float); Y = np.array(Y, float).reshape(len(X), -1); n = len(X)
+    cv = LeaveOneOut() if kind == "loo" else KFold(k) if kind == "blocks" else PredefinedSplit(np.arange(n) % k)
+    return np.array([cross_val_predict(PLSRegression(n_components=a, scale=scale, tol=1e-15, max_iter=100000), X, Y, cv=cv).reshape(n, -1) for a in range(1, A + 1)])
+def data(n, p, q, kind):
+    if kind == "spectra":   # bands on a slope, the responses their heights
+        x = np.linspace(0, 1, p); H = rng.uniform(0.2, 2, size=(n, 3)); base = [np.exp(-((x - c) / w) ** 2) for c, w in ((0.3, 0.05), (0.55, 0.08), (0.75, 0.04))]
+        X = H @ np.array(base) + rng.normal(0, 0.01, size=(n, p)) + rng.uniform(-0.1, 0.1, size=(n, 1)) * x
+        Y = H[:, :q] * np.array([3.0, -1.5, 0.7])[:q] + rng.normal(0, 0.02, size=(n, q))
+    else:
+        L = rng.normal(size=(3, p)); Fc = rng.normal(size=(n, 3)); X = Fc @ L + rng.normal(0, 0.3, size=(n, p)) + rng.uniform(-50, 50, p)
+        Y = Fc @ rng.normal(size=(3, q)) + rng.normal(0, 0.2, size=(n, q)) + rng.uniform(-5, 5, q)
+    return np.array(r6m(X)), np.array(r6m(Y))
+worst = 0.0
+for n, p, q, kind, a, scale in ((30, 5, 1, "cols", 3, True), (40, 6, 1, "cols", 2, False), (35, 120, 1, "spectra", 5, False), (25, 4, 1, "cols", 4, True)):
+    X, Y = data(n, p, q, kind); want = pls_sk(X, Y, a, scale); ref = pls_np(X, Y, a, scale, "nipals")
+    worst = max(worst, max(float(np.max(np.abs(np.array(want[k]) - np.array(ref[k]))) / (np.max(np.abs(ref[k])) or 1)) for k in want))
+    want.update({"vip": ref["vip"], "r2x": ref["r2x"]})
+    # one Y: the coefficients, intercept and fitted values are SIMPLS's too, so from 40 digits (scikit-learn's intercept less the
+    # coefficients times the means, in doubles, carries 1e-12 of cancellation where the variables sit far from 0)
+    exact = pls_mp(X, Y, a, scale); want.update({"coef": exact["coef"], "b0": exact["b0"], "fit": exact["fit"]})
+    cases.append({"fn": "plsFlat", "name": f"NIPALS, one Y: {n} × {p}{', scaled' if scale else ''}, {a} components (scikit-learn)", "args": [X.tolist(), Y[:, 0].tolist(), {"a": a, "scale": scale}], "want": want, "kind": "obj"})
+    cases.append({"fn": "plsFlat", "name": f"SIMPLS, one Y: {n} × {p}{', scaled' if scale else ''}, {a} components", "args": [X.tolist(), Y[:, 0].tolist(), {"a": a, "scale": scale, "algo": "simpls"}],
+                  "want": pls_mp(X, Y, a, scale), "kind": "obj"})
+print(f"  NIPALS in NumPy against scikit-learn, one Y: {worst:.1e}")
+worst = 0.0
+for n, p, q, kind, a, scale in ((50, 8, 3, "cols", 4, True), (40, 150, 2, "spectra", 4, False), (30, 5, 2, "cols", 3, False)):
+    X, Y = data(n, p, q, kind)
+    for algo in ("nipals", "simpls"):
+        ref = pls_np(X, Y, a, scale, algo) if algo == "nipals" else pls_mp(X, Y, a, scale)
+        if algo == "nipals":
+            sk = pls_sk(X, Y, a, scale); worst = max(worst, max(float(np.max(np.abs(np.array(sk[k]) - np.array(ref[k]))) / (np.max(np.abs(ref[k])) or 1)) for k in sk))
+        cases.append({"fn": "plsFlat", "name": f"{algo.upper()}, {q} Ys: {n} × {p}{', scaled' if scale else ''}, {a} components", "args": [X.tolist(), Y.tolist(), {"a": a, "scale": scale, "algo": algo}], "want": ref, "kind": "obj"})
+print(f"  NIPALS at its limit against scikit-learn's power iteration (tol 1e-15), several Ys: {worst:.1e}")
+# every component, n > p: the least squares fit
+X, Y = data(30, 4, 1, "cols"); Xa = np.column_stack([np.ones(30), X]); bl = np.linalg.lstsq(Xa, Y[:, 0], rcond=None)[0]
+cases.append({"fn": "plsFlat", "name": "every component of 30 × 4: the least squares fit", "args": [X.tolist(), Y[:, 0].tolist(), {"a": 4, "scale": True}], "want": {"coef": bl[1:], "b0": [bl[0]], "fit": Xa @ bl}, "kind": "obj"})
+# cross-validated predictions
+worst = 0.0
+for n, p, q, kind, A, scale, algo, cvk, k in ((30, 5, 1, "cols", 4, True, "nipals", "loo", 0), (36, 80, 1, "spectra", 5, False, "nipals", "blocks", 5), (32, 6, 1, "cols", 4, True, "nipals", "venetian", 4),
+                                               (34, 7, 1, "cols", 4, False, "simpls", "blocks", 7), (40, 8, 3, "cols", 4, True, "nipals", "loo", 0), (36, 60, 2, "spectra", 4, False, "simpls", "venetian", 6)):
+    X, Y = data(n, p, q, kind); pred = cv_np(X, Y, A, scale, algo, cvk, k)
+    if q == 1 and algo == "nipals": worst = max(worst, float(np.max(np.abs(cv_sk(X, Y, A, scale, cvk, k) - pred)) / np.max(np.abs(pred))))
+    Yarg = Y[:, 0].tolist() if q == 1 else Y.tolist()
+    cases.append({"fn": "plsCvFlat", "name": f"{algo.upper()} cross-validated, {cvk}{' ' + str(k) if k else ''}: {n} × {p}, {q} Y{'s' if q > 1 else ''}, {A} components", "args": [X.tolist(), Yarg, {"amax": A, "scale": scale, "algo": algo, "cv": {"kind": cvk, "k": k}}],
+                  "want": {"pred": pred.ravel()}, "kind": "obj"})
+print(f"  cross-validation in NumPy against scikit-learn's cross_val_predict, one Y: {worst:.1e}")
+cases.append({"fn": "plsFlat", "name": "a constant variable, scaled", "args": [[[1.0, 2.0], [1.0, 3.0], [1.0, 5.0], [1.0, 4.0]], [1.0, 2.0, 4.0, 3.0], {"scale": True}], "want": {"fail": "constant"}, "kind": "fail"})
+cases.append({"fn": "plsFlat", "name": "a constant response", "args": [[[1.0, 2.0], [2.0, 3.0], [3.0, 5.0], [4.0, 4.0]], [2.0, 2.0, 2.0, 2.0], {}], "want": {"fail": "constant"}, "kind": "fail"})
+cases.append({"fn": "plsFlat", "name": "two observations", "args": [[[1.0, 2.0], [2.0, 3.0]], [1.0, 2.0], {}], "want": {"fail": "n"}, "kind": "fail"})
+out["mv-pls"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

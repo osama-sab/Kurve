@@ -176,5 +176,57 @@ console.log("6.4 discriminant analysis");
   const [Rb, ms] = time(() => lda(Xb, gb, 4, {})); ok(!Rb.fail && ms < 3000, `10⁴ rows of 20 variables in 4 groups, left one out included, in ${ms.toFixed(0)} ms (budget 1 s; node cold gets three times)`);
 }
 
+console.log("6.5 PLS regression");
+{ const plsFit = get("plsFit"), plsCv = get("plsCv"), plsPredict = get("plsPredict"), plsCoef = get("plsCoef"), plsVip = get("plsVip"), mvCols = get("mvCols");
+  // 40 samples of 6 variables driven by 3 factors, one response; and the same with three responses
+  const n = 40, p = 6, Fc = mat(n, 3, gauss), L = mat(3, p, gauss), X = mul(Fc, L).map((r) => r.map((v, j) => v + 0.3 * gauss() + 10 * j)), y = Fc.map((r) => 2 * r[0] - r[1] + 0.1 * gauss() + 5);
+  const Y3 = Fc.map((r) => [2 * r[0] - r[1] + 0.1 * gauss(), r[2] + 0.1 * gauss(), r[0] + r[2] + 0.1 * gauss()]);
+  const Xc = mvCols(X), yc = [Float64Array.from(y)];
+  const N = plsFit(Xc, yc, { a: 4, scale: "unit" }), Sm = plsFit(Xc, yc, { a: 4, scale: "unit", algo: "simpls" });
+  let worst = 0; for (let a = 1; a <= 4; a++) worst = Math.max(worst, maxDiff(Array.from(plsCoef(N, a).B[0]), Array.from(plsCoef(Sm, a).B[0])) / Math.max(...plsCoef(N, a).B[0].map(Math.abs)));
+  ok(worst < 1e-12, `one response: NIPALS and SIMPLS the same coefficients at every number of components (${worst.toExponential(1)})`);
+  // every component, more samples than variables: the least squares fit
+  const all = plsFit(Xc, yc, { a: p, scale: "none" }), lm = get("linModel")(X[0].map((_, j) => ({ name: "v" + j, num: true, x: X.map((r) => r[j]) })), y, {});
+  const cb = plsCoef(all, p); ok(!lm.fail && maxDiff(Array.from(cb.B[0]), lm.b.slice(1)) < 1e-10 * Math.max(...lm.b.map(Math.abs)) && Math.abs(cb.b0[0] - lm.b[0]) < 1e-9 * Math.abs(lm.b[0]), "every component of a table with more samples than variables: the least squares fit");
+  // the fitted values: X·B (predict) equals the scores times the Y loadings
+  const f1 = plsPredict(N, 3, Xc, n)[0]; let tc = 0; for (let i = 0; i < n; i++) { let s = 0; for (let a = 0; a < 3; a++) s += N.T[a][i] * N.C[a][0]; tc = Math.max(tc, Math.abs(N.ym[0] + N.yf[0] * s - f1[i])); }
+  ok(tc < 1e-12 * Math.max(...y.map(Math.abs)), `the samples fitted, predicted again: their fitted values (${tc.toExponential(1)})`);
+  // leave one out: as refitting n times
+  const C = plsCv(Xc, yc, { amax: 4, scale: "unit", cv: { kind: "loo" } }); let lo = 0;
+  for (const i of [0, 7, 19, 39]) { const keep = X.map((_, k) => k).filter((k) => k !== i), Fi = plsFit(mvCols(keep.map((k) => X[k])), [Float64Array.from(keep, (k) => y[k])], { a: 4, scale: "unit", zeroOk: true });
+    for (let a = 1; a <= 4; a++) lo = Math.max(lo, Math.abs(plsPredict(Fi, a, X[i].map((v) => Float64Array.of(v)), 1)[0][0] - C.pred[a - 1][0][i])); }
+  ok(lo < 1e-12 * Math.max(...y.map(Math.abs)), `leave one out: each sample as a model made without it predicts it (${lo.toExponential(1)})`);
+  // the rows' order and a variable's units change nothing
+  const perm = Array.from({ length: n }, (_, i) => (i * 13) % n), Cp = plsCv(mvCols(perm.map((i) => X[i])), [Float64Array.from(perm, (i) => y[i])], { amax: 4, scale: "unit", cv: { kind: "loo" } });
+  ok(perm.every((i, j) => Math.abs(Cp.pred[2][0][j] - C.pred[2][0][i]) < 1e-12 * 20), "the rows reordered, left one out: each sample's prediction moves with it");
+  const Xu = X.map((r) => r.map((v, j) => (j === 2 ? v * 1000 : v))), Nu = plsFit(mvCols(Xu), yc, { a: 3, scale: "unit" });
+  ok(maxDiff(Array.from(plsPredict(Nu, 3, mvCols(Xu), n)[0]), Array.from(f1)) < 1e-11 * 20 && Math.abs(plsCoef(Nu, 3).B[0][2] * 1000 - plsCoef(N, 3).B[0][2]) < 1e-11, "a variable in units a thousand times smaller, under unit variance: the same predictions, its coefficient a thousandth");
+  const v = plsVip(N, 3); ok(Math.abs(v.reduce((s, x) => s + x * x, 0) / p - 1) < 1e-12, "VIP: its squares average to 1");
+  // several responses: each fitted, the two algorithms each their own model
+  const N3 = plsFit(Xc, mvCols(Y3), { a: 3, scale: "unit" }), S3 = plsFit(Xc, mvCols(Y3), { a: 3, scale: "unit", algo: "simpls" });
+  ok(N3.q === 3 && S3.q === 3 && N3.A === 3 && plsPredict(N3, 3, Xc, n).length === 3, "three responses: a model of three components predicting each");
+  // the analysis whole, columns: a row with no response predicted, the number of components the least RMSECV
+  const ins = Array.from({ length: p }, (_, j) => ({ id: "v" + j, name: "V" + j, unit: "", vals: X.map((r) => r[j]).concat([X[0][j] + 0.1]), rows: Array.from({ length: n + 1 }, (_, i) => i) }))
+    .concat([{ id: "y", name: "Conc", unit: "mg/L", vals: y, rows: y.map((_, i) => i) }]);
+  const K = run("pls", ins, { y: ["y"] }), col = (k) => K.tables && K.tables[0].cols.find((c) => c.k === k);
+  const rv = col("rv0") && col("rv0").vals, best = rv ? rv.indexOf(Math.min(...rv)) + 1 : -1;
+  ok(!K.fail && col("pp0") && col("pp0").vals.length === 1 && K.report.pls.used === best && col("b0").vals.length === p && col("yv0").vals.length === n && K.report.sections.some((s) => /^Components \(\d+ used: the least RMSECV\)$/.test(s.title)),
+    `the analysis of columns: ${K.report && K.report.pls && K.report.pls.used} components (the least RMSECV), a row with no response predicted`, K.fail);
+  // curves: each a sample, its value of the series the response, one with none predicted
+  const xs = Array.from({ length: 200 }, (_, j) => 400 + j), curves = Array.from({ length: 30 }, (_, i) => { const h = 0.5 + (i % 7) * 0.3; return { id: "c" + i, name: "S" + i, unit: "", xn: "Wavelength", xu: "nm",
+    pts: { x: xs, y: xs.map((x) => h * Math.exp(-(((x - 500) / 15) ** 2)) + 0.01 * gauss() + 0.2), e: [], rows: xs.map((_, j) => j) }, sv: i === 29 ? null : 10 * h + 0.05 * gauss(), svn: "Concentration", svu: "mM" }; });
+  const Kc = run("pls", curves, { layout: "curves", ncomp: 2 }), cc = (k) => Kc.tables && Kc.tables[0].cols.find((c) => c.k === k);
+  ok(!Kc.fail && cc("vx").vals.length === 200 && cc("pp0").vals.length === 1 && Math.abs(cc("pp0").vals[0] - 10 * (0.5 + (29 % 7) * 0.3)) < 0.5 && Kc.report.pls.used === 2 && cc("rc0").unit === "mM",
+    `curves: the series the response, the curve with none predicted (${cc("pp0") && cc("pp0").vals[0].toFixed(3)} for ${(10 * (0.5 + (29 % 7) * 0.3)).toFixed(3)})`, Kc.fail);
+  ok(/Choose the column/.test(run("pls", ins, {}).fail || "") && /three are needed/.test(run("pls", curves.map((c, i) => Object.assign({}, c, { sv: i < 2 ? 1 : null })), { layout: "curves" }).fail || "")
+    && /holds text/.test(run("pls", ins.concat([{ id: "t", name: "Label", cats: { keys: y.map(() => "a"), order: null }, rows: y.map((_, i) => i) }]), { y: ["t"] }).fail || ""), "no response, too few samples with a value, a response of text: refused in words");
+  ok(/same value in every observation: there is nothing to predict/.test(plsFit(Xc, [new Float64Array(n).fill(3)], {}).fail || ""), "a response of one value refused in words");
+  // the budget: 100 curves of 1000 points, 10 components, left one out
+  const Xb = Array.from({ length: 1000 }, () => new Float64Array(100)), yb = new Float64Array(100);
+  for (let i = 0; i < 100; i++) { const h = rnd(); yb[i] = h + 0.01 * gauss(); for (let j = 0; j < 1000; j++) Xb[j][i] = h * Math.exp(-(((j - 400) / 40) ** 2)) + 0.3 * rnd() * Math.exp(-(((j - 600) / 60) ** 2)) + 0.01 * gauss(); }
+  const [Fb, ms] = time(() => { const F = plsFit(Xb, [yb], { a: 10 }); return [F, plsCv(Xb, [yb], { amax: 10, cv: { kind: "loo" } })]; });
+  ok(!Fb[0].fail && !Fb[1].fail && ms < 6000, `100 curves of 1000 points, 10 components, left one out, in ${ms.toFixed(0)} ms (budget 2 s in the worker; node cold gets three times)`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

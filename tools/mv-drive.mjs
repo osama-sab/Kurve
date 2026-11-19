@@ -228,6 +228,67 @@ await page(async p => {
   const r2 = await RES(p, await p.evaluate(() => anaList().length - 1)); check("…worked out on three scores, grouped by the PCA's group column", r2 && !r2.err && r2.t.gname.join() === "Leaf,Root,Stem" && r2.t.var.join() === "Score PC1,Score PC2,Score PC3", r2 && (r2.err || r2.t.var));
 }, { name: "6.4" });
 
+console.log("6.5 PLS regression");
+await page(async p => {
+  await p.evaluate(TABLE); await p.waitForTimeout(300);
+  await menu(p, "analyze", "Fit", "PLS regression…");
+  const f = await p.evaluate(() => ({ lay: $("#aMl").value, sc: $("#aMs").value, g: !!$("#aMg") && !$("#aMg").hidden, ys: [...document.querySelectorAll('#aPy input')].map(x => colById(x.id.slice(4)).name + (x.checked ? "*" : "")), sv: $("#aPs").hidden, f: $("#aPf").hidden, miss: !!$("#aMiss") }));
+  check("Analyze › Fit › PLS regression… opens its dialog: columns, unit variance, no groups, the Response the last column ticked, no folds for leave one out", f.lay !== "curves" && f.ys.join() === "Length,Mass,Width,Ratio*" && f.sv && f.f && !f.g && !f.miss, JSON.stringify(f));
+  const mid = await p.evaluate(() => P().cols.find(c => c.name === "Mass").id), rid = await p.evaluate(() => P().cols.find(c => c.name === "Ratio").id);
+  await p.uncheck("#aPy_" + rid); await p.check("#aPy_" + mid); await p.waitForTimeout(100);
+  await p.selectOption("#aPc", "venetian"); await p.waitForTimeout(80); check("…folds shown for venetian blinds", await p.isVisible("#aPf"));
+  await p.selectOption("#aPc", "loo"); await p.click("#formOk"); await p.waitForTimeout(800);
+  let r = await RES(p);
+  const ref = await p.evaluate(() => { const by = n => Float64Array.from(P().cols.find(c => c.name === n).data), X = ["Length", "Width", "Ratio"].map(by), y = [by("Mass")];
+    const F = plsFit(X, y, { a: 3, scale: "unit" }), C = plsCv(X, y, { amax: 3, scale: "unit", cv: { kind: "loo" } }), rv = C.press.map(r => Math.sqrt(r[0] / 60)); let b = 0; rv.forEach((v, a) => { if (v < rv[b]) b = a; });
+    const K = plsCoef(F, b + 1); return { used: b + 1, rv, B: Array.from(K.B[0]), b0: K.b0[0], cv: Array.from(C.pred[b][0]) }; });
+  check("a result sheet: RMSECV for each number of components, the least of them used, the coefficients, intercept and each row left out as plsFit and plsCv give them",
+    r && !r.err && near(r.t.rv0, ref.rv, 1e-12) && r.rep.pls.used === ref.used && near(r.t.b0, ref.B, 1e-12) && Math.abs(r.t.ib[0] - ref.b0) < 1e-10 * Math.abs(ref.b0) && near(r.t.yv0, ref.cv, 1e-12) && r.t.var.join() === "Length,Width,Ratio", r && (r.err || JSON.stringify([r.t.rv0, ref.rv])));
+  check("…the report's sections and a method naming NIPALS and leave one out, no verdict", r.rep.sections.some(s => /^Components \(\d used: the least RMSECV\)$/.test(s.title)) && r.rep.sections.some(s => s.title === "Coefficients and VIP") && /NIPALS/.test(r.rep.method) && /left one out/.test(r.rep.method) && !/good|poor|significant|should/i.test(JSON.stringify(r.rep.sections)), JSON.stringify(r.rep.sections.map(s => s.title)));
+  // a row with the variables and no response: predicted, and the analysis follows
+  await p.evaluate(() => { const p = P(); pushUndo("a row"); ["Length", "Width", "Ratio"].forEach((n, j) => { const c = p.cols.find(c => c.name === n); c.data = c.data.concat([[11, 2, 0.5][j]]); }); const x = p.cols.find(c => c.name === "Index"); x.data = x.data.concat([61]); save({ cols: p.cols }, "typed a row"); renderAll(); }); await p.waitForTimeout(700);
+  r = await RES(p); const pp = await p.evaluate(() => { const by = n => Float64Array.from(P().cols.find(c => c.name === n).data.slice(0, 60)), X = ["Length", "Width", "Ratio"].map(by), F = plsFit(X, [by("Mass")], { a: 3, scale: "unit" }), a = anaList()[0].res.report.pls.used; return plsPredict(F, a, [11, 2, 0.5].map(v => Float64Array.of(v)), 1)[0][0]; });
+  check("a row typed with the variables and no response: worked out again, row 61 predicted as plsPredict gives it", r.t.pp0 && r.t.pp0.length === 1 && Math.abs(r.t.pp0[0] - pp) < 1e-10 * Math.abs(pp) && /61/.test(String(r.t.pobs[0])) && r.notes.some(n => /1 row has every variable and no response: predicted/.test(n)), r && JSON.stringify([r.t.pp0, pp, r.notes]));
+  // SIMPLS and venetian blinds through Change settings
+  await p.evaluate(id => { anaDlg("pls", { id }); }, r.id); await p.waitForTimeout(300);
+  const yk = await p.evaluate(() => [...document.querySelectorAll('#aPy input')].filter(x => x.checked).map(x => colById(x.id.slice(4)).name));
+  await p.selectOption("#aPa", "simpls"); await p.selectOption("#aPc", "venetian"); await p.fill("#aPf", "5"); await p.fill("#aPk", "2"); await p.click("#formOk"); await p.waitForTimeout(700);
+  const r2 = await RES(p), ref2 = await p.evaluate(() => { const by = n => Float64Array.from(P().cols.find(c => c.name === n).data.slice(0, 60)), X = ["Length", "Width", "Ratio"].map(by); return Array.from(plsCoef(plsFit(X, [by("Mass")], { a: 2, scale: "unit" }), 2).B[0]); });
+  check("Change settings keeps the response; SIMPLS, two components and venetian blinds of 5: one response, NIPALS's coefficients", yk.join() === "Mass" && r2.rep.pls.used === 2 && near(r2.t.b0, ref2, 1e-12) && /SIMPLS/.test(r2.rep.method) && /venetian blinds of 5/.test(r2.rep.method) && r2.rep.sections.some(s => s.title === "Components (2 used: as asked)"), JSON.stringify([yk, r2.rep.method]));
+  // each plot, one undo step each
+  for (const [w, want] of [["mp", ["Mass, fitted", "Mass, cross-validated", "y = x"]], ["rmse", ["RMSECV", "RMSEC"]], ["coef", ["Coefficient"]], ["vip", ["VIP"]], ["scores", ["Score 2"]]]) {
+    const n0 = await p.evaluate(() => P().graphs.length);
+    await p.evaluate(([id, w]) => plsPlot(id, w), [r2.id, w]); await p.waitForTimeout(400);
+    const g = await p.evaluate(() => { const g = P().graphs[P().graphs.length - 1]; return { n: P().graphs.length, names: g.cols.map(id => colById(id).name), cats: (g.plot.ax.x.cats || []).map(c => c[1]), x: g.plot.ax.x.title, lab: Object.values(g.plot.use || {}).some(u => u.lab) }; });
+    const extra = w === "coef" || w === "vip" ? g.cats.join() === "Length,Width,Ratio" : w === "scores" ? g.x === "Score 1" && g.lab : w === "rmse" ? g.x === "Components" : g.x === "Measured";
+    await p.evaluate(() => undo()); await p.waitForTimeout(300); const n1 = await p.evaluate(() => P().graphs.length);
+    check(`Plot ${w}: a new graph of ${want.join(", ")}, undone in one step`, g.n === n0 + 1 && g.names.join() === want.join() && extra && n1 === n0, JSON.stringify(g));
+  }
+  check("refusals in the dialog: no response ticked keeps OK disabled", await (async () => { await p.evaluate(id => { anaDlg("pls", { id }); }, r.id); await p.waitForTimeout(300); await p.uncheck("#aPy_" + mid); await p.waitForTimeout(100); const d = await p.evaluate(() => $("#formOk").disabled); await p.click("#formCancel"); await p.waitForTimeout(200); return d; })());
+  // a reload keeps it
+  const before = await RES(p); await p.reload(); await ready(p); await p.waitForTimeout(600);
+  const after = await RES(p); check("a reload: the same analysis and numbers", after && after.id === before.id && near(after.t.b0, before.t.b0, 0) && after.rep.pls.used === before.rep.pls.used);
+}, { name: "6.5" });
+await page(async p => {
+  // curves: each a sample, the series typed its response, the last with none predicted
+  await p.evaluate(CURVES, [30, 200]); await p.waitForTimeout(300);
+  await p.evaluate(() => { const cs = yCols(), vals = {}; cs.slice(0, 29).forEach(c => { vals[c.id] = +(c.data[100] / 100).toFixed(4); }); setSeries({ mode: "typed", vals, label: "Concentration", unit: "mM" }, true); });
+  await menu(p, "analyze", "Statistics", "Multivariate", "PLS regression…");
+  await p.selectOption("#aMl", "curves"); await p.waitForTimeout(150);
+  const f = await p.evaluate(() => ({ ys: $("#aPy").hidden, sv: $("#aPs").hidden, t: $("#aPs").textContent, sc: $("#aMs").value }));
+  check("curves: the Response is the series variable, 29 of 30 with a value, the rest predicted", f.ys && !f.sv && /^Concentration \(mM\): 29 of the 30 curves ticked have a value, the rest are predicted/.test(f.t), JSON.stringify(f));
+  await p.fill("#aPk", "2"); await p.click("#formOk"); await p.waitForTimeout(900);
+  const r = await RES(p), ref = await p.evaluate(() => { const cs = yCols(), s = seriesOf(), tr = cs.slice(0, 29), X = cs[0].data.map((_, j) => Float64Array.from(tr, c => c.data[j])), F = plsFit(X, [Float64Array.from(tr, c => s.vals[c.id])], { a: 2, scale: "none" });
+    return { B: Array.from(plsCoef(F, 2).B[0]), pp: plsPredict(F, 2, cs[29].data.map(v => Float64Array.of(v)), 1)[0][0] }; });
+  check("…the regression vector against X and the last curve predicted, as plsFit gives them (centred)", r && !r.err && r.t.vx.length === 200 && near(r.t.b0, ref.B, 1e-11) && Math.abs(r.t.pp0[0] - ref.pp) < 1e-10 * Math.abs(ref.pp) && r.meta.pp0.unit === "mM" && r.meta.b0.role === "y" && r.meta.vx.role === "x", r && (r.err || JSON.stringify([r.t.pp0, ref.pp])));
+  // the series changed: followed
+  await p.evaluate(() => { const s = seriesOf(), cs = yCols(), v = Object.assign({}, s.vals); v[cs[0].id] += 1; setSeries({ vals: v }, true); renderAll(); }); await p.waitForTimeout(800);
+  const r2 = await RES(p); check("a value of the series changed: worked out again", Math.abs(r2.t.ym0[0] - r.t.ym0[0] - 1) < 1e-9, JSON.stringify([r2.t.ym0[0], r.t.ym0[0]]));
+  await p.evaluate(id => plsPlot(id, "coef"), r.id); await p.waitForTimeout(400);
+  const g = await p.evaluate(() => { const g = P().graphs[P().graphs.length - 1]; return { names: g.cols.map(id => colById(id).name), t: g.plot.series && Object.values(g.plot.series).map(s => s.type) }; });
+  check("Plot the coefficients of curves: the regression vector as a line against X", g.names.join() === "Coefficient" && g.t.join() === "line", JSON.stringify(g));
+}, { name: "6.5" });
+
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

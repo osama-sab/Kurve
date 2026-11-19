@@ -11194,11 +11194,12 @@ function mvTable(ins,p){ const notes=[], lay=mvLayout(p);
 const mvCols=X=>X[0].map((_,j)=>Float64Array.from(X,r=>r[j]));
 /* Each variable (a column, n values) centred, then divided by its standard deviation (n − 1, "unit"), by its square root
    ("pareto") or by 1 ("none"); the mean by its sum corrected by the mean deviation's, as NumPy's two passes. {Z (columns),
-   mean, sd, f} or {fail} naming a variable that does not vary, under a scaling that would divide by it. */
-function mvScale(C,how,names){ const m=C.length, n=C[0].length, mean=new Float64Array(m), sd=new Float64Array(m), f=new Float64Array(m), Z=new Array(m);
+   mean, sd, f} or {fail} naming a variable that does not vary, under a scaling that would divide by it; with zeroOk such a
+   variable is divided by 1 (scikit-learn's rule, for a fold of a cross-validation that happens to hold one value). */
+function mvScale(C,how,names,zeroOk){ const m=C.length, n=C[0].length, mean=new Float64Array(m), sd=new Float64Array(m), f=new Float64Array(m), Z=new Array(m);
   for(let j=0;j<m;j++){ const x=C[j]; let s=0; for(let i=0;i<n;i++) s+=x[i]; let mu=s/n, c=0; for(let i=0;i<n;i++) c+=x[i]-mu; mu+=c/n; let q=0; for(let i=0;i<n;i++){ const d=x[i]-mu; q+=d*d; }
     mean[j]=mu; sd[j]=n>1?Math.sqrt(q/(n-1)):0;
-    if(how==="unit"||how==="pareto"){ if(!(sd[j]>0)) return {fail:`${names?names[j]:"Variable "+(j+1)} has the same value in every observation: it cannot be divided by its standard deviation (choose Centred, or leave it out)`}; f[j]=how==="unit"?sd[j]:Math.sqrt(sd[j]); } else f[j]=1;
+    if(how==="unit"||how==="pareto"){ if(!(sd[j]>0)){ if(!zeroOk) return {fail:`${names?names[j]:"Variable "+(j+1)} has the same value in every observation: it cannot be divided by its standard deviation (choose Centred, or leave it out)`}; f[j]=1; } else f[j]=how==="unit"?sd[j]:Math.sqrt(sd[j]); } else f[j]=1;
     const z=new Float64Array(n), fj=f[j]; for(let i=0;i<n;i++) z[i]=(x[i]-mu)/fj; Z[j]=z; }
   return {Z,mean:Array.from(mean),sd:Array.from(sd),f:Array.from(f)}; }
 /* Principal components (MULTI_SPEC 6.2): the singular value decomposition of the scaled data Z = U·S·Vᵀ; each component's
@@ -11639,6 +11640,187 @@ ANA_KINDS.lda={label:"Discriminant analysis", base:"Discriminant", cats:true, re
     if(py>=0) cols.push({k:"cx",name:`Score, ${FN(px)}`,role:"x",vals:R.cen.map(c=>c[px])},{k:"cy",name:"Group means",role:"y",vals:R.cen.map(c=>c[py])},{k:"cl",name:"Group",vals:gnm});
     const method=`${m} columns the variables, ${n} rows in ${G} groups of ${T.gname}; priors ${pri==="equal"?"equal":"from the group sizes"}; the within-group data whitened by their own SVD and the canonical functions from the group means' spread there (scikit-learn's svd solver), unstandardised coefficients with a within-group variance of 1, each function turned so that its standardised coefficient of largest magnitude is positive; Wilks' Λ with Bartlett's χ²; classification by Fisher's functions, left one out by updating the within-group sums and means for each row, not by refitting.`;
     return {tables:[{cols}],report:{sections:secs,method,lda:{q,G,px,py,rows,vids:T.vids,acc,accL,groups:gnm}},notes}; }};
+/* ---- PLS regression (MULTI_SPEC 6.5) ----
+   X (p columns of n) and Y (q columns of n) each scaled as mvScale says (the same way: scikit-learn's PLSRegression scales both
+   or neither); a components. NIPALS as scikit-learn's (mode A, regression deflation), its power iteration taken to its limit: each
+   X weight the first left singular vector of XₖᵀYₖ (one Y: Xₖᵀy over its length; several: XₖᵀYₖ·c, c the first eigenvector of
+   YₖᵀXₖXₖᵀYₖ), turned by decision 2; the scores t = Xₖw, the X loadings Xₖᵀt/(tᵀt), the Y loadings Yₖᵀt/(tᵀt), both deflated by t;
+   the rotations W(PᵀW)⁻¹ by their recursion (PᵀW is upper triangular with ones down its diagonal). SIMPLS as de Jong (1993):
+   S = X₀ᵀY₀; each r = S·c (c the first eigenvector of SᵀS; one Y: 1), t = X₀r and r both divided by the length of t, the loadings
+   X₀ᵀt and Y₀ᵀt, v the X loading made orthogonal to the earlier ones and S less its part along v; the rotations are r. Either way
+   the scaled Y is Σ t·cᵀ and the coefficients B = R·Cᵀ; one Y gives both the same coefficients. A component stops the list when
+   what is left of X, or of what X can reach of Y, is at the rounding level (the data's rank). */
+const PLS_ALGOS=[["nipals","NIPALS"],["simpls","SIMPLS"]], PLS_CV=[["loo","Leave one out"],["blocks","Contiguous blocks"],["venetian","Venetian blinds"]], PLS_MAX=15;
+const plsDot=(a,b,n)=>{ let s=0; for(let i=0;i<n;i++) s+=a[i]*b[i]; return s; };
+// The first eigenvector of a small symmetric matrix (q × q), for several Ys.
+function plsTop(M){ const E=symEig(M); return E.fail?null:E.vecs.map(r=>r[0]); }
+function plsCore(Z,Yz,A,n,algo){ const p=Z.length, q=Yz.length, out={W:[],T:[],P:[],C:[],R:[],ssx:[],ssy:[],stop:null};
+  let ss0=0; for(const z of Z) ss0+=plsDot(z,z,n); let ssY=0; for(const y of Yz) ssY+=plsDot(y,y,n);
+  if(!(ss0>0)||!(ssY>0)){ out.stop=!(ss0>0)?"X has no variance":"Y has no variance"; return out; }
+  if(algo==="simpls"){ const Xt=Z.map(z=>Float64Array.from(z)), Yt=Yz.map(y=>Float64Array.from(y)), V=[], u=new Float64Array(n);
+    // S = X̃ᵀY₀ is X̃ᵀ(Y₀ − T·TᵀY₀) (X̃ᵀt = 0 for every score taken), both of them what is left, as NIPALS has it
+    for(let a=0;a<A;a++){ const S=Xt.map(x=>Float64Array.from(Yt,y=>plsDot(x,y,n))); let c=[1]; if(q>1){ const M=Array.from({length:q},(_,u)=>Array.from({length:q},(_,v)=>{ let s=0; for(let j=0;j<p;j++) s+=S[j][u]*S[j][v]; return s; })); c=plsTop(M); if(!c){ out.stop="the cross products did not decompose"; break; } }
+      // t = X₀r, worked out as X̃r: r is orthogonal to the loadings taken (it is S·c), so the two are equal, and X̃ is what is left
+      const r=Float64Array.from(S,row=>{ let s=0; for(let k=0;k<q;k++) s+=row[k]*c[k]; return s; }), t=new Float64Array(n);
+      for(let j=0;j<p;j++){ const z=Xt[j], v=r[j]; if(v) for(let i=0;i<n;i++) t[i]+=z[i]*v; }
+      const tt=plsDot(t,t,n); if(!(tt>1e-26*ss0)){ out.stop="rank"; break; }
+      const nt=Math.sqrt(tt), b=svdLead(r), sg=r[b]<0?-1/nt:1/nt; for(let j=0;j<p;j++) r[j]*=sg; for(let i=0;i<n;i++) t[i]*=sg;
+      const pl=Float64Array.from(Z,z=>plsDot(z,t,n)), cl=Float64Array.from(Yz,y=>plsDot(y,t,n));
+      // the loading made orthogonal to the earlier ones: (I − VVᵀ)X₀ᵀt is X̃ᵀt, from what is left (X₀ᵀt less its part along the
+      // earlier ones cancelled: 2e-12 of the coefficients), then made orthogonal again (twice, as Gram and Schmidt need)
+      const v=Float64Array.from(Xt,x=>plsDot(x,t,n)); for(let rep=0;rep<2;rep++) for(const u of V){ const d=plsDot(u,v,p); for(let j=0;j<p;j++) v[j]-=d*u[j]; }
+      // S less its part along v, as X₀(I − VVᵀ)ᵀ·Y₀: X deflated along v in the variables, so S is worked out afresh from what
+      // is left, accurate to its own size (S deflated a component at a time lost 2e-9 of the coefficients where its later
+      // components were small, against 40 digits)
+      const nv=Math.sqrt(plsDot(v,v,p)); if(nv>0){ for(let j=0;j<p;j++) v[j]/=nv; V.push(v);
+        u.fill(0); for(let j=0;j<p;j++){ const x=Xt[j], vj=v[j]; if(vj) for(let i=0;i<n;i++) u[i]+=x[i]*vj; }
+        for(let j=0;j<p;j++){ const x=Xt[j], vj=v[j]; if(vj) for(let i=0;i<n;i++) x[i]-=u[i]*vj; } }
+      for(const y of Yt){ const d=plsDot(y,t,n); for(let i=0;i<n;i++) y[i]-=t[i]*d; }
+      const nr=Math.sqrt(plsDot(r,r,p));
+      out.W.push(Float64Array.from(r,x=>x/nr)); out.T.push(t); out.P.push(pl); out.C.push(cl); out.R.push(r); out.ssx.push(plsDot(pl,pl,p)); out.ssy.push(plsDot(cl,cl,q)); }
+    return out; }
+  const X=Z.map(z=>z.slice()), Y=Yz.map(y=>y.slice());
+  for(let a=0;a<A;a++){ let w;
+    if(q===1){ w=new Float64Array(p); const y=Y[0]; for(let j=0;j<p;j++) w[j]=plsDot(X[j],y,n); }
+    else { const M=X.map(x=>Float64Array.from(Y,y=>plsDot(x,y,n))); const G=Array.from({length:q},(_,u)=>Array.from({length:q},(_,v)=>{ let s=0; for(let j=0;j<p;j++) s+=M[j][u]*M[j][v]; return s; })), c=plsTop(G); if(!c){ out.stop="the cross products did not decompose"; break; }
+      w=Float64Array.from(M,r=>{ let s=0; for(let k=0;k<q;k++) s+=r[k]*c[k]; return s; }); }
+    const nw=Math.sqrt(plsDot(w,w,p)); if(!(nw>1e-13*Math.sqrt(ss0*ssY))){ out.stop="rank"; break; }
+    const b=svdLead(w), sg=w[b]<0?-1/nw:1/nw; for(let j=0;j<p;j++) w[j]*=sg;
+    const t=new Float64Array(n); for(let j=0;j<p;j++){ const x=X[j], v=w[j]; if(v) for(let i=0;i<n;i++) t[i]+=x[i]*v; }
+    const tt=plsDot(t,t,n); if(!(tt>1e-26*ss0)){ out.stop="rank"; break; }
+    const pl=new Float64Array(p), cl=new Float64Array(q); for(let j=0;j<p;j++) pl[j]=plsDot(X[j],t,n)/tt; for(let k=0;k<q;k++) cl[k]=plsDot(Y[k],t,n)/tt;
+    for(let j=0;j<p;j++){ const x=X[j], v=pl[j]; for(let i=0;i<n;i++) x[i]-=t[i]*v; }
+    for(let k=0;k<q;k++){ const y=Y[k], v=cl[k]; for(let i=0;i<n;i++) y[i]-=t[i]*v; }
+    // the rotation: r_a = w_a − Σ_{i<a} (p_iᵀw_a)·r_i
+    const r=Float64Array.from(w); for(let i=0;i<a;i++){ const d=plsDot(out.P[i],w,p), Ri=out.R[i]; for(let j=0;j<p;j++) r[j]-=d*Ri[j]; }
+    out.W.push(w); out.T.push(t); out.P.push(pl); out.C.push(cl); out.R.push(r); out.ssx.push(tt*plsDot(pl,pl,p)); out.ssy.push(tt*plsDot(cl,cl,q)); }
+  return out; }
+/* A PLS model of the data: o {algo, a (the most components), scale, names, ynames, zeroOk}. {…plsCore's lists, A (the components
+   made), xm, xf, ym, yf (each variable's mean and divisor), ss0x (X's sum of squares, scaled), sst (each Y's about its mean)}. */
+function plsFit(Xc,Yc,o){ o=o||{}; const n=Xc.length?Xc[0].length:0, p=Xc.length, q=Yc.length;
+  if(!p) return {fail:"No variables"}; if(!q) return {fail:"No response"}; if(n<(o.zeroOk?2:3)) return {fail:`${n} observation${n===1?"":"s"}: three are needed`};   /* a fold's rest of two still fits one component */
+  const how=o.scale||"none", sx=mvScale(Xc,how,o.names,o.zeroOk); if(sx.fail) return sx;
+  const yb=Yc.findIndex(y=>{ let a=y[0], same=true; for(let i=1;i<n;i++) if(y[i]!==a){ same=false; break; } return same; });
+  if(yb>=0&&!o.zeroOk) return {fail:`${o.ynames?o.ynames[yb]:"The response"} has the same value in every observation: there is nothing to predict`};
+  const sy=mvScale(Yc,how,o.ynames,true); if(sy.fail) return sy;
+  const A=Math.max(1,Math.min(Math.floor(o.a)||PLS_MAX,p,n-1)), core=plsCore(sx.Z,sy.Z,A,n,o.algo==="simpls"?"simpls":"nipals");
+  if(!core.T.length) return {fail:core.stop==="rank"?"X reaches nothing of Y: no component can be made":`No component can be made: ${core.stop}`};
+  let ss0=0; for(const z of sx.Z) ss0+=plsDot(z,z,n);
+  const sst=Yc.map((y,k)=>{ let s=0; const m=sy.mean[k]; for(let i=0;i<n;i++){ const d=y[i]-m; s+=d*d; } return s; });
+  return Object.assign(core,{A:core.T.length,n,p,q,xm:sx.mean,xf:sx.f,xsd:sx.sd,ym:sy.mean,yf:sy.f,ss0x:ss0,sst,algo:o.algo==="simpls"?"simpls":"nipals"}); }
+// The coefficients of a components in the data's units: B[k] (each Y's, p numbers) and the intercepts b0, y = b0 + Σ B·x.
+function plsCoef(F,a){ const B=Array.from({length:F.q},()=>new Float64Array(F.p));
+  for(let l=0;l<a;l++){ const r=F.R[l], c=F.C[l]; for(let k=0;k<F.q;k++){ const ck=c[k], b=B[k]; for(let j=0;j<F.p;j++) b[j]+=r[j]*ck; } }
+  for(let k=0;k<F.q;k++){ const b=B[k], yf=F.yf[k]; for(let j=0;j<F.p;j++) b[j]*=yf/F.xf[j]; }
+  const b0=B.map((b,k)=>{ let s=F.ym[k]; for(let j=0;j<F.p;j++) s-=b[j]*F.xm[j]; return s; }); return {B,b0}; }
+// Y predicted for new rows (columns Xc, m rows) by a components: about the means, as scikit-learn's predict.
+function plsPredict(F,a,Xc,m){ const {B}=plsCoef(F,a); return B.map((b,k)=>{ const y=new Float64Array(m).fill(F.ym[k]); for(let j=0;j<F.p;j++){ const x=Xc[j], bj=b[j], mj=F.xm[j]; if(bj) for(let i=0;i<m;i++) y[i]+=bj*(x[i]-mj); } return y; }); }
+// Each variable's importance in the projection over a components (Wold, Sjöström and Eriksson 2001): √(p·Σ SSYₗ·(wₗⱼ/‖wₗ‖)² / Σ SSYₗ).
+function plsVip(F,a){ let den=0; for(let l=0;l<a;l++) den+=F.ssy[l]; return Array.from({length:F.p},(_,j)=>{ let s=0; for(let l=0;l<a;l++){ const w=F.W[l]; s+=F.ssy[l]*w[j]*w[j]/plsDot(w,w,F.p); } return den>0?Math.sqrt(F.p*s/den):NaN; }); }
+// The folds of a cross-validation (decision 7): leave one out, k contiguous blocks (scikit-learn's KFold: the first n mod k one longer),
+// or venetian blinds (observation i in fold i mod k). Each fold the observations left out.
+function plsFolds(n,cv){ cv=cv||{}; const kind=cv.kind==="blocks"||cv.kind==="venetian"?cv.kind:"loo", k=kind==="loo"?n:Math.max(2,Math.min(n,Math.floor(cv.k)||7));
+  if(kind==="loo") return Array.from({length:n},(_,i)=>[i]);
+  if(kind==="venetian") return Array.from({length:k},(_,f)=>{ const o=[]; for(let i=f;i<n;i+=k) o.push(i); return o; });
+  const out=[]; let at=0; for(let f=0;f<k;f++){ const len=Math.floor(n/k)+(f<n%k?1:0), o=[]; for(let i=0;i<len;i++) o.push(at+i); at+=len; out.push(o); } return out; }
+/* Cross-validated predictions for 1 … A components: each fold left out, the model made again on the rest (its own means and
+   scaling, a constant variable there divided by 1) and the fold predicted. {A, pred (A arrays of q Float64Arrays of n), press (A
+   arrays of q), folds}; A no more than any fold's rest allows (n − largest fold − 1), nor o.amax. */
+function plsCv(Xc,Yc,o){ o=o||{}; const n=Xc[0].length, p=Xc.length, q=Yc.length, folds=plsFolds(n,o.cv), big=folds.reduce((m,f)=>Math.max(m,f.length),0);
+  const A=Math.min(Math.floor(o.amax)||PLS_MAX,p,n-big-1); if(A<1) return {fail:`With ${n} observations and folds of ${big}, no fold leaves enough to fit a component: use more observations or more folds`};
+  const pred=Array.from({length:A},()=>Array.from({length:q},()=>new Float64Array(n).fill(NaN))), inT=new Uint8Array(n);
+  for(const test of folds){ inT.fill(0); test.forEach(i=>{ inT[i]=1; }); const tr=[]; for(let i=0;i<n;i++) if(!inT[i]) tr.push(i);
+    // the rows copied by plain loops: Float64Array.from with a function per value was a third of the time
+    const nt=tr.length, sub=c=>{ const v=new Float64Array(nt); for(let u=0;u<nt;u++) v[u]=c[tr[u]]; return v; };
+    const F=plsFit(Xc.map(sub),Yc.map(sub),{algo:o.algo,a:A,scale:o.scale,zeroOk:true});
+    // a rest no component can be made of (its response one value there): the rest's mean, a model of no component
+    if(F.fail){ for(let k=0;k<q;k++){ let s=0; tr.forEach(i=>{ s+=Yc[k][i]; }); const mu=s/tr.length; for(let a=0;a<A;a++) test.forEach(i=>{ pred[a][k][i]=mu; }); } continue; }
+    const m=test.length, Zt=Xc.map((c,j)=>{ const v=new Float64Array(m), mj=F.xm[j], fj=F.xf[j]; for(let u=0;u<m;u++) v[u]=(c[test[u]]-mj)/fj; return v; }), acc=Array.from({length:q},()=>new Float64Array(m));
+    for(let a=0;a<A;a++){ if(a<F.A){ const r=F.R[a], c=F.C[a], t=new Float64Array(m); for(let j=0;j<p;j++){ const z=Zt[j], v=r[j]; if(v) for(let i=0;i<m;i++) t[i]+=z[i]*v; }
+        for(let k=0;k<q;k++){ const ck=c[k], s=acc[k]; for(let i=0;i<m;i++) s[i]+=t[i]*ck; } }
+      for(let k=0;k<q;k++){ const pk=pred[a][k], s=acc[k], ym=F.ym[k], yf=F.yf[k]; test.forEach((i,u)=>{ pk[i]=ym+yf*s[u]; }); } } }
+  const press=pred.map(pa=>pa.map((pk,k)=>{ let s=0; const y=Yc[k]; for(let i=0;i<n;i++){ const d=y[i]-pk[i]; s+=d*d; } return s; }));
+  return {A,pred,press,folds:folds.length}; }
+// For the bench: a model's numbers flat, laid out as scikit-learn's (coef_ q × p, x_weights_ p × A, x_scores_ n × A, …).
+function plsFlat(X,Y,o){ o=o||{}; const Yr=Y.map(v=>Array.isArray(v)?v:[v]), F=plsFit(mvCols(X),mvCols(Yr),{algo:o.algo,a:o.a,scale:o.scale?"unit":"none"}); if(F.fail) return F;
+  const a=F.A, {B,b0}=plsCoef(F,a), fit=plsPredict(F,a,mvCols(X),X.length), n=X.length, p=F.p, q=F.q;
+  const pa=(L,len)=>{ const out=[]; for(let i=0;i<len;i++) for(let l=0;l<a;l++) out.push(L[l][i]); return out; };
+  let cum=0; const r2x=F.ssx.map(v=>{ cum+=v; return cum/F.ss0x; });
+  return {coef:B.flatMap(b=>Array.from(b)),b0,xw:pa(F.W,p),xs:pa(F.T,n),xl:pa(F.P,p),yl:pa(F.C,q),xr:pa(F.R,p),fit:Array.from({length:n},(_,i)=>fit.map(f=>f[i])).flat(),vip:plsVip(F,a),r2x,A:a}; }
+function plsCvFlat(X,Y,o){ o=o||{}; const Yr=Y.map(v=>Array.isArray(v)?v:[v]), C=plsCv(mvCols(X),mvCols(Yr),{algo:o.algo,scale:o.scale?"unit":"none",amax:o.amax,cv:o.cv}); if(C.fail) return C;
+  const n=X.length, q=Yr[0].length, pred=[]; C.pred.forEach(pa=>{ for(let i=0;i<n;i++) for(let k=0;k<q;k++) pred.push(pa[k][i]); });
+  return {pred,press:C.press.flat(),A:C.A}; }
+/* The PLS kind (MULTI_SPEC 6.5). Columns: the columns ticked less the responses (p.y, column ids) the variables, a row a sample
+   where every variable and every response has a value, a row with every variable and no response predicted, one with some
+   responses left out. Curves: each curve a sample, its points the variables, its value of the series variable (its input's sv,
+   named svn) the response; a curve with no value predicted. Every number of components up to the most (p.amax, 15) is fitted and
+   cross-validated (p.cv, p.folds); the one used is p.ncomp, else the least RMSECV (several responses: the greatest mean Q²). */
+ANA_KINDS.pls={label:"PLS regression", base:"PLS", cats:true, resIn:true, pts:p=>mvLayout(p)==="curves",
+  help:"Responses predicted from many variables (columns, or the points of curves against the series variable): RMSEC, RMSECV, R² and Q² for each number of components, the coefficients and VIP, the weights, loadings and scores, each sample's fitted and cross-validated value, and predictions for the rows or curves with no response.",
+  heavy:(p,ins)=>{ const cells=ins.reduce((t,q)=>t+((q.pts&&q.pts.x.length)||(q.vals&&q.vals.length)||0),0), rows=mvLayout(p)==="curves"?ins.length:ins.reduce((m,q)=>Math.max(m,(q.vals&&q.vals.length)||0),0);
+    const f=!p.cv||p.cv==="loo"?rows:Math.max(2,Math.floor(+p.folds)||7); return cells*f*Math.min(Math.floor(+p.amax)||PLS_MAX,PLS_MAX)>1e7; },
+  run(ins,p){ p=p||{}; const lay=mvLayout(p), how=mvScaleOf(p), algo=p.algo==="simpls"?"simpls":"nipals", cols=[], secs=[];
+    const cv={kind:PLS_CV.some(([k])=>k===p.cv)?p.cv:"loo",k:Math.max(2,Math.floor(+p.folds)||7)}, amax=Math.max(1,Math.min(PLS_MAX,Math.floor(+p.amax)||PLS_MAX));
+    let T, Xc, Yc, ynames, yunits, obs, rows=null, pX=null, pobs=[], prow=null, notes;
+    if(lay==="curves"){ T=mvTable(ins,p); if(T.fail) return T; notes=T.notes.slice();
+      const sv=new Map(ins.map(q=>[q.id,q.sv])), lab=ins.find(q=>q.svn)||{}, svn=lab.svn||"The series", svu=lab.svu||"";
+      const tr=[], pr=[]; T.ids.forEach((id,i)=>{ const v=sv.get(id); if(typeof v==="number"&&Number.isFinite(v)) tr.push(i); else pr.push(i); });
+      if(tr.length<3) return {fail:`${tr.length===0?"No curve has":tr.length===1?"One curve has":"Two curves have"} a value of the series variable (${svn}): three are needed. Set the series in the Batch window`};
+      Xc=T.Xc.map(c=>Float64Array.from(tr,i=>c[i])); Yc=[Float64Array.from(tr,i=>sv.get(T.ids[i]))]; ynames=[svn]; yunits=[svu]; obs=tr.map(i=>T.obs[i]);
+      if(pr.length){ pX=T.Xc.map(c=>Float64Array.from(pr,i=>c[i])); pobs=pr.map(i=>T.obs[i]); notes.push(`${pr.length} curve${pr.length===1?" has":"s have"} no value of ${svn}: predicted.`); } }
+    else { const ys=(Array.isArray(p.y)?p.y:p.y?[p.y]:[]).filter(Boolean); if(!ys.length) return {fail:"Choose the column, or columns, to predict"};
+      const yi=ys.map(id=>ins.find(q=>q.id===id)); if(yi.some(q=>!q)) return {fail:"A response column is not among the columns read"};
+      const bad=yi.find(q=>q.cats); if(bad) return {fail:`${bad.name} holds text: a response must be numbers`};
+      T=mvTable(ins.filter(q=>!ys.includes(q.id)),Object.assign({},p,{layout:"cols",grp:null})); if(T.fail) return /^Tick two/.test(T.fail)?{fail:"Tick two columns of numbers or more besides the responses: each is one variable"}:T; notes=T.notes.slice();
+      const yv=yi.map(q=>{ const m=new Map(); q.rows.forEach((r,i)=>{ const v=q.vals[i]; if(Number.isFinite(v)) m.set(r,v); }); return m; }), R=T.rows, tr=[], pr=[]; let part=0;
+      R.forEach((r,i)=>{ const h=yv.reduce((t,m)=>t+(m.has(r)?1:0),0); if(h===yv.length) tr.push(i); else if(!h) pr.push(i); else part++; });
+      if(part) notes.push(`${part} row${part===1?" has":"s have"} some responses and not others: left out.`);
+      if(tr.length<3) return {fail:`${tr.length} row${tr.length===1?" has":"s have"} every variable and every response: three are needed`};
+      Xc=T.Xc.map(c=>Float64Array.from(tr,i=>c[i])); Yc=yv.map(m=>Float64Array.from(tr,i=>m.get(R[i]))); ynames=yi.map(q=>q.name); yunits=yi.map(q=>q.unit||""); obs=tr.map(i=>T.obs[i]); rows=tr.map(i=>R[i]);
+      if(pr.length){ pX=T.Xc.map(c=>Float64Array.from(pr,i=>c[i])); pobs=pr.map(i=>T.obs[i]); prow=pr.map(i=>R[i]); notes.push(`${pr.length} row${pr.length===1?" has":"s have"} every variable and no response: predicted.`); } }
+    const n=Yc[0].length, m=Xc.length, q=Yc.length;
+    const F=plsFit(Xc,Yc,{algo,a:amax,scale:how,names:T.vnames,ynames}); if(F.fail) return F;
+    if(F.A<Math.min(amax,m,n-1)) notes.push(`The data allow ${F.A} component${F.A===1?"":"s"}: past that nothing is left of X, or of what X can reach of the response.`);
+    const CV=plsCv(Xc,Yc,{algo,scale:how,amax:F.A,cv}); if(CV.fail) return CV; const A=CV.A, folds=plsFolds(n,cv), big=folds.reduce((t,f)=>Math.max(t,f.length),0);
+    if(A<F.A) notes.push(`${A} component${A===1?"":"s"} at most: the largest fold leaves ${n-big} samples to fit.`);
+    // each number of components: RMSEC and R² of the samples fitted, RMSECV and Q² of the samples left out
+    const sse=[], r2x=[]; let cx=0; for(let a=1;a<=A;a++){ cx+=F.ssx[a-1]; r2x.push(cx/F.ss0x); const f=plsPredict(F,a,Xc,n); sse.push(f.map((y,k)=>{ let s=0; for(let i=0;i<n;i++){ const d=Yc[k][i]-y[i]; s+=d*d; } return s; })); }
+    const rmsec=sse.map(r=>r.map(v=>Math.sqrt(v/n))), rmsecv=CV.press.map(r=>r.map(v=>Math.sqrt(v/n))), r2y=sse.map(r=>r.map((v,k)=>1-v/F.sst[k])), q2=CV.press.map(r=>r.map((v,k)=>1-v/F.sst[k]));
+    const ask=Math.floor(+p.ncomp)||0; let used, by;
+    if(ask>0){ used=Math.min(ask,A); by=ask>A?`the most there are (${ask} asked for)`:"as asked"; }
+    else { let b=0; const sc=a=>q===1?CV.press[a][0]:-q2[a].reduce((t,v)=>t+v,0)/q; for(let a=1;a<A;a++) if(sc(a)<sc(b)) b=a; used=b+1; by=q===1?"the least RMSECV":"the greatest mean Q²"; }
+    const {B,b0}=plsCoef(F,used), vip=plsVip(F,used), fit=plsPredict(F,used,Xc,n), cvp=CV.pred[used-1], yn=k=>q>1?` (${ynames[k]})`:"", AR=a=>Array.from(a);
+    // the components: a row each
+    cols.push({k:"nc",name:"Components",role:"x",vals:Array.from({length:A},(_,a)=>a+1)},{k:"r2x",name:"R² of X",vals:r2x});
+    for(let k=0;k<q;k++) cols.push({k:"rc"+k,name:`RMSEC${yn(k)}`,unit:yunits[k],role:"y",vals:rmsec.map(r=>r[k])},{k:"rv"+k,name:`RMSECV${yn(k)}`,unit:yunits[k],role:"y",vals:rmsecv.map(r=>r[k])},{k:"ry"+k,name:`R²${yn(k)}`,vals:r2y.map(r=>r[k])},{k:"q"+k,name:`Q²${yn(k)}`,vals:q2.map(r=>r[k])});
+    const ch=["Components","R² of X"]; for(let k=0;k<q;k++) ch.push(`RMSEC${yn(k)}`,`RMSECV${yn(k)}`,`R²${yn(k)}`,`Q²${yn(k)}`);
+    secs.push({title:`Components (${used} used: ${by})`,tables:[{head:ch,rows:r2x.map((v,a)=>[a+1,v].concat(...Array.from({length:q},(_,k)=>[rmsec[a][k],rmsecv[a][k],r2y[a][k],q2[a][k]])))}]});
+    secs.push({title:`The model of ${used} component${used===1?"":"s"}`,tables:[{head:["Response","Intercept","RMSEC","RMSECV","R²","Q²"],rows:ynames.map((y,k)=>[y,b0[k],rmsec[used-1][k],rmsecv[used-1][k],r2y[used-1][k],q2[used-1][k]])}]});
+    // the variables: coefficients (the regression vector), VIP, weights and loadings
+    if(lay==="curves") cols.push({k:"vx",name:T.xn,unit:T.xu,role:"x",vals:T.vx});
+    else cols.push({k:"vi",name:"Variable number",role:"x",vals:Array.from({length:m},(_,j)=>j+1)},{k:"var",name:"Variable",vals:T.vnames});
+    B.forEach((b,k)=>cols.push({k:"b"+k,name:`Coefficient${yn(k)}`,role:"y",vals:AR(b)})); cols.push({k:"vip",name:"VIP",role:"y",vals:vip});
+    for(let a=0;a<used;a++) cols.push({k:"w"+(a+1),name:`X weight ${a+1}`,role:lay==="curves"?"y":"ignore",vals:AR(F.W[a])},{k:"pl"+(a+1),name:`X loading ${a+1}`,role:lay==="curves"?"y":"ignore",vals:AR(F.P[a])});
+    if(m<=30) secs.push({title:"Coefficients and VIP",tables:[{head:["Variable"].concat(ynames.map(y=>q>1?`Coefficient (${y})`:"Coefficient"),["VIP"]),rows:T.vnames.map((v,j)=>[v].concat(B.map(b=>b[j]),[vip[j]]))}]});
+    cols.push({k:"iy",name:"Response",vals:ynames},{k:"ib",name:"Intercept",vals:b0});
+    // the samples: measured, fitted, cross-validated, their residuals, the scores
+    cols.push({k:"obs",name:"Sample",vals:obs});
+    for(let k=0;k<q;k++) cols.push({k:"ym"+k,name:`Measured${yn(k)}`,unit:yunits[k],vals:AR(Yc[k])},{k:"yf"+k,name:`Fitted${yn(k)}`,unit:yunits[k],vals:AR(fit[k])},{k:"yv"+k,name:`Cross-validated${yn(k)}`,unit:yunits[k],vals:AR(cvp[k])},
+      {k:"ef"+k,name:`Residual, fitted${yn(k)}`,unit:yunits[k],vals:AR(Yc[k]).map((v,i)=>v-fit[k][i])},{k:"ecv"+k,name:`Residual, cross-validated${yn(k)}`,unit:yunits[k],vals:AR(Yc[k]).map((v,i)=>v-cvp[k][i])});
+    for(let a=0;a<used;a++) cols.push({k:"t"+(a+1),name:`Score ${a+1}`,vals:AR(F.T[a])});
+    // measured against predicted, fitted and cross-validated, each response a pair of curves, and y = x across them
+    let lo=Infinity, hi=-Infinity; for(let k=0;k<q;k++) for(let i=0;i<n;i++) for(const v of [Yc[k][i],fit[k][i],cvp[k][i]]) if(Number.isFinite(v)){ if(v<lo) lo=v; if(v>hi) hi=v; }
+    for(let k=0;k<q;k++) cols.push({k:"mfx"+k,name:`Measured${yn(k)}`,unit:yunits[k],role:"x",vals:AR(Yc[k])},{k:"mfy"+k,name:`${ynames[k]}, fitted`,unit:yunits[k],role:"y",vals:AR(fit[k])},
+      {k:"mvx"+k,name:`Measured${yn(k)}`,unit:yunits[k],role:"x",vals:AR(Yc[k])},{k:"mvy"+k,name:`${ynames[k]}, cross-validated`,unit:yunits[k],role:"y",vals:AR(cvp[k])});
+    cols.push({k:"lx",name:"Measured",role:"x",vals:[lo,hi]},{k:"ly",name:"y = x",role:"y",vals:[lo,hi]});
+    // the scores, the first two (one component: against the sample's number)
+    const two=used>1; cols.push({k:"sx",name:two?"Score 1":"Sample number",role:"x",vals:two?AR(F.T[0]):obs.map((_,i)=>i+1)},{k:"sy",name:two?"Score 2":"Score 1",role:"y",vals:AR(two?F.T[1]:F.T[0])},{k:"sl",name:"Sample",vals:obs});
+    // the predictions
+    if(pX){ const pp=plsPredict(F,used,pX,pobs.length); cols.push({k:"pobs",name:"Predicted for",vals:pobs}); pp.forEach((v,k)=>cols.push({k:"pp"+k,name:`Predicted ${ynames[k]}`,unit:yunits[k],vals:AR(v)}));
+      secs.push({title:pobs.length>50?`Predicted (the first 50 of ${pobs.length})`:"Predicted",tables:[{head:[lay==="curves"?"Curve":"Row"].concat(ynames),rows:pobs.slice(0,50).map((o,i)=>[o].concat(pp.map(v=>v[i])))}]}); }
+    const cvw=cv.kind==="loo"?"left one out":cv.kind==="blocks"?`in ${folds.length} contiguous blocks`:`by venetian blinds of ${folds.length}`;
+    const method=`${lay==="curves"?`Each curve a sample and its ${m} points the variables, the response ${ynames[0]}`:`${m} columns the variables and ${n} rows the samples, ${q===1?"the response "+ynames[0]:"the responses "+mvAnd(ynames)}`}; ${mvScaleWord(how)}, the response${q>1?"s":""} the same way; ${algo==="simpls"?"SIMPLS (de Jong 1993)":"NIPALS (as scikit-learn's PLSRegression, iterated to its limit)"}, each weight vector turned so that its entry of largest magnitude is positive; cross-validated ${cvw}, each fold's model made again on the rest; ${used} component${used===1?"":"s"}, ${by}. RMSEC and RMSECV are √(Σ residual²/n); R² and Q² are 1 − Σ residual²/Σ(y − ȳ)²; VIP is Wold's.`;
+    return {tables:[{cols}],report:{sections:secs,method,pls:{A,used,lay,q,ynames,curves:lay==="curves",vids:T.vids,npred:pobs.length,rows,prow,two}},notes}; }};
 /* ==MV:END== */
 
 /* ============================================================
@@ -21304,6 +21486,7 @@ function anaSig(a){ const parts=[a.kind,JSON.stringify(a.p||{}),JSON.stringify(a
   Object.keys(a.in.where||{}).forEach(id=>{ const g=colById(id); parts.push(g?"w"+arrKey(g.data)+txtKey(g.txt):"gone:"+id); });
   if(a.p&&a.p.meta) parts.push("meta:"+(a.in.cols||[]).map(id=>{ const c=colById(id); return c&&c.meta?String(c.meta[a.p.meta]??""):""; }).join("\u0001"));
   if(a.in.mat){ const ms=matOf(a.in.mat); parts.push(ms?`m${ms.nx}x${ms.ny}`+JSON.stringify([ms.x,ms.y])+arrKey(ms.z):"gone:"+a.in.mat); }
+  { const SV=anaSeriesOf(a,(a.in.cols||[]).map(colById).filter(Boolean)); if(SV) parts.push("sv:"+JSON.stringify(SV)); }
   return sha256(parts.join("\u0002")).slice(0,24); }
 // Out of date, and why (null when it is not).
 function anaStale(a){ if(!a) return null; if(a.res&&a.res.err) return a.res.err; const gone=(a.in.cols||[]).filter(id=>!colById(id));
@@ -21362,10 +21545,14 @@ const cmpCommonHtml=p=>`<label for="aMw">Weights</label><select id="aMw">${CMP_W
 const cmpCommonRead=v=>{ const num=t=>{ const x=parseNum(String(t||"").trim()); return Number.isFinite(x)?x:null; }; return {weight:v.aMw||"none",x0:num(v.aMx0),x1:num(v.aMx1)}; };
 /* A fit comparison's inputs (FIT2_SPEC 4.3): each column's processed points, X and Y and each one's error, masked points out
    unless asked for, in X's own units (xu) */
-function anaPts(a,cs,notes){ return cs.map(c=>{ const d=finalOf(c), mk=new Set(a.in.masked?[]:(c.mask||[])), x=[], y=[], e=[], rows=[]; let nm=0;
+// The series variable for PLS's curves (MULTI_SPEC 6.5): each curve's value, its name and unit.
+function anaSeriesOf(a,cs){ if(a.kind!=="pls"||mvLayout(a.p)!=="curves") return null; const s=seriesOf(), v=seriesVals(cs,s);
+  const lab=s.mode==="order"?"Order":(s.label||(s.mode==="name"?"Number in the name":s.mode==="meta"?(s.key||"Value"):"Value")); return {v,lab,unit:seriesUnit(s)||""}; }
+function anaPts(a,cs,notes){ const SV=anaSeriesOf(a,cs); return cs.map((c,ci)=>{ const d=finalOf(c), mk=new Set(a.in.masked?[]:(c.mask||[])), x=[], y=[], e=[], rows=[]; let nm=0;
     for(let k=0;k<d.x.length;k++){ const X=d.x[k], Y=d.y[k], i=d.idx?d.idx[k]:k; if(!Number.isFinite(X)||!Number.isFinite(Y)) continue; if(i>=0&&mk.has(i)){ nm++; continue; } x.push(X); y.push(Y); e.push(d.e&&d.e[k]!=null?d.e[k]:null); rows.push(i); }
     if(nm) notes.push(`${nm} masked point${nm===1?"":"s"} of ${specName(c)} left out.`);
-    return {id:c.id,name:specName(c),ref:colRef(c),unit:c.unit||"",xn:d.xn||"",xu:d.xu||"",pts:{x,y,e,rows},nMasked:nm,gv:a.p&&a.p.meta?((c.meta||{})[a.p.meta]??null):null}; }); }
+    return {id:c.id,name:specName(c),ref:colRef(c),unit:c.unit||"",xn:d.xn||"",xu:d.xu||"",pts:{x,y,e,rows},nMasked:nm,gv:a.p&&a.p.meta?((c.meta||{})[a.p.meta]??null):null,
+      sv:SV?SV.v[ci]:undefined,svn:SV?SV.lab:undefined,svu:SV?SV.unit:undefined}; }); }
 /* A reshaping kind's inputs (SHEET_SPEC 3.5): every column's cells as the worksheet holds them (numbers and text,
    the original data or a formula's values, not processed), rows aligned across the columns; the rows chosen and a
    filter's conditions taken as its rows applied to all of them at once. */
@@ -21393,7 +21580,7 @@ function runAna(a,p,o){ o=o||{}; const K=ANA_KINDS[a.kind]; p=p||P(); if(!K||!p)
   // A large one is worked out by the compute worker (1.3c), its result put in when it comes back
   // (anaDone), if what it read has not changed meanwhile; the page goes on.
   const nv=ins.reduce((t,q)=>t+(q.vals||q.cells||(q.pts&&q.pts.x)||[]).length,0);
-  if((nv>=ANA_BIG||K.heavy&&K.heavy(a.p||{},ins))&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({id:q.id,name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,cells:q.cells,sheet:q.sheet,role:q.role,order:q.order,rows:q.rows,groups:q.groups,grows:q.grows,missing:q.missing,cats:q.cats,pts:q.pts,xn:q.xn,xu:q.xu,gv:q.gv,mat:q.mat})),notes,sig); return "later"; }
+  if((nv>=ANA_BIG||K.heavy&&K.heavy(a.p||{},ins))&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({id:q.id,name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,cells:q.cells,sheet:q.sheet,role:q.role,order:q.order,rows:q.rows,groups:q.groups,grows:q.grows,missing:q.missing,cats:q.cats,pts:q.pts,xn:q.xn,xu:q.xu,gv:q.gv,sv:q.sv,svn:q.svn,svu:q.svu,mat:q.mat})),notes,sig); return "later"; }
   let out; try{ out=anaRunKind(a.kind,ins,a.p||{}); }catch(e){ out={fail:String(e&&e.message||e)}; }
   return anaApply(a,p,out,notes,sig); }
 /* An analysis's matrix (SIGNAL_SPEC decision 7): written into a book of its own (`a.out.mat`), its sheet marked `ana` so it is read
@@ -21524,8 +21711,8 @@ function mvFormHtml(p,o){ o=o||{}; const act=activeYCol(), lay=p.layout?mvLayout
   const G=(S.anaCand||[]).filter(c=>isCatCol(c)||textCount(c)), mk=mvMetaKeys(), gl="Groups", none=o.needGroups?"":`<option value="">None</option>`;
   return `<div class="grid2">${o.noLayout?"":`<label for="aMl" class="tipd" title="Columns are the variables: each row an observation, read only where every column ticked has a value. Each column is an observation: each column ticked a curve, its points the variables, read on one X">Layout</label><select id="aMl">${MV_LAYOUTS.map(([k,t])=>`<option value="${k}"${k===lay?" selected":""}>${t}</option>`).join("")}</select>`}
     ${o.noScale?"":`<label for="aMs" class="tipd" title="Unit variance weighs every variable alike, whatever its units; centred keeps each one's own spread, as curves in one unit should; Pareto is between them">Scaling</label><select id="aMs" data-auto="${sc?"":"1"}">${MV_SCALES.map(([k,t])=>`<option value="${k}"${k===(sc||mvScaleOf({layout:lay}))?" selected":""}>${t}</option>`).join("")}</select>`}
-    <label for="aMg" id="aMgL" class="tipd" title="A column of text naming each row's group">${gl}</label><select id="aMg">${none}${G.map(c=>`<option value="${c.id}"${c.id===p.grp?" selected":""}>${esc(colLetter(c)+" "+(c.name||""))}</option>`).join("")}</select>
-    ${o.noLayout?"":`<label for="aMh" id="aMhL" class="tipd" title="A field of the curves' files (their header) naming each curve's group">${gl}</label><select id="aMh">${none}${mk.map(k=>`<option value="${esc(k)}"${k===p.meta?" selected":""}>${esc(k)}</option>`).join("")}</select>`}${o.open?"":"</div>"}`; }
+    ${o.noGroups?"":`<label for="aMg" id="aMgL" class="tipd" title="A column of text naming each row's group">${gl}</label><select id="aMg">${none}${G.map(c=>`<option value="${c.id}"${c.id===p.grp?" selected":""}>${esc(colLetter(c)+" "+(c.name||""))}</option>`).join("")}</select>`}
+    ${o.noLayout||o.noGroups?"":`<label for="aMh" id="aMhL" class="tipd" title="A field of the curves' files (their header) naming each curve's group">${gl}</label><select id="aMh">${none}${mk.map(k=>`<option value="${esc(k)}"${k===p.meta?" selected":""}>${esc(k)}</option>`).join("")}</select>`}${o.open?"":"</div>"}`; }
 function mvFormWire(box){ const l=box.querySelector("#aMl"), s=box.querySelector("#aMs"); if(!l) return;
   const on=()=>{ const cur=l.value==="curves"; ["aMg","aMgL"].forEach(i=>{ const e=box.querySelector("#"+i); if(e) e.hidden=cur; }); ["aMh","aMhL"].forEach(i=>{ const e=box.querySelector("#"+i); if(e) e.hidden=!cur; });
     if(s&&s.dataset.auto==="1") s.value=mvScaleOf({layout:l.value}); };
@@ -21830,6 +22017,29 @@ const ANA_FORMS={
       return Object.assign(mvFormRead(v),{method:v.aHm||"ward",metric:v.aHd==="correlation"&&v.aHm!=="ward"?"correlation":"euclidean",cut:v.aHc==="h"?"h":"k",k:n(v.aHk)||3,h:Number.isFinite(h)?h:null},mvPairRead(v)); },
     valid(v){ return (v.aHc==="h"?Number.isFinite(parseNum(String(v.aHh||"").trim()))&&parseNum(String(v.aHh).trim())>=0:/^\d+$/.test(String(v.aHk||"").trim())&&+v.aHk>=1)&&mvPairOk(v); },
     extra(p){ return p.layout!=="curves"&&p.grp?[p.grp]:[]; }},
+  pls:{noGroup:true, noMiss:true, html(p){ const nn=v=>v>0?Math.round(v):"", cv=PLS_CV.some(([k])=>k===p.cv)?p.cv:"loo";
+      return mvFormHtml(p,{open:true,noGroups:true})+`<label id="aPyL" class="tipd" title="The columns to predict, among those ticked; every other column ticked is a variable">Response</label><div class="anastats" id="aPy" data-y="${esc((Array.isArray(p.y)?p.y:[]).join(","))}"></div>
+      <label id="aPsL" class="tipd" title="Each curve's value of the series variable, as the Batch window sets it (typed, a number in the names, a field of the files); a curve with none is predicted">Response</label><span id="aPs" class="muted"></span>
+      <label for="aPa" class="tipd" title="NIPALS as scikit-learn's PLSRegression; SIMPLS as de Jong's. With one response the two give the same model">Algorithm</label><select id="aPa">${PLS_ALGOS.map(([k,t])=>`<option value="${k}"${k===(p.algo||"nipals")?" selected":""}>${t}</option>`).join("")}</select>
+      <label for="aPk" class="tipd" title="The components the model uses. Blank: the number with the least RMSECV (several responses: the greatest mean Q²)">Components</label><input type="text" id="aPk" inputmode="numeric" value="${nn(+p.ncomp)}" placeholder="the least RMSECV">
+      <label for="aPm" class="tipd" title="Every number of components up to this is fitted and cross-validated">At most</label><input type="text" id="aPm" inputmode="numeric" value="${nn(+p.amax)}" placeholder="${PLS_MAX}">
+      <label for="aPc" class="tipd" title="Each sample predicted by a model made without it: one at a time, in k contiguous blocks, or every kth (venetian blinds)">Cross-validation</label><span class="anarows"><select id="aPc">${PLS_CV.map(([k,t])=>`<option value="${k}"${k===cv?" selected":""}>${t}</option>`).join("")}</select><input type="text" id="aPf" inputmode="numeric" value="${nn(+p.folds)||7}" aria-label="Folds" title="Folds"></span></div>`; },
+    wire(box){ mvFormWire(box); const l=box.querySelector("#aMl"), ys=box.querySelector("#aPy"), cvs=box.querySelector("#aPc"), f=box.querySelector("#aPf"), sv=box.querySelector("#aPs"); if(!l||!ys) return;
+      let want=new Set((ys.dataset.y||"").split(",").filter(Boolean)), first=!want.size;
+      const fill=()=>{ const cur=l.value==="curves"; ["aPy","aPyL"].forEach(i=>{ const e=box.querySelector("#"+i); if(e) e.hidden=cur; }); ["aPs","aPsL"].forEach(i=>{ const e=box.querySelector("#"+i); if(e) e.hidden=!cur; });
+        const ids=[...box.querySelectorAll('input[id^="aI_"]')].filter(x=>x.checked).map(x=>x.id.slice(3)), num=ids.filter(id=>{ const c=colById(id); return c&&!isCatCol(c)&&!textCount(c); });
+        ys.querySelectorAll("input").forEach(x=>{ const id=x.id.slice(4); if(x.checked) want.add(id); else want.delete(id); });
+        if(first&&num.length){ want=new Set([num[num.length-1]]); first=false; }   /* the last column ticked, the response by custom */
+        ys.innerHTML=num.map(id=>{ const c=colById(id); return `<label class="chk"><input type="checkbox" id="aPy_${id}"${want.has(id)?" checked":""}> ${esc(colLetter(c)+" "+(c.name||""))}</label>`; }).join("")||`<span class="muted">Tick the columns first</span>`;
+        if(cur&&sv){ const cs=ids.map(colById).filter(Boolean), s=seriesOf(), v=seriesVals(cs,s), k=v.filter(x=>typeof x==="number"&&Number.isFinite(x)).length;
+          sv.textContent=`${seriesLabel(s)}: ${k} of the ${cs.length} curves ticked have a value${k<cs.length?", the rest are predicted":""}`; }
+        if(f) f.hidden=cvs.value==="loo"; };
+      box.addEventListener("change",e=>{ if(e.target&&/^aPy_/.test(e.target.id||"")) return; fill(); }); fill(); if(cvs) cvs.addEventListener("change",fill);
+      setTimeout(()=>ys.dispatchEvent(new Event("input",{bubbles:true})),0); },
+    read(v){ const n=t=>{ const x=parseNum(String(t||"").trim()); return Number.isFinite(x)&&x>=1?Math.round(x):null; }, b=mvFormRead(v);
+      return {layout:b.layout,scale:b.scale,y:b.layout==="cols"?Object.keys(v).filter(k=>/^aPy_/.test(k)&&v[k]).map(k=>k.slice(4)):[],algo:v.aPa==="simpls"?"simpls":"nipals",ncomp:n(v.aPk),amax:n(v.aPm),cv:PLS_CV.some(([k])=>k===v.aPc)?v.aPc:"loo",folds:n(v.aPf)}; },
+    valid(v){ const nums=["aPk","aPm","aPf"].every(k=>{ const t=String(v[k]||"").trim(); return !t||/^\d+$/.test(t)&&+t>=1; }); if(!nums) return false;
+      if(v.aMl==="curves") return true; const yk=Object.keys(v).filter(k=>/^aPy_/.test(k)&&v[k]); return yk.length>0&&Object.keys(v).some(k=>/^aI_/.test(k)&&v[k]&&!v["aPy_"+k.slice(3)]); }},
   lda:{noGroup:true, noMiss:true, html(p){ const G=(S.anaCand||[]).filter(c=>isCatCol(c)||textCount(c));
       return mvFormHtml(p,{open:true,noLayout:true,noScale:true,needGroups:true})+`<label for="aDp" class="tipd" title="How likely each group is before the data are seen: in proportion to the groups' sizes, or all alike">Priors</label><select id="aDp"><option value="prop">From the group sizes</option><option value="equal"${p.priors==="equal"?" selected":""}>Equal</option></select>
       <label for="aDx" class="tipd" title="The two canonical functions the scores are drawn on">Plotted</label><span class="anarows"><input type="text" id="aDx" inputmode="numeric" value="${+p.px>0?Math.round(+p.px):1}" aria-label="Function along X"><span class="muted">against</span><input type="text" id="aDy" inputmode="numeric" value="${+p.py>0?Math.round(+p.py):2}" aria-label="Function along Y"></span></div>${G.length?"":`<p class="lab">No column of text on this sheet names the groups: give one as text (the column menu's Cells hold).</p>`}`; },
@@ -22068,6 +22278,11 @@ function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&
   if(a.kind==="surf"){ const sv=rep.surf; return [{key:"fmat",label:"Fitted surface as a matrix",title:sv&&sv.mat?"The fitted surface on the matrix's own grid, as a matrix computed by its formula, drawn as a map":"The fitted surface on 101 × 101 points over the data's extent, as a matrix computed by its formula, drawn as a map",enabled:!ro&&!!sv,run:()=>surfToMatrix(a.id,"fit")}]
       .concat(sv&&sv.mat?[{key:"rmat",label:"Residuals as a matrix",title:"Each cell of the matrix less the fitted surface, as a matrix computed from it, drawn as a map",enabled:!ro,run:()=>surfToMatrix(a.id,"res")}]
         :sv?[{key:"rmap",label:"Residual map",title:"The points' X and Y coloured by their residual, on a graph",enabled:!ro,run:()=>surfResMap(a.id)}]:[]); }
+  if(a.kind==="pls"){ const l=rep.pls||{}; return [{key:"mp",label:"Measured against predicted",title:"Each sample's fitted and cross-validated value against its measured one, with y = x, on a graph",enabled:!ro,run:()=>plsPlot(a.id,"mp")},
+      {key:"rmse",label:"RMSECV against components",title:"RMSEC and RMSECV against the number of components, on a graph",enabled:!ro,run:()=>plsPlot(a.id,"rmse")},
+      {key:"coef",label:"Plot the coefficients",title:l.curves?"The regression vector against X, on a graph":"Each variable's coefficient as a column, named along X, on a graph",enabled:!ro,run:()=>plsPlot(a.id,"coef")},
+      {key:"vip",label:"Plot VIP",title:l.curves?"Each variable's importance in the projection against X, on a graph":"Each variable's importance in the projection as a column, named along X, on a graph",enabled:!ro,run:()=>plsPlot(a.id,"vip")},
+      {key:"scores",label:"Plot the scores",title:l.two?"The samples' first two scores, named, on a graph":"The samples' first score against their number, on a graph",enabled:!ro,run:()=>plsPlot(a.id,"scores")}]; }
   if(a.kind==="lda"){ const l=rep.lda||{}; return [{key:"scores",label:"Plot the scores",title:l.q>1?"The rows' scores on the two functions plotted, a curve a group, with the group means, on a graph":"The rows' scores on the function against their row, a curve a group, on a graph",enabled:!ro,run:()=>ldaPlot(a.id)}]; }
   if(a.kind==="kmeans"||a.kind==="hclust"){ const cl=rep.clu||{}, cur=cl.lay==="curves";
     return (a.kind==="hclust"?[{key:"dendro",label:"Dendrogram",title:"The merges drawn as a tree, the observations named along X, the cut as a dashed line, on a graph",enabled:!ro,run:()=>cluPlot(a.id,"dendro")}]:[])
@@ -22180,6 +22395,21 @@ function cluPlot(id,what){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) retu
   if(what==="clus"){ if(cl.lay==="curves"){ all(/^c\d+$/).forEach(c=>add(c,{type:"line"})); nm="cluster means"; } else { all(/^py\d+$/).forEach(c=>add(c,{type:"scatter"})); if(cl.pair){ xt=cl.pair[0]; yt=cl.pair[1]; } nm="clusters"; } }
   if(what==="sil"){ all(/^svy\d+$/).forEach(c=>add(c,{type:"column"})); yt="Silhouette"; nm="silhouette plot"; }
   if(what==="scan"){ add(col("kin"),{type:"linesym"}); add(col("ksi"),{type:"linesym"},{ax:"r"}); xt="Clusters"; yt="Within sum of squares"; nm="sums of squares against k"; step=1; }
+  if(!ids.length){ toast("There is nothing to plot: Recalculate first."); return; }
+  plotCols(ids,{series,use,undo:`plotting the ${nm} of ${a.name}`,say:`The ${nm} of ${a.name}`});
+  if(GID()){ const ax=Object.assign({},GP().ax||{}); if(xt) ax.x=Object.assign({},ax.x||{},{title:xt}); if(yt) ax.y=Object.assign({},ax.y||{},{title:yt}); if(cats) ax.x=Object.assign({},ax.x||{},{cats,title:"",lrot:cats.length>12?90:0}); if(step) ax.x=Object.assign({},ax.x||{},{step}); savePlot({ax}); } }
+/* A PLS regression's graphs (MULTI_SPEC 6.5), from its result sheet's columns, one undo step: measured against predicted (the fitted
+   and cross-validated values of each response, y = x dashed), RMSEC and RMSECV against the components, the coefficients and VIP
+   (curves: against X; columns: as columns named along X), the scores. */
+function plsPlot(id,what){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const l=a.res&&a.res.report&&a.res.report.pls;
+  const col=k=>p.cols.find(c=>c.ana===id&&c.ak===k), all=re=>p.cols.filter(c=>c.ana===id&&re.test(c.ak||"")); if(!l||!col("nc")){ toast("There is nothing to plot: Recalculate first."); return; }
+  const ids=[], series={}, use={}; let xt="", yt="", nm="", cats=null, step=null;
+  const add=(c,o,u)=>{ if(!c) return; ids.push(c.id); series[c.id]=o; if(u) use[c.id]=u; };
+  if(what==="mp"){ all(/^mfy\d+$/).forEach(c=>add(c,{type:"scatter"})); all(/^mvy\d+$/).forEach(c=>add(c,{type:"scatter",sym:"ocircle"})); add(col("ly"),{type:"line",dash:"dash"}); xt="Measured"; yt="Predicted"; nm="measured against predicted"; }
+  if(what==="rmse"){ all(/^rv\d+$/).forEach(c=>add(c,{type:"linesym"})); all(/^rc\d+$/).forEach(c=>add(c,{type:"linesym",dash:"dash"})); xt="Components"; yt=l.q>1?"RMSE":"RMSE"+(l.ynames&&l.ynames[0]?` of ${l.ynames[0]}`:""); nm="RMSECV against components"; step=1; }
+  if(what==="coef"||what==="vip"){ const cs=what==="vip"?[col("vip")]:all(/^b\d+$/); cs.forEach(c=>add(c,{type:l.curves?"line":"column"})); yt=what==="vip"?"VIP":"Coefficient"; nm=what==="vip"?"VIP":"coefficients";
+    if(!l.curves){ const vn=col("var"); const names=vn?Array.from({length:Math.max((vn.data||[]).length,txtLen(vn))},(_,i)=>cellTxt(vn,i)??(vn.data||[])[i]):[]; if(names.length&&names.length<=60) cats=names.map((t,i)=>[i+1,String(t??"")]); } }
+  if(what==="scores"){ add(col("sy"),{type:"scatter"},col("sl")?{lab:col("sl").id}:null); xt=l.two?"Score 1":"Sample"; yt=l.two?"Score 2":"Score 1"; nm="scores"; }
   if(!ids.length){ toast("There is nothing to plot: Recalculate first."); return; }
   plotCols(ids,{series,use,undo:`plotting the ${nm} of ${a.name}`,say:`The ${nm} of ${a.name}`});
   if(GID()){ const ax=Object.assign({},GP().ax||{}); if(xt) ax.x=Object.assign({},ax.x||{},{title:xt}); if(yt) ax.y=Object.assign({},ax.y||{},{title:yt}); if(cats) ax.x=Object.assign({},ax.x||{},{cats,title:"",lrot:cats.length>12?90:0}); if(step) ax.x=Object.assign({},ax.x||{},{step}); savePlot({ax}); } }
@@ -29057,6 +29287,7 @@ function analyzeMenu(){
       {label:"Your functions…", title:"Every function of yours, by category: rename, file, edit, delete, or copy between the project and this browser", run:()=>openFnOrganizer(), enabled:!!p},
       "-",
       {label:"Multiple regression…", title:ANA_KINDS.lm.help, run:()=>anaDlg("lm",{two:true}), enabled:edit},
+      {label:"PLS regression…", title:ANA_KINDS.pls.help, run:()=>anaDlg("pls",{all:true}), enabled:edit},
       {label:"Best subsets…", title:ANA_KINDS.subsets.help, run:()=>anaDlg("subsets",{two:true}), enabled:edit},
       {label:"Compare models…", title:ANA_KINDS.cmpmod.help, run:()=>anaDlg("cmpmod"), enabled:edit},
       {label:"Compare data sets…", title:ANA_KINDS.cmpdata.help, run:()=>anaDlg("cmpdata",{two:true}), enabled:edit&&yCols().length>1},
@@ -29114,7 +29345,8 @@ function analyzeMenu(){
       {label:"Multivariate", sub:()=>[{label:"Principal component analysis…", title:ANA_KINDS.pca.help, run:()=>anaDlg("pca",{all:true}), enabled:!S.readOnly&&!!P()},
         {label:"k-means clustering…", title:ANA_KINDS.kmeans.help, run:()=>anaDlg("kmeans",{all:true}), enabled:!S.readOnly&&!!P()},
         {label:"Hierarchical clustering…", title:ANA_KINDS.hclust.help, run:()=>anaDlg("hclust",{all:true}), enabled:!S.readOnly&&!!P()},
-        {label:"Discriminant analysis…", title:ANA_KINDS.lda.help, run:()=>anaDlg("lda",{all:true}), enabled:!S.readOnly&&!!P()}]},
+        {label:"Discriminant analysis…", title:ANA_KINDS.lda.help, run:()=>anaDlg("lda",{all:true}), enabled:!S.readOnly&&!!P()},
+        {label:"PLS regression…", title:ANA_KINDS.pls.help, run:()=>anaDlg("pls",{all:true}), enabled:!S.readOnly&&!!P()}]},
       {label:"ROC curve…", title:ANA_KINDS.roc.help, run:()=>anaDlg("roc",{two:true}), enabled:!S.readOnly&&!!P()},
       {label:"Power and sample size…", title:ANA_KINDS.power.help, run:()=>anaDlg("power"), enabled:!S.readOnly&&!!P()},
       {label:"Histogram", title:"The distribution of the selected columns' values (or the active column's), as a column of its own on a graph of its own", run:()=>histogramCols(hist()), enabled:has&&!S.readOnly}]},
@@ -30949,7 +31181,7 @@ const CMDK_SYN=[["background","baseline","detrend","continuum"],["fourier","fft"
   ["derivative","differentiate","slope","gradient","calculus"],["integral","integrate","area","cumulative"],["normalize","normalise","normalization","scale to 1"],["logarithm","log","ln"],
   ["fit","fitting","regression","model","curve fit","least squares"],["peak","peaks","maximum","maxima","band","bands"],["export","download","publish","exporting"],
   ["picture","image","png","clipboard","screenshot"],["histogram","distribution","bins","frequency count"],["statistics","stats","mean","average","sd","median","describe"],
-  ["correlation","pearson","correlate"],["pca","principal components","principal component analysis","multivariate","chemometrics","dimension reduction","eigenvalues","loadings","scores"],["cluster","clusters","clustering","k-means","kmeans","dendrogram","hierarchical","segmentation","classify"],["discriminant","lda","canonical","classification","classifier","wilks"],["spike","cosmic ray","despike","glitch"],["calibration","calibrate","energy"],["units","wavelength","wavenumber","raman shift","convert"],
+  ["correlation","pearson","correlate"],["pca","principal components","principal component analysis","multivariate","chemometrics","dimension reduction","eigenvalues","loadings","scores"],["cluster","clusters","clustering","k-means","kmeans","dendrogram","hierarchical","segmentation","classify"],["discriminant","lda","canonical","classification","classifier","wilks"],["pls","partial least squares","plsr","nipals","simpls","multivariate calibration","rmsecv","vip","latent"],["spike","cosmic ray","despike","glitch"],["calibration","calibrate","energy"],["units","wavelength","wavenumber","raman shift","convert"],
   ["crop","trim","cut","range"],["mask","exclude","leave out","ignore"],["axis","axes","scale","log scale","reverse"],["font","typeface","text size"],
   ["annotate","annotation","label","text","arrow","line","box","ellipse","inset"],["report","html","summary"],["theme","dark","light"],["preferences","settings","options"],
   ["import","open","load","read","csv","file"],["worksheet","spreadsheet","sheet","table","cells"],["plot","graph","chart","figure"],["reader","cursor","read","value","crosshair"],
@@ -32000,7 +32232,7 @@ ${DL([["Noise σ","From second differences, so a band's slope does not count as 
 <h2>Correlation</h2>
 <p>Pearson r between columns on the same X axis, interpolated onto the active column's X where they overlap. With p, intervals and other coefficients: ${DA("analyses#corr","Correlation")}.</p>
 <p><em>Copy</em> gives every table as tab-separated text.</p>`},
-{id:"multi", g:"Analysis", t:"Many variables", kw:"discriminant analysis lda linear canonical functions variates wilks lambda bartlett classification table confusion leave one out cross-validation posterior probability priors fisher classification functions structure matrix standardised coefficients cluster clusters clustering k-means kmeans k-means++ lloyd seed starts restarts silhouette elbow within sum of squares inertia hierarchical agglomerative dendrogram tree linkage ward average complete single upgma nearest farthest neighbour cophenetic cut membership multivariate many variables pca principal component analysis components eigenvalue eigenvalues eigenvector loadings scores scree biplot hotelling t2 t² q residual spe squared prediction error limits outliers covariance correlation autoscale unit variance pareto centred centering chemometrics spectra observations variables layout header field groups dimension reduction svd singular value decomposition",
+{id:"multi", g:"Analysis", t:"Many variables", kw:"pls plsr partial least squares projection to latent structures regression calibration multivariate calibration nipals simpls rmsec rmsecv press q2 q² vip variable importance regression vector cross-validation venetian blinds contiguous blocks prediction predict discriminant analysis lda linear canonical functions variates wilks lambda bartlett classification table confusion leave one out cross-validation posterior probability priors fisher classification functions structure matrix standardised coefficients cluster clusters clustering k-means kmeans k-means++ lloyd seed starts restarts silhouette elbow within sum of squares inertia hierarchical agglomerative dendrogram tree linkage ward average complete single upgma nearest farthest neighbour cophenetic cut membership multivariate many variables pca principal component analysis components eigenvalue eigenvalues eigenvector loadings scores scree biplot hotelling t2 t² q residual spe squared prediction error limits outliers covariance correlation autoscale unit variance pareto centred centering chemometrics spectra observations variables layout header field groups dimension reduction svd singular value decomposition",
  lead:"Several variables at once: the components of greatest variance of a set of columns, or of a set of curves taken as observations, each as a sheet of results worked out again when its data change.",
  body:`<h2 id="layout">Two layouts</h2>
 <p>${DL([["Columns are the variables","Each column ticked is one variable and each row one observation, as a table of measurements has it. A row counts only where every column ticked has a value; the rows left out are counted in the notes. A column of text (Groups) names each row's group."],["Each column is an observation","Each column ticked is a curve, and its points are the variables, as spectroscopy has it: twelve curves of 2000 points are twelve observations of 2000 variables. Curves that do not share their X are read on the first curve's X over the stretch they all cover, by straight lines between their own points, and the notes say so. A field of the curves' files (their header) names each curve's group."]])}</p>
@@ -32018,7 +32250,11 @@ ${DL([["Eigenvalues","Each component's variance, its share of the total and the 
 <h2 id="lda">Discriminant analysis</h2>
 <p>${MP("Analyze › Statistics › Multivariate › Discriminant analysis…")}: groups known in advance (a column of text, <em>Groups</em>) told apart by the columns of numbers ticked. Columns are the variables; for curves, whose points outnumber them, work out their principal components first and discriminate on the scores (with the PCA's sheet in front). The result sheet and the report hold:</p>
 ${DL([["Each variable alone","Its Wilks' Λ (the share of its spread within the groups) and F: how well it separates the groups by itself."],["Canonical functions","The combinations of the variables that separate the groups most, one fewer than the groups at most: each one's eigenvalue, share, canonical correlation, and Wilks' Λ of it and those after it with Bartlett's χ² and p."],["Coefficients","Unstandardised (the scores' within-group variance is 1, the constant making their mean 0), standardised (each times the variable's pooled SD, to compare variables in different units), and the structure (each variable's within-group correlation with each function)."],["Classification","Fisher's classification functions, each row's probability of each group and the group it is classified in, the table of true against classified groups with the share correct, and the same with each row left out of the fit that classifies it."]])}
-<p>The pooled within-group covariance divides by n − G, as statistics packages do (scikit-learn 1.9 divides by n, which moves the probabilities a little). <em>Priors</em>: in proportion to the group sizes, or equal. A function's sign is a convention: each is turned so that its largest standardised coefficient is positive. From the report: <em>Plot the scores</em> (on two functions, a curve a group, the group means as crosses; with two groups, the one function against the row).</p>`},
+<p>The pooled within-group covariance divides by n − G, as statistics packages do (scikit-learn 1.9 divides by n, which moves the probabilities a little). <em>Priors</em>: in proportion to the group sizes, or equal. A function's sign is a convention: each is turned so that its largest standardised coefficient is positive. From the report: <em>Plot the scores</em> (on two functions, a curve a group, the group means as crosses; with two groups, the one function against the row).</p>
+<h2 id="pls">PLS regression</h2>
+<p>${MP("Analyze › Statistics › Multivariate › PLS regression…")}, or ${MP("Analyze › Fit › PLS regression…")}: responses predicted from many variables that may be more than the samples and depend on one another (the points of a curve). Columns are the variables: tick them and the columns to predict, and choose those under <em>Response</em> (several may be); a row with every variable and no response is predicted, one with some responses and not others left out. Each curve is a sample: its points are the variables and its value of the series variable (typed, a number in the names, or a field of the files, set in the Batch window) the response; a curve with no value is predicted.</p>
+${DL([["Components","For each number of components up to <em>At most</em> (15): RMSEC and R² of the samples fitted, RMSECV and Q² of the samples predicted without themselves, and R² of X. RMSEC and RMSECV are √(Σ residual²/n); R² and Q² are 1 − Σ residual²/Σ(y − ȳ)²."],["The model","The number of components used: as typed, or with <em>Components</em> blank the least RMSECV (several responses: the greatest mean Q²); its intercept and statistics for each response."],["Coefficients and VIP","Each variable's coefficient (for curves the regression vector against X) and its importance in the projection, Wold's VIP."],["On the sheet","Every number above, the X weights and loadings, each sample's measured, fitted and cross-validated value with their residuals, its scores, and the predictions."]])}
+<p><em>Algorithm</em>: NIPALS, as scikit-learn's PLSRegression, iterated until it has settled exactly; or SIMPLS, de Jong's (worked out from what is left of X and Y each time, which keeps its digits where the later components are small). With one response both give the same model. <em>Cross-validation</em>: leave one out, k contiguous blocks (scikit-learn's KFold), or venetian blinds (every kth sample); each fold's model is made again on the rest, with its own means and scaling. The scaling (unit variance by default for columns, centred for curves) applies to the responses too. A weight vector's sign is a convention: each is turned so that its entry of largest magnitude is positive. From the report: <em>Measured against predicted</em>, <em>RMSECV against components</em>, <em>Plot the coefficients</em>, <em>Plot VIP</em>, <em>Plot the scores</em>.</p>`},
 /* ---------------------------------------------------------------- Fitting */
 {id:"fit", g:"Fitting", t:"Fitting", win:"fit", kw:"fit fitting curve peak model levenberg marquardt converge range from to use the view from view points zoom all spectrum done close residuals weighting weights weight counting statistics poisson 1/y instrumental arbitrary column of weights apparent fit log scale logarithmic axis straight line on log axes constraint constraints tie equal follows inequality order starting value formula start max(y) xat fwhm saved fit settings preset template recipe save settings fit again when the data change follow refit recalculate automatic in the results report sections",
  lead:"Two kinds of fit, in the Fit window: a curve fit puts one model through the data; a peak fit describes a column as a sum of peaks on a baseline.",

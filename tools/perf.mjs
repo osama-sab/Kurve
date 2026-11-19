@@ -94,6 +94,7 @@ const BUDGET = {
   "k-means: 10^5 × 10, k 10": [3000, "k-means of 100 000 rows of 10 columns into 10 clusters, 10 k-means++ starts, Lloyd's iterations with Hamerly's bounds (in the worker in the app; MULTI_SPEC 6.3)"],
   "Hierarchical: 3000, Ward's": [1500, "the distances of 3000 observations of 5 variables and Ward's linkage by the nearest-neighbour chain (in the worker in the app; MULTI_SPEC 6.3)"],
   "Discriminant: 10^4 × 20, left one out": [1000, "linear discriminant analysis of 10 000 rows of 20 columns in 4 groups, every row's class left one out by Sherman and Morrison (MULTI_SPEC 6.4)"],
+  "PLS: 100 curves × 1000, left one out": [2000, "PLS regression of 100 curves of 1000 points, ten components, each curve left out and the model made again (MULTI_SPEC 6.5)"],
   "PCA: 300 curves × 2000": [2400, "principal components of 300 curves of 2000 points, centred, ten kept, T² and Q (in the worker in the app; MULTI_SPEC 6.2)"],
 };
 const got = {};
@@ -271,6 +272,9 @@ await withPage(async (p) => {
     const a = performance.now(); linkage(mvDist(Q, N, 5, "euclidean"), N, "ward"); return performance.now() - a; }));
   got["Discriminant: 10^4 × 20, left one out"] = await best(() => p.evaluate(() => { const mb = mulberry32(34), N = 10000, gi = Int32Array.from({ length: N }, (_, i) => i % 4), X = Array.from({ length: 20 }, (_, j) => Float64Array.from({ length: N }, (_, i) => mb() + (j < 3 ? gi[i] * 0.3 * (j + 1) : 0)));
     const a = performance.now(); lda(X, gi, 4, {}); return performance.now() - a; }));
+  got["PLS: 100 curves × 1000, left one out"] = await best(() => p.evaluate(() => { const mb = mulberry32(35), X = Array.from({ length: 1000 }, () => new Float64Array(100)), y = new Float64Array(100);
+    for (let i = 0; i < 100; i++) { const h = mb(); y[i] = h + 0.01 * (mb() - 0.5); for (let j = 0; j < 1000; j++) X[j][i] = h * Math.exp(-(((j - 400) / 40) ** 2)) + 0.3 * mb() * Math.exp(-(((j - 600) / 60) ** 2)) + 0.01 * (mb() - 0.5); }
+    const a = performance.now(); plsFit(X, [y], { a: 10 }); plsCv(X, [y], { amax: 10, cv: { kind: "loo" } }); return performance.now() - a; }));
   got["PCA: 300 curves × 2000"] = await best(() => p.evaluate(() => { const mb = mulberry32(31), C = Array.from({ length: 2000 }, () => Float64Array.from({ length: 300 }, () => mb() - 0.5));
     const a = performance.now(); pca({ cols: C, n: 300 }, { scale: "none", k: 10, rows: false }); return performance.now() - a; }));
 });

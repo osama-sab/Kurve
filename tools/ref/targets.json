@@ -1087,5 +1087,17 @@
   "ldaFlat.uniF": {"tol": 1e-11},
   "ldaFlat.pred": {"tol": 0},
   "ldaFlat.loo": {"tol": 0},
-  "ldaFlat.fail": {"tol": 0}
+  "ldaFlat.fail": {"tol": 0},
+  "plsFlat.coef": {"tol": 1e-12},
+  "plsFlat.b0": {"tol": 1e-11},
+  "plsFlat.xw": {"tol": 1e-12},
+  "plsFlat.xs": {"tol": 1e-12},
+  "plsFlat.xl": {"tol": 1e-12},
+  "plsFlat.yl": {"tol": 1e-12},
+  "plsFlat.xr": {"tol": 1e-12},
+  "plsFlat.fit": {"tol": 1e-12},
+  "plsFlat.vip": {"tol": 1e-12},
+  "plsFlat.r2x": {"tol": 1e-13},
+  "plsFlat.fail": {"tol": 0},
+  "plsCvFlat.pred": {"tol": 1e-12}
 }

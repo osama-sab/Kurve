@@ -1308,6 +1308,55 @@ def lda_post(c, out):
     return e, f"probabilities {e:.2e}"
 POST["ldaFlat"] = lda_post
 
+# PLS regression, one response, against scikit-learn's PLSRegression (its power iteration exact for one Y): a random table of a few
+# factors with noise, scaled or not, a number of components; NIPALS judged by its weights, scores, coefficients and fitted values,
+# SIMPLS (the same model for one Y, its scores of unit length) by its coefficients and fitted values. Cross-validated predictions
+# against cross_val_predict, leave one out, contiguous blocks (KFold) or venetian blinds (a split by i mod k).
+def _plsdata():
+    n = int(rng.integers(4, 61)); p = int(rng.integers(1, 31)); f = int(rng.integers(1, min(p, 4) + 1))
+    Fc = rng.normal(size=(n, f)); X = Fc @ rng.normal(size=(f, p)) + rng.normal(size=(n, p)) * float(lognum(-2, 0)); X = X * 10 ** rng.uniform(-2, 2, p) + rng.uniform(-100, 100, p)
+    y = Fc @ rng.normal(size=f) + rng.normal(size=n) * float(lognum(-2, 0)) + rng.uniform(-10, 10)
+    return X, y, n, p
+@gen("plsFlat", 1e-11, 0.15)
+def _():
+    from sklearn.cross_decomposition import PLSRegression
+    X, y, n, p = _plsdata(); scale = bool(rng.integers(0, 2)); a = int(rng.integers(1, min(p, n - 1, 8) + 1)); algo = str(rng.choice(["nipals", "simpls"]))
+    m = PLSRegression(n_components=a, scale=scale, tol=1e-15, max_iter=100000).fit(X, y)
+    # a later component that takes nothing more of X is not determined: such a case is made again
+    if np.min(np.sum(m.x_scores_ ** 2, axis=0)) < 1e-12 * np.sum(m.x_scores_[:, 0] ** 2): raise ValueError("a component of nothing")
+    return [X.tolist(), y.tolist(), {"a": a, "scale": scale, "algo": algo}], {"coef": m.coef_.ravel().tolist(), "fit": m.predict(X).ravel().tolist(), "xw": m.x_weights_.ravel().tolist(), "xs": m.x_scores_.ravel().tolist(), "algo": algo, "ys": float(np.max(np.abs(y)))}
+def pls_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or "coef" not in out: return float("inf"), f"refused: {str(out)[:80]}"
+    keys = ("coef", "fit", "xw", "xs") if w["algo"] == "nipals" else ("coef", "fit")
+    e = 0.0; why = ""
+    for key in keys:
+        a = np.array([val(v) for v in out[key]]); b = np.array(w[key])
+        if a.shape != b.shape: return float("inf"), f"{key}: {a.shape} against {b.shape}"
+        big = w["ys"] if key == "fit" else (np.max(np.abs(b)) or 1.0); d = float(np.max(np.abs(a - b)) / big)
+        if d > e: e, why = d, key
+    return e, f"{why} {e:.2e}"
+POST["plsFlat"] = pls_post
+@gen("plsCvFlat", 1e-11, 0.1)
+def _():
+    from sklearn.cross_decomposition import PLSRegression
+    from sklearn.model_selection import cross_val_predict, LeaveOneOut, KFold, PredefinedSplit
+    X, y, n, p = _plsdata(); scale = bool(rng.integers(0, 2)); kind = str(rng.choice(["loo", "blocks", "venetian"])); k = int(rng.integers(2, min(n, 10) + 1)) if kind != "loo" else 0
+    big = 1 if kind == "loo" else max(len(range(f, n, k)) for f in range(k)) if kind == "venetian" else -(-n // k)
+    A = min(p, n - big - 1, 6)
+    if A < 1: raise ValueError("no fold leaves enough")
+    cv = LeaveOneOut() if kind == "loo" else KFold(k) if kind == "blocks" else PredefinedSplit(np.arange(n) % k)
+    # each fold's rest must have the components its model is asked for, and a variable that varies there (scikit-learn divides by 1)
+    pred = np.array([cross_val_predict(PLSRegression(n_components=a, scale=scale, tol=1e-15, max_iter=100000), X, y, cv=cv) for a in range(1, A + 1)])
+    return [X.tolist(), y.tolist(), {"amax": A, "scale": scale, "cv": {"kind": kind, "k": k}}], {"pred": pred.ravel().tolist(), "ys": float(np.max(np.abs(y)))}
+def plscv_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or "pred" not in out: return float("inf"), f"refused: {str(out)[:80]}"
+    a = np.array([val(v) for v in out["pred"]]); b = np.array(w["pred"])
+    if a.shape != b.shape: return float("inf"), f"{a.shape} against {b.shape}"
+    e = float(np.max(np.abs(a - b)) / w["ys"]); return e, f"predictions {e:.2e}"
+POST["plsCvFlat"] = plscv_post
+
 cases = []
 ONLY = os.environ.get("ONLY")  # ONLY=name,name: those generators alone
 for name, (f, tol) in GEN.items():

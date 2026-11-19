@@ -221,6 +221,7 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
     New function…  ## ~ "New fit function…"
     Your functions…  ## new (FIT_SPEC slice 10)
     Multiple regression…  ## new (FIT2_SPEC 4.2): the linear model, a second door
+    PLS regression…  ## + (MULTI_SPEC 6.5): partial least squares, a second door to the multivariate one
     Best subsets…  ## new (FIT2_SPEC 4.2)
     Compare models…  ## new (FIT2_SPEC 4.3)
     Compare data sets…  ## new (FIT2_SPEC 4.3); ↓ until there are two columns or more
@@ -297,6 +298,7 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
       k-means clustering…  ## + (MULTI_SPEC 6.3): k-means++ starts from a seed, restarts, silhouettes, k compared; the clusters into the data
       Hierarchical clustering…  ## + (MULTI_SPEC 6.3): Ward's, average, complete, single; Euclidean or 1 − r; the dendrogram
       Discriminant analysis…  ## + (MULTI_SPEC 6.4): canonical functions, Wilks' Λ, coefficients and structure, Fisher's classification, the classification table also left one out
+      PLS regression…  ## + (MULTI_SPEC 6.5): responses from many variables or curves, NIPALS or SIMPLS, the number of components by cross-validation, coefficients, VIP, predictions
     ROC curve…  ## + (STATS_SPEC 2.12) the area with DeLong's interval, Youden's cut-off, scores compared, the curve
     Power and sample size…  ## + (STATS_SPEC 2.11) t tests, one-way ANOVA, proportions, variances, χ²: power at sizes, the size for a power, a power curve
     Histogram…  ## ~ "Histogram of the values"; now takes the selected columns

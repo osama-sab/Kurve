@@ -898,6 +898,23 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-19: PLS regression (MULTI_SPEC 6.5)
+
+- **Two doors, one dialog.** PLS is a regression to people who predict a concentration from spectra and a multivariate method to
+  those who read loadings, so it is in Analyze › Fit beside Multiple regression and in Statistics › Multivariate beside the
+  principal components; both open the same dialog.
+- **The response is chosen, not guessed from the order.** With columns the dialog lists the columns ticked as Response ticks,
+  starting with the last (where a calibration table usually keeps it); every other column ticked is a variable. With curves the
+  response is the series variable the Batch window already sets (typed values, a number in the names, a field of the files), and
+  the dialog says how many curves have one: those without are predicted, which is what a calibration is for.
+- **The number of components is the user's, the least RMSECV the default, and the reason said.** The Components section's title
+  says how many were used and why (*the least RMSECV*, *as asked*, *the most there are*), and every number up to the most is in
+  the table, so the choice can be checked rather than trusted; the RMSECV plot is one click.
+- **Folds are never random** (decision 7): leave one out, contiguous blocks or venetian blinds, so a recalculation, a reload and a
+  colleague get the same RMSECV.
+- **No verdict.** Q², RMSECV and VIP are numbers; nothing says a model is good, a variable important past 1, or a component one too
+  many.
+
 ### 2026-11-19: the user's reports: =9 on an empty sheet, a radius drawn as a line
 
 - **A formula on an empty sheet has rows.** A column formula reading no column (a number, `i`, a column's mean) took the sheet's

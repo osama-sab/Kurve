@@ -1024,6 +1024,34 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 6, slice 6.5: PLS regression (2026-11-19)
+
+- **Analyze › Statistics › Multivariate › PLS regression…**, and **Analyze › Fit › PLS regression…** beside Multiple
+  regression: the same dialog. Columns: the columns ticked, one or more of them the Response (the last ticked to start
+  with), a row with every variable and no response predicted. Curves: each curve a sample, its points the variables, its
+  value of the series variable (typed, a number in the name, a field of the file) the response, the dialog saying how many
+  have one; those without are predicted. NIPALS or SIMPLS, unit variance, Pareto or centred, the most components to try (15),
+  leave one out, contiguous blocks or venetian blinds; the number of components typed, or the least RMSECV (several
+  responses: the greatest mean Q²), the reason in the section's title.
+- **The sheet and report**: RMSEC, RMSECV, R² of X and of each response and Q² for every number of components; the model's
+  intercept, RMSEC, RMSECV, R² and Q²; the coefficients (with curves, the regression vector against X) and VIP; X weights and
+  loadings; each sample's measured, fitted and cross-validated values, their residuals and scores; the predictions. From the
+  report: *Measured against predicted* (fitted and cross-validated, with y = x), *RMSECV against components*, *Plot the
+  coefficients*, *Plot VIP*, *Plot the scores*, each one undo step.
+- **Checked**: against scikit-learn's PLSRegression for one response (weights, scores and loadings to 4e-14), NumPy's NIPALS
+  at its limit for several (scikit-learn's power iteration stops 1e-8 short of it), 40-digit SIMPLS for the coefficients,
+  intercept and fitted values (9e-14; scikit-learn's intercept carries 1e-12 of cancellation), cross-validated predictions by
+  refitting each fold (7e-15; NumPy against cross_val_predict 2e-15). Fuzz generators against scikit-learn for the fit and for
+  cross-validation (1e-12). `tools/mv-test.mjs`: NIPALS and SIMPLS the same for one response, every component the least
+  squares fit, leave one out as refitting, the rows reordered and a variable in other units changing nothing, VIP's squares
+  averaging to 1, both layouts with predictions, refusals; `tools/mv-drive.mjs` (19 checks: the dialog's two doors, Change
+  settings, a row typed and predicted, each plot and its undo, the series changed and followed, a reload). 100 curves of
+  1 000 points, ten components, left one out: 1.1 s.
+- **Found on the way**: de Jong's update of SIMPLS's cross products lost 1e-8 of the coefficients where the later components
+  were small: S is worked out afresh from X and Y deflated (9e-14); a fold whose rest held two samples fell back to their mean
+  where one component still fits (the fuzzer); copying each fold's rows with a function per value was a third of
+  cross-validation's time (2.2 s down to 1.1 s).
+
 ## The user's reports: =9 on an empty sheet, a radius drawn as a line (2026-11-19)
 
 - **=9 on an empty sheet**: a column formula that reads no column (a number, `i`, a column's mean) has 32 rows on a sheet with no

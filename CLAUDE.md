@@ -1719,7 +1719,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   `#aMy`), `pcaPlot(id, "scree"|"scores"|"loadings"|"tq"|"biplot")`, `pcaMaskOut(id)`. Analyze › Statistics › Multivariate ›
   Principal component analysis…; Help `multi`. References: `tools/ref/mv_fixtures.py` → `fixtures/mv-*.json` (scikit-learn,
   NumPy, SciPy, 40-digit mpmath), judged in `ref-test.mjs`'s Many variables section (`svd`, `sval`, `eig`, `obj`, `vec`, `fail`);
-  the fuzzer's `svd.s`, `symEig.vals`, `pcaFlat`, `kmeansFrom`, `linkFlat`, `ldaFlat` (against scikit-learn within its reach). **6.3**: `mvRows(Z, n)` (a row-major Float64Array),
+  the fuzzer's `svd.s`, `symEig.vals`, `pcaFlat`, `kmeansFrom`, `linkFlat`, `ldaFlat`, `plsFlat`, `plsCvFlat` (against scikit-learn within its reach). **6.3**: `mvRows(Z, n)` (a row-major Float64Array),
   `mvD2`, `mvRenumber` (labels by the data, decision 8), `kmPP(R, n, m, k, rnd)` (greedy k-means++, 2 + ⌊ln k⌋ trials, refusing
   fewer distinct observations than k), `kmLloyd(R, n, m, C0, maxIter)` (Lloyd's with Hamerly's bounds, the lowest-numbered of equal
   centres, an empty cluster given the farthest observation), `kmeans(R, n, m, {k, seed, restarts, maxIter})` (the least within
@@ -1748,6 +1748,26 @@ graph first, with the taskbar kept at the bottom of the screen.
   `lc` the tables; `obs`, `grp`, `pred`, `loo`, `pp<g>`, `cs<k>`; `dx<g>` X, `dy<g>` a curve a group; `cx`, `cy`, `cl` the means;
   `report.lda {q, G, px, py, rows, vids, acc, accL, groups}`). Page: `mvFormHtml`'s `noLayout`, `ANA_FORMS.lda` (`#aMg` needed,
   `#aDp`, `#aDx`, `#aDy`), `ldaPlot(id)`. Analyze › Statistics › Multivariate › Discriminant analysis….
+  **6.5**: `PLS_ALGOS` (`nipals`, `simpls`), `PLS_CV` (`loo`, `blocks`, `venetian`), `PLS_MAX` (15), `plsDot`, `plsTop(M)` (the
+  first eigenvector of a small symmetric matrix), `plsCore(Z, Yz, A, n, algo)` (on scaled columns: NIPALS as scikit-learn's at its
+  limit, each weight the first left singular vector of XₖᵀYₖ, X and Y deflated by each score, the rotations r_a = w_a − Σ(p_iᵀw_a)r_i;
+  SIMPLS from what is left, X deflated along each loading and Y by each score, S worked out afresh; the sign rule on each weight;
+  `{W, T, P, C, R, ssx, ssy, stop}`), `plsFit(Xc, Yc, {algo, a, scale, names, ynames, zeroOk})` (refusals in words: fewer than three
+  observations (two for a fold's rest, `zeroOk`), a response of one value; `mvScale`'s `zeroOk` divides a constant variable by 1;
+  `{…core, A, n, p, q, xm, xf, xsd, ym, yf, ss0x, sst, algo}`), `plsCoef(F, a)` (`{B, b0}` in the data's units), `plsPredict(F, a,
+  Xc, m)`, `plsVip(F, a)` (Wold's), `plsFolds(n, cv)` (decision 7: never random), `plsCv(Xc, Yc, {algo, scale, amax, cv})` (each
+  fold's model made again on the rest, its own means and scaling; a rest no component can be made of predicts its mean; `{A, pred,
+  press, folds}`), `plsFlat`, `plsCvFlat` (the bench's, in scikit-learn's layouts). `ANA_KINDS.pls` (`cats`, `resIn`, `pts` for
+  curves, `heavy`; columns: `p.y` the responses' ids, a row with every variable and no response predicted, one with some responses
+  left out; curves: each input's `sv` (its value of the series variable, `anaSeriesOf`, named `svn`, `svu`) the response, a curve
+  with none predicted; the number of components `p.ncomp`, else the least RMSECV (several: the greatest mean Q²); the sheet: `nc` X,
+  `r2x`, `rc<k>`, `rv<k>`, `ry<k>`, `q<k>`; `vx` X (curves) or `vi` X and `var`, `b<k>`, `vip`, `w<a>`, `pl<a>`; `iy`, `ib`; `obs`,
+  `ym<k>`, `yf<k>`, `yv<k>`, `ef<k>`, `ecv<k>`, `t<a>`; `mfx<k>`/`mfy<k>`, `mvx<k>`/`mvy<k>`, `lx`/`ly` measured against predicted;
+  `sx`, `sy`, `sl` the scores; `pobs`, `pp<k>` the predictions; `report.pls {A, used, lay, q, ynames, curves, vids, npred, rows, prow,
+  two}`). `anaPts` and the worker carry `sv`, `svn`, `svu`; `anaSig` reads the series. Page: `mvFormHtml`'s `noGroups`,
+  `ANA_FORMS.pls` (`#aPy` with `aPy_<id>` ticks, the last column ticked by default, `#aPs` how many curves have a value, `#aPa`,
+  `#aPk`, `#aPm`, `#aPc`, `#aPf`), `plsPlot(id, "mp"|"rmse"|"coef"|"vip"|"scores")`. Analyze › Statistics › Multivariate › PLS
+  regression…, and Analyze › Fit › PLS regression….
 - **Worksheet** (`renderWs`, `setupWs`): a spreadsheet grid as in Excel, with Origin's label
   rows. Columns have fixed widths (`WS_W`, 100 px; `p.wsw[colId]` when dragged or autofitted by
   a double click on the header's edge, `wsSetWidth`, `wsAutofit`), never stretched to the
