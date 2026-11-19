@@ -193,6 +193,63 @@ for n, m in ((8, 2), (25, 3), (60, 5), (40, 30)):
 cases.append({"fn": "linkFlat", "name": "Ward on correlation", "args": [[[1.0, 2.0, 3.0], [2.0, 1.0, 0.0], [5.0, 5.0, 4.0]], "ward", "correlation"], "want": {"fail": "ward"}, "kind": "fail"})
 out["mv-clu"] = cases
 
+# ---- 6.4 discriminant analysis: scikit-learn's LinearDiscriminantAnalysis (svd solver) for the posteriors, the classes and
+# leave one out (cross_val_predict), the canonical functions from SciPy's generalised eigenproblem eigh(B, W) in NumPy (raw
+# coefficients with a within-group variance of 1, the sign rule on the standardised ones), Wilks' Λ against statsmodels' MANOVA,
+# each variable alone against scipy.stats.f_oneway ----
+cases = []
+rng = np.random.default_rng(20261122)
+from scipy import linalg as _la, stats as _st2
+def lda_ref(X, g, priors):
+    from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
+    from sklearn.model_selection import cross_val_predict, LeaveOneOut
+    X = np.array(X); g = np.array(g); n, p = X.shape; G = g.max() + 1; ng = np.bincount(g); mean = X.mean(0)
+    mu = np.array([X[g == k].mean(0) for k in range(G)]); D = X - mu[g]; W = D.T @ D; Bm = sum(ng[k] * np.outer(mu[k] - mean, mu[k] - mean) for k in range(G))
+    lam, V = _la.eigh(Bm, W); o = np.argsort(-lam); q = min(p, G - 1); lam = lam[o][:q]; V = V[:, o][:, :q] * np.sqrt(n - G)
+    sd = np.sqrt(np.sum(D * D, 0) / (n - G)); std = V * sd[:, None]
+    for k in range(q):
+        a = np.abs(std[:, k]); b = int(np.argmax(a >= a.max() * (1 - 1e-12)))
+        if std[b, k] < 0: V[:, k] *= -1; std[:, k] *= -1
+    cst = -mean @ V; Sw = W / (n - G); struct = (Sw @ V) / sd[:, None]
+    wl = [float(np.prod(1 / (1 + lam[k:]))) for k in range(q)]; x2 = [-(n - 1 - (p + G) / 2) * np.log(L) for L in wl]
+    pri = np.full(G, 1 / G) if priors == "equal" else ng / n; Si = np.linalg.inv(Sw); cf = (Si @ mu.T).T; c0 = -0.5 * np.sum(mu * cf, 1) + np.log(pri)
+    # the posteriors by Fisher's functions with S_w = W/(n − G), as SPSS, R's MASS and Origin; left one out by refitting each time
+    def postOf(Xq, mu_, Si_, pri_):
+        d = Xq @ (Si_ @ mu_.T) - 0.5 * np.sum(mu_ * (Si_ @ mu_.T).T, 1) + np.log(pri_); e = np.exp(d - d.max(1, keepdims=True)); return e / e.sum(1, keepdims=True)
+    post = postOf(X, mu, Si, pri); pred = np.argmax(post, 1); ploo = np.zeros((n, G))
+    for i in range(n):
+        keep = np.arange(n) != i; Xk, gk = X[keep], g[keep]; nk = np.bincount(gk, minlength=G); muk = np.array([Xk[gk == k].mean(0) for k in range(G)]); Dk = Xk - muk[gk]
+        Swk = Dk.T @ Dk / (n - 1 - G); prk = pri if priors == "equal" else nk / (n - 1); ploo[i] = postOf(X[i:i + 1], muk, np.linalg.inv(Swk), prk)[0]
+    loo = np.argmax(ploo, 1)
+    # Wilks' Λ = det W / det T, in 40 digits on the data's own doubles
+    mpmath.mp.dps = 40; Xm = [[mpmath.mpf(float(v)) for v in r] for r in X]; mm = [mpmath.fsum(Xm[i][j] for i in range(n)) / n for j in range(p)]
+    mg = [[mpmath.fsum(Xm[i][j] for i in range(n) if g[i] == k) / ng[k] for j in range(p)] for k in range(G)]
+    Wm = mpmath.matrix(p, p); Tm = mpmath.matrix(p, p)
+    for i in range(n):
+        for a in range(p):
+            for b in range(p): Wm[a, b] += (Xm[i][a] - mg[g[i]][a]) * (Xm[i][b] - mg[g[i]][b]); Tm[a, b] += (Xm[i][a] - mm[a]) * (Xm[i][b] - mm[b])
+    wl0 = float(mpmath.det(Wm) / mpmath.det(Tm))
+    uniF = [float(_st2.f_oneway(*[X[g == k, j] for k in range(G)]).statistic) for j in range(p)]
+    return {"ev": lam, "wl": wl, "wl0": wl0, "x2": x2, "raw": V.T.ravel(), "cst": cst, "std": std.T.ravel(), "struct": struct.T.ravel(), "scores": (X @ V + cst).T.ravel(),
+            "cf": cf.ravel(), "c0": c0, "post": post.ravel(), "pred": pred, "loo": loo, "ploo": ploo.ravel(), "uniF": uniF}
+for n, p, G, sep, priors in ((30, 2, 3, 2.0, "prop"), (60, 4, 3, 1.0, "prop"), (90, 5, 4, 0.8, "equal"), (40, 3, 2, 1.5, "prop"), (120, 8, 5, 0.7, "prop"), (25, 2, 2, 0.6, "equal")):
+    M = rng.normal(0, sep, size=(G, p)); g = np.sort(np.concatenate([np.arange(G), rng.integers(0, G, n - G)])); L = rng.normal(size=(p, p)) * 0.4 + np.eye(p)
+    X = np.array(r6m(M[g] + rng.normal(size=(n, p)) @ L + rng.uniform(-20, 20, p)))
+    cases.append({"fn": "ldaFlat", "name": f"{n} rows, {p} variables, {G} groups, priors {priors}", "args": [X.tolist(), g.tolist(), {"priors": priors}], "want": lda_ref(X, g, priors), "kind": "obj"})
+# the same arithmetic with W divided by n, as scikit-learn 1.9's svd solver: its posteriors, classes and leave one out
+def lda_sk(X, g, priors):
+    from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
+    from sklearn.model_selection import cross_val_predict, LeaveOneOut
+    X = np.array(X); g = np.array(g); G = g.max() + 1; pri = np.full(G, 1 / G) if priors == "equal" else None
+    l = LDA(solver="svd", priors=pri).fit(X, g); ploo = cross_val_predict(LDA(solver="svd", priors=pri), X, g, cv=LeaveOneOut(), method="predict_proba")
+    return {"post": l.predict_proba(X).ravel(), "pred": l.predict(X), "ploo": ploo.ravel(), "loo": np.argmax(ploo, 1)}
+for n, p, G, sep, priors in ((45, 3, 3, 1.2, "prop"), (60, 4, 4, 1.0, "equal"), (30, 2, 2, 0.8, "prop")):
+    M = rng.normal(0, sep, size=(G, p)); g = np.sort(np.concatenate([np.arange(G), np.arange(G), rng.integers(0, G, n - 2 * G)])); X = np.array(r6m(M[g] + rng.normal(size=(n, p))))
+    cases.append({"fn": "ldaFlat", "name": f"as scikit-learn 1.9 (W/n): {n} rows, {p} variables, {G} groups, priors {priors}", "args": [X.tolist(), g.tolist(), {"priors": priors, "cov": "n"}], "want": lda_sk(X, g, priors), "kind": "obj"})
+cases.append({"fn": "ldaFlat", "name": "more variables than n − G", "args": [[[1.0, 2.0, 3.0], [2.0, 1.0, 0.5], [3.0, 3.0, 1.0], [0.0, 1.0, 2.0]], [0, 0, 1, 1], {}], "want": {"fail": "df"}, "kind": "fail"})
+cases.append({"fn": "ldaFlat", "name": "one group", "args": [[[1.0, 2.0], [2.0, 1.0], [3.0, 3.0]], [0, 0, 0], {}], "want": {"fail": "groups"}, "kind": "fail"})
+out["mv-lda"] = cases
+
 def write_or_check(name, cases):
     doc = {"made": MADE, "cases": j(cases)}
     path = os.path.join(here, "fixtures", name + ".json")

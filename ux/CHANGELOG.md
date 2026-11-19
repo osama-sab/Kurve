@@ -1024,6 +1024,23 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 6, slice 6.4: discriminant analysis (2026-11-19)
+
+- **Analyze › Statistics › Multivariate › Discriminant analysis…**: the columns of numbers and a column of groups (text), priors
+  from the group sizes or equal, the two functions plotted. The sheet and report: groups with sizes and priors; each variable alone
+  (Wilks' Λ, F, p); the canonical functions (eigenvalue, share, canonical correlation, Wilks' Λ of it and those after with
+  Bartlett's χ², df, p); unstandardised and standardised coefficients and the structure matrix; the functions at the group means;
+  Fisher's classification functions; each row's probabilities, class, and class left one out; the classification tables. *Plot the
+  scores*: a curve a group, the group means as crosses. It may read a PCA's scores and groups.
+- **Checked**: against NumPy written from the definitions (the canonical functions from SciPy's eigh(B, W), Fisher's functions, leave
+  one out by refitting), 40-digit determinants for Wilks' Λ (8e-15; statsmodels' MANOVA was 1.9e-11 off), and scikit-learn 1.9 with
+  W divided by n as it does (posteriors 5e-13). A fuzz generator against scikit-learn; settled in 40 digits, its svd solver drops
+  directions below an absolute 1e-4 and was 1.6e-5 off where Kurve was 1.8e-11. `tools/mv-test.mjs`: units and the rows' order change
+  nothing, leave one out as refitting (7e-18), two groups' Λ = 1 − R², refusals. 10⁴ rows of 20 in 4 groups with leave one out in
+  0.25 s (1.7 s before the updates were made on vectors).
+- **Found on the way**: the probabilities lost digits (4.6e-9) on a variable far from 0 against its spread, Fisher's functions taken
+  raw: they are worked out about the overall mean, the functions shown as they are.
+
 ## Closing the gap with Origin, wave 6, slice 6.3: clustering (2026-11-19)
 
 - **Analyze › Statistics › Multivariate › k-means clustering…**: the layouts, scaling and groups of 6.2; the clusters, a seed,

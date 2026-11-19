@@ -11185,11 +11185,11 @@ function mvTable(ins,p){ const notes=[], lay=mvLayout(p);
   const left=any-common.length;
   if(common.length<2) return {fail:`${common.length===1?"One row has":"No row has"} a value in every column ticked: two are needed`};
   if(left) notes.push(`Only the ${common.length} rows with a value in every column: ${left} row${left===1?"":"s"} left out.`);
-  let groups=null;
-  if(g){ const gm=new Map(); g.rows.forEach((r,i)=>{ const v=g.cats?g.cats.keys[i]:g.vals[i]; if(v!=null&&v!==""&&(g.cats||Number.isFinite(v))) gm.set(r,mvGrp(v)); });
-    groups=common.map(r=>gm.has(r)?gm.get(r):null); const nn=groups.filter(v=>v==null).length; if(nn) notes.push(`${nn} row${nn===1?" has":"s have"} no group in ${g.name}.`); }
+  let groups=null, graw=null;
+  if(g){ const gm=new Map(), gr=new Map(); g.rows.forEach((r,i)=>{ const v=g.cats?g.cats.keys[i]:g.vals[i]; if(v!=null&&v!==""&&(g.cats||Number.isFinite(v))){ gm.set(r,mvGrp(v)); gr.set(r,v); } });
+    groups=common.map(r=>gm.has(r)?gm.get(r):null); graw=common.map(r=>gr.has(r)?gr.get(r):null); const nn=groups.filter(v=>v==null).length; if(nn) notes.push(`${nn} row${nn===1?" has":"s have"} no group in ${g.name}.`); }
   const us=[...new Set(V.map(q=>q.unit||""))];
-  return {Xc:by.map(a=>Float64Array.from(common,r=>a[r])),n:common.length,m:V.length,obs:common.map(r=>`Row ${r+1}`),rows:common,vnames:V.map(q=>q.name),vx:null,vids:V.map(q=>q.id),groups,unit:us.length===1?us[0]:"",notes,gname:g?g.name:null}; }
+  return {Xc:by.map(a=>Float64Array.from(common,r=>a[r])),n:common.length,m:V.length,obs:common.map(r=>`Row ${r+1}`),rows:common,vnames:V.map(q=>q.name),vx:null,vids:V.map(q=>q.id),groups,graw,gorder:g&&g.cats?g.cats.order:null,unit:us.length===1?us[0]:"",notes,gname:g?g.name:null}; }
 // A table of rows as its columns (Float64Arrays).
 const mvCols=X=>X[0].map((_,j)=>Float64Array.from(X,r=>r[j]));
 /* Each variable (a column, n values) centred, then divided by its standard deviation (n − 1, "unit"), by its square root
@@ -11506,6 +11506,139 @@ ANA_KINDS.hclust={label:"Hierarchical clustering", base:"Clusters", cats:true, r
     const mword=LINK_METHODS.find(([q])=>q===method)[1];
     const meth=`${lay==="curves"?`Each curve an observation and its ${m} points the variables`:`${m} columns the variables and ${n} rows the observations`}; ${mvScaleWord(how)}; ${mword} linkage on ${metric==="correlation"?"1 − r between observations":"Euclidean distances"}, as SciPy's linkage; ${byH?`cut at the height ${fmt(+p.h,6)}`:`cut into ${k0} clusters, drawn at a height between the merges either side`}; the clusters numbered by their first observation.`;
     return {tables:[{cols}],report:{sections:secs,method:meth,clu:{k,lay,rows:T.rows,vids:T.vids,pair:o.pair||null,leaves:dg.leaves.map(i=>T.obs[i]),n,hcut}},notes}; }};
+/* ---- Discriminant analysis (MULTI_SPEC 6.4) ----
+   lda(C, gi, G, o): C the variables' columns (n each), gi each observation's group (0 … G − 1), o {priors: "prop"|"equal",
+   names}. The within-group data whitened by their own SVD (scikit-learn's svd solver: each variable divided by its pooled
+   within-group SD, the deviations from the group means by √(n − G)), so S_w = W/(n − G) is never inverted as formed; the group
+   means' spread in that space by a second SVD gives the canonical functions: eigenvalues of W⁻¹B, raw coefficients with
+   vᵀ·S_w·v = 1 (SPSS's), standardised (times each variable's pooled SD) and turned so that the standardised coefficient of
+   largest magnitude is positive (decision 2), the structure matrix (the variables' pooled within-group correlations with the
+   functions), Wilks' Λ of each function and those after it with Bartlett's χ². Fisher's classification functions S_w⁻¹·μ_g and
+   −½·μ_gᵀS_w⁻¹μ_g + ln π_g; posterior probabilities by them; leave one out by updating W, the means and the priors for each
+   observation left out (Sherman and Morrison), no refit. {fail} in words: fewer than two groups, n − G below the variables,
+   variables dependent within the groups. o.cov "n" divides W by n in place of n − G (the maximum likelihood estimate, as
+   scikit-learn 1.9 does), for the bench alone: the statistics packages (SPSS, R's MASS, Origin) divide by n − G. */
+function lda(C,gi,G,o){ o=o||{}; const p=C.length, n=gi.length, names=o.names||C.map((_,j)=>"Variable "+(j+1));
+  if(G<2) return {fail:"Two groups or more are needed"}; const ng=new Float64Array(G); for(let i=0;i<n;i++) ng[gi[i]]++;
+  if([...ng].some(v=>v<1)) return {fail:"Every group needs an observation"};
+  if(n-G<p) return {fail:`${n} observations in ${G} groups leave ${n-G} degrees of freedom for the ${p} variables' covariance: at least as many as the variables are needed`};
+  const pri=o.priors==="equal"?Array.from({length:G},()=>1/G):Array.from(ng,v=>v/n);
+  const mu=Array.from({length:G},()=>new Float64Array(p)), mean=new Float64Array(p);
+  for(let j=0;j<p;j++){ const c=C[j]; for(let i=0;i<n;i++){ mu[gi[i]][j]+=c[i]; mean[j]+=c[i]; } for(let g=0;g<G;g++) mu[g][j]/=ng[g]; mean[j]/=n; }
+  // the deviations from the group means, each variable's pooled SD, the whitening by SVD
+  const dv=o.cov==="n"?n:n-G, dvL=o.cov==="n"?n-1:n-1-G;
+  const Dc=C.map((c,j)=>Float64Array.from(c,(v,i)=>v-mu[gi[i]][j])), sd=Dc.map(d=>{ let s=0; for(const v of d) s+=v*v; return Math.sqrt(s/dv); });
+  const bad=sd.findIndex(v=>!(v>0)); if(bad>=0) return {fail:`${names[bad]} does not vary within any group: it cannot be weighed against the others`};
+  const Xw=Dc.map((d,j)=>Float64Array.from(d,v=>v/sd[j]/Math.sqrt(dv))), S1=svd({cols:Xw,m:n},{cols:true,noU:true}); if(S1.fail) return S1;
+  if(S1.rank<p) return {fail:`Within the groups the variables are linearly dependent (rank ${S1.rank} of ${p}): leave a column out`};
+  // A (p × p): the whitening, columns of V over s, in the variables divided by their SD
+  const A=S1.V.map((v,r)=>Float64Array.from(v,x=>x/S1.s[r]));   // A[r][j]
+  const wh=x=>A.map(a=>{ let s=0; for(let j=0;j<p;j++) s+=a[j]*x[j]/sd[j]; return s; });   // a point (as deviations) in the whitened space
+  // the group means' spread: rows √n_g·(μ_g − μ) whitened, its SVD
+  const N=Array.from({length:G},(_,g)=>wh(Array.from(mu[g],(v,j)=>v-mean[j])).map(v=>v*Math.sqrt(ng[g])));
+  const S2=svd(N,{cols:true}); if(S2.fail) return S2;
+  const q=Math.min(p,G-1), ev=S2.s.slice(0,q).map(s=>s*s/dv);
+  // raw coefficients v_k = D⁻¹·A·w_k (vᵀS_w v = 1): A[r][j]·w[r] summed over r, over sd[j]
+  let raw=S2.V.slice(0,q).map(w=>Array.from({length:p},(_,j)=>{ let s=0; for(let r=0;r<p;r++) s+=A[r][j]*w[r]; return s/sd[j]; }));
+  let std=raw.map(v=>v.map((x,j)=>x*sd[j]));
+  raw=raw.map((v,k)=>{ const b=svdLead(std[k]); return std[k][b]<0?v.map(x=>-x):v; }); std=raw.map(v=>v.map((x,j)=>x*sd[j]));
+  const cst=raw.map(v=>-v.reduce((s,x,j)=>s+x*mean[j],0));
+  // Wilks' Λ of functions k… and Bartlett's χ²
+  const wl=ev.map((_,k)=>ev.slice(k).reduce((s,l)=>s/(1+l),1)), bart=wl.map((L,k)=>{ const x2=-(n-1-(p+G)/2)*Math.log(L), df=(p-k)*(G-1-k); return {x2,df,p:df>0?DIST.chi2.sf(x2,df):null}; });
+  // the structure matrix: S_w·v over √diag S_w (the scores' within variance being 1): (Σ_i d_ij·(d_i·v))/(n − G) over sd_j
+  const scoreW=raw.map(v=>{ const t=new Float64Array(n); for(let j=0;j<p;j++){ const d=Dc[j], w=v[j]; for(let i=0;i<n;i++) t[i]+=d[i]*w; } return t; });
+  const struct=raw.map((_,k)=>Array.from({length:p},(_,j)=>{ let s=0; const d=Dc[j], t=scoreW[k]; for(let i=0;i<n;i++) s+=d[i]*t[i]; return s/dv/sd[j]; }));
+  const scores=raw.map((v,k)=>{ const t=new Float64Array(n); for(let j=0;j<p;j++){ const c=C[j], w=v[j]; for(let i=0;i<n;i++) t[i]+=c[i]*w; } for(let i=0;i<n;i++) t[i]+=cst[k]; return t; });
+  const cen=Array.from({length:G},(_,g)=>raw.map((v,k)=>v.reduce((s,x,j)=>s+x*mu[g][j],0)+cst[k]));
+  // S_w⁻¹ in the original units, D⁻¹·A·Aᵀ·D⁻¹ (full rank), and Fisher's classification functions
+  const Si=Array.from({length:p},(_,a)=>Float64Array.from({length:p},(_,b)=>{ let s=0; for(let r=0;r<p;r++) s+=A[r][a]*A[r][b]; return s/(sd[a]*sd[b]); }));
+  const mv=(M,x)=>M.map(r=>r.reduce((s,v,j)=>s+v*x[j],0)), dot=(a,b)=>{ let s=0; for(let j=0;j<a.length;j++) s+=a[j]*b[j]; return s; };
+  const cf=mu.map(m=>mv(Si,m)), c0=mu.map((m,g)=>-0.5*dot(m,cf[g])+Math.log(pri[g]));
+  // The probabilities from the same functions about the overall mean (each point and mean less it): the same in exact arithmetic,
+  // without the cancellation of μᵀS⁻¹μ when a variable sits far from 0 against its spread.
+  const ctr=m=>Float64Array.from(m,(v,j)=>v-mean[j]), muC=mu.map(ctr), cfC=muC.map(m=>mv(Si,m)), c0C=muC.map((m,g)=>-0.5*dot(m,cfC[g])+Math.log(pri[g]));
+  const post=(x,cfs,c0s,live)=>{ const d=cfs.map((c,g)=>live&&!live[g]?-Infinity:dot(c,x)+c0s[g]), mx=Math.max(...d); let z=0; const e=d.map(v=>{ const t=Math.exp(v-mx); z+=t; return t; }); return e.map(v=>v/z); };
+  const X=i=>C.map(c=>c[i]), P=[], pred=new Int32Array(n);
+  for(let i=0;i<n;i++){ const pr=post(ctr(X(i)),cfC,c0C); P.push(pr); let b=0; pr.forEach((v,g)=>{ if(v>pr[b]) b=g; }); pred[i]=b; }
+  // leave one out: W loses c·d·dᵀ (c = n_g/(n_g − 1), d the row's deviation from its group mean) and its group mean moves, so by
+  // Sherman and Morrison W'⁻¹·y = W⁻¹y + c·u·(uᵀy)/(1 − c·dᵀu) with u = W⁻¹d: each group's function is worked out on vectors,
+  // with no matrix made for a row. A group of one goes with its row: the others classify it.
+  const W1=Si.map(r=>Float64Array.from(r,v=>v/dv)), Wm=muC.map(m=>mv(W1,m)), qf=muC.map((m,h)=>dot(m,Wm[h]));
+  const loo=new Int32Array(n), Ploo=[], dd=new Array(G), lg=new Array(G);
+  for(let i=0;i<n;i++){ const g=gi[i], x=ctr(X(i));
+    if(n-1-(ng[g]<2?G-1:G)<p){ Ploo.push(null); loo[i]=-1; continue; }
+    const Wx=mv(W1,x), alone=ng[g]<2, dfn=o.cov==="n"?n-1:n-1-(alone?G-1:G);
+    const u=alone?null:Wx.map((v,j)=>v-Wm[g][j]), d=alone?null:x.map((v,j)=>v-muC[g][j]), c=alone?0:ng[g]/(ng[g]-1), den=alone?1:1-c*dot(d,u), ux=alone?0:dot(u,x);
+    if(!(den>0)){ Ploo.push(null); loo[i]=-1; continue; }
+    for(let h=0;h<G;h++){ if(alone&&h===g){ lg[h]=-Infinity; continue; }
+      let xa, aa, ua;
+      if(h!==g||alone){ ua=alone?0:dot(u,muC[h]); xa=dot(x,Wm[h]); aa=qf[h]; }
+      else { const k1=1/(ng[g]-1), ud=dot(u,d), um=dot(u,muC[g]); ua=um-ud*k1; xa=dot(x,Wm[g])-ux*k1; aa=qf[g]-2*um*k1+ud*k1*k1; }
+      const xS=xa+c*ux*ua/den, aS=aa+c*ua*ua/den, pr=o.priors==="equal"?(alone?1/(G-1):1/G):(ng[h]-(h===g?1:0))/(n-1);
+      lg[h]=dfn*(xS-0.5*aS)+Math.log(pr); }
+    const mx=Math.max(...lg); let z=0; for(let h=0;h<G;h++){ dd[h]=lg[h]===-Infinity?0:Math.exp(lg[h]-mx); z+=dd[h]; }
+    const pr=dd.map(v=>v/z); Ploo.push(pr); let b=-1; pr.forEach((v,h)=>{ if(lg[h]>-Infinity&&(b<0||v>pr[b])) b=h; }); loo[i]=b; }
+  // each variable alone: Wilks' Λ = W_jj/T_jj, F with (G − 1, n − G)
+  const uni=C.map((c,j)=>{ let w=0, t=0; for(let i=0;i<n;i++){ w+=Dc[j][i]*Dc[j][i]; t+=(c[i]-mean[j])*(c[i]-mean[j]); } const L=t>0?w/t:1, F=((1-L)/(G-1))/(L/(n-G)); return {L,F,p:Number.isFinite(F)?DIST.F.sf(F,G-1,n-G):null}; });
+  return {G,p,n,q,ng:Array.from(ng),pri,mu:mu.map(m=>Array.from(m)),mean:Array.from(mean),sd,ev,wl,bart,raw,cst,std,struct,scores:scores.map(t=>Array.from(t)),cen,cf:cf.map(r=>Array.from(r)),c0,post:P,pred:Array.from(pred),loo:Array.from(loo),ploo:Ploo,uni}; }
+// For the bench: an LDA of rows and group labels (0 … G − 1) flat.
+function ldaFlat(X,gi,o){ const G=amax(gi)+1, r=lda(mvCols(X),Int32Array.from(gi),G,o); if(r.fail) return r;
+  return {ev:r.ev,wl:r.wl,wl0:r.wl[0],x2:r.bart.map(b=>b.x2),raw:r.raw.flat(),cst:r.cst,std:r.std.flat(),struct:r.struct.flat(),scores:r.scores.flat(),cf:r.cf.flat(),c0:r.c0,post:r.post.flat(),pred:r.pred,loo:r.loo,ploo:r.ploo.flat(),uniF:r.uni.map(u=>u.F),uniL:r.uni.map(u=>u.L)}; }
+ANA_KINDS.lda={label:"Discriminant analysis", base:"Discriminant", cats:true, resIn:true,
+  help:"Groups told apart by several columns: the canonical discriminant functions with their eigenvalues, canonical correlations and Wilks' Λ, their unstandardised and standardised coefficients and structure, Fisher's classification functions, each row's posterior probabilities and group, and the classification table, also left one out.",
+  heavy:(p,ins)=>ins.reduce((t,q)=>Math.max(t,(q.vals&&q.vals.length)||0),0)*Math.pow(ins.length,2)>3e7,
+  run(ins,p){ p=p||{}; if(mvLayout(p)==="curves") return {fail:"Discriminant analysis reads columns as the variables: with curves (more points than curves), work out their principal components first and discriminate on the scores"};
+    if(!p.grp) return {fail:"Choose the column naming each row's group"};
+    const T=mvTable(ins,Object.assign({},p,{layout:"cols"})); if(T.fail) return T; if(!T.graw) return {fail:"The column of groups is not among the columns read"};
+    const notes=T.notes.filter(s=>!/no group in/.test(s)), cols=[], secs=[], key=v=>typeof v==="number"?+(+v).toPrecision(12):String(v);
+    const keep=[]; T.graw.forEach((v,i)=>{ if(v!=null&&v!=="") keep.push(i); }); if(keep.length<T.n) notes.push(`${T.n-keep.length} row${T.n-keep.length===1?" has":"s have"} no group: left out.`);
+    const L=freqLevels(keep.map(i=>T.graw[i]),T.gorder); if(L.fail) return {fail:`${T.gname} holds no groups`};
+    const lev=L.rows.map(r=>r.lev), li=new Map(lev.map((l,g)=>[key(l),g])), G=lev.length, gnm=lev.map(l=>typeof l==="number"?fmt(l,8):String(l));
+    if(G<2) return {fail:`${T.gname} has one group: two or more are needed`}; if(G>60) return {fail:`${T.gname} has ${G} groups: 60 at most`};
+    const gi=Int32Array.from(keep,i=>li.get(key(T.graw[i]))), C=T.Xc.map(c=>Float64Array.from(keep,i=>c[i])), n=keep.length, m=T.m;
+    const pri=p.priors==="equal"?"equal":"prop", R=lda(C,gi,G,{priors:pri,names:T.vnames}); if(R.fail) return R;
+    const q=R.q, FN=k=>`Function ${k+1}`, obs=keep.map(i=>T.obs[i]), rows=T.rows?keep.map(i=>T.rows[i]):null;
+    if(R.ng.some(v=>v<2)) notes.push("A group of one: left out with it, its row is classified among the other groups.");
+    // groups and each variable alone
+    cols.push({k:"gname",name:"Group",vals:gnm},{k:"gn",name:"Size",vals:R.ng},{k:"gpri",name:"Prior",vals:R.pri});
+    secs.push({title:"Groups",tables:[{head:["Group","Size","Prior"],rows:gnm.map((g,i)=>[g,R.ng[i],R.pri[i]])}]});
+    cols.push({k:"var",name:"Variable",vals:T.vnames},{k:"vmean",name:"Mean",vals:R.mean});
+    gnm.forEach((g,i)=>cols.push({k:"m"+i,name:`Mean of ${g}`,vals:R.mu[i]}));
+    cols.push({k:"wl",name:"Wilks' Λ alone",vals:R.uni.map(u=>u.L)},{k:"wf",name:"F",vals:R.uni.map(u=>u.F)},{k:"wp",name:"p",vals:R.uni.map(u=>u.p)});
+    secs.push({title:`Each variable alone (F with ${G-1} and ${n-G} df)`,tables:[{head:["Variable","Wilks' Λ","F","p"],rows:T.vnames.map((v,j)=>[v,R.uni[j].L,R.uni[j].F,R.uni[j].p])}]});
+    // the canonical functions
+    const tot=R.ev.reduce((s,v)=>s+v,0); let cu=0;
+    const fr=R.ev.map((l,k)=>{ cu+=l; return [k+1,l,100*l/tot,100*cu/tot,Math.sqrt(l/(1+l)),R.wl[k],R.bart[k].x2,R.bart[k].df,R.bart[k].p]; });
+    ["fn","fev","fpct","fcum","fcc","fwl","fx2","fdf","fp"].forEach((k,c)=>cols.push({k,name:["Function","Eigenvalue","% of variance","Cumulative %","Canonical correlation","Wilks' Λ, this and after","χ²","df","p"][c],role:k==="fn"?"x":undefined,vals:fr.map(r=>r[c])}));
+    secs.push({title:"Canonical functions",tables:[{head:["Function","Eigenvalue","% of variance","Cumulative %","Canonical correlation","Wilks' Λ, this and after","χ²","df","p"],rows:fr}]});
+    cols.push({k:"cvar",name:"Variable",vals:T.vnames.concat(["(Constant)"])});
+    for(let k=0;k<q;k++) cols.push({k:"rc"+k,name:`Unstandardised, ${FN(k)}`,vals:R.raw[k].concat([R.cst[k]])},{k:"sc"+k,name:`Standardised, ${FN(k)}`,vals:R.std[k]},{k:"st"+k,name:`Structure, ${FN(k)}`,vals:R.struct[k]});
+    const head=["Variable"].concat(Array.from({length:q},(_,k)=>FN(k)));
+    secs.push({title:"Standardised coefficients",tables:[{head,rows:T.vnames.map((v,j)=>[v].concat(R.std.map(s=>s[j])))}]});
+    secs.push({title:"Structure (within-group correlations)",tables:[{head,rows:T.vnames.map((v,j)=>[v].concat(R.struct.map(s=>s[j])))}]});
+    secs.push({title:"Unstandardised coefficients",tables:[{head,rows:T.vnames.map((v,j)=>[v].concat(R.raw.map(s=>s[j]))).concat([["(Constant)"].concat(R.cst)])}]});
+    for(let k=0;k<q;k++) cols.push({k:"gf"+k,name:`${FN(k)} at the mean`,vals:R.cen.map(c=>c[k])});
+    secs.push({title:"Functions at the group means",tables:[{head:["Group"].concat(Array.from({length:q},(_,k)=>FN(k))),rows:gnm.map((g,i)=>[g].concat(R.cen[i]))}]});
+    // Fisher's classification functions
+    cols.push({k:"kvar",name:"Variable",vals:T.vnames.concat(["(Constant)"])}); gnm.forEach((g,i)=>cols.push({k:"kf"+i,name:`Classifying ${g}`,vals:R.cf[i].concat([R.c0[i]])}));
+    if(m<=30) secs.push({title:"Classification functions (Fisher's)",tables:[{head:["Variable"].concat(gnm),rows:T.vnames.map((v,j)=>[v].concat(R.cf.map(c=>c[j]))).concat([["(Constant)"].concat(R.c0)])}]});
+    // the classification tables
+    const tab=(pr,title,pre)=>{ const M=lev.map(()=>new Array(G).fill(0)); let ok=0, nn=0; for(let i=0;i<n;i++){ if(pr[i]<0) continue; M[gi[i]][pr[i]]++; nn++; if(pr[i]===gi[i]) ok++; }
+      const rowsT=gnm.map((g,i)=>[g].concat(M[i],[R.ng[i],M[i].reduce((s,v)=>s+v,0)?100*M[i][i]/M[i].reduce((s,v)=>s+v,0):null]));
+      cols.push({k:pre+"t",name:"Group",vals:gnm}); gnm.forEach((g,h)=>cols.push({k:pre+"p"+h,name:`As ${g}`,vals:M.map(r=>r[h])})); cols.push({k:pre+"c",name:"% correct",vals:rowsT.map(r=>r[r.length-1])});
+      secs.push({title:`${title}: ${fmt(100*ok/nn,4)}% correct`,tables:[{head:["Group"].concat(gnm.map(g=>`As ${g}`),["Size","% correct"]),rows:rowsT}]}); return 100*ok/nn; };
+    const acc=tab(R.pred,"Classified","c"), accL=tab(R.loo,"Left one out","l");
+    // each observation
+    cols.push({k:"obs",name:"Observation",vals:obs},{k:"grp",name:T.gname||"Group",vals:gi.length?Array.from(gi,g=>gnm[g]):[]},{k:"pred",name:"Classified as",vals:R.pred.map(g=>gnm[g])},{k:"loo",name:"Left out, as",vals:R.loo.map(g=>g<0?"":gnm[g])});
+    gnm.forEach((g,h)=>cols.push({k:"pp"+h,name:`Probability of ${g}`,vals:R.post.map(pr=>pr[h])}));
+    for(let k=0;k<q;k++) cols.push({k:"cs"+k,name:`Score, ${FN(k)}`,vals:R.scores[k]});
+    // the scores plotted, a curve a group (one function: against the observation's number), the group means beside them
+    const px=Math.min(q,Math.max(1,Math.floor(+p.px)||1))-1, py0=Math.min(q,Math.max(1,Math.floor(+p.py)||2))-1, py=q>1?(py0===px?(px===0?1:0):py0):-1;
+    gnm.forEach((g,h)=>{ const ix=[]; for(let i=0;i<n;i++) if(gi[i]===h) ix.push(i);
+      cols.push({k:"dx"+h,name:py<0?"Observation":`Score, ${FN(px)}`,role:"x",vals:ix.map(i=>py<0?(rows?rows[i]+1:i+1):R.scores[px][i])},{k:"dy"+h,name:g,role:"y",vals:ix.map(i=>R.scores[py<0?px:py][i])}); });
+    if(py>=0) cols.push({k:"cx",name:`Score, ${FN(px)}`,role:"x",vals:R.cen.map(c=>c[px])},{k:"cy",name:"Group means",role:"y",vals:R.cen.map(c=>c[py])},{k:"cl",name:"Group",vals:gnm});
+    const method=`${m} columns the variables, ${n} rows in ${G} groups of ${T.gname}; priors ${pri==="equal"?"equal":"from the group sizes"}; the within-group data whitened by their own SVD and the canonical functions from the group means' spread there (scikit-learn's svd solver), unstandardised coefficients with a within-group variance of 1, each function turned so that its standardised coefficient of largest magnitude is positive; Wilks' Λ with Bartlett's χ²; classification by Fisher's functions, left one out by updating the within-group sums and means for each row, not by refitting.`;
+    return {tables:[{cols}],report:{sections:secs,method,lda:{q,G,px,py,rows,vids:T.vids,acc,accL,groups:gnm}},notes}; }};
 /* ==MV:END== */
 
 /* ============================================================
@@ -21317,15 +21450,15 @@ function sigWinRead(v){ const k=SIG_WIN[v.aWw]?v.aWw:"boxcar", t=String(v.aWp||"
 function sigWinOk(v){ const k=v.aWw, t=String(v.aWp||"").trim(); if(!SIG_WIN[k]||!SIG_WIN[k][2]||!t) return true; const x=parseNum(t); return Number.isFinite(x)&&(k!=="gaussian"||x>0)&&(k!=="tukey"||x>=0&&x<=1); }
 /* The many-variables kinds' shared fields (MULTI_SPEC decisions 1, 4, 9): the layout, the scaling (left to follow the
    layout until it is chosen) and the groups: a column of text in the columns layout, a field of the curves' files in the
-   curves layout. o.noScale leaves the scaling out; o.needGroups names the groups' field as needed; o.open leaves the grid
-   open for the kind's own fields, so they line up. */
+   curves layout. o.noScale leaves the scaling out; o.needGroups names the groups' field as needed; o.noLayout keeps to the
+   columns layout (no choice, no header field); o.open leaves the grid open for the kind's own fields, so they line up. */
 function mvMetaKeys(){ const n={}; (S.anaCand||[]).forEach(c=>Object.keys(c.meta||{}).forEach(k=>{ n[k]=(n[k]||0)+1; })); return Object.keys(n).filter(k=>n[k]>=2).sort((a,b)=>n[b]-n[a]||a.localeCompare(b)); }
 function mvFormHtml(p,o){ o=o||{}; const act=activeYCol(), lay=p.layout?mvLayout(p):act&&looksLikeSpectrum(act)?"curves":"cols", sc=MV_SCALES.some(([k])=>k===p.scale)?p.scale:"";
   const G=(S.anaCand||[]).filter(c=>isCatCol(c)||textCount(c)), mk=mvMetaKeys(), gl="Groups", none=o.needGroups?"":`<option value="">None</option>`;
-  return `<div class="grid2"><label for="aMl" class="tipd" title="Columns are the variables: each row an observation, read only where every column ticked has a value. Each column is an observation: each column ticked a curve, its points the variables, read on one X">Layout</label><select id="aMl">${MV_LAYOUTS.map(([k,t])=>`<option value="${k}"${k===lay?" selected":""}>${t}</option>`).join("")}</select>
+  return `<div class="grid2">${o.noLayout?"":`<label for="aMl" class="tipd" title="Columns are the variables: each row an observation, read only where every column ticked has a value. Each column is an observation: each column ticked a curve, its points the variables, read on one X">Layout</label><select id="aMl">${MV_LAYOUTS.map(([k,t])=>`<option value="${k}"${k===lay?" selected":""}>${t}</option>`).join("")}</select>`}
     ${o.noScale?"":`<label for="aMs" class="tipd" title="Unit variance weighs every variable alike, whatever its units; centred keeps each one's own spread, as curves in one unit should; Pareto is between them">Scaling</label><select id="aMs" data-auto="${sc?"":"1"}">${MV_SCALES.map(([k,t])=>`<option value="${k}"${k===(sc||mvScaleOf({layout:lay}))?" selected":""}>${t}</option>`).join("")}</select>`}
     <label for="aMg" id="aMgL" class="tipd" title="A column of text naming each row's group">${gl}</label><select id="aMg">${none}${G.map(c=>`<option value="${c.id}"${c.id===p.grp?" selected":""}>${esc(colLetter(c)+" "+(c.name||""))}</option>`).join("")}</select>
-    <label for="aMh" id="aMhL" class="tipd" title="A field of the curves' files (their header) naming each curve's group">${gl}</label><select id="aMh">${none}${mk.map(k=>`<option value="${esc(k)}"${k===p.meta?" selected":""}>${esc(k)}</option>`).join("")}</select>${o.open?"":"</div>"}`; }
+    ${o.noLayout?"":`<label for="aMh" id="aMhL" class="tipd" title="A field of the curves' files (their header) naming each curve's group">${gl}</label><select id="aMh">${none}${mk.map(k=>`<option value="${esc(k)}"${k===p.meta?" selected":""}>${esc(k)}</option>`).join("")}</select>`}${o.open?"":"</div>"}`; }
 function mvFormWire(box){ const l=box.querySelector("#aMl"), s=box.querySelector("#aMs"); if(!l) return;
   const on=()=>{ const cur=l.value==="curves"; ["aMg","aMgL"].forEach(i=>{ const e=box.querySelector("#"+i); if(e) e.hidden=cur; }); ["aMh","aMhL"].forEach(i=>{ const e=box.querySelector("#"+i); if(e) e.hidden=!cur; });
     if(s&&s.dataset.auto==="1") s.value=mvScaleOf({layout:l.value}); };
@@ -21630,6 +21763,12 @@ const ANA_FORMS={
       return Object.assign(mvFormRead(v),{method:v.aHm||"ward",metric:v.aHd==="correlation"&&v.aHm!=="ward"?"correlation":"euclidean",cut:v.aHc==="h"?"h":"k",k:n(v.aHk)||3,h:Number.isFinite(h)?h:null},mvPairRead(v)); },
     valid(v){ return (v.aHc==="h"?Number.isFinite(parseNum(String(v.aHh||"").trim()))&&parseNum(String(v.aHh).trim())>=0:/^\d+$/.test(String(v.aHk||"").trim())&&+v.aHk>=1)&&mvPairOk(v); },
     extra(p){ return p.layout!=="curves"&&p.grp?[p.grp]:[]; }},
+  lda:{noGroup:true, noMiss:true, html(p){ const G=(S.anaCand||[]).filter(c=>isCatCol(c)||textCount(c));
+      return mvFormHtml(p,{open:true,noLayout:true,noScale:true,needGroups:true})+`<label for="aDp" class="tipd" title="How likely each group is before the data are seen: in proportion to the groups' sizes, or all alike">Priors</label><select id="aDp"><option value="prop">From the group sizes</option><option value="equal"${p.priors==="equal"?" selected":""}>Equal</option></select>
+      <label for="aDx" class="tipd" title="The two canonical functions the scores are drawn on">Plotted</label><span class="anarows"><input type="text" id="aDx" inputmode="numeric" value="${+p.px>0?Math.round(+p.px):1}" aria-label="Function along X"><span class="muted">against</span><input type="text" id="aDy" inputmode="numeric" value="${+p.py>0?Math.round(+p.py):2}" aria-label="Function along Y"></span></div>${G.length?"":`<p class="lab">No column of text on this sheet names the groups: give one as text (the column menu's Cells hold).</p>`}`; },
+    read(v){ const n=t=>{ const x=parseNum(String(t||"").trim()); return Number.isFinite(x)&&x>=1?Math.round(x):null; }; return {layout:"cols",grp:v.aMg||null,priors:v.aDp==="equal"?"equal":"prop",px:n(v.aDx)||1,py:n(v.aDy)||2}; },
+    valid(v){ return !!v.aMg&&[v.aDx,v.aDy].every(t=>{ t=String(t||"").trim(); return !t||/^\d+$/.test(t)&&+t>=1; }); },
+    extra(p){ return p.grp?[p.grp]:[]; }},
   grid:{noGroup:true, html(p){ const C=(S.anaCand||[]).filter(c=>anyVal(c.data)), xd=p.x||rsFirst(c=>c.role==="x"), yd=p.y||rsFirst(()=>true,[xd]), zd=p.z||rsFirst(c=>c.role==="y",[xd,yd]), m=p.method||"tri";
       return `<div class="grid2">${rsSel("aGx","X",xd,null,C)}${rsSel("aGy","Y",yd,null,C)}${rsSel("aGz","Z (the value)",zd,null,C)}
       <label for="aGm">Method</label><select id="aGm">${GRID_METHODS.map(([k,t])=>`<option value="${k}"${k===m?" selected":""}>${t}</option>`).join("")}</select>
@@ -21862,6 +22001,7 @@ function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&
   if(a.kind==="surf"){ const sv=rep.surf; return [{key:"fmat",label:"Fitted surface as a matrix",title:sv&&sv.mat?"The fitted surface on the matrix's own grid, as a matrix computed by its formula, drawn as a map":"The fitted surface on 101 × 101 points over the data's extent, as a matrix computed by its formula, drawn as a map",enabled:!ro&&!!sv,run:()=>surfToMatrix(a.id,"fit")}]
       .concat(sv&&sv.mat?[{key:"rmat",label:"Residuals as a matrix",title:"Each cell of the matrix less the fitted surface, as a matrix computed from it, drawn as a map",enabled:!ro,run:()=>surfToMatrix(a.id,"res")}]
         :sv?[{key:"rmap",label:"Residual map",title:"The points' X and Y coloured by their residual, on a graph",enabled:!ro,run:()=>surfResMap(a.id)}]:[]); }
+  if(a.kind==="lda"){ const l=rep.lda||{}; return [{key:"scores",label:"Plot the scores",title:l.q>1?"The rows' scores on the two functions plotted, a curve a group, with the group means, on a graph":"The rows' scores on the function against their row, a curve a group, on a graph",enabled:!ro,run:()=>ldaPlot(a.id)}]; }
   if(a.kind==="kmeans"||a.kind==="hclust"){ const cl=rep.clu||{}, cur=cl.lay==="curves";
     return (a.kind==="hclust"?[{key:"dendro",label:"Dendrogram",title:"The merges drawn as a tree, the observations named along X, the cut as a dashed line, on a graph",enabled:!ro,run:()=>cluPlot(a.id,"dendro")}]:[])
       .concat([{key:"clus",label:cur?"Cluster means":"Plot the clusters",title:cur?"Each cluster's mean curve against X, on a graph":`The observations on ${cl.pair?cl.pair.join(" and "):"two variables"}, a curve a cluster, on a graph`,enabled:!ro,run:()=>cluPlot(a.id,"clus")}])
@@ -21976,6 +22116,12 @@ function cluPlot(id,what){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) retu
   if(!ids.length){ toast("There is nothing to plot: Recalculate first."); return; }
   plotCols(ids,{series,use,undo:`plotting the ${nm} of ${a.name}`,say:`The ${nm} of ${a.name}`});
   if(GID()){ const ax=Object.assign({},GP().ax||{}); if(xt) ax.x=Object.assign({},ax.x||{},{title:xt}); if(yt) ax.y=Object.assign({},ax.y||{},{title:yt}); if(cats) ax.x=Object.assign({},ax.x||{},{cats,title:"",lrot:cats.length>12?90:0}); if(step) ax.x=Object.assign({},ax.x||{},{step}); savePlot({ax}); } }
+// A discriminant analysis's scores, a curve a group, the group means as their own curve (MULTI_SPEC 6.4); one undo step.
+function ldaPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const l=a.res&&a.res.report&&a.res.report.lda; if(!l){ toast("There is nothing to plot: Recalculate first."); return; }
+  const ys=p.cols.filter(c=>c.ana===id&&/^dy\d+$/.test(c.ak||"")), cy=p.cols.find(c=>c.ana===id&&c.ak==="cy"), cl=p.cols.find(c=>c.ana===id&&c.ak==="cl"); if(!ys.length) return;
+  const ids=ys.map(c=>c.id).concat(cy?[cy.id]:[]), series={}, use={}; ys.forEach(c=>{ series[c.id]={type:"scatter"}; }); if(cy){ series[cy.id]={type:"scatter",sym:"cross",ss:7}; if(cl) use[cy.id]={lab:cl.id}; }
+  plotCols(ids,{series,use,undo:`plotting the scores of ${a.name}`,say:`The scores of ${a.name}`});
+  if(GID()){ const ax=Object.assign({},GP().ax||{}); ax.x=Object.assign({},ax.x||{},{title:l.py<0?"Row":`Function ${l.px+1}`}); ax.y=Object.assign({},ax.y||{},{title:`Function ${(l.py<0?l.px:l.py)+1}`}); savePlot({ax}); } }
 // Each row's cluster copied into the data's sheet as a categorical column of text (decision 8): one undo step, a record entry.
 function cluPut(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const cl=a.res&&a.res.report&&a.res.report.clu; if(!cl||!cl.rows) return;
   const src=(cl.vids||[]).map(colById).find(Boolean); if(!src) return; const sid=sheetOf(src);
@@ -28900,7 +29046,8 @@ function analyzeMenu(){
       {label:"Correlation…", title:ANA_KINDS.corr.help, run:()=>anaDlg("corr",{two:true}), enabled:!S.readOnly&&!!P()},
       {label:"Multivariate", sub:()=>[{label:"Principal component analysis…", title:ANA_KINDS.pca.help, run:()=>anaDlg("pca",{all:true}), enabled:!S.readOnly&&!!P()},
         {label:"k-means clustering…", title:ANA_KINDS.kmeans.help, run:()=>anaDlg("kmeans",{all:true}), enabled:!S.readOnly&&!!P()},
-        {label:"Hierarchical clustering…", title:ANA_KINDS.hclust.help, run:()=>anaDlg("hclust",{all:true}), enabled:!S.readOnly&&!!P()}]},
+        {label:"Hierarchical clustering…", title:ANA_KINDS.hclust.help, run:()=>anaDlg("hclust",{all:true}), enabled:!S.readOnly&&!!P()},
+        {label:"Discriminant analysis…", title:ANA_KINDS.lda.help, run:()=>anaDlg("lda",{all:true}), enabled:!S.readOnly&&!!P()}]},
       {label:"ROC curve…", title:ANA_KINDS.roc.help, run:()=>anaDlg("roc",{two:true}), enabled:!S.readOnly&&!!P()},
       {label:"Power and sample size…", title:ANA_KINDS.power.help, run:()=>anaDlg("power"), enabled:!S.readOnly&&!!P()},
       {label:"Histogram", title:"The distribution of the selected columns' values (or the active column's), as a column of its own on a graph of its own", run:()=>histogramCols(hist()), enabled:has&&!S.readOnly}]},
@@ -30735,7 +30882,7 @@ const CMDK_SYN=[["background","baseline","detrend","continuum"],["fourier","fft"
   ["derivative","differentiate","slope","gradient","calculus"],["integral","integrate","area","cumulative"],["normalize","normalise","normalization","scale to 1"],["logarithm","log","ln"],
   ["fit","fitting","regression","model","curve fit","least squares"],["peak","peaks","maximum","maxima","band","bands"],["export","download","publish","exporting"],
   ["picture","image","png","clipboard","screenshot"],["histogram","distribution","bins","frequency count"],["statistics","stats","mean","average","sd","median","describe"],
-  ["correlation","pearson","correlate"],["pca","principal components","principal component analysis","multivariate","chemometrics","dimension reduction","eigenvalues","loadings","scores"],["cluster","clusters","clustering","k-means","kmeans","dendrogram","hierarchical","segmentation","classify"],["spike","cosmic ray","despike","glitch"],["calibration","calibrate","energy"],["units","wavelength","wavenumber","raman shift","convert"],
+  ["correlation","pearson","correlate"],["pca","principal components","principal component analysis","multivariate","chemometrics","dimension reduction","eigenvalues","loadings","scores"],["cluster","clusters","clustering","k-means","kmeans","dendrogram","hierarchical","segmentation","classify"],["discriminant","lda","canonical","classification","classifier","wilks"],["spike","cosmic ray","despike","glitch"],["calibration","calibrate","energy"],["units","wavelength","wavenumber","raman shift","convert"],
   ["crop","trim","cut","range"],["mask","exclude","leave out","ignore"],["axis","axes","scale","log scale","reverse"],["font","typeface","text size"],
   ["annotate","annotation","label","text","arrow","line","box","ellipse","inset"],["report","html","summary"],["theme","dark","light"],["preferences","settings","options"],
   ["import","open","load","read","csv","file"],["worksheet","spreadsheet","sheet","table","cells"],["plot","graph","chart","figure"],["reader","cursor","read","value","crosshair"],
@@ -31785,7 +31932,7 @@ ${DL([["Noise σ","From second differences, so a band's slope does not count as 
 <h2>Correlation</h2>
 <p>Pearson r between columns on the same X axis, interpolated onto the active column's X where they overlap. With p, intervals and other coefficients: ${DA("analyses#corr","Correlation")}.</p>
 <p><em>Copy</em> gives every table as tab-separated text.</p>`},
-{id:"multi", g:"Analysis", t:"Many variables", kw:"cluster clusters clustering k-means kmeans k-means++ lloyd seed starts restarts silhouette elbow within sum of squares inertia hierarchical agglomerative dendrogram tree linkage ward average complete single upgma nearest farthest neighbour cophenetic cut membership multivariate many variables pca principal component analysis components eigenvalue eigenvalues eigenvector loadings scores scree biplot hotelling t2 t² q residual spe squared prediction error limits outliers covariance correlation autoscale unit variance pareto centred centering chemometrics spectra observations variables layout header field groups dimension reduction svd singular value decomposition",
+{id:"multi", g:"Analysis", t:"Many variables", kw:"discriminant analysis lda linear canonical functions variates wilks lambda bartlett classification table confusion leave one out cross-validation posterior probability priors fisher classification functions structure matrix standardised coefficients cluster clusters clustering k-means kmeans k-means++ lloyd seed starts restarts silhouette elbow within sum of squares inertia hierarchical agglomerative dendrogram tree linkage ward average complete single upgma nearest farthest neighbour cophenetic cut membership multivariate many variables pca principal component analysis components eigenvalue eigenvalues eigenvector loadings scores scree biplot hotelling t2 t² q residual spe squared prediction error limits outliers covariance correlation autoscale unit variance pareto centred centering chemometrics spectra observations variables layout header field groups dimension reduction svd singular value decomposition",
  lead:"Several variables at once: the components of greatest variance of a set of columns, or of a set of curves taken as observations, each as a sheet of results worked out again when its data change.",
  body:`<h2 id="layout">Two layouts</h2>
 <p>${DL([["Columns are the variables","Each column ticked is one variable and each row one observation, as a table of measurements has it. A row counts only where every column ticked has a value; the rows left out are counted in the notes. A column of text (Groups) names each row's group."],["Each column is an observation","Each column ticked is a curve, and its points are the variables, as spectroscopy has it: twelve curves of 2000 points are twelve observations of 2000 variables. Curves that do not share their X are read on the first curve's X over the stretch they all cover, by straight lines between their own points, and the notes say so. A field of the curves' files (their header) names each curve's group."]])}</p>
@@ -31799,7 +31946,11 @@ ${DL([["Eigenvalues","Each component's variance, its share of the total and the 
 <p>${MP("Analyze › Statistics › Multivariate › k-means clustering…")}: the observations into <em>Clusters</em> groups, each observation in the group whose centre is nearest, each centre the mean of its group (Lloyd's algorithm). It starts from centres spread by k-means++, drawn from the <em>Seed</em>, and tries several <em>Starts</em>, keeping the one with the least within sum of squares: the same seed gives the same clusters. Clusters are numbered by the data: cluster 1 holds the first observation. The result sheet holds each observation's cluster (as text), its distance to its centre and its silhouette (how much nearer its own cluster is than the next, from −1 to 1); each cluster's size, within sum of squares and mean silhouette; the centres in the data's own units (with curves, each centre a curve against X). <em>Compare up to</em> runs every number of clusters from 2 to the one typed and lists their sums of squares and silhouettes side by side, to help choose; a number of clusters is the user's choice, not the analysis's.</p>
 <h2 id="hclust">Hierarchical clustering</h2>
 <p>${MP("Analyze › Statistics › Multivariate › Hierarchical clustering…")}: the two nearest observations or clusters joined, again and again, until one is left, as SciPy's linkage does. ${DL([["Ward's","The two whose joining raises the within sum of squares least: compact clusters of similar size. Needs Euclidean distances."],["Average","The mean distance between their members."],["Complete","The farthest pair."],["Single","The nearest pair: long chains."]])} <em>Distance</em> is Euclidean in the scaled values, or 1 − r between two observations (alike in shape, whatever their size: curves that differ only in height are close). <em>Cut</em> into a number of clusters, or at a height. The result sheet holds each observation's cluster, the merges with their heights (the last fifteen in the report), and the cophenetic correlation (how well the tree's heights keep the distances).</p>
-<p>From the report: <em>Dendrogram</em> (the tree, the observations named along X, the cut dashed), <em>Plot the clusters</em> (on two of the columns ticked, a curve a cluster) or <em>Cluster means</em> (curves), <em>Silhouette plot</em>, <em>Plot against k</em>, and <em>Put the clusters in the data</em> (columns only: each row's cluster as a categorical column at the end of the data's sheet, a copy that a recalculation leaves alone, ready to group a box chart or a scores plot by). A clustering may read a principal component analysis's scores: open it with the PCA's sheet in front.</p>`},
+<p>From the report: <em>Dendrogram</em> (the tree, the observations named along X, the cut dashed), <em>Plot the clusters</em> (on two of the columns ticked, a curve a cluster) or <em>Cluster means</em> (curves), <em>Silhouette plot</em>, <em>Plot against k</em>, and <em>Put the clusters in the data</em> (columns only: each row's cluster as a categorical column at the end of the data's sheet, a copy that a recalculation leaves alone, ready to group a box chart or a scores plot by). A clustering may read a principal component analysis's scores: open it with the PCA's sheet in front.</p>
+<h2 id="lda">Discriminant analysis</h2>
+<p>${MP("Analyze › Statistics › Multivariate › Discriminant analysis…")}: groups known in advance (a column of text, <em>Groups</em>) told apart by the columns of numbers ticked. Columns are the variables; for curves, whose points outnumber them, work out their principal components first and discriminate on the scores (with the PCA's sheet in front). The result sheet and the report hold:</p>
+${DL([["Each variable alone","Its Wilks' Λ (the share of its spread within the groups) and F: how well it separates the groups by itself."],["Canonical functions","The combinations of the variables that separate the groups most, one fewer than the groups at most: each one's eigenvalue, share, canonical correlation, and Wilks' Λ of it and those after it with Bartlett's χ² and p."],["Coefficients","Unstandardised (the scores' within-group variance is 1, the constant making their mean 0), standardised (each times the variable's pooled SD, to compare variables in different units), and the structure (each variable's within-group correlation with each function)."],["Classification","Fisher's classification functions, each row's probability of each group and the group it is classified in, the table of true against classified groups with the share correct, and the same with each row left out of the fit that classifies it."]])}
+<p>The pooled within-group covariance divides by n − G, as statistics packages do (scikit-learn 1.9 divides by n, which moves the probabilities a little). <em>Priors</em>: in proportion to the group sizes, or equal. A function's sign is a convention: each is turned so that its largest standardised coefficient is positive. From the report: <em>Plot the scores</em> (on two functions, a curve a group, the group means as crosses; with two groups, the one function against the row).</p>`},
 /* ---------------------------------------------------------------- Fitting */
 {id:"fit", g:"Fitting", t:"Fitting", win:"fit", kw:"fit fitting curve peak model levenberg marquardt converge range from to use the view from view points zoom all spectrum done close residuals weighting weights weight counting statistics poisson 1/y instrumental arbitrary column of weights apparent fit log scale logarithmic axis straight line on log axes constraint constraints tie equal follows inequality order starting value formula start max(y) xat fwhm saved fit settings preset template recipe save settings fit again when the data change follow refit recalculate automatic in the results report sections",
  lead:"Two kinds of fit, in the Fit window: a curve fit puts one model through the data; a peak fit describes a column as a sum of peaks on a baseline.",

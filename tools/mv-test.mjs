@@ -145,5 +145,36 @@ console.log("6.3 clustering");
   const N = 3000, Q = Float64Array.from({ length: N * 5 }, gauss); const [, ms2] = time(() => linkage(mvDist(Q, N, 5, "euclidean"), N, "ward")); ok(ms2 < 9000, `Ward's linkage of 3000 observations in ${ms2.toFixed(0)} ms (budget 3 s in the worker; node cold gets three times)`);
 }
 
+console.log("6.4 discriminant analysis");
+{ const lda = get("lda"), mvCols = get("mvCols"), n = 75, p = 4, G = 3;
+  const M = mat(G, p, () => 2 * gauss()), gi = Int32Array.from({ length: n }, (_, i) => i % G), X = Array.from({ length: n }, (_, i) => M[gi[i]].map((v) => v + gauss()));
+  const R = lda(mvCols(X), gi, G, {});
+  ok(!R.fail && R.q === 2 && R.ev[0] >= R.ev[1], "three groups of four variables: two functions, the eigenvalues descending", R.fail);
+  const Y = X.map((r) => [r[0] * 1000, r[1], r[2] * 1e-3 + 7, r[3]]), Ru = lda(mvCols(Y), gi, G, {});
+  ok(maxDiff(Ru.ev, R.ev) < 1e-12 * R.ev[0] && Ru.pred.every((v, i) => v === R.pred[i]) && Ru.post.every((r, i) => maxDiff(r, R.post[i]) < 1e-12) && maxDiff(Ru.std.flat(), R.std.flat()) < 1e-11,
+    "a variable in other units (× 1000, × 10⁻³ + 7): the same eigenvalues, probabilities, classes and standardised coefficients");
+  const perm = Array.from({ length: n }, (_, i) => (i * 7) % n), Rp = lda(mvCols(perm.map((i) => X[i])), Int32Array.from(perm, (i) => gi[i]), G, {});
+  ok(perm.every((i, j) => maxDiff(Rp.post[j], R.post[i]) < 1e-12 && Rp.loo[j] === R.loo[i]), "the rows reordered: each row's probabilities and its class left one out move with it");
+  // leave one out by the updates equals refitting without the row
+  let worst = 0; for (const i of [0, 5, 31, 74]) { const keep = X.map((_, k) => k).filter((k) => k !== i), Ri = lda(mvCols(keep.map((k) => X[k])), Int32Array.from(keep, (k) => gi[k]), G, {});
+    const x = X[i], d = R.mu.map((_, g) => x.reduce((s, v, j) => s + v * Ri.cf[g][j], 0) + Ri.c0[g]), mx = Math.max(...d), e = d.map((v) => Math.exp(v - mx)), z = e.reduce((s, v) => s + v, 0); worst = Math.max(worst, maxDiff(e.map((v) => v / z), R.ploo[i])); }
+  ok(worst < 1e-11, `left one out by updating W and the means: as refitting without the row (${worst.toExponential(1)})`);
+  // two groups: Wilks' Λ = 1 − R² of the regression of an indicator on the variables
+  const g2 = Int32Array.from({ length: n }, (_, i) => (i < 40 ? 0 : 1)), X2 = X.map((r, i) => r.map((v, j) => v + (g2[i] ? 0.8 * (j + 1) : 0))), R2 = lda(mvCols(X2), g2, 2, {});
+  const lm = get("linModel"), fit = lm(X2[0].map((_, j) => ({ name: "v" + j, num: true, x: X2.map((r) => r[j]) })), Array.from(g2), {});
+  ok(!fit.fail && Math.abs(R2.wl[0] - (1 - fit.r2)) < 1e-12, `two groups: Wilks' Λ is 1 − R² of the indicator regressed on the variables (${R2.wl[0].toFixed(10)})`, fit.fail);
+  const dmu = R2.mu[1].map((v, j) => v - R2.mu[0][j]), Sd = R2.cf[1].map((v, j) => v - R2.cf[0][j]), ratio = R2.raw[0].map((v, j) => v / Sd[j]);
+  ok(Math.max(...ratio) - Math.min(...ratio) < 1e-10 * Math.abs(ratio[0]), "…its one function points along S_w⁻¹(μ₂ − μ₁)", JSON.stringify(dmu.length));
+  ok(/at least as many/.test(lda(mvCols(X.slice(0, 6)), gi.slice(0, 6), G, {}).fail || ""), "too few rows for the variables refused in words");
+  ok(/Two groups/.test(lda(mvCols(X), new Int32Array(n), 1, {}).fail || ""), "one group refused in words");
+  const dep = X.map((r) => [r[0], r[1], r[0] + r[1], r[3]]); ok(/linearly dependent/.test(lda(mvCols(dep), gi, G, {}).fail || ""), "a column the sum of two others refused in words");
+  const ins = [0, 1, 2, 3].map((j) => ({ id: "v" + j, name: "V" + j, unit: "", vals: X.map((r) => r[j]), rows: X.map((_, i) => i) })).concat([{ id: "g", name: "Kind", cats: { keys: Array.from(gi, (g) => ["a", "b", "c"][g]), order: null }, rows: X.map((_, i) => i) }]);
+  const K = run("lda", ins, { grp: "g" }), col = (k) => K.tables[0].cols.find((c) => c.k === k);
+  ok(!K.fail && col("gname").vals.join() === "a,b,c" && col("pred").vals.length === n && col("dy2").name === "c" && col("cy").vals.length === 3 && K.report.sections.some((s) => /^Left one out: /.test(s.title)), "the analysis: groups by their text, each row classified, the scores a curve a group with the means, the table left one out", K.fail);
+  ok(/curves/.test(run("lda", ins, { grp: "g", layout: "curves" }).fail || "") && /Choose the column/.test(run("lda", ins, {}).fail || ""), "curves and no column of groups refused in words");
+  const N = 10000, P = 20, Xb = Array.from({ length: P }, () => Float64Array.from({ length: N }, gauss)), gb = Int32Array.from({ length: N }, (_, i) => i % 4); for (let j = 0; j < 3; j++) for (let i = 0; i < N; i++) Xb[j][i] += gb[i] * (j + 1) * 0.3;
+  const [Rb, ms] = time(() => lda(Xb, gb, 4, {})); ok(!Rb.fail && ms < 3000, `10⁴ rows of 20 variables in 4 groups, left one out included, in ${ms.toFixed(0)} ms (budget 1 s; node cold gets three times)`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

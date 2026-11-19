@@ -1070,5 +1070,22 @@
   "linkFlat.k3": {"tol": 0},
   "linkFlat.k4": {"tol": 0},
   "linkFlat.k5": {"tol": 0},
-  "linkFlat.fail": {"tol": 0}
+  "linkFlat.fail": {"tol": 0},
+  "ldaFlat.ev": {"tol": 1e-11},
+  "ldaFlat.wl": {"tol": 1e-11},
+  "ldaFlat.wl0": {"tol": 1e-11},
+  "ldaFlat.x2": {"tol": 1e-11},
+  "ldaFlat.raw": {"tol": 1e-11},
+  "ldaFlat.cst": {"tol": 1e-11},
+  "ldaFlat.std": {"tol": 1e-11},
+  "ldaFlat.struct": {"tol": 1e-11},
+  "ldaFlat.scores": {"tol": 1e-11},
+  "ldaFlat.cf": {"tol": 1e-11},
+  "ldaFlat.c0": {"tol": 1e-11},
+  "ldaFlat.post": {"tol": 1e-11},
+  "ldaFlat.ploo": {"tol": 1e-11},
+  "ldaFlat.uniF": {"tol": 1e-11},
+  "ldaFlat.pred": {"tol": 0},
+  "ldaFlat.loo": {"tol": 0},
+  "ldaFlat.fail": {"tol": 0}
 }

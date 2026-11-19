@@ -1713,7 +1713,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   `#aMy`), `pcaPlot(id, "scree"|"scores"|"loadings"|"tq"|"biplot")`, `pcaMaskOut(id)`. Analyze › Statistics › Multivariate ›
   Principal component analysis…; Help `multi`. References: `tools/ref/mv_fixtures.py` → `fixtures/mv-*.json` (scikit-learn,
   NumPy, SciPy, 40-digit mpmath), judged in `ref-test.mjs`'s Many variables section (`svd`, `sval`, `eig`, `obj`, `vec`, `fail`);
-  the fuzzer's `svd.s`, `symEig.vals`, `pcaFlat`, `kmeansFrom`, `linkFlat`. **6.3**: `mvRows(Z, n)` (a row-major Float64Array),
+  the fuzzer's `svd.s`, `symEig.vals`, `pcaFlat`, `kmeansFrom`, `linkFlat`, `ldaFlat` (against scikit-learn within its reach). **6.3**: `mvRows(Z, n)` (a row-major Float64Array),
   `mvD2`, `mvRenumber` (labels by the data, decision 8), `kmPP(R, n, m, k, rnd)` (greedy k-means++, 2 + ⌊ln k⌋ trials, refusing
   fewer distinct observations than k), `kmLloyd(R, n, m, C0, maxIter)` (Lloyd's with Hamerly's bounds, the lowest-numbered of equal
   centres, an empty cluster given the farthest observation), `kmeans(R, n, m, {k, seed, restarts, maxIter})` (the least within
@@ -1730,6 +1730,18 @@ graph first, with the taskbar kept at the bottom of the screen.
   `ANA_FORMS.hclust` (`#aHm`, `#aHd` (1 − r off for Ward's), `#aHc` with `#aHk`/`#aHh`), `cluPlot(id, "dendro"|"clus"|"sil"|"scan")`,
   `cluPut(id)` (a categorical column `Cluster (<name>)` at the end of the data's sheet, a record entry). Analyze › Statistics ›
   Multivariate › k-means clustering…, Hierarchical clustering….
+  **6.4**: `lda(C, gi, G, {priors: "prop"|"equal", names, cov})` (the within-group deviations whitened by their own SVD, each
+  variable by its pooled SD, the group means' spread by a second SVD: `{G, p, n, q, ng, pri, mu, mean, sd, ev (of W⁻¹B), wl, bart
+  [{x2, df, p}], raw, cst, std, struct, scores, cen, cf, c0 (Fisher's), post, pred, loo, ploo, uni [{L, F, p}]}`; S_w = W/(n − G),
+  `cov:"n"` W/n for the bench (scikit-learn 1.9's); the sign rule on the standardised coefficients; the posteriors about the overall
+  mean; leave one out by Sherman and Morrison on vectors, a group of one leaving with its row; refusals in words: one group, n − G
+  below the variables, a variable that does not vary within the groups, dependent variables), `ldaFlat` (the bench's),
+  `ANA_KINDS.lda` (`cats`, `resIn`; refuses the curves layout naming PCA; `mvTable`'s `graw` and `gorder` the groups' keys and order,
+  `freqLevels` their order; the sheet: `gname`, `gn`, `gpri`; `var`, `vmean`, `m<g>`, `wl`, `wf`, `wp`; `fn` X, `fev`, `fpct`, `fcum`,
+  `fcc`, `fwl`, `fx2`, `fdf`, `fp`; `cvar`, `rc<k>`, `sc<k>`, `st<k>`; `gf<k>`; `kvar`, `kf<g>`; `ct`, `cp<h>`, `cc` and `lt`, `lp<h>`,
+  `lc` the tables; `obs`, `grp`, `pred`, `loo`, `pp<g>`, `cs<k>`; `dx<g>` X, `dy<g>` a curve a group; `cx`, `cy`, `cl` the means;
+  `report.lda {q, G, px, py, rows, vids, acc, accL, groups}`). Page: `mvFormHtml`'s `noLayout`, `ANA_FORMS.lda` (`#aMg` needed,
+  `#aDp`, `#aDx`, `#aDy`), `ldaPlot(id)`. Analyze › Statistics › Multivariate › Discriminant analysis….
 - **Worksheet** (`renderWs`, `setupWs`): a spreadsheet grid as in Excel, with Origin's label
   rows. Columns have fixed widths (`WS_W`, 100 px; `p.wsw[colId]` when dragged or autofitted by
   a double click on the header's edge, `wsSetWidth`, `wsAutofit`), never stretched to the

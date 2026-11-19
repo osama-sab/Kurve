@@ -296,6 +296,7 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
       Principal component analysis…  ## + (MULTI_SPEC 6.2): eigenvalues, loadings, scores, Hotelling's T² and Q with their limits; scree, scores, loadings, T²–Q plots and the biplot
       k-means clustering…  ## + (MULTI_SPEC 6.3): k-means++ starts from a seed, restarts, silhouettes, k compared; the clusters into the data
       Hierarchical clustering…  ## + (MULTI_SPEC 6.3): Ward's, average, complete, single; Euclidean or 1 − r; the dendrogram
+      Discriminant analysis…  ## + (MULTI_SPEC 6.4): canonical functions, Wilks' Λ, coefficients and structure, Fisher's classification, the classification table also left one out
     ROC curve…  ## + (STATS_SPEC 2.12) the area with DeLong's interval, Youden's cut-off, scores compared, the curve
     Power and sample size…  ## + (STATS_SPEC 2.11) t tests, one-way ANOVA, proportions, variances, χ²: power at sizes, the size for a power, a power curve
     Histogram…  ## ~ "Histogram of the values"; now takes the selected columns

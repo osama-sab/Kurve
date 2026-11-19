@@ -898,6 +898,19 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-19: discriminant analysis (MULTI_SPEC 6.4)
+
+- **The statistics packages' covariance, said.** The pooled within-group covariance divides by n − G, as SPSS, R's MASS and
+  Origin do; scikit-learn 1.9 divides by n, which moves the probabilities. Help says which, so a number that differs from
+  scikit-learn's is explained rather than doubted.
+- **Columns only, and the way round said.** With curves the points outnumber the observations and the covariance cannot be
+  estimated; rather than offer a layout that always fails, the dialog has none, and the refusal names the way: the principal
+  components first, then discriminate on their scores, which the dialog offers with the PCA's sheet in front.
+- **Every table a reader of SPSS or Origin expects, in their words.** Unstandardised and standardised coefficients, the structure
+  matrix, the functions at the group means, Fisher's classification functions, the classification table with the share correct in
+  its title, and the same left one out: the left-one-out table is what says how well the groups are told apart, so it is never
+  hidden behind a setting.
+
 ### 2026-11-19: clustering (MULTI_SPEC 6.3)
 
 - **Clusters are numbered by the data.** k-means' numbers come from its random starts and SciPy's from the order of merges, so

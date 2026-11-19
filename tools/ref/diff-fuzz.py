@@ -1280,6 +1280,34 @@ def link_post(c, out):
     big = max(abs(v) for v in w["h"]) or 1.0; e = max(abs(val(a) - b) for a, b in zip(out["h"], w["h"])) / big; return e, f"heights {e:.2e}"
 POST["linkFlat"] = link_post
 
+# Discriminant analysis: random groups and variables, against scikit-learn 1.9 with W divided by n as it does (cov "n"): the
+# probabilities, the classes and leave one out. Variables within a decade of 1 and near 0: scikit-learn's svd solver drops
+# within-group directions whose singular value is below an absolute 1e-4 (its tol), and on variables of 1e-3 about 1e3 it was
+# 1.6e-5 off the 40-digit answer where Kurve was 1.8e-11 (seed 1, 19.11); those cases are not its to judge.
+@gen("ldaFlat", 1e-10, 0.12)
+def _():
+    from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
+    from sklearn.model_selection import cross_val_predict, LeaveOneOut
+    G = int(rng.integers(2, 6)); p = int(rng.integers(1, 7)); n = int(rng.integers(G * 2 + p + 2, 80))
+    g = np.sort(np.concatenate([np.repeat(np.arange(G), 2), rng.integers(0, G, n - 2 * G)])); M = rng.normal(0, float(lognum(-0.5, 0.5)), size=(G, p))
+    X = (M[g] + rng.normal(size=(n, p)) @ (np.eye(p) + 0.3 * rng.normal(size=(p, p)))) * 10 ** rng.uniform(-1, 1, p) + rng.uniform(-10, 10, p)
+    priors = str(rng.choice(["prop", "equal"])); pri = np.full(G, 1 / G) if priors == "equal" else None
+    l = LDA(solver="svd", priors=pri).fit(X, g)
+    # it also keeps only the discriminant directions above 1e-4 of the first (its tol again): near that, a weak direction dropped
+    # moves its probabilities (1.6e-5 and 1.6e-6 on seeds 1 and 2), so such a case is made again
+    if len(l.explained_variance_ratio_) > 1 and min(l.explained_variance_ratio_) < 1e-3 * max(l.explained_variance_ratio_): raise ValueError("a weak direction (in some fold it may fall past the 1e-4)")
+    mu = np.array([X[g == k].mean(0) for k in range(G)]); Xc = X - mu[g]; sv = np.linalg.svd(Xc / Xc.std(0) / np.sqrt(n), compute_uv=False)
+    if sv[-1] < 1e-2: raise ValueError("near its absolute tolerance within the groups")   # in some fold the 1e-4 would bite
+    ploo = cross_val_predict(LDA(solver="svd", priors=pri), X, g, cv=LeaveOneOut(), method="predict_proba")
+    return [X.tolist(), g.tolist(), {"priors": priors, "cov": "n"}], {"post": l.predict_proba(X).ravel().tolist(), "ploo": ploo.ravel().tolist(), "pred": l.predict(X).tolist()}
+def lda_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or "post" not in out: return float("inf"), f"refused: {str(out)[:80]}"
+    e = max(max(abs(val(a) - b) for a, b in zip(out["post"], w["post"])), max(abs(val(a) - b) for a, b in zip(out["ploo"], w["ploo"])))
+    # a class decided where two probabilities tie to the rounding may differ; the probabilities themselves are what is judged
+    return e, f"probabilities {e:.2e}"
+POST["ldaFlat"] = lda_post
+
 cases = []
 ONLY = os.environ.get("ONLY")  # ONLY=name,name: those generators alone
 for name, (f, tol) in GEN.items():

@@ -192,6 +192,42 @@ await page(async p => {
   await p.click("#formCancel").catch(() => p.keyboard.press("Escape")); await p.waitForTimeout(200);
 }, { name: "6.3" });
 
+console.log("6.4 Discriminant analysis");
+await page(async p => {
+  await p.evaluate(TABLE); await p.waitForTimeout(300);
+  await menu(p, "analyze", "Statistics", "Multivariate", "Discriminant analysis…");
+  const f = await p.evaluate(() => ({ lay: !!$("#aMl"), sc: !!$("#aMs"), g: [...$("#aMg").options].map(o => o.textContent.trim()), none: [...$("#aMg").options].some(o => o.value === ""), pri: $("#aDp").value, ok: $("#formOk").disabled }));
+  check("Analyze › Statistics › Multivariate › Discriminant analysis…: no layout or scaling, Groups needed (no None), priors from the sizes", !f.lay && !f.sc && !f.none && f.g.some(t => /Part/.test(t)) && f.pri === "prop" && !f.ok, JSON.stringify(f));
+  await p.click("#formOk"); await p.waitForTimeout(700);
+  let r = await RES(p);
+  const ref = await p.evaluate(() => { const cs = sheetCols(SHEET0.id).filter(c => c.role === "y"), gc = P().cols.find(c => c.name === "Part"), gi = Int32Array.from({ length: 60 }, (_, i) => gc.txt[i] === "Leaf" ? 0 : 1);
+    const R = lda(cs.map(c => Float64Array.from(c.data)), gi, 2, {}); return { ev: R.ev, pred: R.pred.map(g => ["Leaf", "Root"][g]), p0: R.post.map(pr => pr[0]), acc: R.pred.filter((g, i) => g === gi[i]).length / 60 }; });
+  check("a result sheet: the groups Leaf and Root (in order), the eigenvalue, each row's class and probabilities as lda() gives them", r && !r.err && r.t.gname.join() === "Leaf,Root" && near(r.t.fev, ref.ev, 1e-14) && r.t.pred.join() === ref.pred.join() && near(r.t.pp0, ref.p0, 1e-13), r && (r.err || JSON.stringify(r.t.gname)));
+  check("…the report's sections: groups, each variable alone, the functions, coefficients, structure, classification and left one out", ["Groups", "Canonical functions", "Standardised coefficients", "Structure (within-group correlations)", "Unstandardised coefficients", "Functions at the group means", "Classification functions (Fisher's)"].every(t => r.rep.sections.some(s => s.title === t)) && r.rep.sections.some(s => /^Classified: /.test(s.title)) && r.rep.sections.some(s => /^Left one out: /.test(s.title)), JSON.stringify(r.rep.sections.map(s => s.title)));
+  check("…one function for two groups, Wilks' Λ and its p", r.t.fev.length === 1 && r.t.fwl[0] > 0 && r.t.fwl[0] < 1 && r.t.fp[0] >= 0);
+  await p.evaluate(id => ldaPlot(id), r.id); await p.waitForTimeout(500);
+  const g = await p.evaluate(() => { const g = P().graphs[P().graphs.length - 1]; return { n: g.cols.length, names: g.cols.map(id => colById(id).name), x: g.plot.ax.x.title, y: g.plot.ax.y.title }; });
+  check("Plot the scores: a curve a group against the row (one function)", g.n === 2 && g.names.join() === "Leaf,Root" && g.x === "Row" && g.y === "Function 1", JSON.stringify(g));
+  // three groups, equal priors, two functions plotted with the group means
+  await p.evaluate(() => { const c = P().cols.find(c => c.name === "Part"), t = {}; for (let i = 0; i < 60; i++) t[i] = ["Leaf", "Root", "Stem"][i % 3]; pushUndo("groups"); c.txt = t; save({ cols: P().cols }, "groups"); renderAll(); }); await p.waitForTimeout(500);
+  r = await RES(p); check("three groups typed: worked out again with two functions", r.t.fev.length === 2 && r.t.gname.join() === "Leaf,Root,Stem");
+  await p.evaluate(id => { anaDlg("lda", { id }); }, r.id); await p.waitForTimeout(300);
+  await p.selectOption("#aDp", "equal"); await p.click("#formOk"); await p.waitForTimeout(600);
+  r = await RES(p); check("…equal priors from Change settings", r.t.gpri.every(v => Math.abs(v - 1 / 3) < 1e-15) && /priors equal/.test(r.rep.method));
+  await p.evaluate(id => ldaPlot(id), r.id); await p.waitForTimeout(500);
+  const g3 = await p.evaluate(() => { const g = P().graphs[P().graphs.length - 1]; return { n: g.cols.length, last: colById(g.cols[g.cols.length - 1]).name, x: g.plot.ax.x.title }; });
+  check("Plot the scores: three groups on two functions, the group means as their own curve", g3.n === 4 && g3.last === "Group means" && g3.x === "Function 1", JSON.stringify(g3));
+  // on a PCA's scores, with its groups
+  await p.evaluate(() => showSheet(SHEET0.id, { quiet: true })); await p.waitForTimeout(100);
+  await p.evaluate(() => { anaDlg("pca", { all: true }); }); await p.waitForTimeout(300); await p.fill("#aMk", "3"); await p.selectOption("#aMg", await p.evaluate(() => P().cols.find(c => c.name === "Part").id)); await p.click("#formOk"); await p.waitForTimeout(600);
+  await p.evaluate(() => { anaDlg("lda"); }); await p.waitForTimeout(300);
+  const gopts = await p.evaluate(() => [...$("#aMg").options].map(o => { const c = colById(o.value); return c && c.ak; }));
+  check("from a PCA's sheet in front, discriminant analysis offers its scores and its groups", gopts.includes("grp"), JSON.stringify(gopts));
+  await p.evaluate(() => { [...document.querySelectorAll('input[id^="aI_"]')].forEach(x => { const c = colById(x.id.slice(3)); x.checked = !!c && /^t[123]$/.test(c.ak || ""); }); $("#aMg").value = P().cols.find(c => c.ak === "grp" && c.ana === anaList().find(a => a.kind === "pca").id).id; $("#aMg").dispatchEvent(new Event("change", { bubbles: true })); });
+  await p.click("#formOk"); await p.waitForTimeout(600);
+  const r2 = await RES(p, await p.evaluate(() => anaList().length - 1)); check("…worked out on three scores, grouped by the PCA's group column", r2 && !r2.err && r2.t.gname.join() === "Leaf,Root,Stem" && r2.t.var.join() === "Score PC1,Score PC2,Score PC3", r2 && (r2.err || r2.t.var));
+}, { name: "6.4" });
+
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

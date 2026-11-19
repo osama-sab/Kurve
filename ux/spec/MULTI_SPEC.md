@@ -271,6 +271,14 @@ clustering the variables (only observations; transpose with Data › Reshape ›
 
 ## 6.4 Discriminant analysis
 
+Done 19.11, as below, with these changes of plan: the pooled covariance divides by n − G, as statistics packages do (scikit-learn
+1.9 divides by n; an option for the bench alone checks the arithmetic against it); the posteriors are worked out about the overall
+mean (raw, they lost 4.6e-9 on a variable far from 0); leave one out applies Sherman and Morrison to vectors, never a matrix per row
+(1.7 s down to 0.25 s for 10⁴ rows of 20); Wilks' Λ is judged against a 40-digit determinant ratio, statsmodels' MANOVA being
+1.9e-11 off; Box's M is left out (an assumption check, STATS_SPEC decision 9); "raw" coefficients are called unstandardised, as SPSS
+has them, the glossary keeping "raw" off the screen. Measured: the functions to 6e-14, posteriors to 5e-13, every class and every
+class left one out exactly.
+
 **What.** Analyze › Statistics › Multivariate › *Discriminant analysis…*. The columns layout (a curves
 layout would have more variables than observations: refused in words, *PCA first, then its scores*
 named), the column of groups, the priors (equal, or from the group sizes), the classification
