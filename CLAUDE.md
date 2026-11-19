@@ -3640,8 +3640,8 @@ and φ as axis names); add a section to it for each report fixed.
 the pointer and keys (typing junk into cells and fields, sizing columns and rows, zooming, every
 pointer tool, wandering the menus and right-click menus, dialogs answered at random, windows
 dragged, resized, maximised and minimised, the dock, undo bursts, Find a command, examples, files
-imported, screen sizes, the theme, a sheet's own window, a matrix made, typed into and changed, Analyze › Fit's, Signal processing's and
-Calculus' dialogs with their lists and ticks changed at random and run or left, their tools' steps kept or cancelled, coffee breaks), sampling
+imported, screen sizes, the theme, a sheet's own window, a matrix made, typed into and changed, Analyze › Fit's, Signal processing's,
+Calculus' and Statistics › Multivariate's dialogs with their lists and ticks changed at random and run or left, their tools' steps kept or cancelled, coffee breaks), sampling
 memory, page elements, listeners, lag, long tasks and storage every 30 s into a CSV, and at the end reloading and comparing
 every project; run it for a long while (40 minutes) after touching windows, storage or rendering. `BIAS=text` makes the
 actions whose name holds the text twenty times as likely, to watch a new one closely.
@@ -3827,6 +3827,14 @@ million rows; the same file twice; an older document version upgraded; eleven ki
 refused with nothing made (a gzip bomb among them, `PF_MAXIN` lowered); Ctrl+S writing one file
 again, a copy, a file that can no longer be written; the menu, a drop, the import picker; a backup
 made and two of three restored. Run it after touching storage, `migrate`/`normalize` or the comments.
+`node tools/sig-test.mjs [path]` and `node tools/mv-test.mjs [path]` check the properties of waves 5 and 6 that the
+references cannot show (`ux/spec/SIGNAL_SPEC.md`, `ux/spec/MULTI_SPEC.md`: a transform and its inverse, Parseval, filters'
+responses, the factorisations' identities, PCA, clustering and discriminant analysis invariant to units and the rows' order, leave
+one out as refitting, NIPALS and SIMPLS the same for one response, every PLS component the least squares fit, refusals) and their
+budgets; `node tools/sig-drive.mjs [path]` and `node tools/mv-drive.mjs [path]` (Playwright; `ONLY=6.5` runs one section) click
+every menu item, dialog and control each wave adds, read the result sheets against the pure functions, plot from the reports and
+undo, follow a change, reload, and at the end look at every dialog of the wave at 1024 and 390 px (placeholders that fit, nothing
+wider than the screen). Run them after touching the SIG or MV block.
 `node tools/fit-test.mjs`, `node tools/pipe-test.mjs`, `node tools/parser-test.mjs` and
 `node tools/tex-test.mjs` cover the numerics, the processing steps with their checks and the
 fingerprint, the parser, and the LaTeX typesetter (nesting, italics, spacing, fractions, roots,
@@ -5754,6 +5762,15 @@ Next, in order:
 - Calculus: Simpson's rule is in the analysis, not the Integrate window (whose windows measure bands); the fitted curve's
   integral is said in its dialog and the History, not in Results, the report or the CSV, and is worked out numerically for every
   model; no double integral over a matrix; LOESS is local parabolas in one X (no several X, no degree above 2).
+- Many variables (wave 6): PCA on the covariance or the correlation (centred, unit variance or Pareto), with no rotations
+  (varimax, oblimin), no factor analysis, no robust PCA, rows with a missing value left out (not pairwise), a matrix sheet's rows
+  not read as observations; k-means with Euclidean distances alone, up to 200 000 observations, and hierarchical clustering of
+  observations (not variables) up to 3 000, single, complete, average or Ward's linkage on Euclidean or 1 − r distances (no
+  centroid or median linkage, no k-medoids, DBSCAN, mixtures or fuzzy clusters); linear discriminant analysis on columns only (no
+  quadratic or regularised, no stepwise selection; curves through PCA's scores); PLS with at most 15 components, cross-validated
+  by leave one out, contiguous blocks or venetian blinds (no Monte Carlo, no O-PLS, PLS-DA, kernel PLS or variable selection), a
+  curve's response its value of the project's one series variable. Curves on different X are read on the first's X over the
+  stretch they share. No survival analysis, MANOVA or design of experiments (only if asked)
 - The worksheet fuzzer's seed 1 (`tools/sheet-fuzz.mjs kurve.html 1`, step 61, on the version before text
   cells too): after an undo, a click and a value typed and held past the delayed save, the view scrolls
   back towards the undone cell and Enter enters the value without moving; found 07.11, not yet fixed

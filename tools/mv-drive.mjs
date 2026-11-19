@@ -256,7 +256,7 @@ await page(async p => {
   const r2 = await RES(p), ref2 = await p.evaluate(() => { const by = n => Float64Array.from(P().cols.find(c => c.name === n).data.slice(0, 60)), X = ["Length", "Width", "Ratio"].map(by); return Array.from(plsCoef(plsFit(X, [by("Mass")], { a: 2, scale: "unit" }), 2).B[0]); });
   check("Change settings keeps the response; SIMPLS, two components and venetian blinds of 5: one response, NIPALS's coefficients", yk.join() === "Mass" && r2.rep.pls.used === 2 && near(r2.t.b0, ref2, 1e-12) && /SIMPLS/.test(r2.rep.method) && /venetian blinds of 5/.test(r2.rep.method) && r2.rep.sections.some(s => s.title === "Components (2 used: as asked)"), JSON.stringify([yk, r2.rep.method]));
   // each plot, one undo step each
-  for (const [w, want] of [["mp", ["Mass, fitted", "Mass, cross-validated", "y = x"]], ["rmse", ["RMSECV", "RMSEC"]], ["coef", ["Coefficient"]], ["vip", ["VIP"]], ["scores", ["Score 2"]]]) {
+  for (const [w, want] of [["mp", ["Fitted Mass", "Cross-validated Mass", "y = x"]], ["rmse", ["RMSECV", "RMSEC"]], ["coef", ["Coefficient"]], ["vip", ["VIP"]], ["scores", ["Score 2"]]]) {
     const n0 = await p.evaluate(() => P().graphs.length);
     await p.evaluate(([id, w]) => plsPlot(id, w), [r2.id, w]); await p.waitForTimeout(400);
     const g = await p.evaluate(() => { const g = P().graphs[P().graphs.length - 1]; return { n: P().graphs.length, names: g.cols.map(id => colById(id).name), cats: (g.plot.ax.x.cats || []).map(c => c[1]), x: g.plot.ax.x.title, lab: Object.values(g.plot.use || {}).some(u => u.lab) }; });
@@ -288,6 +288,25 @@ await page(async p => {
   const g = await p.evaluate(() => { const g = P().graphs[P().graphs.length - 1]; return { names: g.cols.map(id => colById(id).name), t: g.plot.series && Object.values(g.plot.series).map(s => s.type) }; });
   check("Plot the coefficients of curves: the regression vector as a line against X", g.names.join() === "Coefficient" && g.t.join() === "line", JSON.stringify(g));
 }, { name: "6.5" });
+
+console.log("The wave's end: every dialog at 1024 and 390 px");
+await page(async p => {
+  await p.evaluate(TABLE); await p.waitForTimeout(300);
+  // a placeholder's words, measured in its own face, against the room its field leaves; and nothing wider than the dialog
+  const look = () => p.evaluate(() => { const c = document.createElement("canvas").getContext("2d"), out = [], m = $("#formModal"), body = m && m.querySelector("#formBody");
+    m.querySelectorAll("input[placeholder]").forEach(el => { if (!el.offsetParent) return; const cs = getComputedStyle(el), ps = getComputedStyle(el, "::placeholder"); c.font = `${ps.fontStyle} ${ps.fontWeight} ${ps.fontSize} ${ps.fontFamily}`;
+      const w = c.measureText(el.placeholder).width, room = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight); if (w > room + 1) out.push(`${el.id}: "${el.placeholder}"`); });
+    if (body && body.scrollWidth > body.clientWidth + 1) out.push(`wider than the dialog by ${body.scrollWidth - body.clientWidth} px`);
+    const r = m.querySelector(".sheet"); if (r) { const b = r.getBoundingClientRect(); if (b.right > innerWidth + 1 || b.left < -1) out.push("off the screen"); }
+    return out; });
+  const bad = []; let seen = 0;
+  for (const [w, h] of [[1024, 768], [390, 844]]) { await p.setViewportSize({ width: w, height: h }); await p.waitForTimeout(300);
+    for (const k of ["pca", "kmeans", "hclust", "lda", "pls"]) for (const lay of ["cols", "curves"]) {
+      await p.evaluate(k => { anaDlg(k, { all: true }); }, k); await p.waitForTimeout(250);
+      if (lay === "curves") { const ok = await p.evaluate(() => { const l = $("#aMl"); if (!l || l.hidden || !l.offsetParent) return false; l.value = "curves"; l.dispatchEvent(new Event("change", { bubbles: true })); return true; }); if (!ok) { await p.evaluate(() => { const m = $("#formModal"); m._cancel && m._cancel(); }); await p.waitForTimeout(120); continue; } await p.waitForTimeout(150); }
+      if (await p.isVisible("#formOk")) seen++; (await look()).forEach(q => bad.push(`${w} px, ${k} (${lay}): ${q}`)); await p.evaluate(() => { const m = $("#formModal"); m._cancel && m._cancel(); }); await p.waitForTimeout(120); } }
+  check(`every placeholder of the wave's five dialogs fits its field, and no dialog is wider than the screen, at 1024 and 390 px, in both layouts (${seen} looked at)`, !bad.length && seen >= 16, bad.join(" | ") || seen);
+}, { name: "end" });
 
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -11810,8 +11810,8 @@ ANA_KINDS.pls={label:"PLS regression", base:"PLS", cats:true, resIn:true, pts:p=
     for(let a=0;a<used;a++) cols.push({k:"t"+(a+1),name:`Score ${a+1}`,vals:AR(F.T[a])});
     // measured against predicted, fitted and cross-validated, each response a pair of curves, and y = x across them
     let lo=Infinity, hi=-Infinity; for(let k=0;k<q;k++) for(let i=0;i<n;i++) for(const v of [Yc[k][i],fit[k][i],cvp[k][i]]) if(Number.isFinite(v)){ if(v<lo) lo=v; if(v>hi) hi=v; }
-    for(let k=0;k<q;k++) cols.push({k:"mfx"+k,name:`Measured${yn(k)}`,unit:yunits[k],role:"x",vals:AR(Yc[k])},{k:"mfy"+k,name:`${ynames[k]}, fitted`,unit:yunits[k],role:"y",vals:AR(fit[k])},
-      {k:"mvx"+k,name:`Measured${yn(k)}`,unit:yunits[k],role:"x",vals:AR(Yc[k])},{k:"mvy"+k,name:`${ynames[k]}, cross-validated`,unit:yunits[k],role:"y",vals:AR(cvp[k])});
+    for(let k=0;k<q;k++) cols.push({k:"mfx"+k,name:`Measured${yn(k)}`,unit:yunits[k],role:"x",vals:AR(Yc[k])},{k:"mfy"+k,name:`Fitted ${ynames[k]}`,unit:yunits[k],role:"y",vals:AR(fit[k])},
+      {k:"mvx"+k,name:`Measured${yn(k)}`,unit:yunits[k],role:"x",vals:AR(Yc[k])},{k:"mvy"+k,name:`Cross-validated ${ynames[k]}`,unit:yunits[k],role:"y",vals:AR(cvp[k])});
     cols.push({k:"lx",name:"Measured",role:"x",vals:[lo,hi]},{k:"ly",name:"y = x",role:"y",vals:[lo,hi]});
     // the scores, the first two (one component: against the sample's number)
     const two=used>1; cols.push({k:"sx",name:two?"Score 1":"Sample number",role:"x",vals:two?AR(F.T[0]):obs.map((_,i)=>i+1)},{k:"sy",name:two?"Score 2":"Score 1",role:"y",vals:AR(two?F.T[1]:F.T[0])},{k:"sl",name:"Sample",vals:obs});
