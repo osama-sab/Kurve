@@ -1077,7 +1077,10 @@ def _():
     xq = np.sort(rng.uniform(x[0], x[-1], int(rng.integers(1, 300))))
     return [x.tolist(), y.tolist(), xq.tolist(), {"method": m, "ext": "none"}], {"y": F(xq).tolist(), "sc": float(np.max(np.abs(y))) or 1.0}
 POST["interp1"] = lambda c, out: _vec_post("y")(dict(c, scale=c["want"]["sc"]), out)
-@gen("lowessY", 1e-12, 0.3)
+# 1e-11: the robust rounds weight each point by its residual over six times the residuals' median, and on a window of a few points
+# that median is a small difference of nearly equal numbers. Seed 1 (19.11), six neighbours and one robust round: Kurve 4.5e-16 of
+# max|y| from 40 digits without the round, 1.3e-12 with it; statsmodels 1.8e-9.
+@gen("lowessY", 1e-11, 0.3)
 def _():
     import statsmodels.api as _smz
     n = int(rng.integers(3, 800)); x = np.sort(rng.uniform(0, 1, n)) * float(lognum(-2, 3)) + float(rng.uniform(-100, 100))
@@ -1089,7 +1092,50 @@ def _():
     # own offsets, was 2.4e-15. So a case is judged on max|y| times max|x| over X's span.
     sc = (float(np.max(np.abs(y))) or 1.0) * max(1.0, float(np.max(np.abs(x))) / float(x[-1] - x[0]))
     return [x.tolist(), y.tolist(), {"frac": frac, "it": it, "delta": delta}], {"y": fit.tolist(), "sc": sc}
-POST["lowessY"] = lambda c, out: _vec_post()(dict(c, scale=c["want"]["sc"]), {"fail": out["fail"]} if isinstance(out, dict) else out) if not isinstance(out, list) else _vec_post()(dict(c, want=c["want"]["y"], scale=c["want"]["sc"]), out)
+# The same algorithm in 40 digits (statsmodels' order of work: sorted X, the window moved along, tricube weights, a weighted line,
+# delta's skip, bisquare rounds), for a case where Kurve and statsmodels disagree: a disagreement is settled by a third. Seed 1
+# (19.11) found statsmodels 1.8e-9 off on a window of six points far from 0, Kurve 1.3e-12.
+def _lowess_mp(x, y, frac, it, delta):
+    import mpmath as mpm
+    with mpm.workdps(40):
+        n = len(x); o = sorted(range(n), key=lambda i: (x[i], i)); X = [mpm.mpf(x[i]) for i in o]; Y = [mpm.mpf(y[i]) for i in o]
+        k = max(2, min(n, int(math.floor(frac * n + 1e-10)))); rw = [mpm.mpf(1)] * n; fit = [None] * n
+        for rob in range(it + 1):
+            fit = [None] * n; mag = [0.0] * n; i = 0; last = -1; le = 0; re = k
+            while True:
+                xv = X[i]
+                while re < n and xv > (X[le] + X[re]) / 2: le += 1; re += 1
+                rad = max(xv - X[le], X[re - 1] - xv); w = {}
+                for j in range(le, re): d = 1 - (abs(X[j] - xv) / rad) ** 3; w[j] = d ** 3 * rw[j]
+                sw = sum(w.values())
+                if sum(1 for v in w.values() if v > 1e-12) < 2: fit[i] = Y[i]; mag[i] = float(abs(Y[i]))
+                else:
+                    for j in w: w[j] /= sw
+                    mx = sum(w[j] * X[j] for j in w); sxx = max(sum(w[j] * (X[j] - mx) ** 2 for j in w), mpm.mpf("1e-12"))
+                    terms = [w[j] * (1 + (xv - mx) * (X[j] - mx) / sxx) * Y[j] for j in w]; fit[i] = sum(terms); mag[i] = float(sum(abs(v) for v in terms))
+                if last < i - 1:
+                    a = X[i] - X[last]
+                    for j in range(last + 1, i): t = (X[j] - X[last]) / a; fit[j] = t * fit[i] + (1 - t) * fit[last]; mag[j] = max(mag[i], mag[last])
+                last = i; q = last; cut = X[last] + mpm.mpf(delta)
+                for kk in range(last + 1, n):
+                    q = kk
+                    if X[kk] > cut: break
+                    if X[kk] == X[last]: fit[kk] = fit[last]; mag[kk] = mag[last]; last = kk
+                i = max(q - 1, last + 1)
+                if last >= n - 1: break
+            if rob < it:
+                r = [abs(Y[j] - fit[j]) for j in range(n)]; sr = sorted(r); med = sr[n // 2] if n % 2 else (sr[n // 2 - 1] + sr[n // 2]) / 2
+                rw = [(1 - min(1, v / (6 * med)) ** 2) ** 2 if med != 0 else (mpm.mpf(0) if v > 0 else mpm.mpf(1)) for v in r]
+        out = [None] * n; mg = [None] * n
+        for j, i in enumerate(o): out[i] = float(fit[j]); mg[i] = mag[j]
+        return out, mg
+def lowess_post(c, out):
+    if not isinstance(out, list): return float("inf"), f"no fit: {str(out)[:80]}"
+    e, msg = _vec_post()(dict(c, want=c["want"]["y"], scale=c["want"]["sc"]), out)
+    if e <= c["tol"]: return e, msg
+    x, y, o = c["args"]; ref, _ = _lowess_mp(x, y, o["frac"], o["it"], o["delta"]); sc = max(abs(v) for v in y) or 1.0
+    e2 = max(abs(val(a) - b) / sc for a, b in zip(out, ref)); return e2, f"{msg} from statsmodels; against 40 digits {e2:.2e} of max|y|"
+POST["lowessY"] = lowess_post
 @gen("ruleOn", 1e-13, 0.3)
 def _():
     n = int(edge([2, 3, 4, 5], lambda: int(rng.integers(2, 600)))); x = np.cumsum(10 ** rng.uniform(-1, 1, n)) * float(lognum(-3, 3)) + float(rng.uniform(-1e3, 1e3))

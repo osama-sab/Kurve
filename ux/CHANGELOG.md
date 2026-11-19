@@ -1037,7 +1037,9 @@ people type (`CMDK_SYN`).
   out in offsets from its own X: 2e-15 from 40-digit arithmetic where statsmodels, centring X on a weighted mean, was 4e-11 for X far
   from 0 against its span. A speed budget for it.
 - **The fuzzer** gained generators for the wave's later functions: correlation, the six interpolants, LOWESS, Simpson's rule and a
-  wavelet decomposition in every family and mode, each passing on two seeds.
+  wavelet decomposition in every family and mode, each passing on two seeds. The suite's seed then found LOWESS 3.6e-10 from
+  statsmodels on a window of six points with a robust round: against 40 digits statsmodels was 1.8e-9 off and Kurve 1.3e-12 (the
+  rounds' median is ill-conditioned there), so a disagreement is settled by the same algorithm in 40 digits, at 1e-11.
 - **A 40-minute lab day** with two new actions, Analyze › Signal processing's and Calculus' dialogs (lists and ticks changed at
   random, run or left) and their tools' steps (kept or cancelled): 1178 actions, no failures, the page never waiting more than
   15 ms, memory and listeners back down by the end, the reload losing nothing. Its longest task, 1.7 s, was an implicit fit by a

@@ -1620,7 +1620,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   Analyze › Signal processing › FFT…, Power spectrum (Welch)…, Inverse FFT…; Help `signal`. References:
   `tools/ref/sig_fixtures.py` → `fixtures/sig-*.json`, judged in `ref-test.mjs`'s Signal processing section (`vec`, `cvec`, `obj`,
   `flat`, `sos` (sections as a set, the first in place), `fail`); the fuzzer's `fftC`, `welch`, `sosfiltfilt`,
-  `correlate`, `interp1`, `lowessY` (on the scale of max|x| over X's span: statsmodels' centring loses those digits), `ruleOn`, `wavedecFlat`. `detrendV` takes
+  `correlate`, `interp1`, `lowessY` (on the scale of max|x| over X's span: statsmodels' centring loses those digits;
+  a disagreement settled by the same algorithm in 40 digits, `_lowess_mp`, at 1e-11: the robust rounds' median is ill-conditioned), `ruleOn`, `wavedecFlat`. `detrendV` takes
   the mean off by `sigSum` (Neumaier). **5.2**: complex numbers as `[re, im]` (`cAdd`, `cSub`, `cMul`, `cDiv` Smith's,
   `cSqrt` principal, `cAbs`, `cConj`, `cProd`); SciPy's prototypes `buttap`, `cheb1ap`, `cheb2ap`, `ellipap` (`agm`, `ellipK`,
   `ellipKm1`, `ellipJ` as Cephes' ellpj, `ellipDeg` SciPy's seven-term nome, `arcJacSc1` by Landen in reals), `besselap`
