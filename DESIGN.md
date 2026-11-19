@@ -898,6 +898,20 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-19: a matrix for ImageJ (QUDI_SPEC Q.2)
+
+- **ImageJ opens it as Kurve shows it.** The image is written with its top row the largest Y and ImageJ told to count Y upwards
+  (`inverty`), so the picture is the right way up in both and a position read in ImageJ is the position Kurve and qudi give.
+  Every pixel's centre is the cell's X and Y: ImageJ puts a pixel's position at its centre for measurements, and the matrix's
+  cells are positions, not edges.
+- **The pixel size ImageJ reads back is Kurve's step.** ImageJ's own writer keeps six digits of it; a scan's 0.1 µm would be fine,
+  but a 4 µm range over 7 pixels would not. The rational is the one ImageJ's arithmetic turns back into the step exactly, where
+  one exists (about two steps in three), else to a part in 10¹⁴, and the message says so.
+- **Refused rather than approximated**: an axis that is not evenly spaced (ImageJ's calibration is one pixel size), said in
+  words with the way out (Resample…). Values past single precision's range are written as ImageJ would hold them and counted
+  in the message.
+- **Where people look**: Publish, beside the other files Kurve writes, and the matrix window's own Matrix menu.
+
 ### 2026-11-19: qudi's confocal scans (QUDI_SPEC Q.1)
 
 From the user's request: qudi's files must keep their positions, and the data go on to ImageJ's measurements.

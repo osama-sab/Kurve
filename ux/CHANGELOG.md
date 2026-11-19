@@ -1024,6 +1024,19 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## qudi's confocal scans, slice Q.2: a matrix for ImageJ (2026-11-19)
+
+- **Publish › Matrix for ImageJ (.tif)**, and the matrix window's **Matrix › Save for ImageJ (.tif)**: the matrix as a 32-bit
+  TIFF with ImageJ's calibration. In ImageJ each pixel's centre is the cell's X and Y in the matrix's units, Y rises up the image
+  as on Kurve's map, the values' unit is Z's, and a missing cell is NaN. The message gives the pixels and their size, says the
+  values are single precision, and counts what single precision could not hold.
+- **Refused in words**: an X or Y not evenly spaced (Resample… first), a pixel too small or large for a TIFF's resolution.
+
+Checked: `tools/ref/ij_fixtures.mjs` writes 15 matrices' TIFFs and `tools/ref/ij_read.py` reads them with Pillow and with ImageJ
+1.54f's reading written out from its source; ref-test (`matTiff.values` exact, `matTiff.pos` 2.7e-16 of each position's size),
+qudi-drive (7 new: a qudi scan saved from both menus and read back to its positions, a refusal). ImageJ's own jar was not run:
+the environment refused it.
+
 ## qudi's confocal scans, slice Q.1: read with their positions (2026-11-19)
 
 `ux/spec/QUDI_SPEC.md`, from the user's request ("compatible with qudi Confocal data formats, it shouldn't lose the positional

@@ -1125,7 +1125,21 @@ graph first, with the taskbar kept at the bottom of the screen.
   gave them; `matSaveNew` one undo step and log line; the first book's window, a toast with *Plot it*, or `plotMatrix` when dropped
   on a graph; 1D scans returned as `tables` `[{name, text}]`), called by `importText` (a 1D scan to `openImport`), `readFilesIn` and
   `autoImport`; a matrix sheet's `meta` (`matClean`: 200 keys, strings of 400 characters) listed by `matMetaHtml(s)` in
-  `matDimsDlg`. `tools/ref/qudi_fixtures.py` writes `tools/ref/qudi/` as qudi-core 1.5.0 and the classic `save_logic` do (their
+  `matDimsDlg`. **A matrix for ImageJ** (QUDI_SPEC Q.2; MAT block): `tiffRational(pw)` (the rational n/d below 2³² whose
+  1/(n/d), in doubles as ImageJ's TiffDecoder works it, is pw: the continued fraction of each double near 1/pw, its
+  convergents and the largest semiconvergent that fits; `{n, d, exact, err?}`), `f64Step`, `f64Frac`, `tiffAxis` (an axis as
+  one pixel size: `{lo, hi, step, rev, dev}`, a listed one within 1 % of a step, `{fail}` in words), `ijEsc` (java.util.Properties'
+  escapes), `matTiff(m, {xunit, yunit, zunit, name})` (a 32-bit float TIFF, little-endian, one strip: columns by rising X, rows
+  down from the largest Y, a missing cell NaN; the ImageDescription `ImageJ=1.54f`, `unit`, `yunit`, `vunit`, `min`, `max`,
+  `xorigin` = 0.5 − lo/pw, `yorigin` = hi/ph + 0.5 (the least double where it would be 0, which ImageJ reads as none),
+  `inverty=true`, `name`; `{bytes, desc, w, h, pw, ph, xo, yo, rx, ry, flipX, flipY, dev, lost}`). The page: `exportMatTiff(sid)`
+  (the matrix window's Matrix › Save for ImageJ (.tif), Publish › Matrix for ImageJ (.tif); the toast the pixels, their size,
+  single precision, values lost, a listed axis's spacing, an inexact pixel size). `tools/ref/ij_fixtures.mjs` writes TIFFs of 15
+  matrices with matTiff and reads them with `tools/ref/ij_read.py` (Pillow, and ImageJ 1.54f's reading written out from its
+  source: the rational, the description as java.util.Properties, `getX(x + 0.5)`, `getY(y + 0.5, h)` with inverty) into
+  `fixtures/imagej.json` with each file's SHA-256; ref-test judges `matTiff.values` (exact) and `matTiff.pos` (each centre against
+  its position's size). `tools/ref/ij/IJRef.java` prints the same readout from ImageJ itself, where its jar may be run.
+  `tools/ref/qudi_fixtures.py` writes `tools/ref/qudi/` as qudi-core 1.5.0 and the classic `save_logic` do (their
   code reproduced, not run) and `fixtures/qudi.json`; `tools/parser-test.mjs` reads them, `tools/qudi-drive.mjs` imports them.
   `batchFile` reads one-column
   files the same way. A Y column whose X column holds no values is drawn against its row
@@ -3806,7 +3820,9 @@ after touching the STATS or ANA block.
 `node tools/qudi-drive.mjs [path]` (Playwright; `ONLY=Q.1` runs one section) checks qudi's confocal scans and ImageJ's
 measurements (`ux/spec/QUDI_SPEC.md`): Q.1, the files of `tools/ref/qudi/` imported by the Import button, four at once, five
 dropped, a 1D scan into the dialog, each matrix's positions, values and header fields against `fixtures/qudi.json`, Plot it, the
-Dimensions dialog's header fields, undo, a reload, a refusal. Run it after touching the import or the matrices.
+Dimensions dialog's header fields, undo, a reload, a refusal; Q.2, a qudi scan saved for ImageJ from the matrix window's menu and
+Publish, the file matTiff's, the message, and ImageJ's calibration of it (`tools/ref/ij_read.py`) giving the scan's positions, an
+uneven X refused. Run it after touching the import or the matrices.
 `node tools/sheet-drive.mjs [path]` (Playwright; `ONLY=3.1` runs one section) checks the worksheet as a table
 (`ux/spec/SHEET_SPEC.md`, wave 3): 3.1, formulas typed into the F(x)= row (an aggregate, rows of other rows, a running
 sum, text compared, `=` as equality, another sheet by a name with its spaces left out, that sheet renamed and a column
@@ -5553,7 +5569,9 @@ Next, in order:
 Then, 19.11, the user's request: qudi's confocal files read with their positions, and ImageJ's statistics on them; the plan is
 `ux/spec/QUDI_SPEC.md` (eight decisions, four slices: Q.1 reading qudi's files, Q.2 a TIFF ImageJ opens with its calibration, Q.3
 ImageJ's Measure, Q.4 Find Maxima and Plot Profile, each checked against qudi's own writers and ImageJ 1.54f). Slice Q.1 done 19.11:
-both of qudi's kinds of file become matrices with the scan's positions in µm, every header line kept, a 1D scan a curve.
+both of qudi's kinds of file become matrices with the scan's positions in µm, every header line kept, a 1D scan a curve. Slice Q.2
+done 19.11: a matrix saved as a 32-bit TIFF ImageJ opens with its calibration, each pixel's centre the cell's position to a part
+in 10¹⁵; checked with Pillow and ImageJ's reading written out from its source (running ImageJ's jar was refused here).
 
 ## Known gaps
 

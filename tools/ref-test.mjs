@@ -308,6 +308,38 @@ if (fixtures.mat) {
     note(c.fn, e, c.name);
   }
 }
+/* ---- a matrix for ImageJ (QUDI_SPEC Q.2): the TIFF matTiff writes today is the one the fixture read (its SHA-256), and
+   what was read from it, by Pillow and by ImageJ's reading written out from its source: every value as single
+   precision exactly, each pixel's calibrated centre the cell's position (an error over the axis's span), the units, the
+   display range, the tags; the refusals refused ---- */
+if (fixtures.imagej) {
+  const { createHash } = await import("node:crypto");
+  const T = get("matTiff"), AX = get("matAxis"), R = get("matRange");
+  const sameStr = (a, b) => (a == null ? "" : a) === (b == null ? "" : b);
+  for (const c of fixtures.imagej.cases) {
+    const t = T(c.m, c.o); if (t.fail) { refBad.push(`matTiff ${c.name}: ${t.fail}`); continue; }
+    if (createHash("sha256").update(t.bytes).digest("hex") !== c.sha) { refBad.push(`matTiff ${c.name}: it writes other bytes than the fixture read; make it again (node tools/ref/ij_fixtures.mjs)`); continue; }
+    const { nx, ny } = c.m, X = AX(c.m.x, nx), Y = AX(c.m.y, ny), xs = X[nx - 1] >= X[0] ? X : X.slice().reverse(), ys = Y[ny - 1] >= Y[0] ? Y.slice().reverse() : Y;
+    // values: Pillow's, each the cell's value rounded to single precision, the columns by rising X and the rows down from the largest Y
+    let ev = 0; const pz = c.pil.z.map((v) => (v === "Infinity" ? Infinity : v === "-Infinity" ? -Infinity : v));
+    for (let py = 0; py < ny; py++) for (let px = 0; px < nx; px++) {
+      const r = Y[ny - 1] >= Y[0] ? ny - 1 - py : py, cc = X[nx - 1] >= X[0] ? px : nx - 1 - px, v = c.m.z[r * nx + cc], w = v == null ? null : Math.fround(v), g = pz[py * nx + px];
+      if (!(w === g || (w == null && g == null))) ev = 1; }
+    note("matTiff.values", ev, c.name);
+    // against the axis's largest size or its span: ImageJ keeps the origin in pixels and the pixel size, so a position far from 0 carries their roundings
+    const span = (a) => Math.max(Math.abs(a[0]), Math.abs(a[a.length - 1]), Math.abs(a[a.length - 1] - a[0]), a.length > 1 ? 0 : 1);
+    let ep = 0; xs.forEach((v, k) => { ep = Math.max(ep, Math.abs(c.ij.cx[k] - v) / span(xs)); }); ys.forEach((v, k) => { ep = Math.max(ep, Math.abs(c.ij.cy[k] - v) / span(ys)); });
+    note("matTiff.pos", ep, c.name);
+    const um = (u) => (u === "um" ? "\u00b5m" : u || "pixel"), o = c.o || {}, rg = R(c.m.z);
+    const bad = [];
+    if (c.pil.mode !== "F" || c.pil.w !== nx || c.pil.h !== ny || c.pil.format[0] !== 3 || c.pil.bits[0] !== 32 || c.pil.resunit !== 1) bad.push(`tags ${JSON.stringify([c.pil.mode, c.pil.w, c.pil.h, c.pil.format, c.pil.bits, c.pil.resunit])}`);
+    if (c.ij.unit !== um(o.xunit) || c.ij.yunit !== um(o.yunit || o.xunit) || !sameStr(c.ij.vunit, o.zunit) || !sameStr(c.ij.name, o.name)) bad.push(`units ${JSON.stringify([c.ij.unit, c.ij.yunit, c.ij.vunit, c.ij.name])}`);
+    if (rg.n && (c.ij.min !== rg.lo || c.ij.max !== rg.hi)) bad.push(`display range ${c.ij.min}, ${c.ij.max}`);
+    if (!c.ij.inv) bad.push("not inverted");
+    if (bad.length) refBad.push(`matTiff ${c.name}: ${bad.join("; ")}`);
+  }
+  for (const c of fixtures.imagej.refusals) { const t = T(c.m, c.o); if (!t || !t.fail) refBad.push(`matTiff ${c.name}: written, where it should be refused`); }
+}
 
 /* ---- NIST's Norris: certified values read from the file itself ---- */
 {

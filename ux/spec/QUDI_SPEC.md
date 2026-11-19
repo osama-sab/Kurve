@@ -170,6 +170,15 @@ TIFF with ImageJ's description and resolution (decision 7).
 width and height, unit, and each pixel's calibrated centre equal to Kurve's position, for square,
 oblong, descending and offset axes; tifffile reads the same.
 
+**Done 19.11.** `matTiff` and `tiffRational` in the MAT block, `exportMatTiff` on the page; `tools/ref/ij_fixtures.mjs` and
+`tools/ref/ij_read.py` make `fixtures/imagej.json` (15 matrices: square, oblong, either axis descending, a qudi scan, far from zero,
+listed, the yorigin that would be 0, one column, missing cells, values past single precision, units of their own and none, a pixel
+larger than its unit, 120 × 80), judged by ref-test: every value exact in single precision, every centre within 2.7e-16 of its
+position's size. One change from the plan: **ImageJ itself was not run.** This environment refused to run its jar (and to install
+tifffile); the TIFF is read by Pillow instead, and ImageJ's reading is its own arithmetic written out from its source
+(`TiffDecoder`, `FileOpener`, `Calibration`), the same IEEE operations in the same order. `tools/ref/ij/IJRef.java` prints
+ImageJ's own readout of the same files once its jar may be run.
+
 ## Q.3 ImageJ's Measure
 
 **What.** Analyze › Image › Measure… on the matrix in front: the whole image, a rectangle or an oval

@@ -10328,6 +10328,80 @@ function matRange(z){ let lo=Infinity, hi=-Infinity, n=0; for(let i=0;i<z.length
 function matText(m){ const {nx,ny,z}=m, s=v=>v==null?"":String(v), lines=new Array(ny);
   for(let r=0;r<ny;r++){ const o=r*nx; let l=s(z[o]); for(let c=1;c<nx;c++) l+=","+s(z[o+c]); lines[r]=l; }
   return ny?lines.join("\n")+"\n":""; }
+/* ---- A matrix for ImageJ (ux/spec/QUDI_SPEC.md, slice Q.2): a 32-bit float TIFF that ImageJ opens with its
+   calibration. ImageJ (1.54f, ij/io/TiffDecoder.java and FileOpener.java) reads the pixel size as 1/(n/d) of the
+   XResolution and YResolution rationals and the rest from the ImageDescription's key=value lines (java.util.Properties,
+   so anything outside printable ASCII escaped as \uXXXX, as its own FileSaver does): unit, yunit, vunit, min, max,
+   xorigin, yorigin, inverty. A pixel covers [i, i + 1), its centre i + 0.5, and with inverty a pixel's Y is
+   (yorigin − y)·pixelHeight, so the rows go down from the largest Y and every pixel's centre is the cell's position. ---- */
+const TIFF_U32=4294967295;
+// The doubles next to x, k steps up (k > 0) or down.
+function f64Step(x,k){ const dv=new DataView(new ArrayBuffer(8)); dv.setFloat64(0,x); let b=dv.getBigUint64(0);
+  const neg=x<0||Object.is(x,-0); b=neg?b-BigInt(k):b+BigInt(k); dv.setBigUint64(0,b); return dv.getFloat64(0); }
+// A positive double as an exact fraction of BigInts.
+function f64Frac(x){ const dv=new DataView(new ArrayBuffer(8)); dv.setFloat64(0,x); const bits=dv.getBigUint64(0);
+  const e=Number((bits>>52n)&0x7ffn), m=bits&((1n<<52n)-1n), man=e?m|(1n<<52n):m, ex=(e?e:1)-1075;
+  return ex>=0?[man<<BigInt(ex),1n]:[man,1n<<BigInt(-ex)]; }
+/* The TIFF rational n/d (each below 2³²) whose 1/(n/d), worked out in doubles as ImageJ does, gives back the pixel size
+   pw exactly: the continued fraction of each double x near 1/pw for which 1/x is pw, its convergents and the
+   semiconvergents before the next, the smallest that gives x. {n, d, exact}, the nearest when none is exact. */
+function tiffRational(pw){ if(!(pw>0)||!Number.isFinite(pw)) return null;
+  const r0=1/pw, cands=[r0]; for(let k=1;k<=6;k++){ cands.push(f64Step(r0,k),f64Step(r0,-k)); }
+  let best=null; const consider=(n,d)=>{ if(n<1||d<1||n>TIFF_U32||d>TIFF_U32) return false; const v=1/(n/d);
+    if(v===pw) return true; const err=Math.abs(v-pw); if(!best||err<best.err) best={n,d,err}; return false; };
+  for(const x of cands){ if(!(x>0)) continue;   // r0 itself even when 1/r0 is not pw: there may be no double whose reciprocal is
+    let [p,q]=f64Frac(x), h0=0n, h1=1n, k0=1n, k1=0n;
+    while(q){ const a=p/q; [p,q]=[q,p-a*q];
+      const U=BigInt(TIFF_U32), h=a*h1+h0, k=a*k1+k0;
+      if(h>U||k>U){ // the convergent does not fit: the largest semiconvergent (h0 + j·h1)/(k0 + j·k1) that does, and then no more
+        const jm=[h1?(U-h0)/h1:a, k1?(U-k0)/k1:a].reduce((u,v)=>u<v?u:v);
+        for(let j=jm;j>=1n&&j>=jm-64n;j--){ const n=Number(h0+j*h1), d=Number(k0+j*k1); if(n/d===x&&consider(n,d)) return {n,d,exact:true}; consider(n,d); }
+        break; }
+      [h0,h1,k0,k1]=[h1,h,k1,k]; const n=Number(h), d=Number(k);
+      if(n/d===x&&consider(n,d)) return {n,d,exact:true}; consider(n,d); } }
+  return best?{n:best.n,d:best.d,exact:false,err:best.err}:null; }
+/* An axis as ImageJ calibrates one: its least value lo, the step between pixels, whether Kurve's order runs downwards
+   (rev), and how far a listed value is from evenly spaced (dev, in steps). One cell: a step of 1. */
+function tiffAxis(ax,n,what){ const v=matAxis(ax,n);
+  if(n===1) return {lo:v[0],hi:v[0],step:1,rev:false,dev:0,one:true};
+  const up=v[n-1]>v[0]; if(v[n-1]===v[0]) return {fail:`its ${what} has one value throughout`};
+  for(let k=1;k<n;k++) if(up?!(v[k]>v[k-1]):!(v[k]<v[k-1])) return {fail:`its ${what} values do not run one way`};
+  const lo=up?v[0]:v[n-1], hi=up?v[n-1]:v[0], step=ax&&!Array.isArray(ax.v)?Math.abs((+ax.b-+ax.a)/(n-1)):(hi-lo)/(n-1);
+  let dev=0; for(let k=0;k<n;k++){ const w=up?v[k]:v[n-1-k]; dev=Math.max(dev,Math.abs(w-(lo+k*step))/step); }
+  if(dev>0.01) return {fail:`its ${what} values are not evenly spaced (one is ${(100*dev).toPrecision(2)} % of a step from its place), and ImageJ's calibration is one pixel size`};
+  return {lo,hi,step,rev:!up,dev}; }
+// A line of the description as java.util.Properties reads it: printable ASCII as it is, anything else \uXXXX.
+const ijEsc=t=>{ let o=""; for(const ch of String(t)) { const c=ch.codePointAt(0);
+  if(c>=0x20&&c<0x7f&&ch!=="\\") o+=ch; else if(c<=0xffff) o+="\\u"+c.toString(16).padStart(4,"0"); else o+="?"; } return o; };
+/* matTiff(m, {xunit, yunit, zunit, name}) → {bytes (Uint8Array), desc, w, h, pw, ph, xo, yo, rx, ry (the rationals),
+   flipX, flipY, dev} or {fail} in words. The columns go left to right by rising X and the rows down from the largest Y;
+   values as single precision, a missing cell NaN. */
+function matTiff(m,o){ o=o||{}; const nx=m.nx, ny=m.ny;
+  if(!(nx>=1&&ny>=1)||!m.z||m.z.length<nx*ny) return {fail:"The matrix has no cells."};
+  const AX=tiffAxis(m.x,nx,"X"), AY=tiffAxis(m.y,ny,"Y"); if(AX.fail) return {fail:`ImageJ cannot be given this matrix: ${AX.fail}.`}; if(AY.fail) return {fail:`ImageJ cannot be given this matrix: ${AY.fail}.`};
+  const rx=tiffRational(AX.step), ry=tiffRational(AY.step);
+  if(!rx||!ry) return {fail:"A pixel is too small or too large for a TIFF's resolution (below 1/4 294 967 295 of its unit, or above 4 294 967 295 units): change the unit in Dimensions and labels… first."};
+  const pw=1/(rx.n/rx.d), ph=1/(ry.n/ry.d);
+  // every pixel's centre its position: X = (px + 0.5 − xorigin)·pw, Y = (yorigin − py − 0.5)·ph with the top row the largest Y
+  const xo=0.5-AX.lo/pw; let yo=AY.hi/ph+0.5; if(yo===0) yo=Number.MIN_VALUE;   // ImageJ reads a yorigin of 0 as none, and then counts Y from the bottom row
+  const {lo,hi,n}=matRange(m.z), U=t=>t==null?"":String(t), xu=U(o.xunit), yu=U(o.yunit), zu=U(o.zunit);
+  const lines=["ImageJ=1.54f"]; if(xu) lines.push("unit="+ijEsc(xu)); if(yu!==xu&&yu) lines.push("yunit="+ijEsc(yu)); if(zu) lines.push("vunit="+ijEsc(zu));
+  if(n){ lines.push("min="+lo,"max="+hi); } if(xo!==0) lines.push("xorigin="+xo); lines.push("yorigin="+yo,"inverty=true"); if(o.name) lines.push("name="+ijEsc(o.name));
+  const desc=lines.join("\n")+"\n", dl=desc.length+1;
+  const tags=[[256,4,1,nx],[257,4,1,ny],[258,3,1,32],[259,3,1,1],[262,3,1,1],[270,2,dl,"d"],[273,4,1,"p"],[277,3,1,1],[278,4,1,ny],[279,4,1,nx*ny*4],[282,5,1,"x"],[283,5,1,"y"],[296,3,1,1],[339,3,1,3]];
+  const ifd=8, ifdLen=2+tags.length*12+4, dAt=ifd+ifdLen, rAt=dAt+dl+(dl&1), pAt=(rAt+16+3)&~3, size=pAt+nx*ny*4;
+  const buf=new ArrayBuffer(size), dv=new DataView(buf), u8=new Uint8Array(buf);
+  u8.set([0x49,0x49,42,0],0); dv.setUint32(4,ifd,true); dv.setUint16(ifd,tags.length,true);
+  tags.forEach(([tag,type,count,val],q)=>{ const e=ifd+2+q*12; dv.setUint16(e,tag,true); dv.setUint16(e+2,type,true); dv.setUint32(e+4,count,true);
+    const v=val==="d"?dAt:val==="p"?pAt:val==="x"?rAt:val==="y"?rAt+8:val; if(type===3) dv.setUint16(e+8,v,true); else dv.setUint32(e+8,v,true); });
+  dv.setUint32(ifd+2+tags.length*12,0,true);
+  for(let i=0;i<desc.length;i++) u8[dAt+i]=desc.charCodeAt(i); u8[dAt+desc.length]=0;
+  dv.setUint32(rAt,rx.n,true); dv.setUint32(rAt+4,rx.d,true); dv.setUint32(rAt+8,ry.n,true); dv.setUint32(rAt+12,ry.d,true);
+  let at=pAt, lost=0; for(let py=0;py<ny;py++){ const r=AY.rev?py:ny-1-py, row=r*nx;
+    for(let px=0;px<nx;px++){ const c=AX.rev?nx-1-px:px, v=m.z[row+c], f=v==null?NaN:Math.fround(v);
+      if(v!=null&&v!==0&&(f===0||!Number.isFinite(f))) lost++; dv.setFloat32(at,f,true); at+=4; } }
+  // lost: values single precision cannot hold (past 3.4e38, or below 1.4e-45 and not 0)
+  return {bytes:u8,desc,w:nx,h:ny,pw,ph,xo,yo,rx,ry,flipX:AX.rev,flipY:!AY.rev,dev:Math.max(AX.dev,AY.dev),lost}; }
 /* ==MAT:END== */
 /* ==SIG:START== Signal processing and mathematics (ux/spec/SIGNAL_SPEC.md, wave 5), pure: the transform of any
    length, windows and spectra (5.1); the later slices' filters, correlation, envelopes, wavelets, interpolation and
@@ -23962,8 +24036,21 @@ function matMenuItems(sid){ const s=matOf(sid), ro=S.readOnly, on=!!s&&!ro;
     {label:"Turn",enabled:on,sub:()=>[{label:"A quarter anticlockwise",run:()=>matTurnIt(sid,1)},{label:"A quarter clockwise",run:()=>matTurnIt(sid,-1)},{label:"Half a turn",run:()=>matTurnIt(sid,2)}]},
     {label:"Crop…",enabled:on,run:()=>matCropDlg(sid)},{label:"Resample…",enabled:on,run:()=>matResampleDlg(sid)},{label:"Arithmetic…",enabled:on,run:()=>matArithDlg(sid)},"-",
     {label:"To columns",enabled:on,sub:()=>[{label:"X, Y and Z columns",run:()=>matToSheet(sid,"xyz")},{label:"Z as a block, a column for each X",run:()=>matToSheet(sid,"block")}]},
-    {label:"Plot",enabled:on,sub:()=>MAT_KINDS.map(([k,l])=>({label:l,run:()=>plotMatrix(sid,k)}))},"-",
+    {label:"Plot",enabled:on,sub:()=>MAT_KINDS.map(([k,l])=>({label:l,run:()=>plotMatrix(sid,k)}))},
+    {label:"Save for ImageJ (.tif)",enabled:!!s,title:"A 32-bit TIFF that ImageJ opens with its calibration: each pixel's centre this cell's X and Y, the units and the values' unit",run:()=>exportMatTiff(sid)},"-",
     {label:"Delete this matrix…",danger:true,enabled:on,run:()=>matDeleteSheet(sid)}].filter(Boolean); }
+/* A matrix for ImageJ (QUDI_SPEC Q.2): the sheet as matTiff writes it, saved; the toast says the pixel size it has, that the
+   values are single precision, and what could not be kept. */
+async function exportMatTiff(sid){ sid=sid||matFront(); const s=matOf(sid); if(!s){ toast("No matrix is open."); return; }
+  const b=matBookOf(sid), title=b&&b.sheets.length>1?`${b.name} ${s.name}`:(b?b.name:s.name);
+  const t=matTiff(s,{xunit:s.xunit,yunit:s.yunit,zunit:s.zunit,name:title}); if(t.fail){ toast(t.fail); return; }
+  const nm=safeName(title,".tif"), ok=await saveFile(nm,new Blob([t.bytes],{type:"image/tiff"}),"image/tiff"); if(ok===false) return;
+  const u=(v,un)=>`${fmt(v,6)}${un?" "+un:""}`, same=t.pw===t.ph&&(s.xunit||"")===(s.yunit||"");
+  const px=same?u(t.pw,s.xunit):`${u(t.pw,s.xunit)} by ${u(t.ph,s.yunit)}`, more=[];
+  if(t.lost) more.push(`${t.lost} value${t.lost>1?"s":""} past single precision's range (written as infinity or 0)`);
+  if(t.dev>1e-9) more.push(`its listed positions evenly spaced to within ${fmt(100*t.dev,2)} % of a pixel`);
+  const rel=Math.max(t.rx.exact?0:t.rx.err*t.rx.n/t.rx.d,t.ry.exact?0:t.ry.err*t.ry.n/t.ry.d); if(rel>0) more.push(`the pixel size to within ${fmt(rel,1)} of itself`);
+  toast(`Saved ${nm} for ImageJ: ${t.w} × ${t.h} pixels of ${px}, the values as single precision${more.length?"; "+more.join("; "):""}.`); }
 // Data › Matrix.
 function matDataItems(){ const ro=S.readOnly||!P(), sid=matFront(), s=matOf(sid), books=matBooks();
   const out=[{label:"New matrix…",enabled:!ro,run:matNewDlg},{label:"From columns…",enabled:!ro,title:"The block selected in the worksheet: its columns the matrix's columns, its rows the rows",run:matFromColsDlg},{label:"From a picture…",enabled:!ro,title:"A PNG or JPEG: its grey values, or one channel, 0 to 255",run:matFromPicture},{label:"From scattered X, Y, Z…",enabled:!ro,title:ANA_KINDS.grid.help,run:()=>anaDlg("grid")}];
@@ -31295,6 +31382,7 @@ function exportItems(){
     p&&p.batch?{label:"Batch results as CSV", run:exportBatchCsv}:null,
     {label:"Original data as CSV", title:"Exactly as recorded, with its check code", run:exportRawCsv, enabled:!!(p&&rawCols().length)},
     {label:"Data as Excel (.xlsx)", title:"Every sheet as a sheet of a workbook: the columns' names and units at the top, then numbers, text and dates as Excel keeps them", run:exportXlsx, enabled:!!(p&&sheetList(p).some(s=>sheetCols(s.id).some(hasVals)))},
+    {label:"Matrix for ImageJ (.tif)", title:"The matrix in front as a 32-bit TIFF that ImageJ opens with its calibration: each pixel's centre the cell's X and Y, the units and the values' unit", run:()=>exportMatTiff(), enabled:!!(p&&matFront())},
     {label:"Processing steps as JSON", run:exportRecipe, enabled:has},
     "-",
     {label:"Report", title:f?"A self-contained HTML document: the graph, the fit and its notes, the processing and the log":"A self-contained HTML document; without a fit it covers the data and its processing", run:exportReport, enabled:has}];
@@ -31809,7 +31897,7 @@ ${DL([["Numbers","equals, does not equal, is less than, is at most, is greater t
 ${DL([["Stack columns","The columns ticked one under another in a column of values, with a column naming where each came from; columns ticked under <em>Kept beside</em> are repeated by each value (wide to long). Empty cells are left out unless you say otherwise."],["Unstack","A column of values into a column per level of a group column (long to wide): by their order within each level, or matched by an identifier column (then an identifier seen twice in a level keeps its first value, said)."],["Split by groups","The rows of each level of a group column, or every n rows, as a block of the columns ticked, side by side."],["Pivot table","The levels of one column down and another's across, each cell the count, sum, mean, SD, minimum, maximum, median or first of a column of values (or the number of rows), with totals."],["Reduce rows","Every nth row kept, every n rows merged (by their mean or another aggregate; X by its mean), or rows put into bins of X a width wide, X then each bin's centre."],["Duplicate rows","Rows whose key columns repeat: the first or the last of each kept, all averaged into one, or only the duplicates kept; numbers within a tolerance count as one."],["A sorted copy","The rows sorted by up to three columns, each up or down: numbers, then text, then empty cells; rows that tie keep their order. The only way rows are really reordered, and it is a copy."],["Transpose","Rows turned into columns, the first column ticked naming them when asked."],["Join two sheets","This sheet's rows beside another sheet's whose key matches: only rows matched in both, every row of this sheet, or every row of both. A row matching several gives one each."],["Append sheets","Other sheets' rows under this one's, columns matched by name or by position, with a column naming each row's sheet."]])}
 <h2>How they behave</h2>
 <p>Each is an ${DA("analyses","analysis")} under ${MP("Data › Reshape")}: it reads the cells as the worksheet holds them (numbers and text, not processed), writes a result sheet that is worked out again when they change, and can be changed, recalculated, cut from its data (the cells kept on an ordinary sheet) or deleted, each one step to undo. Its rows can be limited, and on a filtered sheet it offers the filter's rows as its own. The report says how many rows it read and made, and what it left out.</p>`},
-{id:"matrices", g:"Data", t:"Matrices", kw:"matrix matrices matrix book matrix sheet grid image z values surface 2d two-dimensional qudi confocal scan nv apd counter channel positions depth scan back scan header transpose flip turn rotate rot90 crop resample interpolate bilinear arithmetic set values formula picture png jpeg grey gray channel from columns to columns xyz block heat map contour",
+{id:"matrices", g:"Data", t:"Matrices", kw:"matrix matrices matrix book matrix sheet grid image z values surface 2d two-dimensional imagej fiji tif tiff 32-bit float calibration pixel size qudi confocal scan nv apd counter channel positions depth scan back scan header transpose flip turn rotate rot90 crop resample interpolate bilinear arithmetic set values formula picture png jpeg grey gray channel from columns to columns xyz block heat map contour",
  lead:"A grid of values Z with its X along the top and its Y down the side, as Origin's matrix: kept in a book of its own, drawn by a graph as a map.",
  body:`<h2>Making one</h2>
 <p>${MP("Data › Matrix")} has three ways in. <em>New matrix…</em> asks for the rows and columns, X and Y from first to last (evenly spaced), and the values: empty, one number in every cell, or a formula. <em>From columns…</em> reads the block selected in the worksheet: its columns become the matrix's columns and its rows the rows; when its first row and first column are numbers running one way and the corner is empty, they are X and Y. <em>From a picture…</em> reads a PNG or JPEG: its grey values (0 to 255, weighted as ITU-R BT.601), or its red, green, blue or opacity; X counts the pixels from the left and Y from the bottom, so the picture is upright on a graph.</p>
@@ -31822,6 +31910,8 @@ ${DL([["Stack columns","The columns ticked one under another in a column of valu
 <h2>Changing one</h2>
 ${DL([["Transpose","Rows become columns, and X becomes Y."],["Flip","Left to right or up and down. The values move and the X and Y stay (the picture is mirrored), or with the X (or Y) values each value keeps its coordinates (a graph draws the same picture)."],["Turn","A quarter anticlockwise or clockwise, or half a turn, as the grid shows it; the rows take the X values and the columns the Y values, in their order."],["Crop…","The rows and columns whose X and Y are in the ranges typed (the selection's, to begin with)."],["Resample…","A number of rows and columns over the same X and Y, each value bilinear between the four cells around it; a missing cell with a weight above zero leaves the value missing."],["Dimensions and labels…","The size (values kept by row and column, new cells empty), X and Y from first to last, and the names and units of X, Y and Z."],["Arithmetic…","A new matrix of the book, A + B, A − B, A × B or A ÷ B of two matrices of one size or a matrix and a number: a formula, so it follows them. A cell missing on either side, or ÷ 0, is missing."],["To columns","A new sheet of X, Y and Z columns (a row a cell), or the Y values and a column for each X."]])}
 <p>A transform of a computed matrix keeps its values and drops its formula. Each change is one step to undo.</p>
+<h2 id="imagej">For ImageJ</h2>
+<p>${MP("Publish › Matrix for ImageJ (.tif)")} (or the window's Matrix › Save for ImageJ) writes the matrix in front as ImageJ keeps an image: a 32-bit TIFF, its values in single precision (about seven digits; a missing cell is NaN, which ImageJ leaves out of its measurements), with ImageJ's calibration. Opened in ImageJ, each pixel's centre is the cell's X and Y, in the matrix's units (µm stays µm), Y rising up the image as it does on Kurve's map, and the values' unit is Z's, so Analyze › Measure, a line's profile or the cursor's readout give positions as Kurve and qudi do. ImageJ's calibration is one pixel size per axis, so a matrix whose X or Y is not evenly spaced is refused (Resample… first); the pixel size is written as the fraction ImageJ reads back exactly where one exists.</p>
 <h2>Plotting one</h2>
 <p>${MP("Plot › Plot a matrix")} (or the window's Plot) makes a graph of its own: an image (each cell its colour, with no smoothing), filled contours, contour lines with their values along them, or the image with lines. The colour bar is titled by Z; the Map menu on the graph sets the levels and the colour map and opens the matrix again. Pointing at the map, the status bar gives the cell's X, Y, value, row and column. It zooms and pans as any graph, and is exported, copied and reported as any graph.</p>`},
 {id:"condfmt", g:"Data", t:"Conditional formatting", kw:"conditional formatting colour color scale heat map highlight cells fill rule rules duplicates unique top bottom greater less between text manage order",
@@ -32173,7 +32263,7 @@ ${TIP("Annotations are drawn only on data in the units they were placed in: a la
 ${DL([["Size","One column (85 mm), one and a half (114 mm) or two (174 mm); Nature's 89 and 183 mm; ACS's 3.25 and 7 in; a 1920 × 1080 slide; as on screen; or your own width and height in mm, inches or pixels. <em>As on screen</em> takes the graph's proportions."],["Tick numbers","Their size in points at the printed size; every other text keeps its size beside them, so 8 pt numbers come out as 8 pt on the page."],["Lines and symbols","<em>Scale with the text</em>: the whole figure keeps the proportions it has on screen, lines and symbols as thick beside the text as there (best for slides). <em>As drawn</em>: lines keep their width in points whatever the text size."],["Format","SVG, vector, at that size in mm or inches, its web fonts embedded; PDF and EPS, vector at that size, for journals and LaTeX (below); PNG at 150 to 1200 dpi, which it records so a word processor places it at its size; TIFF, lossless, with its resolution, for journals that ask for it."],["Background","White, or transparent for PNG, TIFF and SVG."],["Graphs","With several graphs, this one or all of them as one figure."]])}
 <p>The settings are remembered in this browser.</p>
 <h2>Everything else</h2>
-${DL([["Copy the graph as a picture","A PNG on the clipboard (Edit, and the graph's right-click menu), to paste straight into a document or slides; a panel copies its whole figure. A browser that will not put a picture there says so, and the PNG export does the same job."],["Graph as SVG","Vector, for papers: exactly what is on screen, at any size."],["Graph as PDF, Graph as EPS","Vector, at the size the graph has on screen (the dialog above for any other size)."],["Graph as PNG","An image at 2.5 times the screen's resolution, for slides."],["All graphs as one figure","With several graphs: every graph in one SVG or PNG, lettered (a), (b)… as they are on the desk."],["Processed data and fit as CSV","Every column with units, the mask, the fit, residuals, baseline and each peak's curve, followed by commented blocks: metadata, check code, processing steps with their warnings, marked peaks with labels, band integrals and fit statistics."],["Every column's processed data as CSV","With several columns: each one's processed X and Y side by side, and how each was processed."],["Batch results as CSV","After a batch fit: the Batch window's table with each value's error, how the fit was made, and the straight line through the trend. "+DA("batch","Fitting every column")],["Original data as CSV","The original data under a header that says how to verify its check code. "+DA("rawdata","Original data")],["Data as Excel (.xlsx)","Every sheet of the project as a sheet of a workbook: names, units and comments frozen at the top, then numbers, text and dates as Excel keeps them. "+DA("import#excel","Excel workbooks")],["Processing steps as JSON","The recipe: every step with its settings."],["Report","One self-contained HTML file: the figure, the notes on anything that makes the numbers less certain, the parameter table with t, p, confidence intervals and dependency, statistics, peaks, bands, the original-data record, every processing step with a filmstrip, the fit history, the method, every discussion thread and the log."],["Copy the results table","In Edit: tab-separated, to paste into a spreadsheet."]])}
+${DL([["Copy the graph as a picture","A PNG on the clipboard (Edit, and the graph's right-click menu), to paste straight into a document or slides; a panel copies its whole figure. A browser that will not put a picture there says so, and the PNG export does the same job."],["Graph as SVG","Vector, for papers: exactly what is on screen, at any size."],["Graph as PDF, Graph as EPS","Vector, at the size the graph has on screen (the dialog above for any other size)."],["Graph as PNG","An image at 2.5 times the screen's resolution, for slides."],["All graphs as one figure","With several graphs: every graph in one SVG or PNG, lettered (a), (b)… as they are on the desk."],["Processed data and fit as CSV","Every column with units, the mask, the fit, residuals, baseline and each peak's curve, followed by commented blocks: metadata, check code, processing steps with their warnings, marked peaks with labels, band integrals and fit statistics."],["Every column's processed data as CSV","With several columns: each one's processed X and Y side by side, and how each was processed."],["Batch results as CSV","After a batch fit: the Batch window's table with each value's error, how the fit was made, and the straight line through the trend. "+DA("batch","Fitting every column")],["Original data as CSV","The original data under a header that says how to verify its check code. "+DA("rawdata","Original data")],["Data as Excel (.xlsx)","Every sheet of the project as a sheet of a workbook: names, units and comments frozen at the top, then numbers, text and dates as Excel keeps them. "+DA("import#excel","Excel workbooks")],["Matrix for ImageJ (.tif)","The matrix in front as a 32-bit TIFF that ImageJ opens with its calibration: each pixel's centre the cell's position, in its units. "+DA("matrices#imagej","Matrices")],["Processing steps as JSON","The recipe: every step with its settings."],["Report","One self-contained HTML file: the figure, the notes on anything that makes the numbers less certain, the parameter table with t, p, confidence intervals and dependency, statistics, peaks, bands, the original-data record, every processing step with a filmstrip, the fit history, the method, every discussion thread and the log."],["Copy the results table","In Edit: tab-separated, to paste into a spreadsheet."]])}
 <h2 id="pdf">PDF and EPS</h2>
 <p>Everything on the graph is drawn again as vectors: lines, symbols, shading, clipping, an inset, a heat map's image and colour bar. In a PDF the text is set in the graph's own font, embedded in the file (each face drawn, fetched as TrueType from Fontsource's copy of Google Fonts), so it looks as on screen and can be searched and copied; the export says which fonts it embedded. A character the font lacks, a font that cannot be fetched (offline, or after 9 s), and every EPS use the standard fonts every PDF reader and printer has instead (Helvetica, Times or Courier, whichever is nearest the graph's font, with Symbol for Greek letters and signs), placed by those fonts' own widths, so centred and right-aligned text stays where it belongs; superscripts and subscripts keep their places either way, and the export says when the standard fonts stood in. A character none of the fonts has (Chinese, an emoji) is written as ? and the export says which. EPS has no transparency, so shading and translucent fills are mixed with white and cover what lies beneath.</p>
 <p>Tables in the Peaks, Integrate and Statistics windows have Copy buttons of their own.</p>

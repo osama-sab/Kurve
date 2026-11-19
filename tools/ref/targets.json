@@ -30,6 +30,12 @@
  "matText": {
   "tol": 0
  },
+ "matTiff.values": {
+  "tol": 0
+ },
+ "matTiff.pos": {
+  "tol": 1e-15
+ },
  "reshape": {
   "tol": 1e-13
  },

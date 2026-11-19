@@ -5,7 +5,9 @@
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { createServer } from "node:http";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { execFileSync } from "node:child_process";
 const here = dirname(fileURLToPath(import.meta.url));
 const FILE = resolve(process.argv[2] || join(here, "..", "kurve.html"));
 const QD = join(here, "ref", "qudi"), CASES = JSON.parse(readFileSync(join(here, "ref", "fixtures", "qudi.json"), "utf8"));
@@ -83,6 +85,37 @@ await page(async p => {
   await p.setInputFiles("#fileIn", { name: "broken.dat", mimeType: "text/plain", buffer: Buffer.from(readFileSync(join(QD, f1), "utf8").replace(/#Z image min: .*\n/, "")) }); await p.waitForTimeout(500);
   check("a classic image whose header lost its Z range: refused in words, nothing made", /lacks the image's X or Z range/.test(await p.evaluate(() => ($("#toast") || {}).textContent || "")) && (await MATS(p)).length === after.length);
 }, { name: "Q.1" });
+
+console.log("Q.2 A matrix for ImageJ");
+// what ImageJ reads from a TIFF: Pillow's pixels and ImageJ's calibration, as tools/ref/ij_read.py works them out
+const ijRead = (bytes) => { const d = mkdtempSync(join(tmpdir(), "kurve-ijd-")); writeFileSync(join(d, "m.tif"), bytes);
+  try { return JSON.parse(execFileSync("python3.13", ["-I", join(here, "ref", "ij_read.py"), d], { encoding: "utf8" }))["m.tif"]; } finally { rmSync(d, { recursive: true, force: true }); } };
+await page(async p => {
+  const f = file(/0930-46_confocal_xy_image_Dev1Ctr1/), w = want(f);
+  await p.setInputFiles("#fileIn", join(QD, f)); await p.waitForFunction(() => matAll().length >= 1, null, { timeout: 8000 }); await p.waitForTimeout(400);
+  // the matrix window's Matrix menu: Save for ImageJ (.tif)
+  await p.click(".mxwin [data-mxmenu]"); await p.waitForTimeout(150);
+  const [dl] = await Promise.all([p.waitForEvent("download", { timeout: 8000 }), p.click(".menu [role=menuitem]:has-text('Save for ImageJ')")]);
+  const bytes = readFileSync(await dl.path()), name = dl.suggestedFilename();
+  const same = await p.evaluate(b => { const s = matOf(matFront()), t = matTiff(s, { xunit: s.xunit, yunit: s.yunit, zunit: s.zunit, name: matBookOf(s.id).name }); return t.bytes.length === b.length && t.bytes.every((v, i) => v === b[i]); }, [...bytes]);
+  check("the matrix window's Matrix › Save for ImageJ (.tif): the file is the matrix as matTiff writes it, named after its book", same && name === "Confocal_xy_20261118-0930-46.tif", name);
+  const toastT = await p.evaluate(() => ($("#toast") || {}).textContent || "");
+  const px = (w.x[1] - w.x[0]), py = (w.y[1] - w.y[0]), f6 = (v) => String(+v.toPrecision(6));
+  check("…the message says its pixels, their size and single precision", toastT.includes(`${w.nx} × ${w.ny} pixels of ${f6(px)} µm by ${f6(py)} µm, the values as single precision`), toastT);
+  const r = ijRead(bytes), X = w.x, Y = w.y.slice().reverse();
+  const posErr = Math.max(...X.map((v, k) => Math.abs(r.ij.cx[k] - v) / Math.max(Math.abs(v), 4)), ...Y.map((v, k) => Math.abs(r.ij.cy[k] - v) / Math.max(Math.abs(v), 6)));
+  check("…ImageJ's calibration from it: µm, every pixel's centre the qudi scan's position (to a part in 10¹⁵), inverted Y, the count rate's unit", r.ij.unit === "µm" && r.ij.yunit === "µm" && r.ij.vunit === "c/s" && r.ij.inv && posErr < 1e-15 && r.pil.mode === "F", JSON.stringify({ posErr, u: r.ij.unit, v: r.ij.vunit }));
+  const zTop = []; for (let row = w.ny - 1; row >= 0; row--) for (let c = 0; c < w.nx; c++) zTop.push(Math.fround(w.z[row * w.nx + c]));
+  check("…every value as single precision, the top row the largest Y", zTop.every((v, i) => v === r.pil.z[i]));
+  // Publish › Matrix for ImageJ (.tif): the matrix in front
+  await p.click(".mb[data-menu=publish]"); await p.waitForTimeout(150);
+  const [dl2] = await Promise.all([p.waitForEvent("download", { timeout: 8000 }), p.click(".menu [role=menuitem]:has-text('Matrix for ImageJ')")]);
+  check("Publish › Matrix for ImageJ (.tif): the same file", Buffer.compare(readFileSync(await dl2.path()), bytes) === 0);
+  // a matrix whose X is not evenly spaced is refused in words, nothing saved
+  await p.evaluate(() => { const s = matSheetNew({ nx: 3, ny: 2, x: { v: [0, 1, 3] }, y: { a: 0, b: 1 }, z: [1, 2, 3, 4, 5, 6] }, "Uneven"); matSaveNew([matBookNew(s, "Uneven")], { undo: "a test matrix", log: "made a test matrix" }); exportMatTiff(s.id); });
+  await p.waitForTimeout(300);
+  check("a matrix whose X is not evenly spaced: refused, saying why", /not evenly spaced/.test(await p.evaluate(() => ($("#toast") || {}).textContent || "")));
+}, { name: "Q.2" });
 
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);

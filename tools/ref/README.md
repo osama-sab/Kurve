@@ -63,6 +63,19 @@ The suite's menu crawl (`tools/ux/crawl.py`) needs Python's `playwright` package
 18.11: `pip install --target "$PYREF" playwright==1.63.0`; the browser already installed is used, nothing is downloaded).
 `tools/suite.sh` puts `$PYREF` on its path.
 
+## ImageJ's references (QUDI_SPEC)
+
+`node tools/ref/ij_fixtures.mjs` writes a TIFF of each test matrix with Kurve's `matTiff`, reads them with `tools/ref/ij_read.py`
+(`python3.13 -I`, Pillow on the path: Pillow's pixels and tags, and ImageJ 1.54f's reading of them written out from its source)
+and writes `fixtures/imagej.json` with each file's SHA-256, which ref-test checks matTiff still writes. `tools/ref/ij/IJRef.java`
+is the same readout from ImageJ itself, for where its jar may be run (not run in this repository's checks: the environment that
+built them refused it):
+
+```sh
+javac -cp ij.jar -d /tmp/ijref tools/ref/ij/IJRef.java
+echo "open /path/to/file.tif" | java -Djava.awt.headless=true -cp ij.jar:/tmp/ijref IJRef
+```
+
 ## The fuzzer
 
 ```sh
