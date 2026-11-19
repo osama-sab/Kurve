@@ -202,6 +202,13 @@ graph first, with the taskbar kept at the bottom of the screen.
   returned; refused in words for a missing value, one value only, a temperature or a start not
   above zero. `inverse` eliminates once and replays
   it on each column: solve()'s arithmetic exactly, at n³ instead of n⁴.
+  **Factorisations** (MULTI_SPEC 6.1): `svd(A, {vectors, k})` (A an array of rows; the orientation with fewer columns
+  scaled by a power of two, `svdPow2`, Householder QR with column pivoting as LAPACK's dgeqp3, then one-sided Jacobi on Rᵀ,
+  de Rijk's ordering and the column norms kept by the rotations' identity; `{s (descending), U, V (rows), rank, sweeps}`, a
+  vector at the rounding level made orthogonal again, each pair turned so its V column's entry of largest magnitude is
+  positive, MULTI_SPEC decision 2; `k` the first k pairs only; `svdCheck` refusals in words) and `symEig(A)` (the lower
+  triangle, EISPACK's tred2 and tql2 as JAMA's; `{vals (descending), vecs}`, the same sign rule). `svdVals` stays the linear
+  model's. Against NumPy and 40-digit mpmath (Hilbert matrices, graded ones to their own digits) by `tools/ref-test.mjs`.
   `fillSeries(o, n)` makes the worksheet's fills (linear and growth series with a stop
   value, evenly spaced on a linear or log scale, row numbers, a list repeated, uniform, whole,
   normal and Poisson random numbers from `mulberry32(seed)`, a straight or growth trend through

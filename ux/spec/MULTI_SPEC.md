@@ -179,6 +179,14 @@ for more than 100 ms. `perf.mjs` gains each.
 
 ## 6.1 SVD and eigenvalues
 
+Done 19.11, as below, with these changes of plan: an option `k` forms the first k pairs of vectors only (a PCA writes a few,
+and forming the rest is most of the time for a wide matrix: 300 × 2 000 with 10 vectors in 0.6 s); the vectors are judged on a
+matrix's longer side with the singular values of 0 in their gap (Wedin's bound: a tall matrix's left vectors of small values are
+known to no method better than ε·s₁ over the smallest value), which a first judge without it took for an error of 4e-10.
+Measured: the singular values to 6e-15 of the largest (Hilbert matrices to 12 × 12 against 40 digits), a graded matrix's to
+1.2e-15 of themselves, the vectors to 2e-15, the eigenproblem's to 3e-15; the fuzzer's thousands of random shapes and kinds
+(lower rank, graded, ties, values near 1e±150) the same.
+
 **What.** `svd` and `symEig` in NUMERICS, with nothing a user sees: the engine of the wave. `svd`
 works on the orientation with fewer columns, preconditions it by Householder QR with column pivoting,
 and orthogonalises R's columns by one-sided Jacobi rotations (Hestenes), which keeps the small

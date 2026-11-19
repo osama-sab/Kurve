@@ -592,6 +592,55 @@ if (fixtures.implicit) {
   }
 }
 
+/* ---- Many variables (MULTI_SPEC, wave 6): every tools/ref/fixtures/mv-*.json (tools/ref/mv_fixtures.py). A factorisation
+   is judged by its values over the largest, its vectors by their angle to the reference's times their gap over the largest
+   (a group of equal values by the part of Kurve's vectors outside the reference's span), and its reconstruction and
+   orthogonality from Kurve's answer alone. ---- */
+{
+  const dot = (a, b) => a.reduce((s, v, i) => s + v * b[i], 0);
+  const col = (M, c) => M.map((r) => r[c]);
+  // Groups of equal values (within 1e-6 of the largest); a group at the rounding level is the null space, not judged.
+  const groups = (s, big, floor) => { const g = []; let cur = [0];
+    for (let i = 1; i < s.length; i++) { if (Math.abs(s[i] - s[i - 1]) <= 1e-6 * big) cur.push(i); else { g.push(cur); cur = [i]; } } g.push(cur);
+    return g.filter((q) => Math.abs(s[q[0]]) > floor); };
+  // The worst of: each of Kurve's vectors in a group, its part outside the reference group's span, times the group's gap.
+  // On the longer side of a matrix (U of a tall one, V of a wide one) the vectors past the shorter side belong to singular
+  // values of 0, so a group's gap is to 0 too (Wedin): its vectors are known no better, by any method.
+  const vecErr = (got, want, s, big, floor, zero) => { let e = 0; const gs = groups(s, big, floor);
+    for (const g of gs) { let gap = Infinity; const lo = g[0], hi = g[g.length - 1];
+      if (lo > 0) gap = Math.min(gap, Math.abs(s[lo - 1] - s[lo])); if (hi < s.length - 1) gap = Math.min(gap, Math.abs(s[hi] - s[hi + 1]));
+      if (zero) gap = Math.min(gap, Math.abs(s[hi]));
+      if (!Number.isFinite(gap)) gap = big;
+      for (const c of g) { const u = col(got, c), w = g.map((d) => col(want, d)), r = u.slice();
+        for (const q of w) { const t = dot(r, q); for (let i = 0; i < r.length; i++) r[i] -= t * q[i]; }
+        e = Math.max(e, Math.hypot(...r) * gap / big); } }
+    return e; };
+  const orthErr = (M, k) => { let e = 0; for (let a = 0; a < k; a++) for (let b = 0; b < k; b++) e = Math.max(e, Math.abs(dot(col(M, a), col(M, b)) - (a === b ? 1 : 0))); return e; };
+  for (const [, fx] of Object.entries(fixtures).filter(([k]) => k.startsWith("mv-"))) {
+    for (const c of fx.cases) {
+      let r; try { r = get(c.fn)(...c.args); } catch (e) { note(c.fn, Infinity, `${c.name}: threw ${e.message}`); continue; }
+      if (c.kind === "fail") { note(`${c.fn}.fail`, r && r.fail ? 0 : Infinity, `${c.name}: the reference refused, Kurve did not`); continue; }
+      if (!r || r.fail) { note(c.fn, Infinity, `${c.name}: refused, ${r && r.fail}`); continue; }
+      const A = c.args[0];
+      if (c.kind === "sval") { note("svd.graded", Math.max(...c.want.s.map((w, i) => relErr(r.s[i], w))), c.name); continue; }
+      if (c.kind === "svd") {
+        const s = c.want.s, big = s[0] || 1, k = s.length, floor = Math.max(A.length, A[0].length) * 2.3e-16 * big * 4;
+        note("svd.s", Math.max(...s.map((w, i) => Math.abs(r.s[i] - w) / big)), c.name);
+        let rec = 0; for (let i = 0; i < A.length; i++) for (let j = 0; j < A[0].length; j++) { let t = 0; for (let q = 0; q < k; q++) t += r.U[i][q] * r.s[q] * r.V[j][q]; rec = Math.max(rec, Math.abs(t - A[i][j]) / big); }
+        note("svd.recon", rec, c.name); note("svd.orth", Math.max(orthErr(r.U, k), orthErr(r.V, k)), c.name);
+        note("svd.vec", Math.max(vecErr(r.U, c.want.U, s, big, floor, A.length > A[0].length), vecErr(r.V, c.want.V, s, big, floor, A[0].length > A.length)), c.name);
+      }
+      if (c.kind === "eig") {
+        const w = c.want.vals, big = Math.max(...w.map(Math.abs)) || 1, n = w.length;
+        note("symEig.vals", Math.max(...w.map((v, i) => Math.abs(r.vals[i] - v) / big)), c.name);
+        let rec = 0; for (let i = 0; i < n; i++) for (let j = 0; j <= i; j++) { let t = 0; for (let q = 0; q < n; q++) t += r.vecs[i][q] * r.vals[q] * r.vecs[j][q]; rec = Math.max(rec, Math.abs(t - A[i][j]) / big); }
+        note("symEig.recon", rec, c.name); note("symEig.orth", orthErr(r.vecs, n), c.name);
+        note("symEig.vec", vecErr(r.vecs, c.want.vecs, w, big, -1), c.name);
+      }
+    }
+  }
+}
+
 /* ---- the table ---- */
 let fail = 0, short = 0, pass = 0;
 console.log("\n  function              worst error   target");

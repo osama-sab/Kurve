@@ -87,6 +87,9 @@ const BUDGET = {
   "Envelope: 2^20 points": [1500, "the analytic signal's amplitude of 1 048 576 points, two transforms (SIGNAL_SPEC 5.4; 509 ms alone on 19.11, 688 after the drives: 600 had been set without a measurement)"],
   "Filter: order 20, 10^6 points": [300, "a Butterworth high-pass of order 20 designed, then run forwards and backwards over a million values (SIGNAL_SPEC 5.2)"],
   "Smooth: LOWESS, 10^5 points": [1200, "the Smooth step by LOWESS over 100 000 points, a fraction of 0.3 and three robust rounds, with its checks (SIGNAL_SPEC 5.8)"],
+  "SVD: 300 × 2000, 10 vectors": [1800, "the singular values of 300 curves of 2000 points and the first 10 pairs of vectors, QR with pivoting and one-sided Jacobi (in the worker in the app; MULTI_SPEC 6.1)"],
+  "SVD: 50 × 50": [15, "every singular value and vector of a 50 × 50 matrix (MULTI_SPEC 6.1)"],
+  "Eigen: 200 × 200": [200, "every eigenvalue and vector of a symmetric 200 × 200 matrix, tridiagonal QL (MULTI_SPEC 6.1)"],
 };
 const got = {};
 const best = async (fn) => { let m = Infinity; for (let i = 0; i < RUNS; i++) m = Math.min(m, await fn()); return m; };
@@ -249,6 +252,12 @@ await withPage(async (p) => {
   got["Smooth: LOWESS, 10^5 points"] = await best(() => p.evaluate(() => { const mb = mulberry32(26), n = 1e5, x = Array.from({ length: n }, (_, i) => i * 0.01), y = x.map((v) => Math.sin(v / 20) + 0.1 * mb());
     const d = { x, y, e: null, idx: x.map((_, i) => i), xn: "Time", xu: "s", yn: "Signal", yu: "V" };
     const a = performance.now(); PIPE_OPS.smooth.run(d, { method: "lowess", frac: 0.3, it: 3 }, {}); return performance.now() - a; }));
+  got["SVD: 300 × 2000, 10 vectors"] = await best(() => p.evaluate(() => { const mb = mulberry32(27), A = Array.from({ length: 300 }, () => Array.from({ length: 2000 }, () => mb() - 0.5));
+    const a = performance.now(); svd(A, { k: 10 }); return performance.now() - a; }));
+  got["SVD: 50 × 50"] = await best(() => p.evaluate(() => { const mb = mulberry32(28), A = Array.from({ length: 50 }, () => Array.from({ length: 50 }, () => mb() - 0.5));
+    const a = performance.now(); svd(A); return performance.now() - a; }));
+  got["Eigen: 200 × 200"] = await best(() => p.evaluate(() => { const mb = mulberry32(29), B = Array.from({ length: 200 }, () => Array.from({ length: 200 }, () => mb() - 0.5)), S = B.map((r, i) => r.map((v, j) => (v + B[j][i]) / 2));
+    const a = performance.now(); symEig(S); return performance.now() - a; }));
 });
 
 await browser.close(); server.close();

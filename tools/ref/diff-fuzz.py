@@ -1163,6 +1163,52 @@ def wav_post(c, out):
     e = max(abs(val(a) - b) / w["sc"] for a, b in zip(out["c"], w["c"])); return e, f"coefficients {e:.2e}"
 POST["wavedecFlat"] = wav_post
 
+# ---- Wave 6 (MULTI_SPEC): the SVD and the symmetric eigenproblem, against NumPy (LAPACK). A matrix of a random shape (1 to
+# 60 a side) and kind: plain, of a lower rank, graded over ten decades by columns, with repeated values, of huge or tiny
+# magnitude. Judged by the singular values over the largest (svd.s); the reconstruction and orthogonality from Kurve's own
+# answer must also meet their targets (svd.recon, svd.orth), else the case fails.
+def _mvmat(square=False):
+    m = int(rng.integers(1, 61)); n = m if square else int(rng.integers(1, 61)); kind = rng.choice(["plain", "rank", "graded", "ties", "scale"])
+    A = rng.normal(size=(m, n))
+    if kind == "rank":
+        k = int(rng.integers(1, max(2, min(m, n)))); A = rng.normal(size=(m, k)) @ rng.normal(size=(k, n))
+    elif kind == "graded":
+        A = A * 10.0 ** (-10 * rng.random(n))
+    elif kind == "ties" and min(m, n) > 1:
+        Q1, _ = np.linalg.qr(rng.normal(size=(m, m))); Q2, _ = np.linalg.qr(rng.normal(size=(n, n))); d = np.sort(rng.choice([1.0, 2.0, 3.0], min(m, n)))[::-1]
+        D = np.zeros((m, n)); np.fill_diagonal(D, d); A = Q1 @ D @ Q2.T
+    elif kind == "scale":
+        A = A * 10.0 ** rng.uniform(-150, 150)
+    if square: A = (A + A.T) / 2
+    return A
+@gen("svd.s", 1e-13, 0.15)
+def _():
+    A = _mvmat(); s = np.linalg.svd(A, compute_uv=False)
+    return [A.tolist()], {"s": s.tolist(), "A": A.tolist()}, "svd"
+def _fac_post(kind):
+    def post(c, out):
+        w = c["want"]; A = np.array(w["A"])
+        if not isinstance(out, dict) or "fail" in out: return float("inf"), f"refused or nothing: {str(out)[:80]}"
+        if kind == "svd":
+            s = np.array([val(v) for v in out["s"]]); ref = np.array(w["s"]); big = ref[0] if ref[0] > 0 else 1.0
+            U = np.array(out["U"], dtype=float); V = np.array(out["V"], dtype=float); k = len(ref)
+            rec = np.max(np.abs(U @ np.diag(s) @ V.T - A)) / big; orth = max(np.max(np.abs(U.T @ U - np.eye(k))), np.max(np.abs(V.T @ V - np.eye(k))))
+            e = float(np.max(np.abs(s - ref)) / big); tr, to = TARGET["svd.recon"]["tol"], TARGET["svd.orth"]["tol"]
+        else:
+            vals = np.array([val(v) for v in out["vals"]]); ref = np.array(w["vals"]); big = np.max(np.abs(ref)) or 1.0; Vv = np.array(out["vecs"], dtype=float); k = len(ref)
+            rec = np.max(np.abs(Vv @ np.diag(vals) @ Vv.T - A)) / big; orth = np.max(np.abs(Vv.T @ Vv - np.eye(k)))
+            e = float(np.max(np.abs(vals - ref)) / big); tr, to = TARGET["symEig.recon"]["tol"], TARGET["symEig.orth"]["tol"]
+        if not rec <= tr: return float("inf"), f"reconstruction {rec:.2e} past {tr:.0e}"
+        if not orth <= to: return float("inf"), f"orthogonality {orth:.2e} past {to:.0e}"
+        return e, f"values {e:.2e}"
+    return post
+POST["svd.s"] = _fac_post("svd")
+@gen("symEig.vals", 1e-13, 0.15)
+def _():
+    A = _mvmat(True); w = np.linalg.eigvalsh(A)[::-1]
+    return [A.tolist()], {"vals": w.tolist(), "A": A.tolist()}, "symEig"
+POST["symEig.vals"] = _fac_post("eig")
+
 cases = []
 ONLY = os.environ.get("ONLY")  # ONLY=name,name: those generators alone
 for name, (f, tol) in GEN.items():

@@ -50,6 +50,15 @@ NumPy, SciPy, statsmodels and PyWavelets, apart from `make-fixtures.py` so a sli
 reference's largest |value| (a `scale` given where the answer is rounding, as a detrended residual), a complex one over its
 largest modulus, a refusal of SciPy's as one of Kurve's.
 
+## Wave 6's references
+
+`tools/ref/mv_fixtures.py` makes `fixtures/mv-*.json` (many variables, `ux/spec/MULTI_SPEC.md`) from NumPy, SciPy, scikit-learn and
+statsmodels, and from mpmath at 40 digits for Hilbert matrices and graded ones; `--check` and `--only` as there. It needs
+scikit-learn beside the others (`pip install --target "$PYREF" scikit-learn`; 1.9.1 on 19.11). A factorisation is judged by its
+values over the largest, its vectors by their angle to the reference's times their gap (a group of equal values by the part of
+Kurve's vectors outside the reference group's span; on a matrix's longer side the gap is to 0 too, Wedin's bound, as no method
+knows those vectors better), and its reconstruction and orthogonality from Kurve's own answer.
+
 The suite's menu crawl (`tools/ux/crawl.py`) needs Python's `playwright` package of the same version as node's (1.63.0 on
 18.11: `pip install --target "$PYREF" playwright==1.63.0`; the browser already installed is used, nothing is downloaded).
 `tools/suite.sh` puts `$PYREF` on its path.

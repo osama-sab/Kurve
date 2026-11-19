@@ -3628,6 +3628,116 @@ function svdVals(A){ const r=A.length, U=A.map(row=>Float64Array.from(row));
       for(let i=0;i<r;i++){ const x=U[i][j], y=U[i][k]; U[i][j]=cs*x-sn*y; U[i][k]=sn*x+cs*y; } }
     if(!(off>1e-15)) break; }
   return Array.from({length:r},(_,j)=>{ let s=0; for(let i=0;i<r;i++) s+=U[i][j]*U[i][j]; return Math.sqrt(s); }).sort((p,q)=>q-p); }
+/* ---- The singular value decomposition and the symmetric eigenproblem (MULTI_SPEC 6.1) ----
+   svd(A, o): A an array of rows, m × n. The orientation with fewer columns (B = A, or Aᵀ when m < n; M × N with M ≥ N)
+   is scaled by a power of two, factorised by Householder QR with column pivoting (B·P = Q·R, LAPACK's dgeqp3 with its
+   norm downdating) and the columns of Rᵀ made orthogonal by one-sided Jacobi rotations (Hestenes; the QR first, as Drmač
+   and Veselić, so few sweeps are needed and the rotations keep each column's digits): Rᵀ·W = X·Σ, so B = (Q·W)·Σ·(P·X)ᵀ.
+   Q·W is orthogonal whatever the rank; a column of X whose singular value is at the rounding level is made orthogonal to
+   the others again (Gram–Schmidt, twice). Returns {s (descending), U (m × r, rows), V (n × r, rows), rank, sweeps},
+   r = min(m, n), the rank the count of s above max(m, n)·ε·s₁; each pair turned so that the entry of largest magnitude
+   of its V column is positive (svdFlip, MULTI_SPEC decision 2). o.vectors false gives s, rank and sweeps alone; o.k the
+   first k pairs of vectors only (a PCA writes a few: forming the rest is most of the time for a wide matrix).
+   {fail} in words for an empty matrix, rows of different lengths, or a value that is not a finite number. */
+const SVD_EPS=2.220446049250313e-16;
+function svdCheck(A){ if(!Array.isArray(A)||!A.length||!A[0]||!A[0].length) return "The matrix is empty";
+  const n=A[0].length; for(let i=0;i<A.length;i++){ const r=A[i]; if(!r||r.length!==n) return `Row ${i+1} has ${r?r.length:0} values where the first has ${n}`;
+    for(let j=0;j<n;j++) if(typeof r[j]!=="number"||!Number.isFinite(r[j])) return `The value in row ${i+1}, column ${j+1} is not a finite number`; }
+  return null; }
+// The power of two that brings the largest |value| near 1, so no square overflows or underflows.
+const svdPow2=big=>big>0?Math.pow(2,-Math.round(Math.log2(big))):1;
+function svd(A,o){ o=o||{}; const why=svdCheck(A); if(why) return {fail:why};
+  const m=A.length, n=A[0].length, tr=m<n, M=tr?n:m, N=tr?m:n, vec=o.vectors!==false;
+  let big=0; for(const r of A) for(const v of r){ const a=Math.abs(v); if(a>big) big=a; } const sc=svdPow2(big);
+  const C=Array.from({length:N},(_,j)=>{ const c=new Float64Array(M); for(let i=0;i<M;i++) c[i]=(tr?A[j][i]:A[i][j])*sc; return c; });
+  // Householder QR with column pivoting.
+  const perm=Array.from({length:N},(_,j)=>j), vn1=new Float64Array(N), vn2=new Float64Array(N), tau=new Float64Array(N), tol3z=Math.sqrt(SVD_EPS);
+  const nrm=(c,k)=>{ let s=0; for(let i=k;i<c.length;i++) s+=c[i]*c[i]; return Math.sqrt(s); };
+  for(let j=0;j<N;j++) vn1[j]=vn2[j]=nrm(C[j],0);
+  for(let k=0;k<N;k++){ let p=k; for(let j=k+1;j<N;j++) if(vn1[j]>vn1[p]) p=j;
+    if(p!==k){ const t=C[p]; C[p]=C[k]; C[k]=t; const q=perm[p]; perm[p]=perm[k]; perm[k]=q; vn1[p]=vn1[k]; vn2[p]=vn2[k]; }
+    const c=C[k], al=c[k], xn=nrm(c,k+1);
+    if(xn===0) tau[k]=0; else { const be=al>=0?-Math.hypot(al,xn):Math.hypot(al,xn); tau[k]=(be-al)/be; const f=1/(al-be); for(let i=k+1;i<M;i++) c[i]*=f; c[k]=be; }
+    if(tau[k]) for(let j=k+1;j<N;j++){ const d=C[j]; let s=d[k]; for(let i=k+1;i<M;i++) s+=c[i]*d[i]; s*=tau[k]; d[k]-=s; for(let i=k+1;i<M;i++) d[i]-=s*c[i]; }
+    for(let j=k+1;j<N;j++) if(vn1[j]){ let t=Math.abs(C[j][k])/vn1[j]; t=Math.max(0,(1+t)*(1-t)); const t2=t*(vn1[j]/vn2[j])*(vn1[j]/vn2[j]);
+      if(t2<=tol3z){ vn1[j]=nrm(C[j],k+1); vn2[j]=vn1[j]; } else vn1[j]*=Math.sqrt(t); } }
+  // L = Rᵀ: its column j is R's row j, R[j][i] = C[i][j] for i ≥ j.
+  const L=Array.from({length:N},(_,j)=>{ const l=new Float64Array(N); for(let i=j;i<N;i++) l[i]=C[i][j]; return l; });
+  const W=vec?Array.from({length:N},(_,j)=>{ const w=new Float64Array(N); w[j]=1; return w; }):null;
+  // One-sided Jacobi: a pair rotated while its columns' cosine passes N·ε.
+  const jt=SVD_EPS*Math.max(N,1); let sweeps=0;
+  // Each sweep starts from the columns' norms worked out afresh, in decreasing order (de Rijk's), and keeps them by the
+  // rotations' own identity (α − tγ, β + tγ), so a pair costs one product of its columns.
+  const nr=new Float64Array(N);
+  for(;sweeps<80;sweeps++){ let rot=0;
+    for(let j=0;j<N;j++) nr[j]=L[j].reduce((s,v)=>s+v*v,0);
+    for(let j=0;j<N-1;j++){ let b=j; for(let k=j+1;k<N;k++) if(nr[k]>nr[b]) b=k;
+      if(b!==j){ let t=L[b]; L[b]=L[j]; L[j]=t; if(W){ t=W[b]; W[b]=W[j]; W[j]=t; } const q=nr[b]; nr[b]=nr[j]; nr[j]=q; } }
+    for(let j=0;j<N-1;j++){ const a=L[j]; for(let k=j+1;k<N;k++){ const b=L[k]; let ga=0;
+        for(let i=0;i<N;i++) ga+=a[i]*b[i];
+        const al=nr[j], be=nr[k]; if(!(Math.abs(ga)>jt*Math.sqrt(al*be))) continue; rot++;
+        const z=(be-al)/(2*ga), t=(z>=0?1:-1)/(Math.abs(z)+Math.sqrt(1+z*z)), cs=1/Math.sqrt(1+t*t), sn=cs*t;
+        for(let i=0;i<N;i++){ const x=a[i], y=b[i]; a[i]=cs*x-sn*y; b[i]=sn*x+cs*y; }
+        nr[j]=al-t*ga; nr[k]=be+t*ga;
+        if(W){ const u=W[j], v=W[k]; for(let i=0;i<N;i++){ const x=u[i], y=v[i]; u[i]=cs*x-sn*y; v[i]=sn*x+cs*y; } } } }
+    if(!rot) break; }
+  const sg=L.map(l=>nrm(l,0)), ord=sg.map((_,j)=>j).sort((a,b)=>sg[b]-sg[a]||a-b), s=ord.map(j=>sg[j]/sc);
+  const r=Math.min(m,n), lim=Math.max(m,n)*SVD_EPS*(s[0]||0), rank=s.filter(v=>v>lim).length;
+  if(!vec) return {s,rank,sweeps}; const K=Math.max(1,Math.min(r,o.k>0?Math.floor(o.k):r));
+  // X: the columns of L made unit, in the order of s; those at the rounding level made orthogonal to the rest.
+  const X=ord.map(j=>{ const l=L[j], q=sg[j], x=new Float64Array(N); if(q>0) for(let i=0;i<N;i++) x[i]=l[i]/q; return x; });
+  for(let c=rank;c<N;c++){ let x=X[c], ok=false;
+    for(let tryE=-1;tryE<N&&!ok;tryE++){ if(tryE>=0){ x=new Float64Array(N); x[tryE]=1; }
+      for(let pass=0;pass<2;pass++) for(let d=0;d<c;d++){ const y=X[d]; let dt=0; for(let i=0;i<N;i++) dt+=x[i]*y[i]; for(let i=0;i<N;i++) x[i]-=dt*y[i]; }
+      const q=nrm(x,0); if(q>0.5){ for(let i=0;i<N;i++) x[i]/=q; ok=true; } }
+    X[c]=x; }
+  // Q·W, the factor from the rotations, M × N; Q applied from its reflectors (LAPACK's dorg2r order) to W.
+  const QW=ord.slice(0,K).map(j=>{ const w=W[j], y=new Float64Array(M); for(let i=0;i<N;i++) y[i]=w[i];
+    for(let k=N-1;k>=0;k--){ if(!tau[k]) continue; const c=C[k]; let t=y[k]; for(let i=k+1;i<M;i++) t+=c[i]*y[i]; t*=tau[k]; y[k]-=t; for(let i=k+1;i<M;i++) y[i]-=t*c[i]; }
+    return y; });
+  // B = (Q·W)·Σ·(P·X)ᵀ; for A = Bᵀ the two factors trade places.
+  const PX=X.slice(0,K).map(x=>{ const y=new Float64Array(N); for(let i=0;i<N;i++) y[perm[i]]=x[i]; return y; });
+  const Ucol=tr?PX:QW, Vcol=tr?QW:PX;
+  // The sign rule: the entry of V's column of largest magnitude positive (the first of equal ones).
+  for(let c=0;c<K;c++){ const v=Vcol[c]; let b=0; for(let i=1;i<v.length;i++) if(Math.abs(v[i])>Math.abs(v[b])) b=i; if(v[b]<0){ for(let i=0;i<v.length;i++) v[i]=-v[i]; const u=Ucol[c]; for(let i=0;i<u.length;i++) u[i]=-u[i]; } }
+  const rows=(cols,len)=>Array.from({length:len},(_,i)=>cols.map(c=>c[i]));
+  return {s,U:rows(Ucol,m),V:rows(Vcol,n),rank,sweeps}; }
+/* symEig(A): the eigenvalues and eigenvectors of a symmetric matrix (its lower triangle read, as LAPACK's 'L'),
+   by Householder tridiagonalisation and the implicit QL iteration (EISPACK's tred2 and tql2, as JAMA has them), the
+   matrix first scaled by a power of two. {vals (descending), vecs (rows: vecs[i][j] the i-th entry of the j-th
+   vector)}, each vector's entry of largest magnitude positive; {fail} in words. */
+function symEig(A){ const why=svdCheck(A); if(why) return {fail:why}; const n=A.length; if(A[0].length!==n) return {fail:`The matrix is ${n} × ${A[0].length}: it must be square`};
+  let big=0; for(let i=0;i<n;i++) for(let j=0;j<=i;j++){ const a=Math.abs(A[i][j]); if(a>big) big=a; } const sc=svdPow2(big);
+  const V=Array.from({length:n},(_,i)=>{ const r=new Float64Array(n); for(let j=0;j<n;j++) r[j]=(j<=i?A[i][j]:A[j][i])*sc; return r; }), d=new Float64Array(n), e=new Float64Array(n);
+  // tred2
+  for(let j=0;j<n;j++) d[j]=V[n-1][j];
+  for(let i=n-1;i>0;i--){ let scale=0, h=0; for(let k=0;k<i;k++) scale+=Math.abs(d[k]);
+    if(scale===0){ e[i]=d[i-1]; for(let j=0;j<i;j++){ d[j]=V[i-1][j]; V[i][j]=0; V[j][i]=0; } }
+    else { for(let k=0;k<i;k++){ d[k]/=scale; h+=d[k]*d[k]; } let f=d[i-1], g=Math.sqrt(h); if(f>0) g=-g; e[i]=scale*g; h-=f*g; d[i-1]=f-g;
+      for(let j=0;j<i;j++) e[j]=0;
+      for(let j=0;j<i;j++){ f=d[j]; V[j][i]=f; g=e[j]+V[j][j]*f; for(let k=j+1;k<=i-1;k++){ g+=V[k][j]*d[k]; e[k]+=V[k][j]*f; } e[j]=g; }
+      f=0; for(let j=0;j<i;j++){ e[j]/=h; f+=e[j]*d[j]; } const hh=f/(h+h); for(let j=0;j<i;j++) e[j]-=hh*d[j];
+      for(let j=0;j<i;j++){ f=d[j]; g=e[j]; for(let k=j;k<=i-1;k++) V[k][j]-=f*e[k]+g*d[k]; d[j]=V[i-1][j]; V[i][j]=0; } }
+    d[i]=h; }
+  for(let i=0;i<n-1;i++){ V[n-1][i]=V[i][i]; V[i][i]=1; const h=d[i+1];
+    if(h!==0){ for(let k=0;k<=i;k++) d[k]=V[k][i+1]/h; for(let j=0;j<=i;j++){ let g=0; for(let k=0;k<=i;k++) g+=V[k][i+1]*V[k][j]; for(let k=0;k<=i;k++) V[k][j]-=g*d[k]; } }
+    for(let k=0;k<=i;k++) V[k][i+1]=0; }
+  for(let j=0;j<n;j++){ d[j]=V[n-1][j]; V[n-1][j]=0; } V[n-1][n-1]=1; e[0]=0;
+  // tql2
+  for(let i=1;i<n;i++) e[i-1]=e[i]; e[n-1]=0; let f=0, tst1=0;
+  for(let l=0;l<n;l++){ tst1=Math.max(tst1,Math.abs(d[l])+Math.abs(e[l])); let m=l; while(m<n){ if(Math.abs(e[m])<=SVD_EPS*tst1) break; m++; } if(m===n) m=n-1;
+    if(m>l){ let iter=0;
+      do{ if(++iter>90) return {fail:"The eigenvalues did not settle"};
+        let g=d[l], p=(d[l+1]-g)/(2*e[l]), r=Math.hypot(p,1); if(p<0) r=-r; d[l]=e[l]/(p+r); d[l+1]=e[l]*(p+r); const dl1=d[l+1]; let h=g-d[l];
+        for(let i=l+2;i<n;i++) d[i]-=h; f+=h; p=d[m]; let c=1, c2=c, c3=c; const el1=e[l+1]; let s=0, s2=0;
+        for(let i=m-1;i>=l;i--){ c3=c2; c2=c; s2=s; g=c*e[i]; h=c*p; r=Math.hypot(p,e[i]); e[i+1]=s*r; s=e[i]/r; c=p/r; p=c*d[i]-s*g; d[i+1]=h+s*(c*g+s*d[i]);
+          for(let k=0;k<n;k++){ const vk=V[k]; h=vk[i+1]; vk[i+1]=s*vk[i]+c*h; vk[i]=c*vk[i]-s*h; } }
+        p=-s*s2*c3*el1*e[l]/dl1; e[l]=s*p; d[l]=c*p; } while(Math.abs(e[l])>SVD_EPS*tst1); }
+    d[l]+=f; e[l]=0; }
+  const ord=Array.from({length:n},(_,j)=>j).sort((a,b)=>d[b]-d[a]||a-b), vals=ord.map(j=>d[j]/sc);
+  const vecs=Array.from({length:n},()=>new Array(n));
+  ord.forEach((j,c)=>{ let b=0; for(let i=1;i<n;i++) if(Math.abs(V[i][j])>Math.abs(V[b][j])) b=i; const sg=V[b][j]<0?-1:1; for(let i=0;i<n;i++) vecs[i][c]=sg*V[i][j]; });
+  return {vals,vecs}; }
 /* ==NUMERICS:END== */
 
 /* ============================================================
