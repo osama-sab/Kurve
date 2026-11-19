@@ -1024,6 +1024,20 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Closing the gap with Origin, wave 6's end (2026-11-19)
+
+- **The suite** (every node test, the bench, every drive, a fuzzer seed, the menu crawl, the budgets): all passing but two. odd-test's
+  redraw of 200 000 rows took 153 ms against 150 with ten drives sharing the processor, and passes alone; the fuzzer's PLS cases
+  found SIMPLS 8e-8 off a 40-digit answer on unscaled columns, now as NIPALS (4e-14), and its judge now weighs a late NIPALS weight
+  by its conditioning (scikit-learn's own was 1.8e-11 off).
+- **The lab day** opens Analyze › Statistics › Multivariate's five dialogs; 40 minutes, 1 123 actions, no failures, every project
+  the same after the reload, memory, page elements and listeners flat.
+- **Screenshots** at 1440, 1024 and 390 px in both themes and styles: the measured-against-predicted curves were "Ratio, fitted"
+  and "Ratio, cross-validated" (the toast read "Plotted Ratio, fitted, Ratio, cross-validated and y = x"), now "Fitted Ratio" and
+  "Cross-validated Ratio". `tools/mv-drive.mjs` looks at every dialog of the wave at 1024 and 390 px.
+- **Every sheet shown was drawn twice**: the worksheet assumed rows of 25 px after a sheet change, measured 22 and drew every row
+  again behind a forced layout. It takes the sheet's own row height now; an analysis's result sheet appears 20 to 40 ms sooner.
+
 ## Closing the gap with Origin, wave 6, slice 6.5: PLS regression (2026-11-19)
 
 - **Analyze › Statistics › Multivariate › PLS regression…**, and **Analyze › Fit › PLS regression…** beside Multiple

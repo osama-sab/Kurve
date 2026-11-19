@@ -20881,7 +20881,8 @@ const wsRowCount=m=>m.kind==="final"?Math.max(m.n+20,40):Math.max(m.n+60,60)+((S
    view is; below it a pixel is a pixel, as before. `wsVT` is the view's top in rows' height, `wsPhys`
    the scroll position that puts a height in rows at the top. */
 const WS_PMAX=15000000;
-function wsScroll(m){ const box=$("#ws"); m=m||S.wsm; const rowH=S.ws.rowH||25, R=m?wsRowCount(m):0, H=Math.max(1,(box?box.clientHeight:0)-(S.ws.head||0)), V=R*rowH, P=Math.min(V,WS_PMAX);
+/* the row height measured, else the sheet's own (25 drew every sheet shown twice: wsRows measured 22 and drew it all again) */
+function wsScroll(m){ const box=$("#ws"); m=m||S.wsm; const rowH=S.ws.rowH||wsRowH(), R=m?wsRowCount(m):0, H=Math.max(1,(box?box.clientHeight:0)-(S.ws.head||0)), V=R*rowH, P=Math.min(V,WS_PMAX);
   return {rowH,R,H,V,P,k:V>WS_PMAX&&P>H?(V-H)/(P-H):1}; }
 const wsVT=(box,g)=>box.scrollTop*g.k, wsPhys=(y,g)=>Math.max(0,y/g.k);
 function wsSelRect(){ const s=S.ws; return {r0:Math.min(s.r,s.ar),r1:Math.max(s.r,s.ar),c0:Math.min(s.c,s.ac),c1:Math.max(s.c,s.ac)}; }

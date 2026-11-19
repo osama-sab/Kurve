@@ -5514,7 +5514,20 @@ Next, in order:
    endings put back and checked by the suite; LOWESS made quick and its band check honest; fuzz generators for the wave's later
    functions; a 40-minute lab day with its dialogs and tools, which found an implicit fit run on the page for 1.7 s; screenshots at
    three widths in both themes and styles, which found a matrix's name and cut placeholders; Origin's tutorials not reached, its site
-   refused here)
+   refused here). Wave 6's plan is `ux/spec/MULTI_SPEC.md` (many variables, five slices in the order 6.1 to 6.5; its eleven
+   decisions, 19.11); slice 6.1, the factorisations (the singular value decomposition by QR with column pivoting and one-sided
+   Jacobi, the symmetric eigenproblem as JAMA's, signs by a stated rule; 40-digit Hilbert and graded matrices to their own digits),
+   done 19.11; slice 6.2, principal components (columns or curves as observations, scaled or not, every eigenvalue, loadings,
+   scores, Hotelling's T² and Q with their limits, the scree, scores, loadings, T²–Q plots and the biplot; scikit-learn agreeing),
+   done 19.11; slice 6.3, clustering (k-means from k-means++ starts with a seed, restarts and silhouettes, hierarchical with four
+   linkages and its dendrogram as a curve, the clusters numbered by the data and put in the sheet; scikit-learn's clusters and
+   SciPy's merges exactly), done 19.11; slice 6.4, discriminant analysis (canonical functions, Wilks' Λ, coefficients and
+   structure, Fisher's classification, every row and every row left one out; 40-digit determinants, scikit-learn's posteriors),
+   done 19.11; slice 6.5, PLS regression (columns or curves against the series variable, NIPALS or SIMPLS, the components by
+   cross-validation, coefficients, VIP, predictions for the rows and curves with none; scikit-learn and 40 digits agreeing to
+   1e-14), done 19.11: wave 6's five slices are done, and its end (SIMPLS's score taken from X₀ itself, found by the fuzzer 8e-8 off
+   on unscaled columns and now as NIPALS; the measured-against-predicted curves renamed, found by the screenshots; every dialog of
+   the wave at 1024 and 390 px; a 40-minute lab day with the wave's dialogs, 1 123 actions, memory and listeners flat; every sheet shown no longer drawn twice, found measuring the analyses' time on the page)
 
 ## Known gaps
 
@@ -5777,6 +5790,8 @@ Next, in order:
   by leave one out, contiguous blocks or venetian blinds (no Monte Carlo, no O-PLS, PLS-DA, kernel PLS or variable selection), a
   curve's response its value of the project's one series variable. Curves on different X are read on the first's X over the
   stretch they share. No survival analysis, MANOVA or design of experiments (only if asked)
+- Making an analysis's result sheet holds the page for about 0.1 s (0.07 to 0.15 s measured), most of it drawing the sheet's
+  columns; the work itself goes to the worker past its size
 - The worksheet fuzzer's seed 1 (`tools/sheet-fuzz.mjs kurve.html 1`, step 61, on the version before text
   cells too): after an undo, a click and a value typed and held past the delayed save, the view scrolls
   back towards the undone cell and Enter enters the value without moving; found 07.11, not yet fixed
