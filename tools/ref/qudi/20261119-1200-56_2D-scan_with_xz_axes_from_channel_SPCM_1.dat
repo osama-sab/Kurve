@@ -1,0 +1,34 @@
+# [General]
+# timestamp=2026-11-19T12:00:56
+# comments='# '
+# delimiter='\t'
+# column_dtypes=float;;float;;float;;float;;float;;float;;float;;float;;float
+# column_headers='Image (columns is X, rows is Y)'
+# 
+# [Metadata]
+# x axis name='x'
+# x axis unit='m'
+# x scan range=(1.25e-05, 1.6e-05)
+# x axis resolution=6
+# x axis min=1.25e-05
+# x axis max=1.6e-05
+# z axis name='z'
+# z axis unit='m'
+# z scan range=(-1e-06, 4e-06)
+# z axis resolution=9
+# z axis min=-1e-06
+# z axis max=4e-06
+# pixel frequency=500.0
+# scanner target at start={'x': 0.0, 'z': 0.0, 'y': 1.5e-06}
+# measurement start='2026-11-19 12:00:56'
+# coordinate transform info=None
+# y axis name='y'
+# y axis unit='m'
+# 
+# ---- END HEADER ----
+1.956491806439456e+03	2.110019578259840e+03	2.481672269999048e+03	3.130667894229316e+03	3.769413206711137e+03	3.748729914049144e+03	3.016660898973436e+03	2.368666113214667e+03	2.024799438510947e+03
+2.038938926480856e+03	2.201412649086273e+03	2.837646072840827e+03	4.213969477993560e+03	5.666906676521867e+03	5.650341237533167e+03	4.171916817208027e+03	2.796736572488910e+03	2.192631461444847e+03
+2.014846963244414e+03	2.183678183441285e+03	3.064111276984101e+03	4.850642703688117e+03	6.750148596365896e+03	6.683816540826325e+03	4.848737258610532e+03	3.095270723840518e+03	2.174301103493318e+03
+1.933116460291069e+03	2.179597497000804e+03	2.819737974097926e+03	4.201405267042031e+03	5.612008363572237e+03	5.684809417848571e+03	4.176620532765573e+03	2.895739543829756e+03	2.237252480186477e+03
+nan	nan	nan	nan	nan	nan	nan	nan	nan
+nan	nan	nan	nan	nan	nan	nan	nan	nan

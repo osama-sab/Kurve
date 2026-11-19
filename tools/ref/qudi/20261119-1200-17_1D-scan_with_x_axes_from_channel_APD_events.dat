@@ -1,0 +1,23 @@
+# [General]
+# timestamp=2026-11-19T12:00:17
+# comments='# '
+# delimiter='\t'
+# column_dtypes=float;;float;;float;;float;;float;;float;;float;;float;;float;;float;;float
+# column_headers='Image (columns is X, rows is Y)'
+# 
+# [Metadata]
+# x axis name='x'
+# x axis unit='m'
+# x scan range=(0.0, 2e-06)
+# x axis resolution=11
+# x axis min=0.0
+# x axis max=2e-06
+# pixel frequency=500.0
+# scanner target at start={'x': 0.0, 'z': 1.5e-06}
+# measurement start='2026-11-19 12:00:17'
+# coordinate transform info=None
+# z axis name='z'
+# z axis unit='m'
+# 
+# ---- END HEADER ----
+2.054705080102774e+03	1.935426066661779e+03	2.078439101137183e+03	2.034126713347460e+03	2.071687738999245e+03	2.020438260198877e+03	1.981215140038117e+03	2.003777241341779e+03	1.981191630100415e+03	2.009142939161879e+03	2.014705844257212e+03

@@ -1024,6 +1024,27 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## qudi's confocal scans, slice Q.1: read with their positions (2026-11-19)
+
+`ux/spec/QUDI_SPEC.md`, from the user's request ("compatible with qudi Confocal data formats, it shouldn't lose the positional
+information as well, I want to do some ImageJ statistics on the data as well").
+- **qudi's files become matrices** when imported, dropped or chosen with others: the classic qudi's `…_confocal_xy_image_<channel>`
+  and `…_confocal_depth_image_<channel>` (X and Y or Z from the header's ranges and the image's shape), its `…_data` files (the grid
+  from their own x, y, z columns, a sheet a count-rate channel, and z where it varies over the image), and qudi-iqo-modules'
+  `…_2D-scan_with_<axes>_axes_from_channel_<channel>` (the axes' min, max and resolution; a line of the file an X, turned into
+  columns; a scan back marked; pixels not scanned empty).
+- **Positions in µm** below a millimetre; every header line kept with the sheet (*Dimensions and labels…* lists them; the project
+  file carries them); the channel names Z; one book a scan; one undo step; a record entry *read from the qudi file …*; a message
+  with *Plot it* (dropped on a graph, plotted).
+- **A 1D scan** opens the import dialog as a curve against its positions; a data file that is not a grid, as columns.
+- **Refused in words**: a header without its ranges, data of the wrong shape, axes that do not make the data.
+
+Checked against files written as qudi's own code writes them (`tools/ref/qudi_fixtures.py`: qudi-core 1.5.0's `TextDataStorage` and
+the classic `save_logic`, reproduced; 13 files, `fixtures/qudi.json`): parser-test (38 new, 290: every position and value of nine
+scans, xy and depth, square and not, forward and back, a stopped scan, volts, a custom tag, a POI line, a tilt, 1D; the refusals; files
+that are not qudi's left alone), a new drive `tools/qudi-drive.mjs` (14: the Import button, four files at once, five dropped, a 1D scan,
+Plot it, the Dimensions dialog, undo, a reload, a refusal), sheet-drive's matrices, file-drive, review-drive and ds-test.
+
 ## Closing the gap with Origin, wave 6's end (2026-11-19)
 
 - **The suite** (every node test, the bench, every drive, a fuzzer seed, the menu crawl, the budgets): all passing but two. odd-test's

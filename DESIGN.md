@@ -898,6 +898,24 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-19: qudi's confocal scans (QUDI_SPEC Q.1)
+
+From the user's request: qudi's files must keep their positions, and the data go on to ImageJ's measurements.
+- **A scan is a matrix, not columns.** Read as text, a qudi image was a block of numbers whose positions stayed in a header nobody
+  read. It is recognised by its header (never by its name alone, which people change) and becomes a matrix book whose X and Y are
+  the scan's positions as qudi made them (NumPy's linspace from the header's range and the image's own shape; the new format's
+  axes' min, max and resolution; a data file's own x and y columns, checked to be a grid).
+- **Micrometres, as qudi shows them.** qudi writes metres; a position axis below a millimetre comes in in µm, one rounding, and the
+  header's metres stay in the header fields as written. A position that is the map's axis in "0.000004 m" helps nobody.
+- **Kurve's orientation.** Row 1 the smallest Y, as the classic file; the new format's lines are X, whatever its column header
+  says, and are turned into columns, so a map of either reads as qudi's own window.
+- **The header kept, every line.** The matrix keeps it as header fields (the Dimensions dialog lists them, the project file
+  carries them), so the scanner's frequency, the z it was taken at and the time are there when the figure is questioned.
+- **One scan, one book.** The files saved together (one stamp) are one book, a sheet a channel; a data file adds what the images
+  did not give (a tilted sample's z), never a second copy of a channel. One undo step, one record entry a sheet.
+- **A 1D scan is a curve** and goes through the import dialog as any table; a data file that is not a grid comes in as columns,
+  said.
+
 ### 2026-11-19: PLS regression (MULTI_SPEC 6.5)
 
 - **Two doors, one dialog.** PLS is a regression to people who predict a concentration from spectra and a multivariate method to

@@ -1,0 +1,26 @@
+#Saved Data from the class ConfocalLogic on 18.11.2026 at 09h30m45s.
+#
+#Parameters:
+#===========
+#
+#X image min (m): 0.0000000000000000e+00
+#X image max (m): 1.0000000000000001e-05
+#X image range (m): 1.0000000000000001e-05
+#Y image min: 0.0000000000000000e+00
+#Y image max: 1.0000000000000001e-05
+#Y image range: 1.0000000000000001e-05
+#XY resolution (samples per range): 5
+#XY Image at z position (m): 9.9999999999999995e-07
+#Clock frequency of scanner (Hz): 1.0000000000000000e+02
+#Return Slowness (Steps during retrace line): 50
+#
+#Data:
+#=====
+#Confocal pure XY scan image data without axis.
+#The upper left entry represents the signal at the upper left pixel position.
+#A pixel-line in the image corresponds to a row of entries where the Signal is in counts/s:
+3.067131e+03	5.110984e+03	9.504049e+03	5.080984e+03	3.121131e+03
+3.215180e+03	9.569049e+03	2.289600e+04	9.483049e+03	3.188180e+03
+3.092131e+03	5.031984e+03	9.603049e+03	5.065984e+03	3.140131e+03
+3.096468e+03	3.098131e+03	3.309180e+03	3.111131e+03	2.930468e+03
+2.919009e+03	2.904260e+03	3.039801e+03	3.030260e+03	3.037009e+03

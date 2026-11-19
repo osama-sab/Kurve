@@ -1110,6 +1110,23 @@ graph first, with the taskbar kept at the bottom of the screen.
   `exportXlsx()` (Publish › Data as Excel (.xlsx): every sheet with values, a computed column its
   values, refused past Excel's rows or columns); the worksheet's paste takes `text/html` when it has
   a table with a span or the plain text has no tab.
+  **qudi's confocal scans** (QUDI_SPEC Q.1; PARSER block): `QUDI_CLASSIC` (the classic header's first line), `qudiNum` (a
+  number, `nan` null, else undefined), `qudiRepr` (a Python repr: a number, a quoted string, a tuple, a dict), `qudiPos(a, b,
+  unit)` (metres below 1 mm to µm), `qudiRows(lines)` (`{rows, nc}` or `{fail}`), `qudiFile(text, fname)` (null for what is not
+  qudi's, recognised by the header, never the name; the classic image `{gen:"classic", kind:"matrix", scan "xy"|"depth", stamp,
+  date, meta (every parameter line, "Saved by"), channel (from the name), nx, ny, x {a, b, name, unit}, y, z (row 1 the smallest
+  Y), zname, zunit "c/s"}`, a depth scan by any of its Z keys or its name; the classic data file `{kind:"data", x {v}, y {v},
+  sheets [{channel, zname, zunit, z}]}` (the grid from its own x, y, z columns, z a sheet where it varies) or `{table, why}`;
+  `qudiIqo(all, name)` qudi-iqo-modules' `TextDataStorage` file: `[General]`/`[Metadata]` with Python reprs, the axes' min, max
+  and resolution, a line an X turned into columns, `back` from the name, NaN pixels empty; a 1D scan `{kind:"curve", x {a, b, n},
+  y}`; `{fail}` in words: a header without its ranges, data not a matrix, axes that do not make the data, 3D). The page (before
+  the matrix commands): `qudiTake(list, {plot})` (files `[{name, text, q}]` grouped by generation, stamp and scan into books, a
+  sheet a channel by `matSheetNew` with `meta {File, …}` and `matRecord`, images first, a data file's channels only where no image
+  gave them; `matSaveNew` one undo step and log line; the first book's window, a toast with *Plot it*, or `plotMatrix` when dropped
+  on a graph; 1D scans returned as `tables` `[{name, text}]`), called by `importText` (a 1D scan to `openImport`), `readFilesIn` and
+  `autoImport`; a matrix sheet's `meta` (`matClean`: 200 keys, strings of 400 characters) listed by `matMetaHtml(s)` in
+  `matDimsDlg`. `tools/ref/qudi_fixtures.py` writes `tools/ref/qudi/` as qudi-core 1.5.0 and the classic `save_logic` do (their
+  code reproduced, not run) and `fixtures/qudi.json`; `tools/parser-test.mjs` reads them, `tools/qudi-drive.mjs` imports them.
   `batchFile` reads one-column
   files the same way. A Y column whose X column holds no values is drawn against its row
   number (`rawSeries`, `anyVal`, xn "Row").
@@ -1566,7 +1583,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   grey, `(19595 R + 38470 G + 7471 B + 32768) >> 16`, or a channel; Y from h at the top row), `matRange`, `matText` (a
   line a row, as the original data's CSV). `{fail}` in words. The page (before the worksheet windows): `p.mats`
   (`[{id, name, sheets: [{id, name, nx, ny, x, y, z, xname, xunit, yname, yunit, zname, zunit, fx?: {src, refs, err?},
-  raw?: {fp, hist}}]}]`, in `UNDO_KEYS` and `UNDO_BYID`), `matOf(id)` the one reader, `matPut(sid, fn, {undo, log, rec,
+  raw?: {fp, hist}, meta?: {field: text} (a file's header, qudi's)}]}]`, in `UNDO_KEYS` and `UNDO_BYID`), `matOf(id)` the one reader, `matPut(sid, fn, {undo, log, rec,
   post})` the one writer (the dependants worked out again, `matRecalc`; a sheet without a formula given a record entry,
   `matRecord`), `matBooks`, `matAll`, `matBookOf`, `matName`, `matNameWhy` (a formula's name, none twice, no `__`),
   `matClean` (in `migrate`; `MATZ_OK` the values already checked), `cloneMats` (the values shared: `cloneProj`, a
@@ -3786,6 +3803,10 @@ origin of x and y, a coefficient fixed, refusals), and implicit fits' (a circle,
 recovered within four errors, a shift and a turn moving the curve with the points, each distance the radial one or the nearest
 of a sampled ellipse, the radius's error against its spread over 300 repeats, refusals); run it, ref-test and a fuzzer seed
 after touching the STATS or ANA block.
+`node tools/qudi-drive.mjs [path]` (Playwright; `ONLY=Q.1` runs one section) checks qudi's confocal scans and ImageJ's
+measurements (`ux/spec/QUDI_SPEC.md`): Q.1, the files of `tools/ref/qudi/` imported by the Import button, four at once, five
+dropped, a 1D scan into the dialog, each matrix's positions, values and header fields against `fixtures/qudi.json`, Plot it, the
+Dimensions dialog's header fields, undo, a reload, a refusal. Run it after touching the import or the matrices.
 `node tools/sheet-drive.mjs [path]` (Playwright; `ONLY=3.1` runs one section) checks the worksheet as a table
 (`ux/spec/SHEET_SPEC.md`, wave 3): 3.1, formulas typed into the F(x)= row (an aggregate, rows of other rows, a running
 sum, text compared, `=` as equality, another sheet by a name with its spaces left out, that sheet renamed and a column
@@ -5528,6 +5549,11 @@ Next, in order:
    1e-14), done 19.11: wave 6's five slices are done, and its end (SIMPLS's score taken from X₀ itself, found by the fuzzer 8e-8 off
    on unscaled columns and now as NIPALS; the measured-against-predicted curves renamed, found by the screenshots; every dialog of
    the wave at 1024 and 390 px; a 40-minute lab day with the wave's dialogs, 1 123 actions, memory and listeners flat; every sheet shown no longer drawn twice, found measuring the analyses' time on the page)
+
+Then, 19.11, the user's request: qudi's confocal files read with their positions, and ImageJ's statistics on them; the plan is
+`ux/spec/QUDI_SPEC.md` (eight decisions, four slices: Q.1 reading qudi's files, Q.2 a TIFF ImageJ opens with its calibration, Q.3
+ImageJ's Measure, Q.4 Find Maxima and Plot Profile, each checked against qudi's own writers and ImageJ 1.54f). Slice Q.1 done 19.11:
+both of qudi's kinds of file become matrices with the scan's positions in µm, every header line kept, a 1D scan a curve.
 
 ## Known gaps
 

@@ -13,7 +13,7 @@ const m = html.match(/==PARSER:START==[\s\S]*?\*\/([\s\S]*?)\/\* ==PARSER:END==/
 if (!m) { console.error("Could not find the parser block in kurve.html"); process.exit(1); }
 
 // checkColumns formats numbers with the app's fmt(); a plain stub is enough here.
-const src = `const fmt=(v)=>String(v);\n${m[1]}\nreturn {analyzeFile,colFields,toNumber,detectFormat,checkColumns,splitLine,splitColName,detectRoles,nearOneWay,parseLineList,parseFillList,timeOf,spcFile,spcTable,opusFile,speBinFile,xlsxRead,xlsxSheetText,xlsxParts,xlsxBytes,zipWrite,zipEntries,zipData,inflateRaw,crc32,xlsxDateFmt,xlsxSerialToUnix,htmlTable,xmlRead,XL_TXT};`;
+const src = `const fmt=(v)=>String(v);\n${m[1]}\nreturn {analyzeFile,colFields,toNumber,detectFormat,checkColumns,splitLine,splitColName,detectRoles,nearOneWay,parseLineList,parseFillList,timeOf,spcFile,spcTable,opusFile,speBinFile,qudiFile,qudiRepr,xlsxRead,xlsxSheetText,xlsxParts,xlsxBytes,zipWrite,zipEntries,zipData,inflateRaw,crc32,xlsxDateFmt,xlsxSerialToUnix,htmlTable,xmlRead,XL_TXT};`;
 const P = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -635,6 +635,45 @@ check("negative kept", close(P.toNumber("-999", "."), -999));
     const t0 = Date.now(), b = P.xlsxRead(z), txt = P.xlsxSheetText(b.sheets[0]), r = P.analyzeFile(txt, {}), ms = Date.now() - t0;
     check(`xlsx: ${N} rows of three columns read, turned into text and imported in ${ms} ms`, r.rows.length === N && r.cols[1][123456] === Math.sin(123456 / 1000) && r.cols[2][7] === null && ms < 8000, `${r.rows.length} rows, ${ms} ms`);
     results.push(["note", `xlsx of ${N}×3 (${(z.length / 1e6).toFixed(1)} MB): read, text and import in ${ms} ms`, ""]); }
+}
+
+/* ---------- qudi's confocal files (QUDI_SPEC Q.1): files written as qudi's own code writes them ---------- */
+{
+  const dir = join(here, "ref", "qudi"), cases = JSON.parse(readFileSync(join(here, "ref", "fixtures", "qudi.json"), "utf8"));
+  const near = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => v === b[i] || (v != null && b[i] != null && Math.abs(v - b[i]) <= 1e-12 * Math.max(1, Math.abs(b[i]))));
+  const exact = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => v === b[i]);
+  const axis = (ax, n) => ax && Array.isArray(ax.v) ? ax.v : ax ? Array.from({ length: n }, (_, k) => k === n - 1 ? ax.b : k * ((ax.b - ax.a) / (n - 1)) + ax.a) : null;   // NumPy's linspace
+  for (const c of cases) {
+    const q = P.qudiFile(readFileSync(join(dir, c.file), "utf8"), c.file), w = c.want, tag = `qudi ${c.gen} ${c.file.slice(17, 70)}`;
+    if (!q || q.fail) { check(tag + ": read", false, q && q.fail); continue; }
+    if (w.kind === "matrix") {
+      const X = axis(q.x, q.nx), Y = axis(q.y, q.ny);
+      check(`${tag}: a matrix of ${w.nx} × ${w.ny}, its X and Y the scan's positions (${w.xunit}), every value`, q.kind === "matrix" && q.nx === w.nx && q.ny === w.ny && near(X, w.x) && near(Y, w.y) && exact(q.z, w.z) && q.x.unit === w.xunit && q.y.unit === w.yunit && q.x.name === w.xname && q.y.name === w.yname,
+        JSON.stringify({ k: q.kind, nx: q.nx, ny: q.ny, X: X && X.slice(0, 3), want: w.x.slice(0, 3), z0: q.z && q.z.slice(0, 3), wz: w.z.slice(0, 3), u: [q.x.unit, q.y.unit] }));
+      if (w.channel != null) check(`${tag}: the channel ${w.channel}${w.back ? ", back" : ""}`, q.channel === w.channel && (w.back == null || q.back === w.back), q.channel);
+    } else if (w.kind === "curve") {
+      const X = axis({ a: q.x.a, b: q.x.b }, q.x.n);
+      check(`${tag}: a 1D scan, a curve of ${w.x.length} points against ${w.xname} (${w.xunit})`, q.kind === "curve" && near(X, w.x) && exact(q.y, w.y) && q.x.unit === w.xunit && q.channel === w.channel, JSON.stringify([q.kind, X && X.slice(0, 2), q.channel]));
+    } else {
+      const X = axis(q.x, q.nx), Y = axis(q.y, q.ny), sh = q.sheets || [];
+      check(`${tag}: a data file, the grid rebuilt from its own positions (${w.nx} × ${w.ny}), a sheet a channel${w.const == null ? " and the varying z" : ""}`, q.kind === "data" && q.nx === w.nx && q.ny === w.ny && near(X, w.x) && near(Y, w.y)
+        && sh.length === w.sheets.length && w.sheets.every((ws, k) => near(sh[k].z, ws.z) && sh[k].zunit === ws.zunit && (ws.channel == null ? sh[k].channel == null : sh[k].channel === ws.channel)),
+        JSON.stringify({ k: q.kind, nx: q.nx, ny: q.ny, n: sh.length, X: X && X.slice(0, 3), w: w.x.slice(0, 3) }));
+    }
+    if (w.meta) check(`${tag}: every header field kept as written`, Object.entries(w.meta).every(([k, v]) => q.meta[k] === v), JSON.stringify(Object.entries(w.meta).filter(([k, v]) => q.meta[k] !== v).slice(0, 2).map(([k, v]) => [k, v, q.meta[k]])));
+  }
+  // refusals and what is not qudi's
+  const img = readFileSync(join(dir, cases.find(c => c.gen === "classic" && c.want.kind === "matrix").file), "utf8");
+  check("qudi: a classic image whose header lost its Y range is refused in words", /lacks the image's X or Y range/.test((P.qudiFile(img.replace(/#Y image min: .*\n/, ""), "a.dat") || {}).fail || ""));
+  { const dep = readFileSync(join(dir, cases.find(c => /confocal_depth_image/.test(c.file)).file), "utf8");
+    check("qudi: a depth image whose header lost its Z min is still a depth image, refused for its Z range", /lacks the image's X or Z range/.test((P.qudiFile(dep.replace(/#Z image min: .*\n/, ""), "b.dat") || {}).fail || "")); }
+  check("qudi: a ragged matrix is refused in words", /not a matrix/.test((P.qudiFile(img.replace(/\n([0-9.e+-]+)\t/, "\n$1\t1\t"), "a.dat") || {}).fail || ""));
+  const iq = readFileSync(join(dir, cases.find(c => c.gen === "iqo" && c.want.kind === "matrix").file), "utf8");
+  check("qudi: a new-format scan whose data do not fit its axes is refused in words", /its axes make/.test((P.qudiFile(iq.replace(/\n[^\n#]+\n$/, "\n"), "x.dat") || {}).fail || ""));
+  check("qudi: an ordinary table, and another qudi module's file with no scan axes, are not taken", P.qudiFile("x\ty\n1\t2\n2\t3\n", "t.txt") === null && P.qudiFile("# [General]\n# timestamp=2026-11-19T12:00:00\n# \n# [Metadata]\n# frequency=2870000000.0\n# \n# ---- END HEADER ----\n1\t2\n", "odmr.dat") === null);
+  const dat = readFileSync(join(dir, cases.find(c => c.gen === "classic" && c.want.kind === "data").file), "utf8").split("\n"), hd = dat.filter(l => l.startsWith("#")), rows = dat.filter(l => l && !l.startsWith("#"));
+  check("qudi: a data file whose pixels are not a grid comes in as a table", (P.qudiFile(hd.concat([rows[1], rows[0]], rows.slice(2)).join("\n"), "d.dat") || {}).table === true);
+  check("qudi: Python reprs as qudi-core writes them", JSON.stringify([P.qudiRepr("'x'"), P.qudiRepr("(-5e-06, 5e-06)"), P.qudiRepr("100"), P.qudiRepr("500.0"), P.qudiRepr("None"), P.qudiRepr("{'x': 0.0}")]) === JSON.stringify(["x", [-5e-06, 5e-06], 100, 500, null, "{'x': 0.0}"]));
 }
 
 for (const [state, name, detail] of results) {

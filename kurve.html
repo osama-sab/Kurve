@@ -13014,6 +13014,91 @@ function htmlTable(h){
   const w=grid.reduce((a,row)=>Math.max(a,row?row.length:0),0); if(!w) return null;
   return grid.map(row=>Array.from({length:w},(_,j)=>row&&row[j]!=null?row[j]:""));
 }
+/* ---- qudi's confocal files (QUDI_SPEC Q.1) ----------------------------------------------------------
+   qudi (v0.x) writes a scan as `…_confocal_xy_image_<channel>.dat` (a bare matrix, a row a Y from the
+   smallest, a column an X, the ranges in its header) and `…_confocal_xy_data.dat` (a row a pixel: x, y, z
+   and each channel's count rate); a depth scan as `…_confocal_depth_…`. qudi-iqo-modules (qudi ≥ 1.0)
+   writes `<stamp>_<n>D-scan with <axes> axes from channel <channel>.dat` with an INI header ([General],
+   [Metadata], Python reprs) and the data indexed [x][y], a line an X. qudiFile(text, fname) gives
+   {gen, kind: "matrix" | "data" | "curve", …} with the positions as the axes ({a, b} as linspace, or {v}),
+   metres below a millimetre in µm (decision 2), every header field as written (meta), or {fail} in words,
+   or {table: true, why} for a data file whose pixels are not a grid (an ordinary table then), or null. */
+const QUDI_CLASSIC=/^Saved Data from the class (\S+) on (\d\d)\.(\d\d)\.(\d{4}) at (\d\d)h(\d\d)m(\d\d)s\.?\s*$/;
+function qudiNum(t){ const s=String(t==null?"":t).trim(); if(/^[-+]?nan$/i.test(s)) return null; if(!/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(s)) return undefined; return Number(s); }
+/* a Python repr as qudi-core writes metadata: a string in quotes, a number, a tuple of numbers, None, True, False; else the text */
+function qudiRepr(t){ const s=String(t==null?"":t).trim(), q=s.match(/^(['"])([\s\S]*)\1$/); if(q) return q[2].replace(/\\(['"\\])/g,"$1");
+  const n=qudiNum(s); if(n!==undefined) return n; if(s==="None") return null; if(s==="True") return true; if(s==="False") return false;
+  const tu=s.match(/^\((.*)\)$/); if(tu){ const v=tu[1].split(",").map(x=>x.trim()).filter(x=>x!==""), ns=v.map(qudiNum); if(ns.every(x=>typeof x==="number")) return ns; }
+  return s; }
+/* positions: metres whose largest is below a millimetre in µm, one multiplication (QUDI_SPEC decision 2) */
+function qudiPos(a,b,unit){ const m=unit==="m"&&Math.max(Math.abs(a),Math.abs(b))<1e-3; return m?{a:a*1e6,b:b*1e6,unit:"µm"}:{a,b,unit:unit||""}; }
+/* lines of numbers split by tabs or spaces, nan as missing; {rows, nc} or {fail} */
+function qudiRows(lines){ const rows=[]; let nc=-1;
+  for(const ln of lines){ const t=ln.trim(); if(!t) continue; const f=t.split(/\t| +/), r=f.map(qudiNum);
+    if(r.some(v=>v===undefined)) return {fail:`a line of the data holds something that is not a number: "${t.slice(0,40)}"`};
+    if(nc<0) nc=r.length; else if(r.length!==nc) return {fail:`its lines hold ${nc} and ${r.length} values: not a matrix`}; rows.push(r); }
+  if(!rows.length) return {fail:"it holds no values"}; return {rows,nc}; }
+function qudiFile(text,fname){ const all=String(text||"").replace(/^\uFEFF/,"").split(/\r?\n/), name=String(fname||"");
+  const first=(all[0]||"").replace(/^#\s?/,"").trim();
+  if(/^#\s?\[General\]\s*$/.test(all[0]||"")) return qudiIqo(all,name);
+  const cm=first.match(QUDI_CLASSIC); if(!cm) return null;
+  // the header: "#key: value" lines between Parameters and Data, then the data section's comment lines
+  const meta={}, after=[], body=[]; let sec="", i=0;
+  for(;i<all.length;i++){ const ln=all[i]; if(!/^#/.test(ln)) break; const t=ln.replace(/^#\s?/,"");
+    if(/^Parameters:\s*$/.test(t)){ sec="p"; continue; } if(/^Data:\s*$/.test(t)){ sec="d"; continue; } if(/^=+\s*$/.test(t)||!t.trim()) continue;
+    if(sec==="p"){ const k=t.indexOf(": "); if(k>0) meta[t.slice(0,k).trim()]=t.slice(k+2).trim(); } else if(sec==="d") after.push(t); }
+  if(!("X image min (m)" in meta)) return null;
+  const depth=["Z image min","Z image max","Z image range","Z resolution (samples per range)","Depth Image at y position (m)"].some(k=>k in meta)||/_confocal_depth_/i.test(name), vk=depth?"Z":"Y", saved=`${cm[1]} on ${cm[2]}.${cm[3]}.${cm[4]} at ${cm[5]}:${cm[6]}:${cm[7]}`;
+  const date=`${cm[4]}-${cm[3]}-${cm[2]}T${cm[5]}:${cm[6]}:${cm[7]}`, stamp=(name.match(/^(\d{8}-\d{4}-\d{2})/)||[])[1]||`${cm[4]}${cm[3]}${cm[2]}-${cm[5]}${cm[6]}-${cm[7]}`;
+  for(;i<all.length;i++) body.push(all[i]);
+  const R=qudiRows(body); if(R.fail) return {fail:`${name||"This qudi file"}: ${R.fail}`};
+  const base={gen:"classic",scan:depth?"depth":"xy",stamp,date,meta:Object.assign({"Saved by":saved},meta)};
+  const names=(after[after.length-1]||"").split("\t").map(t=>t.trim()).filter(Boolean);
+  const pi=k=>names.indexOf(k+" position (m)");
+  if(pi("x")>=0&&pi("y")>=0&&pi("z")>=0){
+    // the data file: a row a pixel; the grid from its own positions
+    if(R.nc!==names.length) return {fail:`${name||"This qudi file"}: its columns are named ${names.length} and hold ${R.nc} values`};
+    const col=k=>R.rows.map(r=>r[k]), X=col(pi("x")), Y=col(pi("y")), Z=col(pi("z")), n=X.length;
+    const hor=depth?(X[0]!==X[1]?X:Y):X, horName=depth?(X[0]!==X[1]?"x":"y"):"x", ver=depth?Z:Y, verName=depth?"z":"y";
+    const third=depth?(horName==="x"?Y:X):Z, thirdName=depth?(horName==="x"?"y":"x"):"z";
+    let nx=1; while(nx<n&&ver[nx]===ver[0]) nx++; const ny=n/nx;
+    const grid=Number.isInteger(ny)&&nx>1&&ny>1&&ver.every((v,j)=>v===ver[Math.floor(j/nx)*nx])&&hor.every((v,j)=>v===hor[j%nx]);
+    if(!grid) return {table:true,why:"its pixels are not a grid, so it comes in as columns"};
+    const sc=hor.concat(ver).some(v=>v!=null&&Math.abs(v)>=1e-3)?1:1e6, un=sc===1?"m":"µm", pos=v=>v*sc;
+    const sheets=[]; names.forEach((nm,k)=>{ const mm=nm.match(/^count rate (.+) \(Hz\)$/); if(mm) sheets.push({channel:mm[1],zname:mm[1].replace(/\//g,""),zunit:"c/s",z:col(k)}); });
+    const varies=third.some(v=>v!==third[0]); if(varies) sheets.push({channel:null,zname:thirdName+" position",zunit:un,z:third.map(v=>v==null?null:pos(v))});
+    const m2=Object.assign({},base.meta); if(!varies) m2[thirdName+" position (m)"]=String(third[0]);
+    return Object.assign(base,{kind:"data",meta:m2,nx,ny,x:{v:hor.slice(0,nx).map(pos),name:horName+" position",unit:un},y:{v:Array.from({length:ny},(_,r)=>pos(ver[r*nx])),name:verName+" position",unit:un},sheets}); }
+  // the image file: a row a Y (or Z) from the smallest, a column an X, the ranges from the header
+  const num=k=>{ const v=qudiNum(meta[k]); return typeof v==="number"?v:NaN; }, x0=num("X image min (m)"), x1=num("X image max (m)"), v0=num(vk+" image min"), v1=num(vk+" image max");
+  if(![x0,x1,v0,v1].every(Number.isFinite)) return {fail:`${name||"This qudi file"}: its header lacks the image's X or ${vk} range`};
+  const ch=(name.match(/_confocal_(?:xy|depth)_image_(.+)\.dat$/i)||[])[1]||"", z=[]; R.rows.forEach(r=>r.forEach(v=>z.push(v)));
+  const X0=qudiPos(x0,x1,"m"), V0=qudiPos(v0,v1,"m");
+  return Object.assign(base,{kind:"matrix",channel:ch,nx:R.nc,ny:R.rows.length,x:{a:X0.a,b:X0.b,name:"x position",unit:X0.unit},y:{a:V0.a,b:V0.b,name:(depth?"z":"y")+" position",unit:V0.unit},z,zname:ch||"Count rate",zunit:"c/s"}); }
+/* qudi-iqo-modules' scans: the INI header, the axes from [Metadata], the data [x][y] (a line an X), a 1D scan one line */
+function qudiIqo(all,name){ const meta={}, gen={}; let sec="", i=0, end=-1;
+  for(;i<all.length;i++){ const ln=all[i]; if(/---- END HEADER ----/.test(ln)){ end=i; break; } const t=ln.replace(/^#\s?/,"");
+    const sm=t.match(/^\[(.+)\]\s*$/); if(sm){ sec=sm[1]; continue; } const k=t.indexOf("="); if(k<=0) continue;
+    const key=t.slice(0,k).trim(), val=t.slice(k+1).trim(); if(sec==="General") gen[key]=val; else if(sec==="Metadata") meta[key]=val; }
+  if(end<0) return null;
+  const axes=[]; Object.keys(meta).forEach(k=>{ const m=k.match(/^(.+) axis (name|unit|resolution|min|max)$/); if(m&&!axes.includes(m[1])) axes.push(m[1]); });
+  const scan=axes.filter(a=>typeof qudiRepr(meta[a+" axis resolution"])==="number"&&typeof qudiRepr(meta[a+" axis min"])==="number"&&typeof qudiRepr(meta[a+" axis max"])==="number");
+  if(!scan.length) return null;
+  const fn=name.match(/^(\d{8}-\d{4}-\d{2})_(back_)?(?:\d+D-scan_with_\w+?_axes_from_channel_(.+)|(.+))\.dat$/i)||[];
+  const stamp=fn[1]||"", back=!!fn[2], channel=String(fn[3]||fn[4]||"").replace(/_/g," "), ts=qudiRepr(gen.timestamp);
+  if(scan.length>2) return {fail:`${name||"This qudi file"} is a ${scan.length}D scan: an image of one or two axes is read`};
+  const ax=scan.map(a=>{ const res=qudiRepr(meta[a+" axis resolution"]), lo=qudiRepr(meta[a+" axis min"]), hi=qudiRepr(meta[a+" axis max"]), u=qudiRepr(meta[a+" axis unit"]), nm=qudiRepr(meta[a+" axis name"]);
+    const P=qudiPos(lo,hi,typeof u==="string"?u:""); return {key:a,n:res,a:P.a,b:P.b,unit:P.unit,name:typeof nm==="string"&&nm?nm:a}; });
+  const R=qudiRows(all.slice(end+1)); if(R.fail) return {fail:`${name||"This qudi file"}: ${R.fail}`};
+  const base={gen:"iqo",stamp,date:typeof ts==="string"?ts:"",channel,back,meta:Object.assign({timestamp:String(gen.timestamp||"")},meta),axes:scan.join("")};
+  if(ax.length===1){ const n=ax[0].n, vals=R.rows.length===1&&R.nc===n?R.rows[0]:R.nc===1&&R.rows.length===n?R.rows.map(r=>r[0]):null;
+    if(!vals) return {fail:`${name||"This qudi file"}: its ${ax[0].name} axis has ${n} points and the data hold ${R.rows.length*R.nc} values`};
+    return Object.assign(base,{kind:"curve",x:{a:ax[0].a,b:ax[0].b,n,name:ax[0].name,unit:ax[0].unit},y:vals}); }
+  const nx=ax[0].n, ny=ax[1].n; let z;
+  if(R.rows.length===nx&&R.nc===ny){ z=new Array(nx*ny); for(let c=0;c<nx;c++) for(let r=0;r<ny;r++) z[r*nx+c]=R.rows[c][r]; }   // a line an X: qudi's data[x][y]
+  else if(R.rows.length===ny&&R.nc===nx){ z=[]; R.rows.forEach(r=>r.forEach(v=>z.push(v))); }                                   // a line a Y
+  else return {fail:`${name||"This qudi file"}: its axes make ${nx} × ${ny} and its data are ${R.rows.length} lines of ${R.nc}`};
+  return Object.assign(base,{kind:"matrix",nx,ny,x:{a:ax[0].a,b:ax[0].b,name:ax[0].name,unit:ax[0].unit},y:{a:ax[1].a,b:ax[1].b,name:ax[1].name,unit:ax[1].unit},z,zname:channel||"Signal",zunit:""}); }
 /* ==PARSER:END== */
 
 /* ============================================================
@@ -23394,6 +23479,7 @@ function matClean(p){ if(p.mats==null) return; if(!Array.isArray(p.mats)){ delet
       const o={id:s.id,name:nm,nx:s.nx,ny:s.ny,x:ax(s.x,s.nx),y:ax(s.y,s.ny),z};
       ["xname","xunit","yname","yunit","zname","zunit"].forEach(k=>{ if(typeof s[k]==="string"&&s[k]) o[k]=str(s[k]); });
       if(typeof s.ana==="string"&&s.ana) o.ana=s.ana;
+      if(s.meta&&typeof s.meta==="object"&&!Array.isArray(s.meta)){ const m={}; Object.keys(s.meta).slice(0,200).forEach(k=>{ const v=s.meta[k]; if(typeof v==="string"||typeof v==="number") m[String(k).slice(0,200)]=String(v).slice(0,400); }); if(Object.keys(m).length) o.meta=m; }   /* the file's header fields (QUDI_SPEC decision 4) */
       if(s.fx&&typeof s.fx==="object"&&typeof s.fx.src==="string"&&s.fx.refs&&typeof s.fx.refs==="object"){ o.fx={src:s.fx.src.slice(0,4000),refs:Object.assign(Object.create(null),...Object.entries(s.fx.refs).filter(([k,v])=>typeof v==="string").map(([k,v])=>({[k]:v})))}; if(typeof s.fx.err==="string") o.fx.err=s.fx.err; }
       if(s.raw&&typeof s.raw==="object"&&Array.isArray(s.raw.hist)) o.raw={fp:typeof s.raw.fp==="string"?s.raw.fp:"",hist:s.raw.hist.filter(e=>e&&typeof e==="object"&&typeof e.text==="string").slice(-60)};
       return o; });
@@ -23543,6 +23629,42 @@ async function matPicture(f){ let bm; try{ bm=await createImageBitmap(f); }catch
   const s=matSheetNew(r,q.mpNm.trim(),{xname:"Pixel",yname:"Pixel",zname:chn==="grey"?"Grey":chn[0].toUpperCase()+chn.slice(1)}); s.raw=matRecord(s,`read from the picture ${f.name}, its ${chn} values`);
   const b=matBookNew(s); matSaveNew([b],{undo:"reading a picture",log:`made the matrix ${s.name} from the picture ${f.name} (${w} × ${h}, ${chn})`});
   matOpen(b.id,s.id); }
+/* ---- qudi's confocal scans (QUDI_SPEC Q.1) ----
+   Files qudiFile recognises, each [{name, text, q}], become matrix books: a book a scan (the files of one time stamp
+   and kind), a sheet a channel (a classic image's or a new-format file's own, a classic data file's channels the
+   images did not bring, and its z when it varies), X and Y the scan's positions, Z the channel, the header kept
+   (meta), each sheet recorded as read from its file; one undo step, one log line, the first book opened and a
+   message with Plot it. A 1D scan gives a table instead ({name, text}), for the import as any table. */
+function qudiTake(list,o){ o=o||{}; const p=P(); if(!p||S.readOnly) return {tables:[]};
+  const groups=new Map(), tables=[];
+  list.forEach(it=>{ const q=it.q; if(q.kind==="curve"){ const n=q.x.n, step=(q.x.b-q.x.a)/(n-1||1);
+      const h=`${q.x.name} (${q.x.unit})\t${q.channel||"Signal"}${q.back?", back":""}`, rows=q.y.map((v,k)=>`${k===n-1?q.x.b:k*step+q.x.a}\t${v==null?"":v}`);
+      tables.push({name:it.name,text:h+"\n"+rows.join("\n")+"\n"}); return; }
+    const key=`${q.gen}|${q.stamp}|${q.scan||q.axes}`; if(!groups.has(key)) groups.set(key,[]); groups.get(key).push(it); });
+  if(!groups.size) return {tables};
+  const used=new Set(matAll(p).map(x=>x.s.name.toLowerCase())), books=[], names=[];
+  const nameFor=base=>{ let b=String(base||"").replace(/[^A-Za-z0-9_]/g,"_").replace(/_+/g,"_").replace(/^[^A-Za-z]+/,"").replace(/_$/,"")||"Scan";
+    if(!matNameWhy(b,null)&&!used.has(b.toLowerCase())){ used.add(b.toLowerCase()); return b; } let k=1; while(used.has((b+"_"+k).toLowerCase())||matNameWhy(b+"_"+k,null)) k++; used.add((b+"_"+k).toLowerCase()); return b+"_"+k; };
+  const ax=a=>Array.isArray(a.v)?matAxisOf(a.v):{a:a.a,b:a.b};
+  const sheet=(q,z,zname,zunit,fname,meta)=>{ const s=matSheetNew({nx:q.nx,ny:q.ny,x:ax(q.x),y:ax(q.y),z},nameFor(zname),
+      {xname:q.x.name,xunit:q.x.unit,yname:q.y.name,yunit:q.y.unit,zname,zunit,meta:Object.assign({File:fname},meta)}); if(!s.zunit) delete s.zunit;
+    s.raw=matRecord(s,`read from the qudi file ${fname}`); return s; };
+  for(const [key,its] of groups){ const q0=its[0].q, sheets=[], have=new Set();
+    // images first: their positions come from the header's ranges, written to 16 digits; then what the data files add
+    its.slice().sort((a,b)=>(a.q.kind==="data")-(b.q.kind==="data")).forEach(it=>{ const q=it.q;
+      if(q.kind==="matrix"){ const zn=(q.zname||"Signal")+(q.back?", back":""); have.add(String(q.channel||"").replace(/\//g,"")); sheets.push(sheet(q,q.z,zn,q.zunit,it.name,q.meta)); return; }
+      q.sheets.forEach(d=>{ if(d.channel!=null&&have.has(d.channel.replace(/\//g,""))) return; sheets.push(sheet(q,d.z,d.zname,d.zunit,it.name,q.meta)); }); });
+    if(!sheets.length) continue;
+    const bname=q0.gen==="classic"?`Confocal ${q0.scan} ${q0.stamp}`:`${q0.axes} scan ${q0.stamp}`.trim();
+    books.push(matBookNew(sheets[0],bname)); books[books.length-1].sheets=sheets; names.push(bname); }
+  if(!books.length) return {tables};
+  const ns=books.reduce((t,b)=>t+b.sheets.length,0), nf=list.length-tables.length;
+  matSaveNew(books,{undo:nf===1?`reading the qudi file ${list[0].name}`:`reading ${nf} qudi files`,log:`read ${nf===1?"the qudi file "+list[0].name:nf+" qudi files"} into ${books.length===1?"the matrix book "+names[0]:books.length+" matrix books"} (${ns} sheet${ns===1?"":"s"})`});
+  const b0=P().mats.find(b=>b.id===books[0].id); if(b0) matOpen(b0.id,b0.sheets[0].id);
+  const s0=books[0].sheets[0];
+  if(o.plot) plotMatrix(s0.id,"image");
+  else toast(`${books.length===1?`${names[0]}: ${ns} sheet${ns===1?"":"s"}`:`${books.length} scans`}, X and Y the scan's positions in ${s0.xunit||"its units"}.`,{action:"Plot it",run:()=>plotMatrix(s0.id,"image")});
+  return {tables,books}; }
 /* ---- Changing a matrix ---- */
 // A transform in place: a recorded sheet's values change with an entry; a computed one keeps the values, its formula dropped.
 function matTransform(sid,verb,fn,detail){ const s=matOf(sid); if(!s) return; const was=!!s.fx, d=detail?" "+detail:"";
@@ -23570,12 +23692,15 @@ async function matSetValuesDlg(sid){ const s=matOf(sid); if(!s) return;
   matPut(sid,q2=>{ const o=Object.assign({},q2,{fx:{src,refs:r.refs}}); const e=matFxEval(o,P()); if(e.err){ o.fx.err=e.err; o.z=q2.z.map(()=>null); } else o.z=e.z; return o; },{undo:"setting a matrix's values",log:`set ${s.name} = ${src}`}); }
 function matKeepValues(sid){ const s=matOf(sid); if(!s||!s.fx) return; matPut(sid,q=>{ const o=Object.assign({},q); delete o.fx; return o; },{undo:"keeping a matrix's values",log:`kept the values of ${s.name}, its formula dropped`,rec:`the values of = ${s.fx.src} kept, the formula dropped`}); }
 // Dimensions and labels…: the size (values kept by row and column, new cells empty), X and Y, the names.
+/* a sheet's header fields as its file wrote them (QUDI_SPEC decision 4), read only */
+function matMetaHtml(s){ const m=s&&s.meta, ks=m?Object.keys(m):[]; if(!ks.length) return "";
+  return `<details class="grp mxmeta"><summary>Header fields (${ks.length})</summary><table class="rtab"><tbody>${ks.map(k=>`<tr><th class="l">${esc(k)}</th><td class="l"><code>${esc(m[k])}</code></td></tr>`).join("")}</tbody></table></details>`; }
 async function matDimsDlg(sid){ const s=matOf(sid); if(!s) return; const {X,Y}=matXY(s), ev=v=>esc(String(v)), uneven=a=>a&&Array.isArray(a.v);
   const html=`<div class="grid2 mxdlg"><label for="mdNm">Name</label><input id="mdNm" type="text" value="${esc(s.name)}"><label for="mdR">Rows</label><input id="mdR" type="text" inputmode="numeric" value="${s.ny}"><label for="mdC">Columns</label><input id="mdC" type="text" inputmode="numeric" value="${s.nx}">
     <label for="mdX0">X from</label><div class="pair"><input id="mdX0" type="text" inputmode="decimal" value="${ev(X[0])}"><span>to</span><input id="mdX1" type="text" inputmode="decimal" value="${ev(X[s.nx-1])}"></div>
     <label for="mdY0">Y from</label><div class="pair"><input id="mdY0" type="text" inputmode="decimal" value="${ev(Y[0])}"><span>to</span><input id="mdY1" type="text" inputmode="decimal" value="${ev(Y[s.ny-1])}"></div>
     ${[["Z","z"],["X","x"],["Y","y"]].map(([L,k])=>`<label for="md${L}n">${L}</label><div class="pair"><input id="md${L}n" type="text" placeholder="name" value="${esc(s[k+"name"]||"")}"><input id="md${L}u" type="text" placeholder="unit" value="${esc(s[k+"unit"]||"")}"></div>`).join("")}</div>
-    ${uneven(s.x)||uneven(s.y)?`<p class="note">${uneven(s.x)&&uneven(s.y)?"X and Y are":uneven(s.x)?"X is":"Y is"} not evenly spaced: changing the ends spaces ${uneven(s.x)&&uneven(s.y)?"them":"it"} evenly.</p>`:""}<p class="note" id="mdHint" aria-live="polite"></p>`;
+    ${uneven(s.x)||uneven(s.y)?`<p class="note">${uneven(s.x)&&uneven(s.y)?"X and Y are":uneven(s.x)?"X is":"Y is"} not evenly spaced: changing the ends spaces ${uneven(s.x)&&uneven(s.y)?"them":"it"} evenly.</p>`:""}<p class="note" id="mdHint" aria-live="polite"></p>${matMetaHtml(s)}`;
   const chk=q=>{ const nx=+q.mdC, ny=+q.mdR; if(!(Number.isInteger(nx)&&Number.isInteger(ny)&&nx>=1&&ny>=1)) return "Rows and columns are whole numbers, 1 or more.";
     if(nx>MAT_SIDE||ny>MAT_SIDE||nx*ny>MAT_MAX) return `A matrix holds ${MAT_MAX.toLocaleString("en")} cells at most.`;
     if(![q.mdX0,q.mdX1,q.mdY0,q.mdY1].every(v=>Number.isFinite(parseNum(v)))) return "X and Y run from a number to a number."; return matNameWhy(q.mdNm,sid); };
@@ -25035,6 +25160,9 @@ function importText(text,fname){
   // A binary instrument file read as text is mostly control characters and
   // replacement marks; better to say so than to show a wizard full of noise.
   if(looksBinary(text)){ toast(`${fname||"That file"} looks like a binary instrument file. Export it as CSV or text from the instrument software, then import that.`); logError(`Import of ${fname||"a file"}: a binary instrument file`,"import"); return; }
+  // a qudi confocal scan becomes a matrix with its positions (QUDI_SPEC Q.1); a 1D scan, or a data file that is no grid, a table
+  const qd=qudiFile(text,fname); if(qd&&qd.fail){ toast(qd.fail+"."); logError(`Import of ${fname}: ${qd.fail}`,"import"); return; }
+  if(qd&&!qd.table){ const r=qudiTake([{name:fname,text,q:qd}]); if(r.tables.length) openImport(r.tables[0].text,fname); return; }
   openImport(text,fname);
 }
 function looksBinary(text){ const head=String(text).slice(0,4096); let bad=0;
@@ -25053,9 +25181,12 @@ function readFilesIn(files){
   files=files.filter(Boolean); if(!files.length) return;
   if(files.length===1){ readFileIn(files[0]); return; }
   if(files.length>80){ toast(`Importing the first 80 of ${files.length} files.`); files=files.slice(0,80); }
-  Promise.all(files.map(f=>new Promise(res=>{
-    readAny(f).then(r=>res(r.fail?batchFail(f.name,r.fail):batchFile(f.name,r.text))); })))
-    .then(list=>batchImport([].concat(...list),{files:files.length}));
+  // qudi's confocal scans become matrices first (QUDI_SPEC Q.1); a 1D scan comes back as a table, with the rest
+  Promise.all(files.map(f=>readAny(f).then(r=>({f,r})))).then(rs=>{ const qs=[], rest=[];
+    rs.forEach(({f,r})=>{ const q=!r.fail&&typeof r.text==="string"?qudiFile(r.text,f.name):null;
+      if(q&&q.fail) rest.push(batchFail(f.name,q.fail)); else if(q&&!q.table) qs.push({name:f.name,text:r.text,q}); else rest.push(r.fail?batchFail(f.name,r.fail):batchFile(f.name,r.text)); });
+    const t=qs.length?qudiTake(qs):{tables:[]}; t.tables.forEach(x=>rest.push(batchFile(x.name,x.text)));
+    const list=[].concat(...rest); if(list.length) batchImport(list,{files:list.length}); });
 }
 const baseName=f=>String(f||"").replace(/\.\w+$/,"");
 function batchFail(fname,why){ return [{fname,name:baseName(fname),fail:why}]; }
@@ -25154,6 +25285,10 @@ async function autoImport(files,o){
     for(const b of books){ const u=xlUsed(b.book), vis=u.filter(q=>!q.s.hidden); r=await importBook(b.book,b.name,(vis.length?vis:u).map(q=>q.i),o)||r; }
     return r; }
   if(files.length>80){ toast(`Importing the first 80 of ${files.length} files.`); files=files.slice(0,80); }
+  // qudi's confocal scans become matrices (QUDI_SPEC Q.1), plotted when dropped on a graph; a 1D scan comes back as a table
+  { const qs=[]; files=files.filter(f=>{ const q=f&&!f.fail&&typeof f.text==="string"?qudiFile(f.text,f.name):null; if(q&&q.fail){ f.fail=q.fail; return true; }
+      if(q&&!q.table){ qs.push({name:f.name,text:f.text,q}); return false; } return true; });
+    if(qs.length){ const t=qudiTake(qs,{plot:!!o.gid}); files=files.concat(t.tables.map(x=>({name:x.name,text:x.text}))); if(!files.length) return {sheets:[]}; } }
   const built=[], bad=[];
   files.forEach(f=>{ if(f.fail){ bad.push(`${f.name}, ${f.fail}`); return; }
     if(looksBinary(f.text)){ bad.push(`${f.name}, a binary instrument file: export it as text`); return; }
@@ -31554,7 +31689,7 @@ ${DL([["The project","The top of the tree, with the project's name. Right-click 
 <h2 id="use">Using it</h2>
 ${DL([["Open","Double-click or "+K("Enter")+": a graph comes onto the desk (a hidden one too), a sheet is shown in the worksheet, a folder opens or closes."],["Menu","Right-click, "+K("Shift","F10")+" or the menu key: what can be done with that item, and <em>Move to</em> any folder."],["Move","Drag an item or a folder onto a folder, or onto the project at the top."],["Plot","Drag a sheet onto a graph window: its Y columns with values are plotted there."],["Import","Drop files from your computer onto a folder: they are read, plotted and filed there. "+DA("import#drop","Dropping files")],["Rename, delete",K("F2")+" and "+K("Delete")+". Deleting a sheet takes its columns out of the project, after asking when it holds values (the original-data record notes it); Undo brings everything back."],["Filter","Type in the box above the tree to show only what is called that, and where it is."]])}
 <p>The folder selected, or the folder of the item selected, is the <strong>active folder</strong>: graphs, trend graphs and files made while the Explorer is open go into it, as Origin puts new windows in the active folder. ${K("↑")} ${K("↓")} move, ${K("→")} opens and ${K("←")} closes or goes up a level. Folders are kept with the project, so a colleague who opens it sees them, and every change to them is one Undo.</p>`},
-{id:"import", g:"Basics", t:"Importing data", kw:"import open file csv tsv txt delimiter decimal comma header metadata paste drop wizard add replace many several files batch columns role use as data not a spectrum leave out plot not yet worksheet only pairs excel xlsx xlsm workbook spreadsheet sheets frozen html table web page",
+{id:"import", g:"Basics", t:"Importing data", kw:"import open file csv tsv txt dat qudi confocal delimiter decimal comma header metadata paste drop wizard add replace many several files batch columns role use as data not a spectrum leave out plot not yet worksheet only pairs excel xlsx xlsm workbook spreadsheet sheets frozen html table web page",
  lead:"Text exports from almost any instrument work. Drop a file on the window and it is read and plotted at once; use Import to see how it is read and choose what each column becomes, and nothing is plotted until you ask.",
  body:`<h2>Three ways in</h2>
 ${DL([["Drop files","Drop one file or many anywhere on the window. A project file (<em>.kurve</em>) opens as a new project ("+DA("projects#files","project files")+"); any other file is read with the automatic choices and plotted: on the graph you drop it on, or else on a new graph. Dropped on a folder of the "+DA("explorer","Project Explorer")+", it is filed there. The message that follows has <em>Read it differently</em>, which undoes it and opens the dialog."],["Import","<em>Import</em> on the toolbar, "+MP("File › Import data…")+", or "+K("Ctrl","O")+": the dialog shows how the file is read, every choice can be changed, and the columns go into the worksheet. Nothing is plotted: select columns and press Plot when you are ready."],["Text","A column of names or notes, and words among numbers (<code>n/a</code>, <code>&lt;0.01</code>), come in as text: see "+DA("sheet#text","text in the worksheet")+". The dialog's <em>Use</em> list has <em>Text (kept as written)</em> for a column whose numbers are names, as IDs like <code>007</code> are."],["Paste","Copy columns from a spreadsheet and paste them into a worksheet cell. Pasted into an empty sheet, they are read as an import reads them: with no X-like column every one is a Y, and the sheet's empty X column moves after them."]])}
@@ -31576,6 +31711,8 @@ ${DL([["Into","The project on the desk (named in the list, with how many columns
 <p>As from the single-file dialog, the columns go into the worksheet and are plotted when you choose. Dropped instead, the files are plotted at once.</p>
 <p>It is one change: one Undo, one line in the log, one entry in the original-data record. Columns measured on the same X share a column; one on a different axis gets its own, so nothing is interpolated. A file that cannot be read is listed with the reason and left out.</p>
 <p>Each column keeps the name of its file and the fields of its header (its Original data box in the History lists them). Fields that differ between the files, such as a temperature or the time each was taken, are offered as what the ${DA("batch","Batch window")} plots against.</p>
+<h2 id="qudi">qudi's confocal scans</h2>
+<p>A scan saved by qudi is recognised by its header and becomes a ${DA("matrices#qudi","matrix")} with its positions, not columns of numbers; a scan along one axis comes into the dialog as a curve.</p>
 <h2 id="excel">Excel workbooks</h2>
 <p>An <em>.xlsx</em> or <em>.xlsm</em> file is read from its cells, not as text: numbers with every digit Excel keeps, text as text (<code>007</code> and <code>1.5</code> written as text stay text), TRUE and FALSE as 1 and 0, an error such as <code>#DIV/0!</code> as text, and dates and times by the cell's number format, in either of Excel's date systems.</p>
 ${DL([["Several sheets","The sheets that hold anything are listed with their sizes; tick one and it goes through the dialog above, tick several (or <em>Every sheet</em>) and they come in at once, each on a sheet of its own named after its Excel sheet. One Undo takes them all back."],["Names and units","Frozen rows at the top of a sheet that hold only text are its header: the first the names, the second the units, a third the columns' comments. Otherwise the line above the numbers is read as for a text file."],["Formulas","A cell's value as Excel last worked it out. A column that is one formula all the way down says so in its comment (<em>Computed in Excel by =A2*2</em>); the formula itself is not carried over."],["Not read","The old binary <em>.xls</em>, OpenDocument's <em>.ods</em>, a workbook protected by a password; styles, charts and pictures."]])}
@@ -31672,10 +31809,12 @@ ${DL([["Numbers","equals, does not equal, is less than, is at most, is greater t
 ${DL([["Stack columns","The columns ticked one under another in a column of values, with a column naming where each came from; columns ticked under <em>Kept beside</em> are repeated by each value (wide to long). Empty cells are left out unless you say otherwise."],["Unstack","A column of values into a column per level of a group column (long to wide): by their order within each level, or matched by an identifier column (then an identifier seen twice in a level keeps its first value, said)."],["Split by groups","The rows of each level of a group column, or every n rows, as a block of the columns ticked, side by side."],["Pivot table","The levels of one column down and another's across, each cell the count, sum, mean, SD, minimum, maximum, median or first of a column of values (or the number of rows), with totals."],["Reduce rows","Every nth row kept, every n rows merged (by their mean or another aggregate; X by its mean), or rows put into bins of X a width wide, X then each bin's centre."],["Duplicate rows","Rows whose key columns repeat: the first or the last of each kept, all averaged into one, or only the duplicates kept; numbers within a tolerance count as one."],["A sorted copy","The rows sorted by up to three columns, each up or down: numbers, then text, then empty cells; rows that tie keep their order. The only way rows are really reordered, and it is a copy."],["Transpose","Rows turned into columns, the first column ticked naming them when asked."],["Join two sheets","This sheet's rows beside another sheet's whose key matches: only rows matched in both, every row of this sheet, or every row of both. A row matching several gives one each."],["Append sheets","Other sheets' rows under this one's, columns matched by name or by position, with a column naming each row's sheet."]])}
 <h2>How they behave</h2>
 <p>Each is an ${DA("analyses","analysis")} under ${MP("Data › Reshape")}: it reads the cells as the worksheet holds them (numbers and text, not processed), writes a result sheet that is worked out again when they change, and can be changed, recalculated, cut from its data (the cells kept on an ordinary sheet) or deleted, each one step to undo. Its rows can be limited, and on a filtered sheet it offers the filter's rows as its own. The report says how many rows it read and made, and what it left out.</p>`},
-{id:"matrices", g:"Data", t:"Matrices", kw:"matrix matrices matrix book matrix sheet grid image z values surface 2d two-dimensional transpose flip turn rotate rot90 crop resample interpolate bilinear arithmetic set values formula picture png jpeg grey gray channel from columns to columns xyz block heat map contour",
+{id:"matrices", g:"Data", t:"Matrices", kw:"matrix matrices matrix book matrix sheet grid image z values surface 2d two-dimensional qudi confocal scan nv apd counter channel positions depth scan back scan header transpose flip turn rotate rot90 crop resample interpolate bilinear arithmetic set values formula picture png jpeg grey gray channel from columns to columns xyz block heat map contour",
  lead:"A grid of values Z with its X along the top and its Y down the side, as Origin's matrix: kept in a book of its own, drawn by a graph as a map.",
  body:`<h2>Making one</h2>
 <p>${MP("Data › Matrix")} has three ways in. <em>New matrix…</em> asks for the rows and columns, X and Y from first to last (evenly spaced), and the values: empty, one number in every cell, or a formula. <em>From columns…</em> reads the block selected in the worksheet: its columns become the matrix's columns and its rows the rows; when its first row and first column are numbers running one way and the corner is empty, they are X and Y. <em>From a picture…</em> reads a PNG or JPEG: its grey values (0 to 255, weighted as ITU-R BT.601), or its red, green, blue or opacity; X counts the pixels from the left and Y from the bottom, so the picture is upright on a graph.</p>
+<h2 id="qudi">From qudi's confocal scans</h2>
+<p>A scan saved by qudi (the measurement suite of confocal microscopes) becomes a matrix when it is imported, dropped or chosen with other files: its X and Y (Z for a depth scan) are the scan's positions, in micrometres when the scan spans less than a millimetre, its values the channel's (the channel names it), and every line of the file's header is kept with it, listed in <em>Dimensions and labels…</em> and carried by the project file. qudi's two kinds of file are read: the classic one (<code>…_confocal_xy_image_&lt;channel&gt;.dat</code>, and the data file of x, y and z positions and count rates beside it) and qudi-iqo-modules' (<code>…_2D-scan_with_x_y_axes_from_channel_….dat</code>; a scan back says so, and pixels a stopped scan never reached are empty cells). The files of one scan go into one book, a sheet a channel; a data file whose z changes over the image (a tilted sample) adds a sheet of its z. A scan along one axis opens the import dialog as a curve against its positions. The matrix is original data, and its record says the file it was read from.</p>
 <h2>The matrix window</h2>
 <p>Each book has a window of its own, a document in the taskbar and the ${DA("explorer","Project Explorer")}: the grid with X along the top, Y down the side and row 1 at the top, a tab for each matrix of the book (+ adds one, a double click renames, a right-click has the rest), the cell and its value above, and below the size, whether its values are original data or computed, and the N, mean, minimum and maximum of the cells selected. It is used as the worksheet is: click, drag, Shift and the arrows select; typing, F2 or a double click edits; Delete clears; Ctrl+C and Ctrl+V copy and paste tab-separated blocks. Only what is in view is drawn, so a million cells scroll as easily as a hundred.</p>
 <h2>Original data or computed</h2>
