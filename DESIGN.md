@@ -898,6 +898,14 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-20: A scan keeps its shape (IMAGE_SPEC I.1)
+
+- **A pixel is not stretched to fit a window.** A matrix's map takes the largest area of the scan's own shape that the window
+  holds; the window's size decides how much is seen, never the cells' shape. A series' heat map still fills its window: its
+  two axes are different quantities.
+- **Out is one gesture, as in is.** The Zoom tool zooms in by a click and out by Alt+click, as ImageJ's magnifier; − and + and 0
+  on the keys; and a map is never zoomed out past the scan, so zooming out ends at the whole of it.
+
 ### 2026-11-20: The shift between two scans (QUDI_SPEC Q.8)
 
 - **In cells and in the scan's units.** A drift is read in nanometres and judged against the cell; both are columns, so neither has to

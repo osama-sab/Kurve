@@ -54,6 +54,7 @@ run anadrive 900 node tools/ana-drive.mjs "$html"
 run sigdrive 900 node tools/sig-drive.mjs "$html"
 run mvdrive 900 node tools/mv-drive.mjs "$html"
 run qudidrive 600 node tools/qudi-drive.mjs "$html"
+run imgdrive 600 node tools/img-drive.mjs "$html"
 run sheetdrive 900 node tools/sheet-drive.mjs "$html"
 run sheetfuzz 900 node tools/sheet-fuzz.mjs "$html" 9 150
 if command -v python3.13 > /dev/null; then

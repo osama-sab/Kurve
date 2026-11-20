@@ -17152,7 +17152,7 @@ function buildPlot(W,H,pal,colEx,opt){
   const ins=opt&&opt.inset||null, forExport=colEx||!!ins;
   const p=P(), cfg=plotCfg(), logY=!!cfg.logY, logX=!!cfg.logX;
   // A graph of a matrix (plot.mat): no column of its own, the matrix's names and units for its axes.
-  const MAT=cfg.mat?matOf(cfg.mat):null;
+  const MAT=cfg.mat?matOf(cfg.mat):null; let matA=null;
   const ps=MAT?{final:true,d:{x:[],y:[],idx:[],xn:MAT.xname||"X",xu:MAT.xunit||"",yn:MAT.yname||"Y",yu:MAT.yunit||""},ghost:null,marks:null,k:0,c:null}:forExport?{final:true,d:finalOf(activeYCol()),ghost:null,marks:null,k:0,c:activeYCol()}:plotState();
   const act=MAT?null:activeYCol(), layout=ps.final?cfg.layout:"overlay", distL=isDistLayout(layout)&&!ins;
   // Curved scales (ln, 1/x, √x, probability…): points they cannot show are left out.
@@ -17396,7 +17396,11 @@ function buildPlot(W,H,pal,colEx,opt){
   // A figure measures each panel's own margins, then draws every panel with those
   // of its row and column, so their plot areas line up.
   if(opt&&opt.measure) return {L,R,T,B};
-  { const FMg=(opt&&opt.figM)||(!ins&&cfg.figM); if(FMg){ L=FMg.L; R=FMg.R; T=FMg.T; B=FMg.B; } }
+  { const FMg=(opt&&opt.figM)||(!ins&&cfg.figM); if(FMg){ L=FMg.L; R=FMg.R; T=FMg.T; B=FMg.B; }
+    // A matrix's map keeps its cells' shape (IMAGE_SPEC I.1): the plot area the largest of that shape the window holds, centred,
+    // and a zoom filling the window at the same scale over the cells there are; never in a figure's panel, whose edges line up.
+    else if(MAT&&cfg.matFill!==true){ const aw=Math.max(W-L-R,40), ah=Math.max(H-T-B-(showRes?resH+gap:0),60), f=matFit(MAT,v,aw,ah);
+      if(f){ matA={L,T,pw:aw,mh:ah}; v=f.v; L+=f.dx; R+=f.dx; T+=f.dy; B+=f.dy; } } }
   const pw=Math.max(W-L-R,40), mhAll=Math.max(H-T-B-(showRes?resH+gap:0),60);
   // Panels: one for the analysed spectrum, one more per other spectrum when stacked.
   const np=stack?1+oser.length:1, pgap=stack?8:0, ph=Math.max(30,(mhAll-pgap*(np-1))/np);
@@ -17489,7 +17493,7 @@ function buildPlot(W,H,pal,colEx,opt){
     if(kind!=="image"&&levs.length&&nx>1&&ny>1){ const gc=Math.max(8,Math.min(220,Math.round(pw/4))), gr=Math.max(8,Math.min(180,Math.round(mh/4))), px=c=>L+(c+0.5)*pw/gc, py=r=>T+(r+0.5)*mh/gr;
       const pc=Array.from({length:gc},(_,c)=>matPos(MX,xAt(px(c)))), f=Array.from({length:gr},(_,r)=>{ const q=matPos(MY,yAt(py(r))); return pc.map(p=>{ const z=lin(q,p); return z==null||(logY&&!(z>0))?null:tr(z); }); });
       out+=mapContours(f,px,py,kind,levs,tr(lo),tr(hi),back); }
-    geo.heatZ=[lo,hi]; geo.mapLevs=levs.map(back); geo.mapSeries=true; geo.mapRows=[]; geo.mapWhy=""; geo.mat=MAT.id;
+    geo.heatZ=[lo,hi]; geo.mapLevs=levs.map(back); geo.mapSeries=true; geo.mapRows=[]; geo.mapWhy=""; geo.mat=MAT.id; geo.matA=matA;
     geo.matCell=(x,y)=>{ const j=matCellAt(MX,x), i=matCellAt(MY,y); return i<0||j<0?null:{i,j,v:Z[i*nx+j],x:MX[j],y:MY[i]}; };
     geo.mapZ=(x,y)=>{ const c=geo.matCell(x,y); return c?c.v:null; };
     return out; };
@@ -20030,6 +20034,10 @@ function setupGraph(){
       else { const inside=(S.shownPts||pointsAll()).filter(q=>q.x>=x0&&q.x<=x1&&q.y>=y0&&q.y<=y1).map(q=>q.i); if(inside.length) toggleMask(inside,true); }
       return;
     }
+    // The Zoom tool as ImageJ's magnifier (IMAGE_SPEC I.1): Alt+click zooms out a step about the point, and on a map a click zooms in.
+    if(S.mode==="zoom"&&!d.moved&&(ev.altKey||S.geo&&S.geo.mat)){ const pd=toData(d.x0,d.y0);
+      if(pd&&pd.inside&&!(S.gClick&&Date.now()-S.gClick.t<420&&Math.abs(S.gClick.x-d.x0)<6&&Math.abs(S.gClick.y-d.y0)<6)){ S.gClick={t:Date.now(),x:d.x0,y:d.y0};
+        mapZoomBy(ev.altKey?2:0.5,pd); renderPlot(); renderFit(); return; } }
     // A second click on the same spot soon after is a double click.
     { const now=Date.now(), lc=S.gClick, onTitle=downEl&&downEl.closest&&downEl.closest("[data-axtitle]");
       S.gClick={t:now,x:d.x0,y:d.y0};
@@ -20115,6 +20123,20 @@ function sayPoint(){
   const [xu,yu]=dataUnits();
   live.textContent=`Point ${q.i+1} of ${pointsAll().length}. x ${fmt(q.x,6)}${xu?" "+xu:""}, y ${fmt(q.y,6)}${yu?" "+yu:""}${isMasked(q.i)?", masked":""}`;
 }
+// The graph's view by a factor about a point (the middle when none): a map's both axes, else X alone unless the point is given
+// (a click zooms about it both ways). The drawn view is the one widened to the window, so a map's next step starts from what is seen.
+function mapZoomBy(k,pt){ const g=S.geo, v=g&&g.v; if(!v) return; const cx=pt?pt.x:(v.x0+v.x1)/2, cy=pt?pt.y:(v.y0+v.y1)/2, both=!!(pt||g.mat), ms=g.mat?matOf(g.mat):null;
+  let w={x0:cx-(cx-v.x0)*k,x1:cx+(v.x1-cx)*k,y0:both?cy-(cy-v.y0)*k:v.y0,y1:both?cy+(v.y1-cy)*k:v.y1};
+  // a map: the view that fills the window's whole area at the new scale with the point where it is on screen, so a click
+  // zooms about the cell clicked however the window is shaped
+  if(ms&&g.matA&&g.pw>0&&g.mh>0){ const A=g.matA, rx=(v.x1-v.x0)/g.pw*k, ry=(v.y1-v.y0)/g.mh*k, px=g.X(cx), py=g.Y(cy);
+    const tx=g.revX?(A.L+A.pw-px)/A.pw:(px-A.L)/A.pw, ty=(py-A.T)/A.mh, wx=rx*A.pw, wy=ry*A.mh;
+    w={x0:cx-tx*wx,x1:cx-tx*wx+wx,y1:cy+ty*wy,y0:cy+ty*wy-wy}; }
+  // a map is never zoomed out past the scan: each axis kept within its extent, and the whole of it is no zoom at all
+  if(ms){ const e=matExtent(ms), inn=(a0,a1,lo,hi)=>{ if(a1-a0>=hi-lo) return [lo,hi]; if(a0<lo) return [lo,lo+(a1-a0)]; if(a1>hi) return [hi-(a1-a0),hi]; return [a0,a1]; };
+    const [x0,x1]=inn(w.x0,w.x1,e.x0,e.x1), [y0,y1]=inn(w.y0,w.y1,e.y0,e.y1); w={x0,x1,y0,y1};
+    if(x0<=e.x0&&x1>=e.x1&&y0<=e.y0&&y1>=e.y1){ S.view=null; return; } }
+  S.view=saneView(Object.assign(w,{xu:(S.view&&S.view.xu)||(ms?ms.xunit||"":undefined)})); }
 function graphKey(ev){
   if(ev.key==="ContextMenu"||(ev.shiftKey&&ev.key==="F10")){ ev.preventDefault();
     { const cx=ctxOf(), cb=$("#ctxBtn"); if(cx&&cx.kind!=="column"&&cb&&!cb.hidden&&cb.offsetParent){ toggleMenu(cb,()=>cx.items(),{label:cx.lab}); return; } } const r=$("#figure").getBoundingClientRect(); openGraphMenu({preventDefault(){},target:$("#plot"),clientX:r.left+r.width/2,clientY:r.top+r.height/3}); return; }
@@ -20135,6 +20157,9 @@ function graphKey(ev){
   // Tab through what can be moved, and the arrows move it (roadmap 6, slice 3).
   if(ev.key==="Tab"&&kbTab(ev.shiftKey)){ ev.preventDefault(); return; }
   if(kbNudgeKey(ev)) return;
+  // A matrix's map: + and − zoom both axes about the middle, 0 shows it all (IMAGE_SPEC I.1)
+  if(S.geo.mat&&["+","=","-","_","0"].includes(ev.key)){ ev.preventDefault(); if(ev.key==="0") S.view=null; else mapZoomBy(ev.key==="-"||ev.key==="_"?2:0.5);
+    renderPlot(); $("#plotSay").textContent=ev.key==="0"?"Showing all of it.":ev.key==="-"||ev.key==="_"?"Zoomed out.":"Zoomed in."; return; }
   const all=S.shownPts||pointsAll(); if(!all.length) return;
   const k=ev.key, at=()=>all.findIndex(q=>q.i===S.sel);
   const pick=j=>{ j=Math.min(all.length-1,Math.max(0,j)); S.sel=all[j].i;
@@ -24598,6 +24623,18 @@ function matCellAt(A,u){ const n=A.length; if(n===1) return u>=A[0]-0.5&&u<=A[0]
 function matViewOf(s,logX){ const z=S.view, e=matExtent(s);
   if(z&&[z.x0,z.x1,z.y0,z.y1].every(Number.isFinite)&&z.x1!==z.x0&&z.y1!==z.y0&&(z.xu==null||z.xu===(s.xunit||""))) return {x0:z.x0,x1:z.x1,y0:z.y0,y1:z.y1};
   return e; }
+/* A matrix's view at its cells' true shape (IMAGE_SPEC decision 2) in a plot area of pw × mh pixels: one scale for X and Y
+   when they share a unit, else a cell square; the binding axis keeps the view asked for, the other grows about its middle over
+   what the scan (or the view asked for, zoomed out past it) has, and the plot area shrinks where there is nothing more to show.
+   → {v, dx, dy} (each side's margin added) or null. */
+function matFit(s,v,pw,mh){ const {X,Y}=matXYOf(s), e=matExtent(s), same=(s.xunit||"")===(s.yunit||"");
+  const step=A=>A.length>1?Math.abs(A[A.length-1]-A[0])/(A.length-1):1, kx=same?1:1/step(X), ky=same?1:1/step(Y);
+  const ux=v.x1-v.x0, uy=v.y1-v.y0; if(!(ux>0&&uy>0&&pw>0&&mh>0&&kx>0&&ky>0)) return null;
+  const sc=Math.min(pw/(ux*kx),mh/(uy*ky));
+  const grow=(a0,a1,lo,hi,want)=>{ lo=Math.min(lo,a0); hi=Math.max(hi,a1); if(want>=hi-lo) return [lo,hi];
+    let b0=(a0+a1)/2-want/2, b1=b0+want; if(b0<lo){ b1+=lo-b0; b0=lo; } if(b1>hi){ b0-=b1-hi; b1=hi; } return [b0,b1]; };
+  const [x0,x1]=grow(v.x0,v.x1,e.x0,e.x1,pw/(sc*kx)), [y0,y1]=grow(v.y0,v.y1,e.y0,e.y1,mh/(sc*ky));
+  return {v:{x0,x1,y0,y1},dx:Math.max(0,(pw-(x1-x0)*sc*kx)/2),dy:Math.max(0,(mh-(y1-y0)*sc*ky)/2)}; }
 // The extent of a matrix's map: half a cell beyond the first and last X and Y.
 function matExtent(s){ const {X,Y}=matXYOf(s), e=A=>{ const n=A.length; if(n===1) return [A[0]-0.5,A[0]+0.5]; const a=A[0]-(A[1]-A[0])/2, b=A[n-1]+(A[n-1]-A[n-2])/2; return [Math.min(a,b),Math.max(a,b)]; };
   const [x0,x1]=e(X), [y0,y1]=e(Y); return {x0,x1,y0,y1}; }
@@ -32752,7 +32789,7 @@ ${DL([["Transpose","Rows become columns, and X becomes Y."],["Flip","Left to rig
 <h2 id="profwidth">A profile across a width, fitted</h2>
 <p>Profile… has a part <em>Beyond ImageJ</em>, in columns beside ImageJ's values. A <em>width</em> makes each sample the mean of the values a pixel apart across the line, each interpolated as ImageJ does (empty, ImageJ's own samples). Each sample has a standard error: from the cells' shot noise, √N, when the scan's header gives the pixel time (or the values are counts), carried through the interpolation, since a sample is a sum of cells; else the spread across the line. A <em>fit</em> of the samples gives a Gaussian peak's FWHM, or an error-function edge's 10–90 % width (and the FWHM of the line spread it implies), each with its error, the centre's X and Y, and the reduced χ². Neighbouring samples read some of the same cells, so their errors go together; the fit takes that into account (left out, a FWHM's error would come out about a fifth too small). Its report plots the samples with their error bars and the fit. A sample between cells is interpolated, which widens a narrow peak a little (about a sixth of a pixel squared in variance): along a row or a column of cells there is no interpolation, and Spots… fits the cells themselves.</p>
 <h2>Plotting one</h2>
-<p>${MP("Plot › Plot a matrix")} (or the window's Plot) makes a graph of its own: an image (each cell its colour, with no smoothing), filled contours, contour lines with their values along them, or the image with lines. The colour bar is titled by Z; the Map menu on the graph sets the levels and the colour map and opens the matrix again. Pointing at the map, the status bar gives the cell's X, Y, value, row and column. It zooms and pans as any graph, and is exported, copied and reported as any graph.</p>`},
+<p>${MP("Plot › Plot a matrix")} (or the window's Plot) makes a graph of its own: an image (each cell its colour, with no smoothing), filled contours, contour lines with their values along them, or the image with lines. The colour bar is titled by Z; the Map menu on the graph sets the levels and the colour map and opens the matrix again. Pointing at the map, the status bar gives the cell's X, Y, value, row and column. It keeps the scan's shape: its cells are drawn square (in proportion to the X and Y steps when X and Y share a unit), the map takes the largest area of that shape the window holds, and a zoom fills the window at that scale over the cells there are, so a larger window shows more of the scan, never stretched cells. It zooms and pans as any graph: the wheel both ways, a box drawn with the Zoom tool, a click with it zooming in a step about the cell and Alt+click out, + and − on the keys, 0 (or a double click) showing it all again, never zoomed out past the scan. It is exported, copied and reported as any graph.</p>`},
 {id:"condfmt", g:"Data", t:"Conditional formatting", kw:"conditional formatting colour color scale heat map highlight cells fill rule rules duplicates unique top bottom greater less between text manage order",
  lead:"Cells filled by their values, so a pattern in the numbers shows before you read them: a view, the data stay as they are.",
  body:`<h2>A colour scale</h2>

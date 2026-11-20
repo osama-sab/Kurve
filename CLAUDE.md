@@ -1745,7 +1745,12 @@ graph first, with the taskbar kept at the bottom of the screen.
   the extent, `matExtent`), `matMapSvg` (each pixel the cell holding it, `matCellAt`, or bilinear between centres for
   filled contours and lines; at the screen's pixels, 1200 a side, 2400 in an export; memoised by `heatMemo`; the
   colour bar titled by Z), `mapContours` (shared with the map of a series); `geo.mat`, `geo.matCell`, `geo.mapZ` (the
-  readout names the cell); `matXYOf`, `matRangeOf` memoised per values; `mapMenuItems` for a matrix (drawn as, levels,
+  readout names the cell); `matFit(s, v, pw, mh)` (IMAGE_SPEC I.1: the view at the cells' true shape, one scale when X and Y share
+  a unit, else square cells, in a plot area of pw × mh, the binding axis as asked and the other grown about its middle over the
+  scan; `{v, dx, dy}` the margins added), called by `buildPlot` before the plot area is sized (not for a figure's panel, not with
+  `cfg.matFill`), the area before it `geo.matA`; `mapZoomBy(k, pt)` (a map's zoom about a point in the window's whole area, never
+  past the scan, the whole scan no zoom; else X about the middle); `graphKey`'s + − 0 for a map, the Zoom tool's click (a map) and
+  Alt+click (any graph); `matXYOf`, `matRangeOf` memoised per values; `mapMenuItems` for a matrix (drawn as, levels,
   colours, Show the matrix); `matGraph(id)`; `normalize` keeps a graph whose matrix is there and drops one whose
   matrix has gone; `syncGraphWins` never leaves a matrix's graph for the active column's; `snapSig` reads the values;
   the picture's chip names the matrix; `helpFor` gives `matrices`. Storage: `projArrs`, `matsMapZ` (IdbStore's
@@ -3952,6 +3957,9 @@ the method, the samples plotted with their errors and the fit, an edge's 10–90
 and its back scan (the dialog from the matrix window, a scan against itself refused, each number shiftFit's, the lag found within its
 error of 1.5 nm, the moved scan as a matrix and its map, followed, a reload, the second scan deleted); Q.7, Measure's Beyond
 ImageJ (the noise and pixel time from the header, a ring refused below zero, each column kMeasure's, a spot's light 61 times its error).
+`node tools/img-drive.mjs [path]` (Playwright; `ONLY=I.1` runs one section) checks images worked as ImageJ works them
+(`ux/spec/IMAGE_SPEC.md`): I.1, the NV scan's map with square cells in a wide, a tall and a square window, a box zoom, Alt+click
+out, a click in about the cell, the keys, never past the scan, a series' heat map unchanged.
 `node tools/img-test.mjs [path]` checks the image analyses' properties (QUDI_SPEC Q.5 to Q.8): a spot's position, FWHM, peak and
 background each with an error equal to its spread over 300 Poisson repeats and no bias, the reduced χ² near 1, a lone spot split
 in at most 1 %, an elliptical spot fitted round not split, two spots 0.8 FWHM apart found as two and biased when fitted as one, the
@@ -5730,7 +5738,11 @@ an error-function edge's 10–90 % width fitted with the samples' correlation (t
 errors, pulls of SD 0.95 to 1.06 over 300 repeats, where a fit ignoring the correlation would make the FWHM's error a fifth too small. Slice Q.8 done 20.11: the shift between two scans
 to a hundredth of a cell by Guizar-Sicairos's upsampled cross-correlation, with its error by data fission; NumPy's registration the
 same grid point on six cases, pulls of SD 0.95 to 1.08 over 150 repeats, a back scan's lag of 63 nm found as 63.5 ± 1.5 nm. QUDI_SPEC's
-eight slices are done.
+eight slices are done. Then, 20.11, the user's report: zooming out was hard and resizing the window stretched the pixels; and
+more of ImageJ, worked as ImageJ works images, integrated into Kurve. The plan is `ux/spec/IMAGE_SPEC.md` (ten decisions, seven
+slices: I.1 the map's shape and zoom, I.2 the image view, I.3 lookup tables and contrast, I.4 selections and the ROI Manager, I.5
+ImageJ's filters, I.6 threshold and particles, I.7 scale bar, channels, histogram). Slice I.1 done 20.11: a matrix's map keeps its
+cells square at any window shape, zooms out by Alt+click, −, or 0, and never past the scan.
 
 ## Known gaps
 

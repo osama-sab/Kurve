@@ -1024,6 +1024,19 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Images, slice I.1: the map keeps its shape (2026-11-20)
+
+The user's report: zoomed in, a scan could not easily be zoomed out, and resizing the window stretched its pixels. The plan for
+working a matrix as ImageJ works an image is `ux/spec/IMAGE_SPEC.md` (ten decisions, seven slices).
+
+- A matrix's map draws its cells square (in proportion to the steps when X and Y share a unit), the plot area the largest of
+  that shape the window holds; a larger window shows more of the scan, a zoom fills the window at that scale.
+- Zooming out as easily as in: the Zoom tool's Alt+click out a step and click in a step about the cell, + − and 0 on the keys
+  for both axes, never past the whole scan.
+
+Checked: `tools/img-drive.mjs` (new, 12): the cells square in a wide, a tall and a square window, a box zoom, Alt+click, a
+click, the keys, a series' heat map unchanged.
+
 ## qudi's confocal scans, slice Q.8: the shift between two scans (2026-11-20)
 
 - **Analyze › Image › Shift between scans…** (and the matrix window's Matrix menu): how far the second of two scans has moved against
