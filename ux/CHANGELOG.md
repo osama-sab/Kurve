@@ -1024,6 +1024,24 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## qudi's confocal scans, slice Q.3: ImageJ's Measure (2026-11-20)
+
+- **Analyze › Image › Measure…**, and the matrix window's **Matrix › Measure (ImageJ)…** (the cells selected as its rectangle to
+  begin with): ImageJ's Analyze › Measure over the whole matrix, a rectangle, an oval or a polygon given in X and Y, into a result
+  sheet: Area, Mean, StdDev, Mode, Min, Max, X, Y, XM, YM, BX, BY, Width, Height, IntDen, RawIntDen, Median, Skew, Kurt under ImageJ's
+  names and in the matrix's units, and the region's histogram in ImageJ's 256 bins. The dialog counts the cells and gives the same
+  selection in ImageJ's macro language; *Values as ImageJ holds them* rounds to single precision first.
+- The report's **Show the region on its map** (the region drawn over the matrix's image) and **Plot the histogram**. The analysis
+  follows its matrix. A matrix's map draws annotations now.
+- Refused in words: a region that holds no cell, a polygon of fewer than three corners or outside the matrix, a corner that is not
+  two numbers, every cell empty.
+
+Checked: `tools/ref/ij_read.py` ports ImageJ 1.54f's Measure from its source and works the same definitions out exactly, over 9
+images and 27 regions; ref-test's `ijMeasure.cells`, `.order`, `.geo` exact or to the last digit, `.stats` 7.8e-16 against exact (it
+was 5e-11 on the skewness of values with a large offset until the mean's own rounding was taken out of the deviations); qudi-drive
+(15 new), ana-drive, sheet-drive's matrices, ds-test (Analyze's kinds now with Image), the menu crawl. ImageJ's own raw sums are
+1.8e-7 off on an SD and lose the kurtosis on a large offset: said in Help, not copied.
+
 ## qudi's confocal scans, slice Q.2: a matrix for ImageJ (2026-11-19)
 
 - **Publish › Matrix for ImageJ (.tif)**, and the matrix window's **Matrix › Save for ImageJ (.tif)**: the matrix as a 32-bit

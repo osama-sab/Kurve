@@ -1139,6 +1139,29 @@ graph first, with the taskbar kept at the bottom of the screen.
   source: the rational, the description as java.util.Properties, `getX(x + 0.5)`, `getY(y + 0.5, h)` with inverty) into
   `fixtures/imagej.json` with each file's SHA-256; ref-test judges `matTiff.values` (exact) and `matTiff.pos` (each centre against
   its position's size). `tools/ref/ij/IJRef.java` prints the same readout from ImageJ itself, where its jar may be run.
+  **ImageJ's Measure** (QUDI_SPEC Q.3): in MAT `ijGeom(xax, yax, nx, ny)` (matTiff's geometry, shared: `{AX, AY, rx, ry, pw, ph,
+  xo, yo, W, H, col(px), row(py)}`, a pixel of ImageJ's image the cell it is), `ijRegion(G, xs, ys, reg)` (`reg` `{kind: "all"}`,
+  `rect`/`oval` with `x0, x1, y0, y1` (the cells whose X and Y lie within, edges included to 1e-9 of a pixel; an oval OvalRoi's
+  mask on their rectangle), `poly` with `pts` (the corners to ImageJ's pixels by getRawX/getRawY, as floats; a cell in when its
+  centre is, PolygonFiller's rule: active when y1 < cy ≤ y2, crossings at x + 1e-8 < cx counted; the bounds floor and ceiling,
+  clipped); `{x0, y0, w, h, mask, bx0, by0, bw, bh, macro}` (the same selection in ImageJ's macro language) or `{fail}`), `ijSum`
+  (Neumaier), `ijMeasure(M, reg, {single})` (M with axes or `xs`/`ys`; ImageJ 1.54f's columns over the cells with a value: `n`,
+  `area`, `mean`, `sd` (n − 1), `mode` (the middle of the fullest of 256 bins from min to max, the lower edge when a bin is
+  exactly 1 wide, as FloatStatistics), `min`, `max`, `x`/`y` (the mean position), `xm`/`ym` (null when the values sum to 0),
+  `bx`, `by`, `w`, `h` (the bounding rectangle, its upper edge the larger Y), `intden`, `raw`, `median`, `skew`, `kurt` (over n,
+  less 3; from the deviations with the double mean's rounding taken out), `cells`, `miss`, `hist {start, size, counts}`,
+  `region`, `geom`; `single` rounds the values, and an even count's median, to single precision as ImageJ). In ANA `IJ_REGIONS`,
+  `ijRegOf(p)`, `ijRegText`, kind `ijmeasure` (`typed`, `typedWhat` "a matrix"; `p.mat`, `region`, `x0`…`y1`, `pts`, `single`;
+  one row under ImageJ's names in the matrix's units, keys `n area mean sd mode min max x y xm ym bx by w h intden raw median skew
+  kurt`, the histogram's `hc` (an X), `hs`, `hn`; `report.ijm {mat, region, rect, macro}`, the method naming the selection to make
+  in ImageJ). The page: `ANA_FORMS.ijmeasure` (`#aQm`, `#aQr`, `#aQx0`/`#aQx1`, `#aQy0`/`#aQy1` in `.anarows`, `#aQp`, `#aQs`,
+  `#aQmsg` the cells and the macro, or the refusal), `ijParsePts`, `ijmStart(sid)` (the matrix in front, its window's selection as
+  a rectangle), the report's `ijmShow(id)` (the region drawn on the matrix's map, made if there is none) and `ijmHist(id)`;
+  Analyze › Image › Measure…, the matrix window's Matrix › Measure (ImageJ)…. A matrix's map draws annotations now (`annoCtx`'s
+  `heat` false for it; `addAnno` takes the matrix's units there). `tools/ref/ij_read.py` ports ImageJ's Measure (FloatStatistics'
+  raw sums, OvalRoi, PolygonFiller with its float corners and bounds) and works the same definitions out in exact rationals;
+  `fixtures/imagej.json`'s `meas` (9 images, 27 regions) and `measFail`; ref-test's `ijMeasure.cells`, `.order` (exact), `.geo`,
+  `.stats` (against exact) and `ijPort.mean`, ImageJ's own raw-sum errors said beside.
   `tools/ref/qudi_fixtures.py` writes `tools/ref/qudi/` as qudi-core 1.5.0 and the classic `save_logic` do (their
   code reproduced, not run) and `fixtures/qudi.json`; `tools/parser-test.mjs` reads them, `tools/qudi-drive.mjs` imports them.
   `batchFile` reads one-column
@@ -3822,7 +3845,9 @@ measurements (`ux/spec/QUDI_SPEC.md`): Q.1, the files of `tools/ref/qudi/` impor
 dropped, a 1D scan into the dialog, each matrix's positions, values and header fields against `fixtures/qudi.json`, Plot it, the
 Dimensions dialog's header fields, undo, a reload, a refusal; Q.2, a qudi scan saved for ImageJ from the matrix window's menu and
 Publish, the file matTiff's, the message, and ImageJ's calibration of it (`tools/ref/ij_read.py`) giving the scan's positions, an
-uneven X refused. Run it after touching the import or the matrices.
+uneven X refused; Q.3, Measure from the matrix window and Analyze › Image (the whole matrix, an oval with single precision, a
+polygon typed, each value against ijMeasure, the histogram, the region drawn on the map, Plot the histogram, refusals in the
+dialog, a changed cell followed, a reload). Run it after touching the import or the matrices.
 `node tools/sheet-drive.mjs [path]` (Playwright; `ONLY=3.1` runs one section) checks the worksheet as a table
 (`ux/spec/SHEET_SPEC.md`, wave 3): 3.1, formulas typed into the F(x)= row (an aggregate, rows of other rows, a running
 sum, text compared, `=` as equality, another sheet by a name with its spaces left out, that sheet renamed and a column
@@ -5571,7 +5596,10 @@ Then, 19.11, the user's request: qudi's confocal files read with their positions
 ImageJ's Measure, Q.4 Find Maxima and Plot Profile, each checked against qudi's own writers and ImageJ 1.54f). Slice Q.1 done 19.11:
 both of qudi's kinds of file become matrices with the scan's positions in µm, every header line kept, a 1D scan a curve. Slice Q.2
 done 19.11: a matrix saved as a 32-bit TIFF ImageJ opens with its calibration, each pixel's centre the cell's position to a part
-in 10¹⁵; checked with Pillow and ImageJ's reading written out from its source (running ImageJ's jar was refused here).
+in 10¹⁵; checked with Pillow and ImageJ's reading written out from its source (running ImageJ's jar was refused here). Slice Q.3
+done 20.11: ImageJ's Measure on a matrix over the whole of it, a rectangle, an oval or a polygon, into a result sheet under ImageJ's
+names; its cells, order statistics, mode and histogram exactly ImageJ's arithmetic, its moments within 8e-16 of exact arithmetic
+(ImageJ's own raw sums 1.8e-7 off on an SD, its kurtosis meaningless on values with a large offset).
 
 ## Known gaps
 

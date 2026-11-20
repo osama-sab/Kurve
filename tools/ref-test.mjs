@@ -339,6 +339,38 @@ if (fixtures.imagej) {
     if (bad.length) refBad.push(`matTiff ${c.name}: ${bad.join("; ")}`);
   }
   for (const c of fixtures.imagej.refusals) { const t = T(c.m, c.o); if (!t || !t.fail) refBad.push(`matTiff ${c.name}: written, where it should be refused`); }
+  /* ImageJ's Measure (QUDI_SPEC Q.3) on each image's TIFF, over each region: the selection's cells, the order statistics and the
+     mode (ImageJ's 256 bins) exactly as ImageJ's arithmetic gives them, the area and bounding rectangle to its size, and the
+     moments, centroid and centre of mass against the same definitions worked out exactly (ImageJ's own raw sums are said beside) */
+  const MS = get("ijMeasure"); let ijw = { sd: 0, skew: 0, kurt: 0 };
+  for (const c of fixtures.imagej.meas || []) {
+    const t = T(c.m, c.o);
+    if (t.fail || createHash("sha256").update(t.bytes).digest("hex") !== c.sha) { refBad.push(`ijMeasure ${c.name}: the TIFF is not the one the fixture measured; make it again (node tools/ref/ij_fixtures.mjs)`); continue; }
+    c.regs.forEach((reg, k) => {
+      const at = `${c.name}, ${reg.kind} ${k}`, w = c.res[k], r = MS(c.m, reg, { single: true });
+      if (w.fail) { if (!r.fail) refBad.push(`ijMeasure ${at}: measured where ImageJ has no value`); return; }
+      if (r.fail) { refBad.push(`ijMeasure ${at}: ${r.fail}`); return; }
+      const P = w.port, E = w.exact, roi = [r.region.x0, r.region.y0, r.region.w, r.region.h];
+      note("ijMeasure.cells", r.n === P.n && r.cells === P.cells && roi.join() === P.roi.join() ? 0 : 1, `${at}: ${r.n}/${r.cells} [${roi}] against ${P.n}/${P.cells} [${P.roi}]`);
+      let eo = 0; for (const q of ["min", "max", "mode", "median"]) if (r[q] !== P[q]) eo = Math.max(eo, relErr(r[q], P[q], 1e-300) || 1);
+      if (r.hist.counts.join() !== P.hist.join()) eo = Math.max(eo, 1);
+      note("ijMeasure.order", eo, at);
+      const sz = Math.max(Math.abs(P.bx), Math.abs(P.by), Math.abs(P.w), Math.abs(P.h));
+      let eg = relErr(r.area, P.area); for (const q of ["bx", "by", "w", "h"]) eg = Math.max(eg, Math.abs(r[q] - P[q]) / sz);
+      note("ijMeasure.geo", eg, at);
+      const xs = Math.max(...[E.x, E.y].map(Math.abs), sz); let es = 0;
+      for (const q of ["mean", "sd", "raw"]) es = Math.max(es, relErr(r[q], E[q], 1e-300));
+      for (const q of ["skew", "kurt"]) es = Math.max(es, E[q] == null ? (r[q] == null ? 0 : 1) : Math.abs(r[q] - E[q]) / Math.max(1, Math.abs(E[q])));
+      for (const q of ["x", "y", "xm", "ym"]) es = Math.max(es, E[q] == null ? (r[q] == null ? 0 : 1) : Math.abs(r[q] - E[q]) / xs);
+      note("ijMeasure.stats", es, at);
+      // ImageJ's own arithmetic against the same exact answer: the port is checked where ImageJ is accurate, and its raw sums said
+      let ep = relErr(P.mean, E.mean, 1e-300); for (const q of ["x", "y"]) ep = Math.max(ep, Math.abs(P[q] - E[q]) / xs);
+      note("ijPort.mean", ep, at);
+      if (E.sd > 0) { ijw.sd = Math.max(ijw.sd, relErr(P.sd, E.sd)); ijw.skew = Math.max(ijw.skew, Math.abs(P.skew - E.skew) / Math.max(1, Math.abs(E.skew))); ijw.kurt = Math.max(ijw.kurt, Math.abs(P.kurt - E.kurt) / Math.max(1, Math.abs(E.kurt))); }
+    });
+  }
+  for (const c of fixtures.imagej.measFail || []) { const r = MS(c.m, c.reg); if (!r || !r.fail) refBad.push(`ijMeasure ${c.name}: measured, where it should be refused`); }
+  if (fixtures.imagej.meas) console.log(`  ImageJ's own raw sums against exact arithmetic (said, not judged): SD ${ijw.sd.toExponential(1)}, skewness ${ijw.skew.toExponential(1)}, kurtosis ${ijw.kurt.toExponential(1)}`);
 }
 
 /* ---- NIST's Norris: certified values read from the file itself ---- */

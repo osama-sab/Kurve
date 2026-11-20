@@ -87,7 +87,7 @@ ImageJ 1.54f (`ij/process/FloatStatistics.java`, `ij/plugin/filter/Analyzer.java
 centre is i + 0.5; the calibration turns pixels into units: x = (px − xorigin)·pixelWidth, and y the
 same, or (yorigin − py)·pixelHeight with *inverty*. Analyze › Measure over a region (the image, a
 rectangle, an oval, a polygon): Area (pixels × pixel area), Mean, StdDev (n − 1), Mode (for 32-bit
-images the lower edge of the fullest of 256 bins between min and max), Min, Max, Centroid (X, Y: the
+images the middle of the fullest of 256 bins between min and max; its lower edge when a bin is exactly 1 wide), Min, Max, Centroid (X, Y: the
 pixels' centres), Center of mass (XM, YM: weighted by the values), Bounding rectangle, Integrated
 density (Area × Mean) and its raw form (the sum), Median, Skewness and Kurtosis (its formulas from
 the sums), Feret's diameters and the perimeter of the region. A 32-bit image's values are single
@@ -192,6 +192,16 @@ sheet.
 steps, every region kind, odd sizes and offsets: each value to 1e-12 of ImageJ's where its arithmetic
 allows (its variance from raw sums is worse: judged against two-pass doubles), the mode and median
 exactly.
+
+**Done 20.11.** `ijGeom`, `ijRegion`, `ijMeasure` in the MAT block, the kind `ijmeasure` in ANA, the dialog, Show the region on its
+map and Plot the histogram; `tools/ref/ij_read.py` ports ImageJ's Measure from its source (FloatStatistics, OvalRoi, PolygonFiller)
+and works the same definitions out in exact rationals, over 9 images and 27 regions (noise, a spot with empty cells, steps, bins
+exactly 1 wide, a large offset, descending axes, one value, a polygon through the centres, a qudi scan): the cells, order
+statistics, mode and histogram exactly ImageJ's, the moments within 8e-16 of exact. Two findings: the mode is the middle of its
+bin (this spec first said the lower edge; ImageJ uses the lower edge only for a bin exactly 1 wide), and ImageJ's own StdDev,
+Skew and Kurt come from running sums of powers, 1.8e-7 off on an SD and with a meaningless kurtosis on values with a large
+offset; Kurve keeps ImageJ's definitions and works them out from the deviations. ImageJ itself was not run (see Q.2). A matrix's
+map draws annotations now, so the region measured can be shown on it.
 
 ## Q.4 Find Maxima and Plot Profile
 

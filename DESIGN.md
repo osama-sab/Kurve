@@ -898,6 +898,22 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-20: ImageJ's Measure (QUDI_SPEC Q.3)
+
+- **ImageJ's names and definitions.** The user asked for ImageJ's statistics, so the result sheet's columns are ImageJ's (Area,
+  Mean, StdDev, Mode, Min, Max, X, Y, XM, YM, BX, BY, Width, Height, IntDen, RawIntDen, Median, Skew, Kurt) with the matrix's
+  units, and each is what ImageJ means by it: its mode the middle of the fullest of 256 bins, its bounding rectangle's upper
+  edge, its kurtosis less 3. A table read beside ImageJ's must not need a translation.
+- **Kurve's arithmetic.** ImageJ works out the standard deviation and the higher moments from running sums of powers; on
+  values with a large offset that loses digits (its kurtosis can be meaningless). Kurve keeps the definitions and works them out
+  from the deviations, and says so in Help. *Values as ImageJ holds them* rounds to single precision for whoever wants ImageJ's
+  numbers to the last digit.
+- **A region is given in X and Y, and taken as ImageJ would.** People think in micrometres, not pixels: the dialog takes the
+  edges or corners in the matrix's units, picks the cells ImageJ's selection would (its oval mask, its polygon rule for a centre
+  on an edge), says how many, and gives the selection in ImageJ's macro language, so the same region can be measured there.
+- **Seen on the map.** *Show the region on its map* draws it over the matrix's image, so the cells measured are the ones meant;
+  a matrix's map takes annotations for it (a map of a series still does not, its Y being an index).
+
 ### 2026-11-19: a matrix for ImageJ (QUDI_SPEC Q.2)
 
 - **ImageJ opens it as Kurve shows it.** The image is written with its top row the largest Y and ImageJ told to count Y upwards

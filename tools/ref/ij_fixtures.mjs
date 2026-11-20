@@ -35,13 +35,48 @@ const refusals = [
   C("listed, not evenly spaced", { nx: 4, ny: 2, x: { v: [0, 1, 3, 4] }, y: { a: 0, b: 1 }, z: vals(8, (i) => i) }, {}),
   C("X one value throughout", { nx: 3, ny: 2, x: { v: [2, 2, 2] }, y: { a: 0, b: 1 }, z: vals(6, (i) => i) }, {}),
 ];
-const dir = mkdtempSync(join(tmpdir(), "kurve-ij-")), out = [];
-cases.forEach((c, k) => { const t = matTiff(c.m, c.o); if (t.fail) throw new Error(`${c.name}: ${t.fail}`);
-  const f = `c${String(k).padStart(2, "0")}.tif`; writeFileSync(join(dir, f), t.bytes); c.file = f; c.sha = createHash("sha256").update(t.bytes).digest("hex"); });
+/* Measure (QUDI_SPEC Q.3): images of noise, a spot with empty cells, steps, whole numbers making bins exactly 1 wide, values on
+   a large offset, descending axes, one value throughout, a polygon whose edges pass through the cells' centres; each measured
+   over the whole image, rectangles, ovals and polygons (convex, concave, partly outside) given in X and Y. */
+const gauss = () => { let t = 0; for (let k = 0; k < 6; k++) t += rnd(); return (t - 3) * Math.SQRT2; };
+const R = (kind, a) => Object.assign({ kind }, a), ALL = R("all");
+const meas = [
+  Object.assign(C("noise", { nx: 9, ny: 7, x: { a: -2, b: 2 }, y: { a: 0, b: 3 }, z: vals(63, () => Math.round((1000 + 30 * gauss()) * 100) / 100) }, { xunit: "µm", yunit: "µm", zunit: "c/s" }),
+    { regs: [ALL, R("rect", { x0: -1, x1: 1.2, y0: 0.4, y1: 2 }), R("oval", { x0: -2, x1: 2, y0: 0, y1: 3 }), R("oval", { x0: -1.5, x1: 1.5, y0: 0.5, y1: 2.5 }),
+      R("poly", { pts: [[-1.7, 0.2], [1.6, 0.4], [0.3, 2.8]] }), R("poly", { pts: [[-2, 0], [2, 0], [2, 1], [-0.4, 1.1], [-0.6, 3], [-2, 3]] }),
+      R("poly", { pts: [[-3, -1], [1, -0.5], [0.5, 1.7]] })] }),
+  Object.assign(C("a spot with empty cells", { nx: 15, ny: 11, x: { a: 0, b: 7 }, y: { a: 0, b: 5 }, z: vals(165, (i) => { const c = i % 15, r = Math.floor(i / 15); return (c * 7 + r * 3) % 23 === 0 ? null : 200 + 5000 * Math.exp(-((c - 9) ** 2 + (r - 4) ** 2) / 6) + 10 * gauss(); }) }, { xunit: "µm", yunit: "µm", zunit: "c/s" }),
+    { regs: [ALL, R("oval", { x0: 3, x1: 6, y0: 0.5, y1: 3.5 }), R("rect", { x0: 0, x1: 2, y0: 0, y1: 5 }), R("poly", { pts: [[2.2, 0.3], [6.9, 1.1], [5.1, 4.6], [3.3, 3.9]] })] }),
+  Object.assign(C("steps", { nx: 8, ny: 6, x: { a: 1, b: 8 }, y: { a: 1, b: 6 }, z: vals(48, (i) => 1 + Math.floor((i % 8) / 3) + (Math.floor(i / 8) > 2 ? 1 : 0)) }, { xunit: "µm", yunit: "µm" }),
+    { regs: [ALL, R("rect", { x0: 2, x1: 5, y0: 2, y1: 5 }), R("oval", { x0: 1, x1: 8, y0: 1, y1: 6 })] }),
+  Object.assign(C("whole numbers, bins 1 wide", { nx: 17, ny: 16, x: { a: 0, b: 16 }, y: { a: 0, b: 15 }, z: vals(272, (i) => (i * 37) % 257) }, {}), { regs: [ALL, R("rect", { x0: 3, x1: 12, y0: 2, y1: 13 })] }),
+  Object.assign(C("a large offset", { nx: 10, ny: 10, x: { a: 0, b: 0.9 }, y: { a: 0, b: 0.9 }, z: vals(100, () => 1e4 + 1e-3 * Math.round(1000 * rnd())) }, { xunit: "mm", yunit: "mm", zunit: "V" }),
+    { regs: [ALL, R("oval", { x0: 0.1, x1: 0.8, y0: 0, y1: 0.9 })] }),
+  Object.assign(C("descending axes", { nx: 6, ny: 5, x: { a: 5, b: -5 }, y: { a: 3, b: -3 }, z: vals(30, (i) => i * i - 7 * i) }, { xunit: "µm", yunit: "µm" }),
+    { regs: [ALL, R("rect", { x0: -3, x1: 3.5, y0: -2, y1: 1 }), R("poly", { pts: [[4, 2], [-4, 2.5], [0, -2.8]] })] }),
+  Object.assign(C("one value throughout", { nx: 4, ny: 3, x: { a: 0, b: 3 }, y: { a: 0, b: 2 }, z: vals(12, () => 42.5) }, { xunit: "µm", yunit: "µm" }), { regs: [ALL, R("rect", { x0: 1, x1: 1, y0: 1, y1: 1 })] }),
+  Object.assign(C("edges through the centres", { nx: 5, ny: 5, x: { a: 0, b: 4 }, y: { a: 0, b: 4 }, z: vals(25, (i) => i + 0.25) }, { xunit: "µm", yunit: "µm" }),
+    { regs: [R("poly", { pts: [[1, 3], [4, 3], [4, 0], [1, 0]] }), R("poly", { pts: [[0, 0], [4, 0], [4, 4]] })] }),
+  Object.assign(C("a qudi scan", { nx: 7, ny: 5, x: { a: -1.9999999999999998, b: 1.9999999999999998 }, y: { a: -0.9999999999999999, b: 4.999999999999999 }, z: vals(35, () => Math.round(5e4 * rnd()) / 7) }, { xunit: "µm", yunit: "µm", zunit: "c/s" }),
+    { regs: [ALL, R("oval", { x0: -1, x1: 1.4, y0: 0.5, y1: 3.5 })] }),
+];
+const measFail = [
+  { name: "a rectangle between the columns", m: meas[0].m, reg: R("rect", { x0: 0.1, x1: 0.3, y0: 0, y1: 3 }) },
+  { name: "a polygon of two corners", m: meas[0].m, reg: R("poly", { pts: [[0, 0], [1, 1]] }) },
+  { name: "a polygon outside the matrix", m: meas[0].m, reg: R("poly", { pts: [[10, 10], [12, 10], [11, 12]] }) },
+  { name: "every cell empty", m: { nx: 2, ny: 2, x: { a: 0, b: 1 }, y: { a: 0, b: 1 }, z: [null, null, null, null] }, reg: ALL },
+];
+const dir = mkdtempSync(join(tmpdir(), "kurve-ij-")), out = [], jobs = {};
+const write = (c, k, pre) => { const t = matTiff(c.m, c.o); if (t.fail) throw new Error(`${c.name}: ${t.fail}`);
+  const f = `${pre}${String(k).padStart(2, "0")}.tif`; writeFileSync(join(dir, f), t.bytes); c.file = f; c.sha = createHash("sha256").update(t.bytes).digest("hex"); };
+cases.forEach((c, k) => write(c, k, "c"));
+meas.forEach((c, k) => { write(c, k, "m"); jobs[c.file] = { ax: { x: c.m.x, y: c.m.y, nx: c.m.nx, ny: c.m.ny }, regs: c.regs }; });
+writeFileSync(join(dir, "jobs.json"), JSON.stringify(jobs));
 const read = JSON.parse(execFileSync("python3.13", ["-I", join(here, "ij_read.py"), dir], { encoding: "utf8", maxBuffer: 1 << 28 }));
 rmSync(dir, { recursive: true, force: true });
 for (const c of cases) out.push({ name: c.name, m: c.m, o: c.o, sha: c.sha, pil: read[c.file].pil, ij: read[c.file].ij });
-const fx = { about: "Kurve's TIFF for ImageJ (QUDI_SPEC Q.2), read by Pillow and by ImageJ 1.54f's reading written out from its source (tools/ref/ij_read.py)", cases: out,
-  refusals: refusals.map((c) => ({ name: c.name, m: c.m, o: c.o, fail: true })) };
+const mout = meas.map((c) => ({ name: c.name, m: c.m, o: c.o, sha: c.sha, regs: c.regs, res: read[c.file].meas }));
+const fx = { about: "Kurve's TIFF for ImageJ (QUDI_SPEC Q.2), read by Pillow and by ImageJ 1.54f's reading written out from its source; ImageJ's Measure on it (Q.3), its own arithmetic written out from its source and the same definitions in exact arithmetic (tools/ref/ij_read.py)", cases: out,
+  refusals: refusals.map((c) => ({ name: c.name, m: c.m, o: c.o, fail: true })), meas: mout, measFail };
 writeFileSync(join(here, "fixtures", "imagej.json"), JSON.stringify(fx) + "\n");
-console.log(`${out.length} cases, ${refusals.length} refusals → tools/ref/fixtures/imagej.json`);
+console.log(`${out.length} cases, ${refusals.length} refusals, ${mout.length} images measured over ${mout.reduce((t, c) => t + c.regs.length, 0)} regions → tools/ref/fixtures/imagej.json`);

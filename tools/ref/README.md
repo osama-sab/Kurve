@@ -69,7 +69,9 @@ The suite's menu crawl (`tools/ux/crawl.py`) needs Python's `playwright` package
 (`python3.13 -I`, Pillow on the path: Pillow's pixels and tags, and ImageJ 1.54f's reading of them written out from its source)
 and writes `fixtures/imagej.json` with each file's SHA-256, which ref-test checks matTiff still writes. `tools/ref/ij/IJRef.java`
 is the same readout from ImageJ itself, for where its jar may be run (not run in this repository's checks: the environment that
-built them refused it):
+built them refused it). The same script measures (QUDI_SPEC Q.3): `jobs.json` beside the TIFFs names regions, and each is measured by
+ImageJ's Measure written out from its source (its FloatStatistics' raw sums, OvalRoi's mask, PolygonFiller with float corners) and by
+the same definitions in exact rationals, which ref-test judges Kurve's `ijMeasure` against:
 
 ```sh
 javac -cp ij.jar -d /tmp/ijref tools/ref/ij/IJRef.java
