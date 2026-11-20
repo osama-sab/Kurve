@@ -1024,6 +1024,16 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## qudi's confocal scans, slice Q.7: intensities with their noise (2026-11-20)
+
+- **Measure…**'s part *Beyond ImageJ*: the region's sum and mean with their standard errors (each cell's shot noise from the pixel
+  time, or the ring's scatter), a background per cell from a ring of cells about the region, the sum less it with its error, the
+  integrated intensity less it, and the signal to noise. The noise and pixel time start from the scan's header.
+
+Checked: `kMeasure` against exact fractions on four cases of the NV scan (2e-16, ref-test); over 2000 Poisson repeats the sum less its
+background and the background each off by their errors (pulls of SD 1.03 and 1.00), the ring's scatter likewise for additive noise
+(img-test, 5 new); qudi-drive (6 new). Found: a ring that starts inside a spot's tails raises its background, which Help now says.
+
 ## qudi's confocal scans, slice Q.5: Spots, beyond ImageJ (2026-11-20)
 
 The user's request: "Run tests on it, check that it works properly, I want analysis better than imagej". The suite ran (every part

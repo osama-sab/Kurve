@@ -1219,6 +1219,14 @@ graph first, with the taskbar kept at the bottom of the screen.
   emitters, a pair 0.30 µm apart) and `fixtures/spots.json` (six cases worked out again with SciPy's least_squares from the same
   definitions); ref-test's `spotFit.count` (exact), `.values` (against their errors, 1e-6), `.errors` (1e-6) and `.truth` (a
   noise-free case, 1e-12); `tools/img-test.mjs` the properties.
+  **Intensities with their noise** (QUDI_SPEC Q.7): in MAT `kMeasure(M, reg, {noise, t, ring})` (over `ijRegion`'s cells: the sum and
+  mean, Neumaier's sums; the ring the cells outside within `ring` of a region cell, by X and Y; the background their mean; errors from
+  each cell's shot noise (`rate`, `counts`), or the ring's SD for every cell (`scatter` with a ring), or none; the net sum's error
+  √(σ²_sum + n²σ²_bg); `{n, cells, sum, ssum, mean, smean, nb, bg, sbg, sdB, net, snet, ca, netI, snetI, snr, ringIdx, cellIdx, noise,
+  how}` or `{fail}`). The kind `ijmeasure` takes `p.noise`, `t`, `ring` and adds the section *Beyond ImageJ* (keys `k` + sum, ssum,
+  smean, bg, sbg, nb, net, snet, netI, snetI, snr) and a line of its method; its form `#aQn`, `#aQt`, `#aQg`; `noiseStart(s)` (the noise
+  and pixel time from a matrix's header and Z's unit, shared with `spxStart`) in `ijmStart`. `spot_fixtures.py`'s `kmeasure` cases
+  (exact fractions) and ref-test's `kMeasure.cells`, `kMeasure.values` (1e-14).
   `tools/ref/qudi_fixtures.py` writes `tools/ref/qudi/` as qudi-core 1.5.0 and the classic `save_logic` do (their
   code reproduced, not run) and `fixtures/qudi.json`; `tools/parser-test.mjs` reads them, `tools/qudi-drive.mjs` imports them.
   `batchFile` reads one-column
@@ -3911,7 +3919,8 @@ ijProfile, plotted and drawn on the map, a diagonal, a changed cell followed by 
 the matrices. Q.5, Spots (the NV scan read from qudi's classic file as the reference has it, the dialog's shot noise, pixel time and
 prominence from the header and the scatter, a refusal, each row against spotFit, the 13 emitters within their errors of the truth,
 the method, the rings once however often asked, the positions plotted with both errors, elliptical spots and their residuals as a
-matrix from the matrix window's menu, a spot typed into the scan found when it is worked out again, a reload).
+matrix from the matrix window's menu, a spot typed into the scan found when it is worked out again, a reload); Q.7, Measure's Beyond
+ImageJ (the noise and pixel time from the header, a ring refused below zero, each column kMeasure's, a spot's light 61 times its error).
 `node tools/img-test.mjs [path]` checks the image analyses' properties (QUDI_SPEC Q.5 to Q.8): a spot's position, FWHM, peak and
 background each with an error equal to its spread over 300 Poisson repeats and no bias, the reduced χ² near 1, a lone spot split
 in at most 1 %, an elliptical spot fitted round not split, two spots 0.8 FWHM apart found as two and biased when fitted as one, the
@@ -5679,7 +5688,9 @@ slices are done. Then, 20.11, the user's request: the suite run, and analysis be
 pixel time known, every number with its shot-noise error) and 10 (beyond ImageJ, beside it) and slices Q.5 to Q.8. Slice Q.5 done
 20.11: spots fitted as two-dimensional Gaussians by Poisson's maximum likelihood, each position, FWHM, peak, background and volume
 with an honest error (pulls of SD 1 over 300 repeats), spots that make one maximum split by the likelihood ratio, the NV scan's 13
-emitters found within their errors; SciPy agreeing to 1e-7 of the errors.
+emitters found within their errors; SciPy agreeing to 1e-7 of the errors. Slice Q.7 done 20.11: Measure's sums with their shot-noise
+errors, a background from a ring about the region, the sum less it and the signal to noise; exact against fractions, the errors the
+spread over 2000 Poisson repeats.
 
 ## Known gaps
 

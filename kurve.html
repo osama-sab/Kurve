@@ -10223,8 +10223,15 @@ ANA_KINDS.ijmeasure={label:"Measure (ImageJ)", base:"Measure", typed:true, typed
     if(r.miss) notes.push(`${r.miss} empty cell${r.miss===1?"":"s"} of the region left out.`);
     if(r.xm==null) notes.push("The values sum to 0: there is no centre of mass.");
     if(r.skew==null) notes.push("The values do not spread: there is no skewness or kurtosis.");
+    // beyond ImageJ (Q.7): the sum and mean with their noise, the background from a ring, the sum less it, the signal to noise
+    let kmeth=""; if(p.noise||p.ring){ const K=kMeasure({nx:M.nx,ny:M.ny,xs:M.xs,ys:M.ys,z:M.z},reg,{noise:p.noise,t:p.t,ring:p.ring});
+      if(K.fail) notes.push(K.fail); else {
+        anaTab("Beyond ImageJ",[["sum",U("Sum",zu)],["ssum",U("SE of sum",zu)],["smean",U("SE of mean",zu)],["bg",U("Background per cell",zu)],["sbg",U("SE of background",zu)],["nb","Cells in the ring"],
+          ["net",U("Sum less background",zu)],["snet",U("SE of it",zu)],["netI",U("Integrated less background",iu)],["snetI",U("SE of integrated",iu)],["snr","Signal to noise"]],[K],cols,secs,"k");
+        kmeth=` Beyond ImageJ: the sum and the mean with their standard errors from ${K.how==="shot"?(p.noise==="rate"?`each cell's shot noise, √N over the pixel time ${fmt(+p.t,6)} s`:"each cell's shot noise, √N"):K.how==="ring"?"the ring's scatter (its SD for every cell)":"nothing (no ring, no shot noise: no errors)"}${K.nb?`; the background the mean of the ${K.nb} cells outside the region within ${fmt(+p.ring,4)}${xu?" "+xu:""} of it, taken off each of the ${K.n} cells`:""}.`;
+        if(K.how==="none") notes.push("No errors beyond ImageJ: give the pixel time for the shot noise, or a background ring for the scatter."); } }
     const G=r.geom, method=`ImageJ 1.54f's Analyze › Measure of ${mq.name} (${M.ny} × ${M.nx}) over ${ijRegText(reg)}: ${r.cells} cell${r.cells===1?"":"s"}, ${r.n} with a value, each a pixel of ${fmt(G.pw,6)}${xu?" "+xu:""} by ${fmt(G.ph,6)}${yu?" "+yu:""}; ImageJ's definitions (StdDev over n − 1, the mode the middle of the fullest of 256 bins from Min to Max, Skew and Kurt from the moments over n, Kurt less 3, X and Y the cells' mean position, XM and YM weighted by the values, BX and BY the bounding rectangle's left and upper edges), worked out in doubles${p.single?" on the values rounded to single precision, as ImageJ's 32-bit image holds them":""}; the same selection in ImageJ, on the TIFF Kurve writes for this matrix: ${r.region.macro}`;
-    return {tables:[{cols}],report:{sections:secs,method,ijm:{mat:p.mat||null,region:reg,rect:[r.bx,r.by,r.w,r.h],macro:r.region.macro}},notes}; }};
+    return {tables:[{cols}],report:{sections:secs,method:method+kmeth,ijm:{mat:p.mat||null,region:reg,rect:[r.bx,r.by,r.w,r.h],macro:r.region.macro}},notes}; }};
 /* ImageJ's Find Maxima and Plot Profile on a matrix (QUDI_SPEC Q.4): ijMaxima and ijProfile (the MAT block); a row a maximum in
    ImageJ's order with its position, value and ImageJ's pixel, or the line's samples against the distance along it. */
 ANA_KINDS.ijmaxima={label:"Find maxima (ImageJ)", base:"Maxima", typed:true, typedWhat:"a matrix",
@@ -10765,6 +10772,37 @@ function spotFit(M,o){ o=o||{}; const nx=M.nx, ny=M.ny, z=M.z, X=M.xs||matAxis(M
   ok.forEach(i=>{ let d=Infinity; ok.forEach(j=>{ if(j!==i){ const ex=spots[i].x-spots[j].x, ey=spots[i].y-spots[j].y, q=Math.hypot(ex,ey); if(q<d) d=q; } }); spots[i].nn=Number.isFinite(d)?d:null; });
   return {spots,groups,R,w0,auto,wn:W0.n,seeds:seeds.length,pix,noise,t:noise==="rate"?t:null,shape,area:(xhi-xlo)*(yhi-ylo),bg:W0.bg,notes};
 }
+/* Intensities with their noise (QUDI_SPEC Q.7, beyond ImageJ): over the cells ImageJ's selection takes (ijRegion), the sum and the
+   mean, a background from a ring of cells about the region (the cells outside it whose centres are within `ring` of a cell of it),
+   and the sum less the background; each with its standard error. The noise of a cell: its shot noise (decision 9: `rate`,
+   √max(v·t, 1)/t; `counts`, √max(v, 1)), or else the ring's scatter (its SD, the same for every cell), or none without a ring.
+   kMeasure(M, reg, {noise, t, ring}) → {n, sum, ssum, mean, smean, nb, bg, sbg, net, snet, ca (a cell's area), netI, snetI, snr, ringIdx,
+   cellIdx, noise, how} or {fail} in words. */
+function kMeasure(M,reg,o){ o=o||{}; const nx=M.nx, ny=M.ny, z=M.z;
+  if(!(nx>=1&&ny>=1)||!z||z.length<nx*ny) return {fail:"The matrix has no cells."};
+  const G=ijGeom(M.x||{v:M.xs},M.y||{v:M.ys},nx,ny); if(G.fail) return G;
+  const xs=M.xs||matAxis(M.x,nx), ys=M.ys||matAxis(M.y,ny), R=ijRegion(G,xs,ys,reg); if(R.fail) return R;
+  const noise=["rate","counts"].includes(o.noise)?o.noise:"scatter", t=+o.t, ring=+o.ring>0?+o.ring:0;
+  if(noise==="rate"&&!(t>0)) return {fail:"The shot noise of a count rate needs the pixel time, above 0 s."};
+  const inR=new Uint8Array(nx*ny), cellIdx=[];
+  for(let y=0;y<R.h;y++) for(let x=0;x<R.w;x++){ if(R.mask&&!R.mask[y*R.w+x]) continue; const k=G.row(R.y0+y)*nx+G.col(R.x0+x); inR[k]=1; cellIdx.push(k); }
+  const ok=k=>z[k]!=null&&Number.isFinite(+z[k]), V=cellIdx.filter(ok).map(k=>+z[k]); if(!V.length) return {fail:"The region holds no cell with a value."};
+  if(noise!=="scatter"&&V.some(v=>v<0)) return {fail:"A count is below zero, so its shot noise means nothing: take the noise from the ring's scatter."};
+  const ns=a=>{ let s=0, c=0; for(const v of a){ const u=s+v; c+=Math.abs(s)>=Math.abs(v)?(s-u)+v:(v-u)+s; s=u; } return s+c; };
+  const var1=v=>noise==="rate"?Math.max(v*t,1)/(t*t):Math.max(v,1);
+  // the ring: a cell outside the region whose centre is within `ring` of a region cell's (by X and Y in their units)
+  const ringIdx=[]; if(ring>0){ const dx=Math.abs(xs[1]-xs[0])||1, dy=Math.abs(ys[1]-ys[0])||1, cr=Math.ceil(ring/dx), rr=Math.ceil(ring/dy), seen=new Uint8Array(nx*ny), r2=ring*ring*(1+1e-12);
+    for(const k of cellIdx){ const c0=k%nx, r0=(k-c0)/nx; for(let r=Math.max(0,r0-rr);r<=Math.min(ny-1,r0+rr);r++) for(let c=Math.max(0,c0-cr);c<=Math.min(nx-1,c0+cr);c++){ const q=r*nx+c; if(inR[q]||seen[q]) continue;
+        const ex=xs[c]-xs[c0], ey=ys[r]-ys[r0]; if(ex*ex+ey*ey<=r2){ seen[q]=1; ringIdx.push(q); } } }
+    ringIdx.sort((a,b)=>a-b); }
+  const B=ringIdx.filter(ok).map(k=>+z[k]), n=V.length, nb=B.length, sum=ns(V);
+  if(ring>0&&!nb) return {fail:"The ring about the region holds no cell with a value: widen it."};
+  const bg=nb?ns(B)/nb:null; let sdB=null; if(nb>1){ const d=B.map(v=>v-bg), e=ns(d)/nb; sdB=Math.sqrt(ns(d.map(v=>(v-e)*(v-e)))/(nb-1)); }
+  let ssum=null, smean=null, sbg=null, how;
+  if(noise!=="scatter"){ ssum=Math.sqrt(ns(V.map(var1))); smean=ssum/n; if(nb) sbg=Math.sqrt(ns(B.map(var1)))/nb; how="shot"; }
+  else if(nb>1){ ssum=sdB*Math.sqrt(n); smean=sdB/Math.sqrt(n); sbg=sdB/Math.sqrt(nb); how="ring"; } else how="none";
+  const net=nb?sum-n*bg:null, snet=nb&&ssum!=null&&sbg!=null?Math.sqrt(ssum*ssum+n*n*sbg*sbg):null, ca=Math.abs((xs[nx-1]-xs[0])/(nx-1||1))*Math.abs((ys[ny-1]-ys[0])/(ny-1||1));
+  return {n,cells:cellIdx.length,sum,ssum,mean:sum/n,smean,nb,bg,sbg,sdB,net,snet,ca,netI:net!=null?net*ca:null,snetI:snet!=null?snet*ca:null,snr:snet>0?net/snet:null,ringIdx,cellIdx,noise,how}; }
 /* ==MAT:END== */
 /* ==SIG:START== Signal processing and mathematics (ux/spec/SIGNAL_SPEC.md, wave 5), pure: the transform of any
    length, windows and spectra (5.1); the later slices' filters, correlation, envelopes, wavelets, interpolation and
@@ -22465,25 +22503,32 @@ const ANA_FORMS={
         <label for="aQx0" class="tipd" title="The cells whose X lies within these, the edges included">X from</label><span class="anarows"><input id="aQx0" type="text" class="num" value="${v(p.x0)}"> to <input id="aQx1" type="text" class="num" aria-label="X to" value="${v(p.x1)}"></span>
         <label for="aQy0" class="tipd" title="The cells whose Y lies within these, the edges included">Y from</label><span class="anarows"><input id="aQy0" type="text" class="num" value="${v(p.y0)}"> to <input id="aQy1" type="text" class="num" aria-label="Y to" value="${v(p.y1)}"></span>
         <label for="aQp" class="tipd" title="The polygon's corners, x and y one corner a line; a cell is in it when its centre is">Corners</label><textarea id="aQp" rows="4" class="mono" spellcheck="false" placeholder="x y, one a line">${esc(pts)}</textarea>
-        <span></span><label class="chk tipd" title="Every value rounded to single precision first, as ImageJ's 32-bit image holds them, so the numbers are ImageJ's to the last digit"><input type="checkbox" id="aQs"${p.single?" checked":""}> Values as ImageJ holds them</label></div>
+        <span></span><label class="chk tipd" title="Every value rounded to single precision first, as ImageJ's 32-bit image holds them, so the numbers are ImageJ's to the last digit"><input type="checkbox" id="aQs"${p.single?" checked":""}> Values as ImageJ holds them</label>
+        <span class="lab" style="grid-column:1/-1">Beyond ImageJ</span>
+        <label for="aQn" class="tipd" title="Each cell's noise: its shot noise, √N, when its value is a count or a count rate whose pixel time is known; else the ring's scatter, one figure for every cell">Noise</label><select id="aQn">${SPOT_NOISE.map(([k,t])=>`<option value="${k}"${k===(p.noise||"scatter")?" selected":""}>${t==="From the scatter"?"From the ring's scatter":t}</option>`).join("")}</select>
+        <label for="aQt" class="tipd" title="How long each cell counted, in seconds: from the scan's header when it says">Pixel time (s)</label><span class="anarows"><input id="aQt" type="text" class="num" value="${v(p.t)}"></span>
+        <label for="aQg" class="tipd" title="The background: the cells outside the region whose centres are within this distance of a cell of it, their mean taken off every cell of the region; empty for none">Background ring${(()=>{ const s=matOf(sid); return s&&s.xunit?` (${esc(s.xunit)})`:""; })()}</label><input id="aQg" type="text" class="num" placeholder="None" value="${v(p.ring)}"></div>
         <p class="note" id="aQmsg" aria-live="polite"></p>`; },
     wire(box){ const F=ANA_FORMS.ijmeasure, vals=()=>{ const r={}; box.querySelectorAll("input,select,textarea").forEach(el=>{ if(el.id) r[el.id]=el.type==="checkbox"?el.checked:el.value; }); return r; };
       const show=()=>{ const k=$("#aQr").value, hide=(id,h)=>{ const e=box.querySelector("#"+id), l=box.querySelector(`label[for="${id}"]`); if(e){ (e.closest(".anarows")||e).hidden=h; } if(l) l.hidden=h; };
-        hide("aQx0",!(k==="rect"||k==="oval")); hide("aQy0",!(k==="rect"||k==="oval")); hide("aQp",k!=="poly"); };
+        hide("aQx0",!(k==="rect"||k==="oval")); hide("aQy0",!(k==="rect"||k==="oval")); hide("aQp",k!=="poly"); hide("aQt",$("#aQn").value!=="rate"); };
       const msg=()=>{ const r=vals(), w=F.why(r), el=$("#aQmsg"); if(w){ el.textContent=w; el.className="note"; return; }
         const o=F.read(r), s=matOf(o.mat), G=ijGeom(s.x,s.y,s.nx,s.ny), R=G.fail?G:ijRegion(G,matAxis(s.x,s.nx),matAxis(s.y,s.ny),ijRegOf(o));
         let n=0; if(!R.fail){ if(!R.mask) n=R.w*R.h; else for(const b of R.mask) n+=b; }
         el.textContent=R.fail?R.fail:`${n} cell${n===1?"":"s"}: in ImageJ, ${R.macro}`; el.className="note"; };
-      box.addEventListener("change",e=>{ if(e.target.id==="aQr") show(); msg(); });
+      box.addEventListener("change",e=>{ if(e.target.id==="aQr"||e.target.id==="aQn") show(); msg(); });
       box.addEventListener("input",()=>msg());
       show(); msg(); },
     read(v){ const o={mat:v.aQm||null,region:IJ_REGIONS.some(e=>e[0]===v.aQr)?v.aQr:"all",single:!!v.aQs}, num=t=>{ const x=parseNum(String(t==null?"":t).trim()); return Number.isFinite(x)?x:null; };
+      o.noise=["rate","counts"].includes(v.aQn)?v.aQn:"scatter"; o.t=num(v.aQt); o.ring=num(v.aQg);
       if(o.region==="rect"||o.region==="oval"){ o.x0=num(v.aQx0); o.x1=num(v.aQx1); o.y0=num(v.aQy0); o.y1=num(v.aQy1); }
       if(o.region==="poly") o.pts=ijParsePts(v.aQp);
       return o; },
     why(r){ const o=ANA_FORMS.ijmeasure.read(r), s=o.mat&&matOf(o.mat); if(!s) return "Choose a matrix.";
       if((o.region==="rect"||o.region==="oval")&&[o.x0,o.x1,o.y0,o.y1].some(v=>v==null)) return "Give the edges in X and Y as numbers.";
       if(o.region==="poly"){ if(o.pts.bad) return `"${o.pts.bad}" is not a corner: write x and y, one corner a line.`; if(o.pts.length<3) return "A polygon needs three corners at least."; }
+      if(o.noise==="rate"&&!(o.t>0)) return "The shot noise of a count rate needs its pixel time, above 0 s.";
+      if(String(r.aQg||"").trim()&&!(o.ring>0)) return "The background ring is a distance above 0, or empty for none.";
       const G=ijGeom(s.x,s.y,s.nx,s.ny); if(G.fail) return G.fail;
       const R=ijRegion(G,matAxis(s.x,s.nx),matAxis(s.y,s.ny),ijRegOf(o)); return R.fail||""; },
     valid(r){ return !ANA_FORMS.ijmeasure.why(r); },
@@ -24527,7 +24572,7 @@ function ijParsePts(t){ const out=[]; for(const ln of String(t||"").split(/[\n;]
     if(q.length!==2||!v.every(Number.isFinite)){ out.bad=ln; continue; } out.push(v); } return out; }
 // The dialog's start: the matrix in front, and its window's selection as a rectangle when it is more than one cell.
 function ijmStart(sid){ sid=sid||matFront(); const s=matOf(sid); if(!s) return {};
-  const st=mxStFor(sid), o={mat:sid,region:"all"}; if(st&&(st.r!==st.er||st.c!==st.ec)){ const X=matAxis(s.x,s.nx), Y=matAxis(s.y,s.ny), n7=v=>+(+v).toPrecision(12);
+  const st=mxStFor(sid), o=Object.assign({mat:sid,region:"all"},noiseStart(s)); if(st&&(st.r!==st.er||st.c!==st.ec)){ const X=matAxis(s.x,s.nx), Y=matAxis(s.y,s.ny), n7=v=>+(+v).toPrecision(12);
     o.region="rect"; o.x0=n7(X[Math.min(st.c,st.ec)]); o.x1=n7(X[Math.max(st.c,st.ec)]); o.y0=n7(Y[Math.min(st.r,st.er)]); o.y1=n7(Y[Math.max(st.r,st.er)]); }
   return o; }
 // The report's Show the region on its map: the matrix's map (made if there is none) with the region drawn over it.
@@ -24568,10 +24613,12 @@ function spotDwell(s){ const m=s&&s.meta; if(!m) return null; for(const k of Obj
 const SPOT_RATE=/^(c\/s|cps|counts\/s|counts per second|hz|1\/s|s⁻¹|s\^-1)$/i, SPOT_COUNTS=/^(counts?|cts|photons?)$/i;
 // Spots' start: the matrix in front; five times the values' scatter about their median (1.4826 times the median distance) as the
 // prominence; the shot noise of a count rate when the header gives the pixel time and Z is a rate, of counts when Z is counts.
+// The noise a matrix's cells carry (decision 9): the shot noise of a count rate when the header gives the pixel time and Z is a rate, of
+// counts when Z is counts, else the scatter.
+function noiseStart(s){ const d=spotDwell(s), zu=(s.zunit||"").trim(); return {noise:d&&SPOT_RATE.test(zu)?"rate":SPOT_COUNTS.test(zu)?"counts":"scatter",t:d?+d.t.toPrecision(12):null}; }
 function spxStart(sid){ sid=sid||matFront(); const s=matOf(sid); if(!s) return {}; const v=s.z.filter(x=>x!=null&&Number.isFinite(x)).sort((a,b)=>a-b);
-  const md=quantileSorted(v,0.5), dv=v.map(x=>Math.abs(x-md)).sort((a,b)=>a-b), sc=1.4826*quantileSorted(dv,0.5), d=spotDwell(s), zu=(s.zunit||"").trim();
-  const noise=d&&SPOT_RATE.test(zu)?"rate":SPOT_COUNTS.test(zu)?"counts":"scatter";
-  return {mat:sid,prom:sc>0?+(5*sc).toPrecision(2):0,noise,t:d?+d.t.toPrecision(12):null,shape:"round",split:true,out:"none"}; }
+  const md=quantileSorted(v,0.5), dv=v.map(x=>Math.abs(x-md)).sort((a,b)=>a-b), sc=1.4826*quantileSorted(dv,0.5);
+  return Object.assign({mat:sid,prom:sc>0?+(5*sc).toPrecision(2):0,shape:"round",split:true,out:"none"},noiseStart(s)); }
 // The report's Show the spots on its map: a ring at each spot's FWHM (an ellipse, or a turned one as a polygon), one undo step.
 function spxShow(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const q=a.res&&a.res.report&&a.res.report.spt; if(!q||!matOf(q.mat)){ toast("Its matrix has gone."); return; }
   if(!q.spots.length){ toast("There are no spots to show."); return; } const g=ijMapOf(q.mat); if(!g) return; const s=matOf(q.mat), n7=v=>+(+v).toPrecision(12);
@@ -32456,6 +32503,8 @@ ${DL([["Transpose","Rows become columns, and X becomes Y."],["Flip","Left to rig
 <p>${MP("Analyze › Image › Spots…")} (or the window's Matrix › Spots…) measures each spot of a scan as ImageJ cannot: where it is to a small fraction of a cell, how wide, how bright above its background, and how sure each number is. The seeds are the maxima ImageJ's Find Maxima gives at the prominence (five times the values' scatter, to begin with). Each spot is fitted with a two-dimensional Gaussian, round or elliptical and turned, on a flat background, over the cells within the <em>window's radius</em> of it (1.5 times the median FWHM measured at the seeds, unless typed). Spots closer than twice that are fitted together, sharing their background, so a neighbour's light is not taken for one's own.</p>
 <p>When the scan's header says how long each cell counted (qudi's scanner clock, or the new format's pixel frequency), each cell is a count with its shot noise, √N: the fit is Poisson's maximum likelihood, the standard errors are those the counts allow, and the reduced χ² near 1 says Poisson's noise is all there is (above 1, the model is missing something: an elliptical spot fitted round, a second spot). Without the pixel time the errors come from the scatter about the fit. <em>Split spots that overlap</em> finds spots that make one maximum together: a spot is added where the residual is largest and kept when the likelihood ratio test of the two fits gives p below 0.001, the new spot is the size of the others and half a FWHM from them, and, for round spots, two round spots explain it better than one elliptical spot by a clear margin (Akaike's criterion, by more than 10). Two spots closer than their FWHM are found that way; for such pairs, choose round spots: two elliptical ones can share the light in several ways.</p>
 <p>A row a spot: X and Y with their standard errors (drawn as error bars when the positions are plotted), the FWHM (or both axes and the angle), the peak above the background, the background, the volume A·π·w₁·w₂/(4 ln 2), each with its error; the peak's t; the nearest other spot; its group; the reduced χ²; whether it settled, was added by splitting, or had its window cut by the edge. The summary gives the spots, the median FWHM and its spread (the point-spread function, the resolution), the median background and the density. The report rings each spot at its FWHM on the matrix's map and plots the positions; the model or the residuals can be written as a matrix. The analysis follows its matrix.</p>
+<h2 id="noise">Intensities with their noise</h2>
+<p>Measure… has a part <em>Beyond ImageJ</em>: the sum and the mean of the region with their standard errors, and, given a <em>background ring</em> (a distance), the background per cell, the mean of the cells outside the region within that distance of it, taken off every cell of the region: the sum less it, with its error, and the signal to noise (the sum less the background over its error). The errors come from each cell's shot noise, √N, when the scan's header gives the pixel time (or the values are counts), else from the ring's scatter, the same for every cell (right for a faint region on a noisy background; a bright one's own shot noise is then left out). Take a region that holds the spot's light, out to about 1.5 times its FWHM from its centre, and a ring beyond it: a spot's tails in the ring raise the background and take light off the sum.</p>
 <h2 id="maxima">Maxima and profiles as ImageJ finds them</h2>
 <p>${MP("Analyze › Image › Find maxima…")} (or the window's Matrix › ImageJ › Find maxima…) gives ImageJ's Process › Find Maxima: every local maximum that stands out by more than the <em>prominence</em> from what joins it to a higher one (a tenth of the values' range, to begin with; the dialog counts them as it is set), as ImageJ finds them: from the highest down, a flat top at the point nearest its middle, <em>Strict</em> and <em>Exclude edge maxima</em> as ImageJ's own, and <em>Light background</em> for the minima, dark spots on a light background. A row a maximum in ImageJ's order, with its X and Y (the cell's position), its value and its pixel in ImageJ's image; the method gives the command that finds the same in ImageJ. Empty cells are never maxima (ImageJ lists a NaN pixel as one). Its report rings each maximum on the matrix's map.</p>
 <p>${MP("Analyze › Image › Profile…")} (or the window's Matrix › ImageJ › Profile…) gives ImageJ's Analyze › Plot Profile of a straight line whose ends are given in X and Y (the cells selected in the window, corner to corner, or the middle row, to begin with): the values a pixel apart along it, each bilinear between the four cells about it, as ImageJ's own, against the distance in the matrix's units; along a row or a column of cells the samples are the cells' values. The dialog says how many samples, and the <code>makeLine</code> that draws the same line in ImageJ. Its report plots the profile and draws the line on the matrix's map. Both follow their matrix, and both have <em>Values as ImageJ holds them</em>, single precision as ImageJ's image.</p>

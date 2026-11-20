@@ -79,5 +79,24 @@ console.log("Spots: refusals");
   const none = fit(X, X, X.flatMap(() => X.map(() => 100)), { prom: 10 });
   check("a flat matrix: no spot, said", none.spots.length === 0 && /No maximum stands out/.test(none.notes.join(" ")), JSON.stringify(none.notes)); }
 
+console.log("Intensities with their noise");
+{ const kMeasure = get("kMeasure"), X = grid(24, 0, 0.1), Y = grid(24, 0, 0.1), t = 0.01, s0 = { x: 1.15, y: 1.2, A: 20000, w: 0.35 }, reg = { kind: "oval", x0: 0.75, x1: 1.55, y0: 0.8, y1: 1.6 };
+  const mu = scan(X, Y, 2000, [s0], t, null), K0 = kMeasure({ nx: 24, ny: 24, xs: X, ys: Y, x: { a: 0, b: 2.3 }, y: { a: 0, b: 2.3 }, z: mu }, reg, { noise: "rate", t, ring: 0.3 });
+  // what the method gives on the noise-free scan (the spot's tails in the ring raise its background: that is the measurement, and
+  // Help says to take a region that holds the spot's light)
+  const truth = K0.net, rnd = mul(404), pn = [], pb = [];
+  for (let k = 0; k < 2000; k++) { const K = kMeasure({ nx: 24, ny: 24, xs: X, ys: Y, x: { a: 0, b: 2.3 }, y: { a: 0, b: 2.3 }, z: scan(X, Y, 2000, [s0], t, rnd) }, reg, { noise: "rate", t, ring: 0.3 }); pn.push((K.net - truth) / K.snet); pb.push((K.bg - K0.bg) / K.sbg); }
+  const a = stat(pn), b = stat(pb);
+  check(`a spot's sum less its ring's background over 2000 Poisson repeats: its error the spread (pull SD ${a.sd.toFixed(3)}), no bias (${a.m.toFixed(3)})`, a.sd > 0.95 && a.sd < 1.05 && Math.abs(a.m) < 0.08, JSON.stringify(a));
+  check(`…the background per cell likewise (pull SD ${b.sd.toFixed(3)}, mean ${b.m.toFixed(3)})`, b.sd > 0.95 && b.sd < 1.05 && Math.abs(b.m) < 0.08, JSON.stringify(b));
+  // the ring's scatter, for additive noise (a faint signal on a noisy background, the noise the same for every cell)
+  const gs = (rnd) => { let u = 0, v = 0; while (u === 0) u = rnd(); v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }, r2 = mul(505), ps = [];
+  const faint = scan(X, Y, 50, [{ x: 1.15, y: 1.2, A: 30, w: 0.35 }], 1, null), tf = kMeasure({ nx: 24, ny: 24, xs: X, ys: Y, x: { a: 0, b: 2.3 }, y: { a: 0, b: 2.3 }, z: faint }, reg, { noise: "scatter", ring: 0.3 }).net;
+  for (let k = 0; k < 2000; k++) { const K = kMeasure({ nx: 24, ny: 24, xs: X, ys: Y, x: { a: 0, b: 2.3 }, y: { a: 0, b: 2.3 }, z: faint.map((v) => v + 4 * gs(r2)) }, reg, { noise: "scatter", ring: 0.3 }); ps.push((K.net - tf) / K.snet); }
+  const c = stat(ps); check(`the ring's scatter as each cell's noise, additive noise: pull SD ${c.sd.toFixed(3)}, mean ${c.m.toFixed(3)}`, c.sd > 0.93 && c.sd < 1.07 && Math.abs(c.m) < 0.08, JSON.stringify(c));
+  const none = kMeasure({ nx: 24, ny: 24, xs: X, ys: Y, x: { a: 0, b: 2.3 }, y: { a: 0, b: 2.3 }, z: mu }, reg, { noise: "scatter" });
+  check("no ring and no shot noise: the sums and no errors, said by how", none.ssum == null && none.net == null && none.how === "none" && Math.abs(none.sum - K0.sum) < 1e-9 * K0.sum, JSON.stringify({ ssum: none.ssum, how: none.how }));
+  check("a ring too narrow to hold a cell: refused in words", /holds no cell/.test(kMeasure({ nx: 24, ny: 24, xs: X, ys: Y, x: { a: 0, b: 2.3 }, y: { a: 0, b: 2.3 }, z: mu }, { kind: "all" }, { ring: 0.05 }).fail || "")); }
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

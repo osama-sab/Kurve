@@ -334,6 +334,29 @@ await page(async p => {
   check("a reload: both analyses there, up to date", r.length === 2 && r.every(Boolean), JSON.stringify(r));
 }, { name: "Q.5" });
 
+console.log("Q.7 Intensities with their noise");
+await page(async p => {
+  const SP = JSON.parse(readFileSync(join(here, "ref", "fixtures", "spots.json"), "utf8")), T = SP.scan.truth[5];
+  await p.setInputFiles("#fileIn", join(here, "ref", SP.scan.file)); await p.waitForFunction(() => matAll().length >= 1, null, { timeout: 8000 }); await p.waitForTimeout(400);
+  await p.click(".mb[data-menu=analyze]"); await p.waitForTimeout(150); await p.hover(".menu [role=menuitem]:has-text('Image')"); await p.waitForTimeout(250);
+  await p.locator(".menu [role=menuitem]:has-text('Measure…')").last().click(); await p.waitForSelector("#aQn", { timeout: 4000 });
+  let r = await p.evaluate(() => ({ n: $("#aQn").value, t: parseNum($("#aQt").value), tshown: !$("#aQt").closest(".anarows").hidden, ring: $("#aQg").value }));
+  check("Measure…'s Beyond ImageJ: the shot noise of a count rate and the pixel time from the header, no ring to begin with", r.n === "rate" && r.t === 0.01 && r.tshown && r.ring === "", JSON.stringify(r));
+  await p.selectOption("#aQr", "oval"); const e = { x0: T.x - 0.6, x1: T.x + 0.6, y0: T.y - 0.6, y1: T.y + 0.6 };
+  for (const [k, v] of Object.entries(e)) await p.fill(`#aQ${k}`, String(+v.toFixed(4))); await p.fill("#aQg", "0.4"); await p.waitForTimeout(100);
+  await p.fill("#aQg", "-1"); await p.waitForTimeout(80); r = await p.evaluate(() => ({ msg: $("#aQmsg").textContent, ok: $("#formOk").disabled }));
+  check("…a ring below zero: refused in words", /background ring is a distance above 0/.test(r.msg) && r.ok, JSON.stringify(r));
+  await p.fill("#aQg", "0.4"); await p.waitForTimeout(80); await p.click("#formOk");
+  await p.waitForFunction(() => { const a = anaList().find((x) => x.kind === "ijmeasure"); return a && a.res && (a.res.report || a.res.err); }, null, { timeout: 15000 });
+  r = await p.evaluate(() => { const a = anaList().find((x) => x.kind === "ijmeasure"), s = matOf(a.p.mat), K = kMeasure({ nx: s.nx, ny: s.ny, xs: matAxis(s.x, s.nx), ys: matAxis(s.y, s.ny), z: s.z }, ijRegOf(a.p), a.p);
+    const col = (k) => ((P().cols.find((c) => c.ana === a.id && c.ak === k) || {}).data || [])[0], nm = (k) => (P().cols.find((c) => c.ana === a.id && c.ak === k) || {}).name;
+    const same = ["sum", "ssum", "smean", "bg", "sbg", "nb", "net", "snet", "netI", "snetI", "snr"].every((k) => col("k" + k) === K[k]);
+    return { err: a.res.err, same, net: K.net, snet: K.snet, snr: K.snr, nb: K.nb, names: [nm("ksum"), nm("knet"), nm("ksnr")], method: a.res.report.method, imagej: col("raw") === K.sum }; });
+  check("…Kurve's columns beside ImageJ's: the sum, its error, the ring's background, the sum less it with its error and the signal to noise, each kMeasure's", !r.err && r.same && r.imagej && r.names.join("|") === "Sum (c/s)|Sum less background (c/s)|Signal to noise", JSON.stringify(r));
+  check(`…the spot's light above its background ${r.net.toPrecision(5)} ± ${r.snet.toPrecision(3)} c/s, ${r.snr.toFixed(0)} times its error, the ring of ${r.nb} cells`, r.snr > 50 && r.nb > 30, JSON.stringify(r));
+  check("…the method says how the errors and the background were found", /Beyond ImageJ: the sum and the mean with their standard errors from each cell's shot noise, √N over the pixel time 0\.01 s; the background the mean of the \d+ cells outside the region within 0\.4 µm of it/.test(r.method), r.method);
+}, { name: "Q.7" });
+
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -20194,5 +20194,106 @@
 ]
 ]
 }
+],
+"kmeasure": [
+{
+"name": "an oval about a spot, a ring of 0.4 \u00b5m, shot noise of a rate",
+"reg": {
+"kind": "oval",
+"x0": 17.055498675464435,
+"x1": 17.855498675464432,
+"y0": -0.3769653637428162,
+"y1": 0.42303463625718385
+},
+"o": {
+"noise": "rate",
+"t": 0.01,
+"ring": 0.4
+},
+"want": {
+"n": 34,
+"nb": 82,
+"sum": 533500.0,
+"mean": 15691.176470588236,
+"bg": 1809.7560975609756,
+"net": 471968.2926829268,
+"ssum": 7304.108432930059,
+"smean": 214.82671861558998,
+"sbg": 46.97892752258103,
+"snet": 7476.7181766892045
+}
+},
+{
+"name": "a rectangle about the pair, a ring of 0.3 \u00b5m, the ring's scatter",
+"reg": {
+"kind": "rect",
+"x0": 14.737985204390732,
+"x1": 16.037985204390733,
+"y0": -1.5016096831102537,
+"y1": -0.4016096831102537
+},
+"o": {
+"noise": "scatter",
+"ring": 0.3
+},
+"want": {
+"n": 90,
+"nb": 88,
+"sum": 697500.0,
+"mean": 7750.0,
+"bg": 1492.0454545454545,
+"net": 563215.9090909091,
+"ssum": 4169.3998350273405,
+"smean": 46.32666483363712,
+"sbg": 46.85014658882829,
+"snet": 5929.829549913141
+}
+},
+{
+"name": "the whole scan as counts, no ring",
+"reg": {
+"kind": "all"
+},
+"o": {
+"noise": "counts"
+},
+"want": {
+"n": 4096,
+"nb": 0,
+"sum": 10444200.0,
+"mean": 2549.853515625,
+"bg": null,
+"net": null,
+"ssum": 3231.748752610574,
+"smean": 0.7890011603053159,
+"sbg": null,
+"snet": null
+}
+},
+{
+"name": "a rectangle, no ring, the scatter: no errors",
+"reg": {
+"kind": "rect",
+"x0": 13.0,
+"x1": 14.0,
+"y0": 2.0,
+"y1": 2.6
+},
+"o": {
+"noise": "scatter"
+},
+"want": {
+"n": 40,
+"nb": 0,
+"sum": 618000.0,
+"mean": 15450.0,
+"bg": null,
+"net": null,
+"ssum": null,
+"smean": null,
+"sbg": null,
+"snet": null
+}
+}
 ]
 }

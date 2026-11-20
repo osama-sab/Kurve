@@ -192,6 +192,10 @@ region (an annulus about the region, or a region typed), the background per cell
 intensity less it ±, and the signal to noise. **Checks**: exact sums; the errors against the spread
 over 2000 Poisson repeats.
 
+**Done 20.11.** `kMeasure` in MAT, Measure's *Beyond ImageJ* (its noise and pixel time from the header, a ring typed); the ring is the
+cells outside the region within the distance of a region cell. Exact against fractions; pulls of SD 1.00 to 1.03 over 2000 repeats.
+A ring inside a spot's tails measures a higher background, as it must; Help says to take a region that holds the light.
+
 **Q.8 The shift between two scans.** Analyze › Image › Shift between scans…: two matrices on the same
 grid (two scans, a forward and a back scan), their shift by the peak of their cross-correlation,
 refined to a fraction of a pixel by an upsampled DFT about it (Guizar-Sicairos, Thurman and Fienup,

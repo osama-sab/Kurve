@@ -29,7 +29,8 @@ sys.path.insert(0, here)
 import numpy as np
 from scipy.optimize import least_squares
 from scipy.stats import chi2 as CHI2, f as FDIST
-from ij_read import find_maxima
+from ij_read import find_maxima, roi_of
+from fractions import Fraction
 
 L16 = 4 * math.log(2)
 OUT = os.path.join(here, "qudi", "nv"); os.makedirs(OUT, exist_ok=True)
@@ -266,6 +267,41 @@ out = []
 for c in cases:
     r = spot_fit(c["m"], c["o"]); out.append(dict(name=c["name"], m=c["m"], o=c["o"], want=r, exact=c.get("exact")))
     print(f'{c["name"]}: {len(r["spots"])} spots from {r["seeds"]} seeds in {len(r["groups"])} groups, R {r["R"]:.4f}')
-json.dump(dict(scan=dict(file=os.path.join("qudi", "nv", fname), truth=truth, t=t), cases=out), open(os.path.join(here, "fixtures", "spots.json"), "w"), indent=0,
+# ---- intensities with their noise (QUDI_SPEC Q.7): the region's cells as ImageJ's port takes them (rectangles and ovals), the
+# ring the cells outside within `ring` of a region cell, every sum in exact fractions, the errors by fsum ----------------------
+def kmeasure(m, reg, o):
+    nx, ny = m["nx"], m["ny"]; X = lin(m["x"]["a"], m["x"]["b"], nx); Y = lin(m["y"]["a"], m["y"]["b"], ny); z = m["z"]
+    pw, ph = (X[-1] - X[0]) / (nx - 1), (Y[-1] - Y[0]) / (ny - 1)
+    x0, y0, w, h, mask, _ = roi_of(reg, dict(cx=sorted(X), cy=sorted(Y, reverse=True), pw=pw, ph=ph), nx, ny)
+    cells = sorted((ny - 1 - (y0 + y)) * nx + (x0 + x) for y in range(h) for x in range(w) if mask is None or mask[y][x])
+    inr = set(cells); noise, t, ring = o.get("noise", "scatter"), o.get("t"), o.get("ring") or 0
+    rg = []
+    if ring > 0:
+        r2 = ring * ring * (1 + 1e-12)
+        for q in range(nx * ny):
+            if q in inr: continue
+            c, r = q % nx, q // nx
+            if any((X[c] - X[k % nx]) ** 2 + (Y[r] - Y[k // nx]) ** 2 <= r2 for k in cells): rg.append(q)
+    V = [z[k] for k in cells if z[k] is not None]; B = [z[k] for k in rg if z[k] is not None]; n, nb = len(V), len(B)
+    var1 = lambda v: max(v * t, 1) / (t * t) if noise == "rate" else max(v, 1)
+    S = sum(Fraction(v) for v in V); bg = sum(Fraction(v) for v in B) / nb if nb else None
+    out = dict(n=n, nb=nb, sum=float(S), mean=float(S / n), bg=float(bg) if nb else None, net=float(S - n * bg) if nb else None)
+    if noise != "scatter":
+        ss = math.sqrt(math.fsum(var1(v) for v in V)); sb = math.sqrt(math.fsum(var1(v) for v in B)) / nb if nb else None
+    elif nb > 1:
+        sd = math.sqrt(float(sum((Fraction(v) - bg) ** 2 for v in B) / (nb - 1))); ss, sb = sd * math.sqrt(n), sd / math.sqrt(nb)
+    else: ss = sb = None
+    out.update(ssum=ss, smean=ss / n if ss is not None else None, sbg=sb, snet=math.sqrt(ss * ss + n * n * sb * sb) if ss is not None and sb is not None else None)
+    return out
+T5, Tp = truth[5], truth[3]
+kcases = [
+    dict(name="an oval about a spot, a ring of 0.4 µm, shot noise of a rate", reg=dict(kind="oval", x0=T5["x"] - 0.4, x1=T5["x"] + 0.4, y0=T5["y"] - 0.4, y1=T5["y"] + 0.4), o=dict(noise="rate", t=t, ring=0.4)),
+    dict(name="a rectangle about the pair, a ring of 0.3 µm, the ring's scatter", reg=dict(kind="rect", x0=Tp["x"] - 0.5, x1=Tp["x"] + 0.8, y0=Tp["y"] - 0.5, y1=Tp["y"] + 0.6), o=dict(noise="scatter", ring=0.3)),
+    dict(name="the whole scan as counts, no ring", reg=dict(kind="all"), o=dict(noise="counts")),
+    dict(name="a rectangle, no ring, the scatter: no errors", reg=dict(kind="rect", x0=13.0, x1=14.0, y0=2.0, y1=2.6), o=dict(noise="scatter")),
+]
+kout = [dict(name=c["name"], reg=c["reg"], o=c["o"], want=kmeasure(scan, c["reg"], c["o"])) for c in kcases]
+for c in kout: print(c["name"] + ":", c["want"]["n"], "cells,", c["want"]["nb"], "in the ring")
+json.dump(dict(scan=dict(file=os.path.join("qudi", "nv", fname), truth=truth, t=t), cases=out, kmeasure=kout), open(os.path.join(here, "fixtures", "spots.json"), "w"), indent=0,
           default=lambda v: float(v) if isinstance(v, np.floating) else int(v) if isinstance(v, np.integer) else v)
 print("wrote", fname, "and fixtures/spots.json")

@@ -406,6 +406,16 @@ if (fixtures.spots) {
       for (const k of ["sx", "sy", "sw", "sA", "sB", "sI", "sw1", "sw2", "sth"]) { if (q[k] == null || c.exact) continue; const d = s[k] == null ? Infinity : Math.abs(s[k] - q[k]) / Math.max(q[k], 1e-300); if (!(d <= ee)) { ee = d; ae = `spot ${i + 1} ${k}`; } } });
     note("spotFit.values", ev, `${c.name}, ${at} (against its standard error)`); note("spotFit.errors", ee, `${c.name}, ${ae}`);
   }
+  /* intensities with their noise (Q.7): the sums against exact fractions, the errors against fsum */
+  const KM = get("kMeasure"), s0 = fixtures.spots.cases[0].m;
+  for (const c of fixtures.spots.kmeasure || []) {
+    const r = KM({ nx: s0.nx, ny: s0.ny, x: s0.x, y: s0.y, xs: MA(s0.x, s0.nx), ys: MA(s0.y, s0.ny), z: s0.z }, c.reg, c.o), w = c.want;
+    if (r.fail) { refBad.push(`kMeasure ${c.name}: ${r.fail}`); continue; }
+    note("kMeasure.cells", r.n === w.n && r.nb === w.nb ? 0 : 1, `${c.name}: ${r.n}, ${r.nb} against ${w.n}, ${w.nb}`);
+    let e = 0, at = ""; for (const k of ["sum", "mean", "bg", "net", "ssum", "smean", "sbg", "snet"]) { const a = r[k], b = w[k];
+      const d = b == null ? (a == null ? 0 : Infinity) : a == null ? Infinity : Math.abs(a - b) / Math.max(Math.abs(b), 1e-300); if (!(d <= e)) { e = d; at = k; } }
+    note("kMeasure.values", e, `${c.name}, ${at}`);
+  }
 }
 
 /* ---- NIST's Norris: certified values read from the file itself ---- */

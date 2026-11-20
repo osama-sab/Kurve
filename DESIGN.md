@@ -898,6 +898,13 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-20: Intensities with their noise (QUDI_SPEC Q.7)
+
+- **Beside ImageJ's columns, not instead.** Measure stays ImageJ's, value for value; Kurve's own numbers come after, under
+  *Beyond ImageJ*, so a table read against ImageJ's still lines up and what Kurve adds is plain to see.
+- **The background is a place, said.** A ring of cells about the region, by a distance in the scan's units, not a number typed: the
+  background then follows the data, and its noise is measured with it.
+
 ### 2026-11-20: Spots, beyond ImageJ (QUDI_SPEC Q.5)
 
 - **Every number with its error.** The user asked for analysis better than ImageJ's. ImageJ gives a spot's position to a pixel and
