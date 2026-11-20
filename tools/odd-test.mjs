@@ -565,7 +565,8 @@ await page(async p => {
     box.scrollTop+=(((o.r.bottom-e.bottom)-8)%rowH+rowH)%rowH; box.scrollLeft+=(((o.r.right-e.right)-42)%100+100)%100; await frame();
     o=cut(); e=edges(); if(!o) return null;
     return {r:+o.td.dataset.r, c:+o.td.dataset.ci, x:o.r.left+o.r.width/2, y:o.r.top+o.r.height/2, cutY:Math.round(o.r.bottom-e.bottom), cutX:Math.round(o.r.right-e.right), data:JSON.stringify(sheetCols().map(q=>q.data))}; });
-  check("a cell cut by both edges of the view, to double-click", !!c && c.cutY === 8 && c.cutX === 42, JSON.stringify(c && { cutY: c.cutY, cutX: c.cutX }));
+  // a window may sit at a fraction of a pixel and a scroll moves by whole ones, so the cut is the one asked for to a pixel
+  check("a cell cut by both edges of the view, to double-click", !!c && Math.abs(c.cutY - 8) <= 1 && Math.abs(c.cutX - 42) <= 1, JSON.stringify(c && { cutY: c.cutY, cutX: c.cutX }));
   if (!c) return;
   await p.mouse.dblclick(c.x, c.y); await p.waitForTimeout(100);
   const r = await p.evaluate(() => ({ edit: S.ws.edit ? [S.ws.edit.r, S.ws.edit.c] : null, data: JSON.stringify(sheetCols().map(q=>q.data)) }));

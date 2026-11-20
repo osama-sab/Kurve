@@ -11807,9 +11807,12 @@ function silhouette(R,n,m,lab,cap,seed){ cap=cap||5000; let idx=Array.from({leng
    observations' values (the correlation's, as SciPy's "correlation"). */
 const mvPair=(n,i,j)=>n*i-i*(i+1)/2+(j-i-1);
 function mvDist(R,n,m,metric){ const D=new Float64Array(n*(n-1)/2); let k=0;
-  if(metric==="correlation"){ const c=new Float64Array(n*m), nr=new Float64Array(n);
-    for(let i=0;i<n;i++){ const o=i*m; let s=0; for(let j=0;j<m;j++) s+=R[o+j]; const mu=s/m; let q=0; for(let j=0;j<m;j++){ const v=R[o+j]-mu; c[o+j]=v; q+=v*v; } nr[i]=Math.sqrt(q); }
-    for(let i=0;i<n-1;i++){ const o=i*m; for(let j=i+1;j<n;j++){ const p=j*m; let d=0; for(let t=0;t<m;t++) d+=c[o+t]*c[p+t]; D[k++]=Math.max(0,1-d/(nr[i]*nr[j])); } }
+  // 1 − r: each row's deviations with the double mean's own rounding taken out (Neumaier's sums, as msd), made unit, and 1 − r as half
+  // the squared distance between the two unit rows, which is 1 − cos exactly and does not cancel as 1 − d/(‖a‖‖b‖) does near r = 1
+  // (rows on a large offset lost 3e-12 of the largest height that way, as SciPy's pdist does; the fuzzer's seed 1 against 50 digits)
+  if(metric==="correlation"){ const u=new Float64Array(n*m), nz=(f,o)=>{ let s=0, cc=0; for(let j=0;j<m;j++){ const v=f(o+j), t=s+v; cc+=Math.abs(s)>=Math.abs(v)?(s-t)+v:(v-t)+s; s=t; } return s+cc; };
+    for(let i=0;i<n;i++){ const o=i*m, mu=nz(j=>R[j],o)/m, e=nz(j=>R[j]-mu,o)/m; let q=0; for(let j=0;j<m;j++){ const v=(R[o+j]-mu)-e; u[o+j]=v; q+=v*v; } const nr=Math.sqrt(q); for(let j=0;j<m;j++) u[o+j]=nr>0?u[o+j]/nr:0; }
+    for(let i=0;i<n-1;i++){ const o=i*m; for(let j=i+1;j<n;j++){ const p=j*m; let d=0; for(let t=0;t<m;t++){ const v=u[o+t]-u[p+t]; d+=v*v; } D[k++]=d/2; } }
     return D; }
   for(let i=0;i<n-1;i++){ const o=i*m; for(let j=i+1;j<n;j++){ const p=j*m; let d=0; for(let t=0;t<m;t++){ const v=R[o+t]-R[p+t]; d+=v*v; } D[k++]=Math.sqrt(d); } }
   return D; }

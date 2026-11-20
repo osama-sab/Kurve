@@ -1835,7 +1835,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   fewer distinct observations than k), `kmLloyd(R, n, m, C0, maxIter)` (Lloyd's with Hamerly's bounds, the lowest-numbered of equal
   centres, an empty cluster given the farthest observation), `kmeans(R, n, m, {k, seed, restarts, maxIter})` (the least within
   sum of squares of the starts), `kmeansFrom` and `silFlat` (the bench's), `silhouette(R, n, m, lab, cap, seed)` (a sample of cap
-  past it), `mvPair`, `mvDist(R, n, m, metric)` (condensed; Euclidean or 1 − r), `LINK_METHODS`, `linkage(D, n, method)` (SciPy's:
+  past it), `mvPair`, `mvDist(R, n, m, metric)` (condensed; Euclidean or 1 − r, each row's deviations with its mean's rounding taken out and 1 − r as half the squared distance between the unit rows: 1e-14 of 50 digits where SciPy's pdist loses 3e-12 on rows with an offset; the fuzzer's `_link_mp` settles a disagreement), `LINK_METHODS`, `linkage(D, n, method)` (SciPy's:
   single by the spanning tree, the rest by the nearest-neighbour chain with Lance and Williams' updates; sorted and numbered by
   union–find), `cutTree(Z, n, {k | h})`, `dendroXY(Z, n)` (`{leaves, x, y}`, a ⊓ a merge, null between), `cophenet`, `linkFlat`,
   `mvClusterCols` (`cvx`/`cv`, `c<j>` the centres in the data's units, `px<j>`/`py<j>` the clusters on two variables, the clusters
@@ -5006,6 +5006,10 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   `autoImport`, and three `return {fids}` further down threw on every dropped file; the syntax
   check passes a reference to a name that does not exist. `review-drive`'s drop caught it. After
   deleting a declaration, grep its name.
+- **1 − r is not computed as 1 − r.** The fuzzer's suite seed found hierarchical clustering's heights 3e-12 off SciPy's, and 50
+  digits found both off: rows on an offset of 1000 lose the mean's rounding in every deviation, and 1 − d/(‖a‖‖b‖) cancels near
+  r = 1. With the mean's rounding taken out and 1 − r as half the squared distance between the unit rows, Kurve is within 1e-14;
+  the fuzzer now settles such a disagreement in 50 digits, since SciPy is the one 3e-12 off.
 - **A quantity worked out one way and used another way drifts apart.** SIMPLS took its score as X̃r, the deflated X times the
   weight, and the model predicts by X₀r: equal in exact arithmetic, apart by each deflation's rounding, multiplied by 1/‖t‖ where
   a later component was small. The fixtures, scaled tables, passed at 9e-14; the fuzzer's unscaled ones were 8e-8 off a 40-digit

@@ -1272,12 +1272,38 @@ def _():
     D = pdist(X, metric); Z = hc.linkage(D, method=method)
     if len(Z) > 1 and np.min(np.diff(np.sort(Z[:, 2]))) < 1e-9 * np.max(Z[:, 2]): raise ValueError("near ties: the order of merges is not determined")
     return [X.tolist(), method, metric], {"pairs": Z[:, [0, 1, 3]].ravel().tolist(), "h": Z[:, 2].tolist(), "leaves": hc.dendrogram(Z, no_plot=True)["leaves"]}
+# The same agglomeration in 50 digits (distances, then Lance and Williams' updates, the closest pair each time), to settle a
+# disagreement in the heights: SciPy's pdist takes 1 − r as 1 − d/(‖a‖‖b‖) after a rounded mean, which on rows with a large
+# offset loses 3e-12 of the largest height (the suite's seed 1, case 122); Kurve's is within 1e-14 of this.
+def _link_mp(X, method, metric):
+    import mpmath as mp
+    mp.mp.dps = 50; P = [[mp.mpf(v) for v in r] for r in X]; n = len(P)
+    def dist(u, v):
+        if metric == "euclidean": return mp.sqrt(sum((a - b) ** 2 for a, b in zip(u, v)))
+        mu, mv = sum(u) / len(u), sum(v) / len(v); a = [x - mu for x in u]; b = [y - mv for y in v]
+        return 1 - sum(x * y for x, y in zip(a, b)) / (mp.sqrt(sum(x * x for x in a)) * mp.sqrt(sum(y * y for y in b)))
+    D = {(i, j): dist(P[i], P[j]) for i in range(n) for j in range(i + 1, n)}; size = {i: 1 for i in range(n)}; H = []; nxt = n
+    key = lambda a, b: (a, b) if a < b else (b, a)
+    while len(size) > 1:
+        (i, j), d = min(D.items(), key=lambda t: t[1]); H.append(d); ni, nj = size.pop(i), size.pop(j)
+        for k in list(size):
+            dki, dkj = D.pop(key(k, i)), D.pop(key(k, j)); nk = size[k]
+            if method == "single": v = min(dki, dkj)
+            elif method == "complete": v = max(dki, dkj)
+            elif method == "average": v = (ni * dki + nj * dkj) / (ni + nj)
+            else: v = mp.sqrt(((nk + ni) * dki ** 2 + (nk + nj) * dkj ** 2 - nk * d ** 2) / (nk + ni + nj))
+            D[(k, nxt)] = v
+        D.pop((i, j)); size[nxt] = ni + nj; nxt += 1
+    return sorted(H)
 def link_post(c, out):
     w = c["want"]
     if not isinstance(out, dict) or "h" not in out: return float("inf"), f"refused: {str(out)[:80]}"
     if [int(v) for v in out["pairs"]] != [int(v) for v in w["pairs"]]: return float("inf"), "the merges differ"
     if list(out["leaves"]) != w["leaves"]: return float("inf"), "the leaves' order differs"
-    big = max(abs(v) for v in w["h"]) or 1.0; e = max(abs(val(a) - b) for a, b in zip(out["h"], w["h"])) / big; return e, f"heights {e:.2e}"
+    big = max(abs(v) for v in w["h"]) or 1.0; e = max(abs(val(a) - b) for a, b in zip(out["h"], w["h"])) / big
+    if e <= c["tol"]: return e, f"heights {e:.2e}"
+    H = _link_mp(*c["args"]); e2 = float(max(abs(val(a) - b) for a, b in zip(sorted(out["h"]), H)) / big)
+    return e2, f"heights {e:.2e} from SciPy's; against 50 digits {e2:.2e}"
 POST["linkFlat"] = link_post
 
 # Discriminant analysis: random groups and variables, against scikit-learn 1.9 with W divided by n as it does (cov "n"): the
