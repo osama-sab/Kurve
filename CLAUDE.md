@@ -1232,6 +1232,20 @@ graph first, with the taskbar kept at the bottom of the screen.
   w, sw, fwhm, sfwhm, red, dof, conv); its form `#aPLw`, `#aPLn`, `#aPLt`, `#aPLf`; `ijpStart` merges `noiseStart`; `ijpPlot` the samples
   with their errors and the fit (a pixel wide and no fit, ImageJ's line). `tools/ref/profile_fixtures.py` (SciPy's curve_fit with the
   samples' covariance) → `fixtures/profile.json`; ref-test's `kProfile.samples` (1e-12), `.values`, `.errors` (1e-6), `.truth` (1e-12).
+  **The shift between two scans** (QUDI_SPEC Q.8): in MAT `regShift(A, B, {up, norm})` (on {nx, ny, z}: each less its mean, R = conj(F_A)·F_B
+  by `fftAny` over rows and columns, or R/|R| for `norm:"phase"`; the inverse's largest magnitude the shift to a cell, past half the size
+  negative; R's DFT on ceil(1.5·up) points 1/up apart about it in two products, NumPy's fftfreq signs; B(x) = A(x − s); `{sx, sy, ix, iy,
+  peak, up, r (the correlation at the nearest cell)}` or `{fail}`), `immerkaer(z, nx, ny)` (Immerkær's noise σ), `shiftFit(MA, MB, {up,
+  norm, noise, t, splits (16), seed (1)})` (data fission: A ± σ·Z, each cell's shot noise or Immerkær's one figure, Z from mulberry32 by
+  Box–Muller; SE² = mean (s₁ − s₂)²/4; `{…regShift's, ssx, ssy, n, noise, t, sig}`, `seFail` when no error can be had), `shiftMat(MB, sx,
+  sy)` (the second moved onto the first, bilinear, empty past its edge). In ANA `ANA_KINDS.shift` (`typed`, `heavy` past 16 384 cells; two
+  matrices, `a.in.mat` and `a.in.mat2`, which `anaSig`, `anaStale`, `runAna` (each input `which` 1 or 2, carried to the worker) and
+  `anaClean` know; each axis even and the cells the same size, else refused; the section *Shift*: `dx`, `sdx`, `dy`, `sdy` in the units
+  (the grids' offset counted), `sx`, `ssx`, `sy`, `ssy` in cells, `r`, `up`; `p.out` "moved" or "diff" a matrix). The page: `ANA_FORMS.shift`
+  (`#aSHa`, `#aSHb`, `#aSHm`, `#aSHu`, `#aSHn`, `#aSHt`, `#aSHo`, `#aSHmsg`), `shStart(sid)` (the second another of its size, its book's
+  first), the report's *Draw the map*; Analyze › Image › Shift between scans…, the matrix window's Matrix › Shift between scans….
+  `tools/ref/shift_fixtures.py` (the registration in NumPy from the paper, a back scan of the NV scan) → `fixtures/shift.json`; ref-test's
+  `regShift.shift` (the same grid point) and `regShift.r` (1e-12).
   **Intensities with their noise** (QUDI_SPEC Q.7): in MAT `kMeasure(M, reg, {noise, t, ring})` (over `ijRegion`'s cells: the sum and
   mean, Neumaier's sums; the ring the cells outside within `ring` of a region cell, by X and Y; the background their mean; errors from
   each cell's shot noise (`rate`, `counts`), or the ring's SD for every cell (`scatter` with a ring), or none; the net sum's error
@@ -3934,14 +3948,18 @@ prominence from the header and the scatter, a refusal, each row against spotFit,
 the method, the rings once however often asked, the positions plotted with both errors, elliptical spots and their residuals as a
 matrix from the matrix window's menu, a spot typed into the scan found when it is worked out again, a reload); Q.6, Profile's Beyond
 ImageJ (the noise and pixel time from the header, a width refused below zero, each column and the fit kProfile's, the NV spot's FWHM,
-the method, the samples plotted with their errors and the fit, an edge's 10–90 % width in counts, followed, a reload); Q.7, Measure's Beyond
+the method, the samples plotted with their errors and the fit, an edge's 10–90 % width in counts, followed, a reload); Q.8, the shift between a scan
+and its back scan (the dialog from the matrix window, a scan against itself refused, each number shiftFit's, the lag found within its
+error of 1.5 nm, the moved scan as a matrix and its map, followed, a reload, the second scan deleted); Q.7, Measure's Beyond
 ImageJ (the noise and pixel time from the header, a ring refused below zero, each column kMeasure's, a spot's light 61 times its error).
 `node tools/img-test.mjs [path]` checks the image analyses' properties (QUDI_SPEC Q.5 to Q.8): a spot's position, FWHM, peak and
 background each with an error equal to its spread over 300 Poisson repeats and no bias, the reduced χ² near 1, a lone spot split
 in at most 1 %, an elliptical spot fitted round not split, two spots 0.8 FWHM apart found as two and biased when fitted as one, the
 axes' origin and units, the NV scan against its truth and its time, refusals; a profile's peak across a diagonal 0.3 µm wide and an
 edge in counts, each parameter's pull over 300 repeats, Gaussian noise from the scatter, a width of a pixel ImageJ's samples, refusals,
-its time. Run it after touching the MAT block's image analyses.
+its time; the shift between two scans: known shifts to half a step, its error over 150 Poisson repeats and 100 with Gaussian noise, the
+cross-correlation steadier than the phase correlation with few counts, the second moved onto the first, the kind's units and offsets,
+refusals, its time. Run it after touching the MAT block's image analyses.
 `node tools/sheet-drive.mjs [path]` (Playwright; `ONLY=3.1` runs one section) checks the worksheet as a table
 (`ux/spec/SHEET_SPEC.md`, wave 3): 3.1, formulas typed into the F(x)= row (an aggregate, rows of other rows, a running
 sum, text compared, `=` as equality, another sheet by a name with its spaces left out, that sheet renamed and a column
@@ -5709,7 +5727,10 @@ emitters found within their errors; SciPy agreeing to 1e-7 of the errors. Slice 
 errors, a background from a ring about the region, the sum less it and the signal to noise; exact against fractions, the errors the
 spread over 2000 Poisson repeats. Slice Q.6 done 20.11: Profile's samples across a width with their errors, and a Gaussian peak's FWHM or
 an error-function edge's 10–90 % width fitted with the samples' correlation (they share cells); SciPy's curve_fit agreeing to 6e-8 of the
-errors, pulls of SD 0.95 to 1.06 over 300 repeats, where a fit ignoring the correlation would make the FWHM's error a fifth too small.
+errors, pulls of SD 0.95 to 1.06 over 300 repeats, where a fit ignoring the correlation would make the FWHM's error a fifth too small. Slice Q.8 done 20.11: the shift between two scans
+to a hundredth of a cell by Guizar-Sicairos's upsampled cross-correlation, with its error by data fission; NumPy's registration the
+same grid point on six cases, pulls of SD 0.95 to 1.08 over 150 repeats, a back scan's lag of 63 nm found as 63.5 ± 1.5 nm. QUDI_SPEC's
+eight slices are done.
 
 ## Known gaps
 

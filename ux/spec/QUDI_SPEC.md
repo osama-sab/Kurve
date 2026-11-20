@@ -208,6 +208,11 @@ refined to a fraction of a pixel by an upsampled DFT about it (Guizar-Sicairos, 
 matrix shifted onto the first (bilinear). **Checks**: NumPy's FFT-based reference written from the
 paper; known shifts recovered to a hundredth of a pixel; noise.
 
+**Done 20.11.** `regShift`, `shiftFit`, `shiftMat` in MAT, the kind `shift` reading two matrices (`in.mat2`). The error is not the spread
+between halves of the scan's area (a few spots each) but between halves of its noise (data fission: each cell A ± σZ, σ from shot
+noise or Immerkær's estimate), sixteen splits; pulls of SD 0.95 to 1.08. NumPy agrees on the grid point; a back scan's lag of 63 nm is
+found as 63.5 ± 1.5 nm. The phase correlation is offered, and with few counts spreads seven times the cross-correlation's.
+
 ## The order
 
 Q.1 reading qudi's files → Q.2 the TIFF for ImageJ (which the checks of Q.3 and Q.4 go through) →

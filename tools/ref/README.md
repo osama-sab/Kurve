@@ -80,6 +80,8 @@ groups, Poisson's maximum likelihood, splitting) with SciPy's least_squares; ref
 `tools/ref/profile_fixtures.py` (QUDI_SPEC Q.6) works out a profile across a width again (ImageJ's samples, the mean across, each
 sample's error through the interpolation's weights) and fits it with SciPy's curve_fit given the samples' covariance, on the NV scan,
 an edge in counts and a noise-free spot: `fixtures/profile.json`, judged by ref-test's `kProfile.*`.
+`tools/ref/shift_fixtures.py` (QUDI_SPEC Q.8) is the registration of two scans in NumPy, written from Guizar-Sicairos, Thurman and
+Fienup (2008), on synthetic scans and a back scan of the NV scan: `fixtures/shift.json`, judged by ref-test's `regShift.*`.
 ImageJ's own readout, where its jar may be run:
 
 ```sh

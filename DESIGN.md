@@ -898,6 +898,13 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-20: The shift between two scans (QUDI_SPEC Q.8)
+
+- **In cells and in the scan's units.** A drift is read in nanometres and judged against the cell; both are columns, so neither has to
+  be worked out by hand.
+- **Two lists, one size.** The second scan is chosen from the matrices; one of another size, or the same one twice, is refused in the
+  dialog before anything runs.
+
 ### 2026-11-20: A profile across a width, fitted (QUDI_SPEC Q.6)
 
 - **ImageJ's column kept, Kurve's beside it.** The profile's *Value* stays ImageJ's sample; the mean across, its error, the fit and the

@@ -133,5 +133,45 @@ console.log("Profiles across a width, fitted");
     const t0 = performance.now(); for (let k = 0; k < 50; k++) kProfile(M(z), Object.assign({ w: 0.5, noise: "rate", t, fit: "peak" }, o)); const ms = (performance.now() - t0) / 50;
     check(`a fit of a profile 0.5 wide in ${ms.toFixed(1)} ms (under 50)`, ms < 50, ms); } }
 
+console.log("The shift between two scans");
+{ const regShift = get("regShift"), shiftFit = get("shiftFit"), shiftMat = get("shiftMat"), anaRunKind = get("anaRunKind");
+  const field = (nx, ny, k) => { const r = mul(k), out = []; for (let i = 0; i < 10; i++) out.push({ x: 5 + r() * (nx - 10), y: 5 + r() * (ny - 10), A: 5000 + 20000 * r(), w: 2.5 + r() }); return out; };
+  const F = field(48, 36, 5), img = (s, t, rnd, nx = 48, ny = 36, fs = F, noise) => { const z = []; for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) { let m = 2000;
+      for (const q of fs) m += q.A * Math.exp(-L16 * ((x - q.x - s[0]) ** 2 + (y - q.y - s[1]) ** 2) / q.w ** 2);
+      z.push(noise ? m + noise * Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd()) : rnd ? pois(m * t, rnd) / t : m); } return { nx, ny, z }; };
+  // (a spot that leaves the scan pulls it: moved by 3.91 cells, one 1.5 cells from the edge put the shift 0.011 short, so these keep inside)
+  { let worst = 0; for (const s of [[0.37, -1.23], [-2.84, 0.61], [0.004, 0.0], [1.5, 1.5], [-0.25, 2.33]]) { const r = regShift(img([0, 0]), img(s), { up: 100 }); worst = Math.max(worst, Math.abs(r.sx - s[0]), Math.abs(r.sy - s[1])); }
+    check(`known shifts of noise-free scans found to within half the step of a hundredth of a cell (worst ${worst.toFixed(4)})`, worst <= 0.0050001, worst);
+    const r = regShift(img([0, 0]), img([0.004, -0.0007]), { up: 1000 }); check(`…and to a thousandth with that step: (0.004, −0.0007) found as (${r.sx.toFixed(4)}, ${r.sy.toFixed(4)})`, Math.abs(r.sx - 0.004) <= 0.0005 && Math.abs(r.sy + 0.0007) <= 0.0005, JSON.stringify(r)); }
+  { const t = 0.01, rnd = mul(71), px = [], py = [], tm = performance.now(); let n = 0;
+    for (let k = 0; k < 150; k++) { const q = shiftFit(img([0, 0], t, rnd), img([0.37, -1.23], t, rnd), { up: 100, noise: "rate", t, seed: k + 1 }); if (q.ssx == null) continue; n++; px.push((q.sx - 0.37) / q.ssx); py.push((q.sy + 1.23) / q.ssy); }
+    const sx = stat(px), sy = stat(py), ms = (performance.now() - tm) / 150;
+    check(`shot noise over ${n} Poisson repeats: each shift's error the spread of its value (pull SD ${sx.sd.toFixed(3)} in X, ${sy.sd.toFixed(3)} in Y), no bias (${sx.m.toFixed(3)}, ${sy.m.toFixed(3)})`, [sx, sy].every((q) => q.sd > 0.85 && q.sd < 1.15 && Math.abs(q.m) < 0.2), JSON.stringify([sx, sy]));
+    check(`a 36 × 48 shift with its error in ${ms.toFixed(0)} ms (under 600)`, ms < 600, ms); }
+  { const rnd = mul(72), px = [], py = [];
+    for (let k = 0; k < 100; k++) { const q = shiftFit(img([0, 0], 1, rnd, 48, 36, F, 300), img([-0.62, 0.41], 1, rnd, 48, 36, F, 300), { up: 100, noise: "scatter", seed: k + 1 }); px.push((q.sx + 0.62) / q.ssx); py.push((q.sy - 0.41) / q.ssy); }
+    const sx = stat(px), sy = stat(py);
+    check(`from the scatter (Gaussian noise, one figure each scan by Immerkær's estimate) over 100 repeats: pull SD ${sx.sd.toFixed(3)}, ${sy.sd.toFixed(3)}, mean ${sx.m.toFixed(3)}, ${sy.m.toFixed(3)}`, [sx, sy].every((q) => q.sd > 0.85 && q.sd < 1.15 && Math.abs(q.m) < 0.25), JSON.stringify([sx, sy])); }
+  { const t = 0.005, rnd = mul(73), cc = [], ph = [];
+    for (let k = 0; k < 100; k++) { const A = img([0, 0], t, rnd), B = img([0.37, -1.23], t, rnd); cc.push(regShift(A, B, { up: 100 }).sx - 0.37); ph.push(regShift(A, B, { up: 100, norm: "phase" }).sx - 0.37); }
+    const c = stat(cc), p2 = stat(ph);
+    check(`with few counts the cross-correlation spreads less than the phase correlation (${c.sd.toFixed(4)} against ${p2.sd.toFixed(4)} cells)`, c.sd < p2.sd, JSON.stringify([c, p2])); }
+  { const A = img([0, 0]), B = img([0.37, -1.23]), r = regShift(A, B, { up: 100 }), zm = shiftMat(B, r.sx, r.sy); let e0 = 0, e1 = 0, n = 0;
+    for (let i = 0; i < A.z.length; i++) if (zm[i] != null) { e0 += (B.z[i] - A.z[i]) ** 2; e1 += (zm[i] - A.z[i]) ** 2; n++; }
+    check(`the second moved onto the first: what is left of their difference ${(100 * Math.sqrt(e1 / e0)).toFixed(1)} % of it (bilinear), cells past its edge empty`, e1 < 0.05 * e0 && zm.some((v) => v == null), [e1 / e0]); }
+  { const mk = (z, x0) => ({ id: "m", name: "M", mat: { nx: 48, ny: 36, xs: [...Array(48).keys()].map((i) => x0 + i * 0.1), ys: [...Array(36).keys()].map((i) => 5 + i * 0.1), z, xunit: "µm", yunit: "µm" } });
+    const A = img([0, 0]).z, B = img([0.37, -1.23]).z, run = (a, b, p) => anaRunKind("shift", [Object.assign(a, { which: 1 }), Object.assign(b, { which: 2 })], Object.assign({ up: 100, noise: "scatter" }, p));
+    const r = run(mk(A, 1), mk(B, 1), {}), col = (k) => r.tables[0].cols.find((c) => c.k === k).vals[0];
+    check("the kind: the shift in µm the shift in cells times the cell, its error likewise", Math.abs(col("dx") - 0.037) < 1e-9 && Math.abs(col("dy") + 0.123) < 1e-9 && Math.abs(col("sdx") - col("ssx") * 0.1) < 1e-15, JSON.stringify([col("dx"), col("dy")]));
+    const r2 = run(mk(A, 1), mk(B, 1.5), {}), dx2 = r2.tables[0].cols.find((c) => c.k === "dx").vals[0];
+    check("grids starting half a µm apart: the shift in µm counts the offset, said", Math.abs(dx2 - 0.537) < 1e-9 && r2.notes.some((n) => /start at different places/.test(n)), dx2);
+    const bad = mk(B, 1); bad.mat.xs = bad.mat.xs.map((v, i) => v + (i === 7 ? 0.03 : 0));
+    check("uneven X refused in words", /not evenly spaced/.test(run(mk(A, 1), bad, {}).fail || ""));
+    const st = mk(B, 1); st.mat.xs = st.mat.xs.map((v) => v * 1.01);
+    check("cells of another size refused in words", /not the same size, so they are not scans of one grid/.test(run(mk(A, 1), st, {}).fail || ""));
+    check("matrices of different sizes refused", /not the same size/.test(regShift(img([0, 0]), img([0, 0], 0, null, 40, 36)).fail || ""));
+    check("a flat matrix refused", /same value everywhere/.test(regShift({ nx: 8, ny: 8, z: Array(64).fill(3) }, { nx: 8, ny: 8, z: Array(64).fill(5) }).fail || ""));
+    check("a rate's shot noise without the pixel time refused", /pixel time/.test(shiftFit(img([0, 0]), img([1, 0]), { noise: "rate" }).fail || "")); } }
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

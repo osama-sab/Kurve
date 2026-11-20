@@ -1024,6 +1024,18 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## qudi's confocal scans, slice Q.8: the shift between two scans (2026-11-20)
+
+- **Analyze › Image › Shift between scans…** (and the matrix window's Matrix menu): how far the second of two scans has moved against
+  the first (drift, a back scan's lag), to a hundredth of a cell by an upsampled cross-correlation (or the phase correlation), in cells
+  and in the scan's units, with a standard error from the scans' noise by data fission; the second moved onto the first, or the
+  difference, as a matrix.
+
+Checked: NumPy's registration written from Guizar-Sicairos, Thurman and Fienup (2008), the same grid point on six cases (ref-test);
+known shifts to half a step; over 150 Poisson repeats the error the spread (pull SD 0.95 to 1.01), over 100 with Gaussian noise 1.07;
+the cross-correlation spreading a seventh of the phase correlation with few counts (img-test, 14 new); a back scan's lag of 63 nm found
+as 63.5 ± 1.5 nm (qudi-drive, 10 new). Found: a spot leaving the scan pulls the shift by about a hundredth of a cell, which Help says.
+
 ## qudi's confocal scans, slice Q.6: a profile across a width, fitted (2026-11-20)
 
 - **Profile…**'s part *Beyond ImageJ*: a width (each sample the mean across the line), each sample's standard error (the cells' shot

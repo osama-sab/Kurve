@@ -439,6 +439,16 @@ if (fixtures.profile) {
   }
 }
 
+/* ---- The shift between two scans (QUDI_SPEC Q.8): Guizar-Sicairos, Thurman and Fienup's registration written again in NumPy,
+   tools/ref/shift_fixtures.py; the shift the same grid point, the correlation at it to the rounding ---- */
+if (fixtures.shift) {
+  const RS = get("regShift");
+  for (const c of fixtures.shift.cases) { const r = RS(c.A, c.B, c.o), w = c.want;
+    if (r.fail) { refBad.push(`regShift ${c.name}: ${r.fail}`); continue; }
+    note("regShift.shift", Math.max(Math.abs(r.sx - w.sx), Math.abs(r.sy - w.sy)), `${c.name}: (${r.sx}, ${r.sy}) against (${w.sx}, ${w.sy})`);
+    note("regShift.r", Math.abs(r.r - w.r) / Math.abs(w.r), c.name); }
+}
+
 /* ---- NIST's Norris: certified values read from the file itself ---- */
 {
   const txt = readFileSync(join(here, "ref", "nist", "Norris.dat"), "utf8").split(/\r?\n/);

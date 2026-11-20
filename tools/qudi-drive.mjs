@@ -386,6 +386,47 @@ await page(async p => {
   r = await p.evaluate(() => anaList().filter((x) => x.kind === "ijprofile").map((a) => !!(a.res && a.res.report) && !anaStale(a) && !!(P().cols.find((c) => c.ana === a.id && c.ak === "kfit"))));
   check("a reload: both profiles there with their fits, up to date", r.length === 2 && r.every(Boolean), JSON.stringify(r));
 }, { name: "Q.6" });
+console.log("Q.8 The shift between two scans");
+await page(async p => {
+  const SP = JSON.parse(readFileSync(join(here, "ref", "fixtures", "spots.json"), "utf8")), SH = JSON.parse(readFileSync(join(here, "ref", "fixtures", "shift.json"), "utf8")), nv = SH.cases.slice(-1)[0];
+  await p.setInputFiles("#fileIn", join(here, "ref", SP.scan.file)); await p.waitForFunction(() => matAll().length >= 1, null, { timeout: 8000 }); await p.waitForTimeout(400);
+  const [aid, bid] = await p.evaluate((B) => { const a = matAll()[0].s; const s = matSheetNew({ nx: B.nx, ny: B.ny, x: B.x, y: B.y, z: B.z }, "BackScan", { xunit: a.xunit, yunit: a.yunit, zunit: a.zunit, xname: a.xname, yname: a.yname, zname: a.zname });
+    matSaveNew([matBookNew(s, "Back scan")], { undo: "a back scan", log: "made a back scan" }); matOpen(matBookOf(a.id).id); return [a.id, s.id]; }, nv.B);
+  await p.waitForTimeout(500); await mxIJ(p, "Shift between scans…", await p.evaluate((sid) => "mx-" + matBookOf(sid).id, aid)).catch(() => null);
+  if (!(await p.$("#aSHa"))) { await p.click(`#w-mx-${await p.evaluate((sid) => matBookOf(sid).id, aid)} [data-mxmenu]`); await p.waitForTimeout(150); await p.locator(".menu [role=menuitem]:has-text('Shift between scans…')").last().click(); }
+  await p.waitForSelector("#aSHa", { timeout: 4000 });
+  let r = await p.evaluate(() => ({ a: $("#aSHa").value, b: $("#aSHb").value, n: $("#aSHn").value, t: parseNum($("#aSHt").value), u: $("#aSHu").value, o: $("#aSHo").value }));
+  check("the matrix window's Shift between scans…: this scan first, the other of its size second, the shot noise of a rate and the pixel time from its header", r.a === aid && r.b === bid && r.n === "rate" && r.t === 0.01 && r.u === "100" && r.o === "none", JSON.stringify(r));
+  await p.selectOption("#aSHb", aid); await p.waitForTimeout(80); r = await p.evaluate(() => ({ msg: $("#aSHmsg").textContent, ok: $("#formOk").disabled }));
+  check("…a scan against itself: refused in words", /two different matrices/.test(r.msg) && r.ok, JSON.stringify(r));
+  await p.selectOption("#aSHb", bid); await p.selectOption("#aSHo", "moved"); await p.waitForTimeout(80); await p.click("#formOk");
+  await p.waitForFunction(() => { const a = anaList().find((x) => x.kind === "shift"); return a && a.res && (a.res.report || a.res.err); }, null, { timeout: 30000 }); await p.waitForTimeout(300);
+  const cmp = () => p.evaluate(() => { const a = anaList().find((x) => x.kind === "shift"), A = matOf(a.in.mat), B = matOf(a.in.mat2), q = shiftFit({ nx: A.nx, ny: A.ny, z: A.z }, { nx: B.nx, ny: B.ny, z: B.z }, Object.assign({ splits: 16, seed: 1 }, a.p));
+    const col = (k) => ((P().cols.find((c) => c.ana === a.id && c.ak === k) || {}).data || [])[0], nm = (k) => (P().cols.find((c) => c.ana === a.id && c.ak === k) || {}).name, st = 8 / 63;
+    return { id: a.id, err: a.res.err, same: col("sx") === q.sx && col("sy") === q.sy && col("ssx") === q.ssx && col("ssy") === q.ssy, dx: col("dx"), sdx: col("sdx"), dy: col("dy"), sdy: col("sdy"), st,
+      names: ["dx", "sdx", "r"].map(nm), method: a.res.report.method, mat: !!anaMatSheet(a), stale: anaStale(a) }; });
+  r = await cmp();
+  check("…the result sheet: the shift and its error in cells, each shiftFit's, and in µm", !r.err && r.same && r.names.join("|") === "Shift in X (µm)|SE of shift in X (µm)|Correlation at the shift" && Math.abs(r.dx - (r.dx / r.st) * r.st) < 1e-12, JSON.stringify(r));
+  check(`…the back scan's lag of (${SH.nv.lag[0]}, ${SH.nv.lag[1]}) µm found: (${r.dx.toFixed(4)} ± ${r.sdx.toFixed(4)}, ${r.dy.toFixed(4)} ± ${r.sdy.toFixed(4)}) µm, within three errors`, Math.abs(r.dx - SH.nv.lag[0]) < 3 * r.sdx && Math.abs(r.dy - SH.nv.lag[1]) < 3 * r.sdy && r.sdx < 0.01, JSON.stringify([r.dx, r.sdx, r.dy, r.sdy]));
+  check("…the method names the registration and how its error was found", /upsampled DFT about it \(Guizar-Sicairos, Thurman and Fienup, 2008\)/.test(r.method) && /data fission/.test(r.method) && /pixel time 0\.01 s/.test(r.method), r.method);
+  const sid = r.id;
+  await p.evaluate((id) => anaReport(id), sid); await p.waitForTimeout(500); await p.click(`#w-res button[data-anaact="map"]`); await p.waitForTimeout(800);
+  r = await p.evaluate((id) => { const a = anaOf(id), s = anaMatSheet(a), g = P().graphs.slice(-1)[0], A = matOf(a.in.mat), B = matOf(a.in.mat2), zm = shiftMat({ nx: B.nx, ny: B.ny, z: B.z }, ...[a.res && 0, 0].map(() => 0));
+    const sx = (P().cols.find((c) => c.ana === id && c.ak === "sx") || {}).data[0], sy = (P().cols.find((c) => c.ana === id && c.ak === "sy") || {}).data[0], want = shiftMat({ nx: B.nx, ny: B.ny, z: B.z }, sx, sy);
+    return { made: !!s, same: !!s && s.z.every((v, i) => v === want[i]), map: g && g.plot && g.plot.mat === (s && s.id), zname: s && s.zname }; }, sid);
+  check("The second moved onto the first, a matrix of its own, each cell shiftMat's; Draw the map", r.made && r.same && r.map && r.zname === "Moved", JSON.stringify(r));
+  // followed: the back scan changed, the shift worked out again
+  const before = await p.evaluate((id) => (P().cols.find((c) => c.ana === id && c.ak === "sx") || {}).data[0], sid);
+  await p.evaluate((bid) => { matPut(bid, (s) => Object.assign({}, s, { z: s.z.map((v, i) => i % 64 < 63 ? s.z[i + 1] : v) }), { undo: "moved a cell", log: "moved the back scan by a cell" }); }, bid); await p.waitForTimeout(1200);
+  r = await p.evaluate((id) => ({ sx: (P().cols.find((c) => c.ana === id && c.ak === "sx") || {}).data[0], stale: anaStale(anaOf(id)) }), sid);
+  check(`the back scan moved by a cell: the shift worked out again (${before.toFixed(2)} to ${r.sx.toFixed(2)} cells)`, Math.abs(r.sx - (before - 1)) < 0.05 && !r.stale, JSON.stringify([before, r]));
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  r = await p.evaluate(() => anaList().filter((x) => x.kind === "shift").map((a) => !!(a.res && a.res.report) && !anaStale(a) && !!anaMatSheet(a)));
+  check("a reload: the shift there, up to date, with its matrix", r.length === 1 && r[0], JSON.stringify(r));
+  await p.evaluate((bid) => { matDeleteBook(matBookOf(bid).id); }, bid); await p.waitForSelector("#dlgOk", { state: "visible" }); await p.click("#dlgOk"); await p.waitForTimeout(700);
+  r = await p.evaluate(() => anaStale(anaList().find((x) => x.kind === "shift")));
+  check("the second scan deleted: the shift says so", r === "Its matrix has been deleted", r);
+}, { name: "Q.8" });
 console.log("Q.7 Intensities with their noise");
 await page(async p => {
   const SP = JSON.parse(readFileSync(join(here, "ref", "fixtures", "spots.json"), "utf8")), T = SP.scan.truth[5];

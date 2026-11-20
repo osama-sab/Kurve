@@ -10311,6 +10311,31 @@ ANA_KINDS.spots={label:"Spots (Kurve)", base:"Spots", typed:true, typedWhat:"a m
         z[k]=p.out==="model"?v:M.z[k]-v; }); });
       mat={nx:M.nx,ny:M.ny,x:matAxisOf(M.xs),y:matAxisOf(M.ys),z,xname:M.xname||"X",xunit:xu,yname:M.yname||"Y",yunit:yu,zname:p.out==="model"?"Model":"Residual",zunit:zu}; }
     return {tables:[{cols}],report:{sections:secs,method,spt:{mat:p.mat||null,el,spots:ok.slice(0,2000).map(s=>[s.x,s.y,el?s.w1:s.w,el?s.w2:s.w,el?s.th:0])}},notes,mat}; }};
+// The shift between two scans (QUDI_SPEC Q.8): shiftFit's shift with its error, in cells and in the matrices' units; optionally the
+// second scan moved onto the first, or the first less it, as a matrix.
+ANA_KINDS.shift={label:"Shift between scans (Kurve)", base:"Shift", typed:true, typedWhat:"two matrices",
+  help:"How far the second of two scans of one place has moved against the first (drift, or a back scan's lag), to a hundredth of a cell by an upsampled cross-correlation, with its standard error from the scans' noise; and the second moved onto the first",
+  heavy(p,ins){ const q=ins.find(q=>q.mat); return !!q&&q.mat.z.length>16384; },
+  run(ins,p){ p=p||{}; const A=ins.find(q=>q.mat&&q.which!==2), B=ins.find(q=>q.mat&&q.which===2); if(!A||!B) return {fail:"One of its matrices has been deleted."};
+    const MA=A.mat, MB=B.mat; if(MA.nx!==MB.nx||MA.ny!==MB.ny) return {fail:`The two matrices are not the same size (${MA.ny} × ${MA.nx} and ${MB.ny} × ${MB.nx}).`};
+    // each axis evenly spaced, and the same spacing in both: a shift in cells is then one in X and Y
+    const even=(v,n,w)=>{ const st=(v[n-1]-v[0])/(n-1); for(let i=1;i<n;i++) if(Math.abs(v[i]-v[i-1]-st)>1e-6*Math.abs(st)) return {fail:`${w}'s values are not evenly spaced, so a shift in cells is no one distance.`}; return {st}; };
+    const ax=[even(MA.xs,MA.nx,"X"),even(MA.ys,MA.ny,"Y"),even(MB.xs,MB.nx,"X"),even(MB.ys,MB.ny,"Y")]; for(const q of ax) if(q.fail) return q;
+    if(Math.abs(ax[0].st-ax[2].st)>1e-9*Math.abs(ax[0].st)||Math.abs(ax[1].st-ax[3].st)>1e-9*Math.abs(ax[1].st)) return {fail:"The two matrices' cells are not the same size, so they are not scans of one grid."};
+    const up=Math.max(1,Math.min(1000,Math.round(+p.up||100))), o={up,norm:p.norm==="phase"?"phase":"cc",noise:p.noise||"scatter",t:+p.t,splits:+p.splits||16,seed:p.seed==null?1:+p.seed};
+    const r=shiftFit({nx:MA.nx,ny:MA.ny,z:MA.z},{nx:MB.nx,ny:MB.ny,z:MB.z},o); if(r.fail) return {fail:r.fail};
+    const xu=MA.xunit||"", yu=MA.yunit||"", U=(n,u)=>u?`${n} (${u})`:n, cols=[], secs=[], notes=[], ex=ax[0].st, ey=ax[1].st;
+    const row={dx:(MB.xs[0]-MA.xs[0])+r.sx*ex, sdx:r.ssx!=null?r.ssx*Math.abs(ex):null, dy:(MB.ys[0]-MA.ys[0])+r.sy*ey, sdy:r.ssy!=null?r.ssy*Math.abs(ey):null, sx:r.sx, ssx:r.ssx??null, sy:r.sy, ssy:r.ssy??null, r:r.r, up:1/up};
+    if(r.seFail) notes.push(r.seFail);
+    anaTab("Shift",[["dx",U("Shift in X",xu)],["sdx",U("SE of shift in X",xu)],["dy",U("Shift in Y",yu)],["sdy",U("SE of shift in Y",yu)],["sx","Shift in X (cells)"],["ssx","SE (cells)"],["sy","Shift in Y (cells)"],["ssy","SE (cells)"],["r","Correlation at the shift"],["up","Step (cells)"]],[row],cols,secs);
+    if(Math.abs(r.sx)>MA.nx/4||Math.abs(r.sy)>MA.ny/4) notes.push("The shift is more than a quarter of the scan: the two share little, and the correlation may have found another match.");
+    if(MB.xs[0]!==MA.xs[0]||MB.ys[0]!==MA.ys[0]) notes.push("The two grids start at different places; the shift in X and Y counts that too.");
+    const nz=r.noise==="rate"?`each cell's shot noise, √N over the pixel time ${fmt(r.t,6)} s`:r.noise==="counts"?"each cell's shot noise, √N (its value a count)":`one noise figure for each scan from its scatter (Immerkær's estimate${r.sig?`: ${fmt(r.sig[0],4)} and ${fmt(r.sig[1],4)}`:""})`;
+    const method=`Kurve's shift of ${B.name} against ${A.name} (${MA.ny} × ${MA.nx}): each less its mean, their ${o.norm==="phase"?"phase correlation (the cross-power over its magnitude)":"cross-correlation"} by the FFT, its peak to a cell, then refined to 1/${up} of a cell by the upsampled DFT about it (Guizar-Sicairos, Thurman and Fienup, 2008). Its standard error by data fission: each scan split ${r.n||o.splits} times into two halves of independent noise from ${nz}, the shift of each half found the same way; the variance a quarter of the halves' differences squared.`;
+    let mat=null; if(p.out==="moved"||p.out==="diff"){ const zm=shiftMat({nx:MB.nx,ny:MB.ny,z:MB.z},r.sx,r.sy);
+      const z=p.out==="moved"?zm:zm.map((v,i)=>v==null||MA.z[i]==null?null:MA.z[i]-v);
+      mat={nx:MA.nx,ny:MA.ny,x:matAxisOf(MA.xs),y:matAxisOf(MA.ys),z,xname:MA.xname||"X",xunit:xu,yname:MA.yname||"Y",yunit:yu,zname:p.out==="moved"?"Moved":"Difference",zunit:MA.zunit||""}; }
+    return {tables:[{cols}],report:{sections:secs,method},notes,mat}; }};
 /* ==ANA:END== */
 /* ==MAT:START== Matrices (ux/spec/SHEET_SPEC.md, slice 3.6), pure: a grid of Z with its X and Y.
    A matrix is {nx, ny, x, y, z}: `z` row major (z[r*nx + c], a row a Y, a column an X), null for a
@@ -10685,6 +10710,71 @@ function ijAtW(W,H,x,y){ if(x<-1||x>=W||y<-1||y>=H) return null; const out=(x<0|
    values of the samples that read it, weighted as they read it) until the fit settles, as Q.5's spots; from the scatter C with σ = 1
    and the covariance scaled by the reduced χ². → {d, kv, ksv, m, w, wPix, kfit, kres, fit {kind, p: {d0, A, B, w}, e, cov, chi2,
    dof, red, iter, conv, rounds, xc, yc, sxc, syc, w1090?, fwhm?}, notes, …ijProfile's} or {fail}. */
+/* The shift between two scans (QUDI_SPEC Q.8, beyond ImageJ): Guizar-Sicairos, Thurman and Fienup's registration (Opt. Lett. 33,
+   156, 2008). Each image less its mean (an empty cell 0), their cross-power R = conj(F_A)·F_B (or R/|R|, the phase correlation), its
+   inverse transform's largest magnitude the shift to a cell, then R's DFT evaluated on a grid 1/up of a cell apart over 1.5 cells about
+   it (two matrix products, the frequencies signed as NumPy's fftfreq) and its largest magnitude the shift to 1/up of a cell. The shift s
+   is the second scan's against the first: B(x) = A(x − s), in cells along X (columns) and Y (rows). regShift(A, B, {up, norm}) on
+   {nx, ny, z} (row major, a row a Y, null empty) → {sx, sy, ix, iy, peak, r (the correlation at the shift, cells by their nearest)} or
+   {fail}. */
+function regShift(A,B,o){ o=o||{}; const nx=A.nx, ny=A.ny, N=nx*ny; if(B.nx!==nx||B.ny!==ny) return {fail:"The two matrices are not the same size."};
+  if(nx<4||ny<4) return {fail:"A shift needs a matrix of four cells by four at least."};
+  const up=Math.max(1,Math.min(1000,Math.round(+o.up||100))), phase=o.norm==="phase";
+  const prep=M=>{ let s=0, k=0; for(let i=0;i<N;i++){ const v=M.z[i]; if(v!=null&&Number.isFinite(+v)){ s+=+v; k++; } } const mu=k?s/k:0, re=new Float64Array(N);
+      for(let i=0;i<N;i++){ const v=M.z[i]; re[i]=v!=null&&Number.isFinite(+v)?+v-mu:0; } return {re,k}; };
+  const a=prep(A), b=prep(B); if(a.k<4||b.k<4) return {fail:"A matrix has fewer than four values."};
+  const fft2=(re,im,inv)=>{ const rr=new Float64Array(nx), ri=new Float64Array(nx), cr=new Float64Array(ny), ci=new Float64Array(ny);
+      for(let y=0;y<ny;y++){ for(let x=0;x<nx;x++){ rr[x]=re[y*nx+x]; ri[x]=im[y*nx+x]; } fftAny(rr,ri,inv); for(let x=0;x<nx;x++){ re[y*nx+x]=rr[x]; im[y*nx+x]=ri[x]; } }
+      for(let x=0;x<nx;x++){ for(let y=0;y<ny;y++){ cr[y]=re[y*nx+x]; ci[y]=im[y*nx+x]; } fftAny(cr,ci,inv); for(let y=0;y<ny;y++){ re[y*nx+x]=cr[y]; im[y*nx+x]=ci[y]; } } };
+  const ar=a.re.slice(), ai=new Float64Array(N), br=b.re.slice(), bi=new Float64Array(N); fft2(ar,ai,false); fft2(br,bi,false);
+  const Rr=new Float64Array(N), Ri=new Float64Array(N); let any=false;
+  for(let i=0;i<N;i++){ let x=ar[i]*br[i]+ai[i]*bi[i], y=ar[i]*bi[i]-ai[i]*br[i]; if(phase){ const m=Math.hypot(x,y); if(m>0){ x/=m; y/=m; } else { x=0; y=0; } } Rr[i]=x; Ri[i]=y; if(x||y) any=true; }
+  if(!any) return {fail:"A matrix has the same value everywhere, so it has no shift."};
+  const cr=Rr.slice(), ci=Ri.slice(); fft2(cr,ci,true); let best=-1, ib=0; for(let i=0;i<N;i++){ const m=cr[i]*cr[i]+ci[i]*ci[i]; if(m>best){ best=m; ib=i; } }
+  let ix=ib%nx, iy=Math.floor(ib/nx); if(ix>Math.trunc(nx/2)) ix-=nx; if(iy>Math.trunc(ny/2)) iy-=ny;
+  let sx=ix, sy=iy, peak=Math.sqrt(best)*N;
+  if(up>1){ const m=Math.ceil(1.5*up), c=Math.trunc(m/2), fq=n=>{ const f=new Float64Array(n); for(let k=0;k<n;k++) f[k]=k<Math.ceil(n/2)?k:k-n; return f; }, FX=fq(nx), FY=fq(ny);
+    // T[ky][j] = Σ_kx R[ky, kx]·exp(2πi·kx·px_j/nx), px_j = ix + (j − c)/up; then CC[i][j] = Σ_ky T[ky][j]·exp(2πi·ky·py_i/ny)
+    const Tr=new Float64Array(ny*m), Ti=new Float64Array(ny*m), cx=new Float64Array(nx*m), sxn=new Float64Array(nx*m);
+    for(let j=0;j<m;j++){ const px=ix+(j-c)/up; for(let k=0;k<nx;k++){ const t=2*Math.PI*FX[k]*px/nx; cx[j*nx+k]=Math.cos(t); sxn[j*nx+k]=Math.sin(t); } }
+    for(let y=0;y<ny;y++) for(let j=0;j<m;j++){ let sr=0, si=0; for(let k=0;k<nx;k++){ const rr=Rr[y*nx+k], ri=Ri[y*nx+k], co=cx[j*nx+k], sn=sxn[j*nx+k]; sr+=rr*co-ri*sn; si+=rr*sn+ri*co; } Tr[y*m+j]=sr; Ti[y*m+j]=si; }
+    let bm=-1, bi2=0, bj=0;
+    for(let i=0;i<m;i++){ const py=iy+(i-c)/up, cy=new Float64Array(ny), sy2=new Float64Array(ny); for(let k=0;k<ny;k++){ const t=2*Math.PI*FY[k]*py/ny; cy[k]=Math.cos(t); sy2[k]=Math.sin(t); }
+      for(let j=0;j<m;j++){ let sr=0, si=0; for(let k=0;k<ny;k++){ const tr=Tr[k*m+j], ti=Ti[k*m+j]; sr+=tr*cy[k]-ti*sy2[k]; si+=tr*sy2[k]+ti*cy[k]; } const mg=sr*sr+si*si; if(mg>bm){ bm=mg; bi2=i; bj=j; } } }
+    sx=ix+(bj-c)/up; sy=iy+(bi2-c)/up; peak=Math.sqrt(bm); }
+  // the correlation at the shift, the second scan's cells read at the nearest cell of the first's
+  const kx=Math.round(sx), ky=Math.round(sy); let sab=0, saa=0, sbb=0;
+  for(let y=0;y<ny;y++){ const yb=y+ky; if(yb<0||yb>=ny) continue; for(let x=0;x<nx;x++){ const xb=x+kx; if(xb<0||xb>=nx) continue; const u=a.re[y*nx+x], w=b.re[yb*nx+xb]; sab+=u*w; saa+=u*u; sbb+=w*w; } }
+  return {sx,sy,ix,iy,peak,up,r:saa>0&&sbb>0?sab/Math.sqrt(saa*sbb):null}; }
+/* shiftFit(MA, MB, {up, norm, noise, t, splits, seed}): regShift's shift with its standard error by data fission (Leiner, Duan, Wasserman
+   and Ramdas, 2023): each scan split into two of independent noise, A ± σ·Z (Z standard normal, σ each cell's shot noise by decision 9,
+   or one figure from the scatter by Immerkær's estimate, J. CVGIP 64, 300, 1996), the shift of the first halves and of the second; the
+   halves hold twice the noise variance, so the difference of their shifts has four times the shift's variance: SE² = mean (s₁ − s₂)²/4
+   over `splits` splits (16) from mulberry32(seed). → regShift's and {ssx, ssy, sig, n} or {fail}. */
+function immerkaer(z,nx,ny){ let s=0, k=0; for(let y=1;y<ny-1;y++) for(let x=1;x<nx-1;x++){ let v=0, ok=true;
+    for(let dy=-1;dy<=1&&ok;dy++) for(let dx=-1;dx<=1;dx++){ const q=z[(y+dy)*nx+x+dx]; if(q==null||!Number.isFinite(+q)){ ok=false; break; } v+=(dx===0&&dy===0?4:dx===0||dy===0?-2:1)*q; }
+    if(ok){ s+=Math.abs(v); k++; } } return k?Math.sqrt(Math.PI/2)*s/(6*k):null; }
+function shiftFit(MA,MB,o){ o=o||{}; const r=regShift(MA,MB,o); if(r.fail) return r; const nx=MA.nx, ny=MA.ny, N=nx*ny;
+  const noise=["rate","counts","scatter"].includes(o.noise)?o.noise:"scatter", t=+o.t, K=Math.max(2,Math.min(100,Math.round(+o.splits||16)));
+  if(noise==="rate"&&!(t>0)) return {fail:"The shot noise of a count rate needs the pixel time, above 0 s."};
+  if(noise!=="scatter") for(const M of [MA,MB]) for(let i=0;i<N;i++) if(M.z[i]!=null&&M.z[i]<0) return {fail:"A count is below zero, so its shot noise means nothing: take the noise from the scatter."};
+  const sigOf=M=>{ if(noise==="scatter"){ const s=immerkaer(M.z,nx,ny); return s>0?{one:s}:null; } const a=new Float64Array(N);
+      for(let i=0;i<N;i++){ const v=M.z[i]; a[i]=v==null||!Number.isFinite(+v)?0:noise==="rate"?Math.sqrt(Math.max(v*t,1))/t:Math.sqrt(Math.max(v,1)); } return {per:a}; };
+  const SA=sigOf(MA), SB=sigOf(MB); if(!SA||!SB) return Object.assign(r,{fail:null,seFail:"The scatter could not be measured (the matrix is too small, or has no noise), so the shift has no error."});
+  const rnd=mulberry32(o.seed==null?1:+o.seed), gauss=()=>{ let u=0; while(u<=0) u=rnd(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*rnd()); };
+  const half=(M,S,Z,sg)=>{ const z=new Array(N); for(let i=0;i<N;i++){ const v=M.z[i]; z[i]=v==null||!Number.isFinite(+v)?null:+v+sg*(S.one!=null?S.one:S.per[i])*Z[i]; } return {nx,ny,z}; };
+  let dx2=0, dy2=0, n=0;
+  for(let k=0;k<K;k++){ const ZA=new Float64Array(N), ZB=new Float64Array(N); for(let i=0;i<N;i++){ ZA[i]=gauss(); ZB[i]=gauss(); }
+    const s1=regShift(half(MA,SA,ZA,1),half(MB,SB,ZB,1),o), s2=regShift(half(MA,SA,ZA,-1),half(MB,SB,ZB,-1),o); if(s1.fail||s2.fail) continue;
+    dx2+=(s1.sx-s2.sx)**2; dy2+=(s1.sy-s2.sy)**2; n++; }
+  if(n<2) return Object.assign(r,{seFail:"The halves of the data could not be registered, so the shift has no error."});
+  return Object.assign(r,{ssx:Math.sqrt(dx2/n/4),ssy:Math.sqrt(dy2/n/4),n,noise,t:noise==="rate"?t:null,sig:noise==="scatter"?[SA.one,SB.one]:null}); }
+// The second scan moved onto the first: each cell read from the second at its place plus the shift, bilinear, empty past its edge.
+function shiftMat(MB,sx,sy){ const nx=MB.nx, ny=MB.ny, z=new Array(nx*ny).fill(null), g=(x,y)=>{ const v=MB.z[y*nx+x]; return v==null||!Number.isFinite(+v)?NaN:+v; };
+  for(let y=0;y<ny;y++) for(let x=0;x<nx;x++){ const X=x+sx, Y=y+sy; if(X<-1e-9||X>nx-1+1e-9||Y<-1e-9||Y>ny-1+1e-9) continue;
+    const x0=Math.min(Math.max(Math.floor(X),0),nx-2), y0=Math.min(Math.max(Math.floor(Y),0),ny-2), fx=X-x0, fy=Y-y0;
+    const v=(1-fy)*((1-fx)*g(x0,y0)+fx*g(x0+1,y0))+fy*((1-fx)*g(x0,y0+1)+fx*g(x0+1,y0+1)); z[y*nx+x]=Number.isFinite(v)?v:null; }
+  return z; }
 const PROF_FITS=[["none","None"],["peak","A peak (Gaussian)"],["edge","An edge (error function)"]], PROF_Z90=1.2815515655446004;
 function kProfile(M,o){ o=o||{}; const r=ijProfile(M,o); if(r.fail) return r; const I=ijImage(M,!!o.single), {G,W,H,v}=I, at=ijAtFn(v,W,H);
   const noise=["rate","counts","scatter"].includes(o.noise)?o.noise:"scatter", t=+o.t, kind=o.fit==="peak"||o.fit==="edge"?o.fit:"none";
@@ -22159,13 +22249,13 @@ function anaSig(a){ const parts=[a.kind,JSON.stringify(a.p||{}),JSON.stringify(a
   // The columns its rows are chosen by (a filter's conditions taken as its own, SHEET_SPEC 3.3).
   Object.keys(a.in.where||{}).forEach(id=>{ const g=colById(id); parts.push(g?"w"+arrKey(g.data)+txtKey(g.txt):"gone:"+id); });
   if(a.p&&a.p.meta) parts.push("meta:"+(a.in.cols||[]).map(id=>{ const c=colById(id); return c&&c.meta?String(c.meta[a.p.meta]??""):""; }).join("\u0001"));
-  if(a.in.mat){ const ms=matOf(a.in.mat); parts.push(ms?`m${ms.nx}x${ms.ny}`+JSON.stringify([ms.x,ms.y])+arrKey(ms.z):"gone:"+a.in.mat); }
+  for(const id of [a.in.mat,a.in.mat2]) if(id){ const ms=matOf(id); parts.push(ms?`m${ms.nx}x${ms.ny}`+JSON.stringify([ms.x,ms.y])+arrKey(ms.z):"gone:"+id); }
   { const SV=anaSeriesOf(a,(a.in.cols||[]).map(colById).filter(Boolean)); if(SV) parts.push("sv:"+JSON.stringify(SV)); }
   return sha256(parts.join("\u0002")).slice(0,24); }
 // Out of date, and why (null when it is not).
 function anaStale(a){ if(!a) return null; if(a.res&&a.res.err) return a.res.err; const gone=(a.in.cols||[]).filter(id=>!colById(id));
   if(gone.length) return `${gone.length===1?"An input column has":gone.length+" input columns have"} been deleted`;
-  if(a.in.mat&&!matOf(a.in.mat)) return "Its matrix has been deleted";
+  if(a.in.mat&&!matOf(a.in.mat)||a.in.mat2&&!matOf(a.in.mat2)) return "Its matrix has been deleted";
   return a.sig!==anaSig(a)?"What it reads has changed since it was worked out":null; }
 // Which rows an analysis reads (1-based, either end open), or null for all.
 const anaRowsOf=inp=>inp&&Array.isArray(inp.rows)&&inp.rows.length===2&&(inp.rows[0]!=null||inp.rows[1]!=null)?inp.rows:null;
@@ -22249,12 +22339,12 @@ function runAna(a,p,o){ o=o||{}; const K=ANA_KINDS[a.kind]; p=p||P(); if(!K||!p)
   if(gone||(a.in.by&&!by)||wg){ a.res=Object.assign({},a.res||{},{err:gone?`${gone===1?"An input column has":gone+" input columns have"} been deleted`:wg?"A column its rows were chosen by has been deleted":"Its column of groups has been deleted"}); a.sig=sig; return false; }
   const notes=[], ins=anaInputs(a,cs,by,notes,K);
   // A matrix read as its cells, with each one's X and Y (a surface fit's, FIT2_SPEC 4.4).
-  if(a.in.mat){ const ms=matOf(a.in.mat,p); if(!ms){ a.res=Object.assign({},a.res||{},{err:"Its matrix has been deleted"}); a.sig=sig; return false; }
-    const xy=matXY(ms); ins.push({id:"mat:"+ms.id,name:ms.name,mat:{nx:ms.nx,ny:ms.ny,xs:Array.from(xy.X),ys:Array.from(xy.Y),z:Array.from(ms.z),xname:ms.xname||"",yname:ms.yname||"",zname:ms.zname||"",xunit:ms.xunit||"",yunit:ms.yunit||"",zunit:ms.zunit||""}}); }
+  for(const [id,which] of [[a.in.mat,1],[a.in.mat2,2]]) if(id){ const ms=matOf(id,p); if(!ms){ a.res=Object.assign({},a.res||{},{err:"Its matrix has been deleted"}); a.sig=sig; return false; }
+    const xy=matXY(ms); ins.push({id:"mat:"+ms.id,name:ms.name,which,mat:{nx:ms.nx,ny:ms.ny,xs:Array.from(xy.X),ys:Array.from(xy.Y),z:Array.from(ms.z),xname:ms.xname||"",yname:ms.yname||"",zname:ms.zname||"",xunit:ms.xunit||"",yunit:ms.yunit||"",zunit:ms.zunit||""}}); }
   // A large one is worked out by the compute worker (1.3c), its result put in when it comes back
   // (anaDone), if what it read has not changed meanwhile; the page goes on.
   const nv=ins.reduce((t,q)=>t+(q.vals||q.cells||(q.pts&&q.pts.x)||[]).length,0);
-  if((nv>=ANA_BIG||K.heavy&&K.heavy(a.p||{},ins))&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({id:q.id,name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,cells:q.cells,sheet:q.sheet,role:q.role,order:q.order,rows:q.rows,groups:q.groups,grows:q.grows,missing:q.missing,cats:q.cats,pts:q.pts,xn:q.xn,xu:q.xu,gv:q.gv,sv:q.sv,svn:q.svn,svu:q.svu,mat:q.mat})),notes,sig); return "later"; }
+  if((nv>=ANA_BIG||K.heavy&&K.heavy(a.p||{},ins))&&!o.sync&&computeWorker()){ a.sig=sig; anaJob(a,ins.map(q=>({id:q.id,name:q.name,ref:q.ref,unit:q.unit,vals:q.vals,cells:q.cells,sheet:q.sheet,role:q.role,order:q.order,rows:q.rows,groups:q.groups,grows:q.grows,missing:q.missing,cats:q.cats,pts:q.pts,xn:q.xn,xu:q.xu,gv:q.gv,sv:q.sv,svn:q.svn,svu:q.svu,mat:q.mat,which:q.which})),notes,sig); return "later"; }
   let out; try{ out=anaRunKind(a.kind,ins,a.p||{}); }catch(e){ out={fail:String(e&&e.message||e)}; }
   return anaApply(a,p,out,notes,sig); }
 /* An analysis's matrix (SIGNAL_SPEC decision 7): written into a book of its own (`a.out.mat`), its sheet marked `ana` so it is read
@@ -22704,6 +22794,31 @@ const ANA_FORMS={
       const G=ijGeom(s.x,s.y,s.nx,s.ny); return G.fail||""; },
     valid(r){ return !ANA_FORMS.spots.why(r); },
     inp(p,inp){ if(p.mat) inp.mat=p.mat; else delete inp.mat; }},
+  shift:{noGroup:true,
+    html(p){ const M=matAll(), sid=p.mat&&matOf(p.mat)?p.mat:(matFront()||(M[0]&&M[0].s.id)), s2=p.mat2&&matOf(p.mat2)?p.mat2:(shStart(sid).mat2||""), v=x=>x==null?"":esc(String(x)), opt=c=>M.map(q=>`<option value="${q.s.id}"${q.s.id===c?" selected":""}>${esc(matName(q.s.id))}</option>`).join("");
+      return `<div class="grid2 shdlg"><label for="aSHa" class="tipd" title="The scan the other is measured against">First scan</label><select id="aSHa">${opt(sid)}</select>
+        <label for="aSHb" class="tipd" title="The scan whose shift is measured: the same size and cells as the first">Second scan</label><select id="aSHb">${opt(s2)}</select>
+        <label for="aSHm" class="tipd" title="The cross-correlation (the default: steady with noise) or the phase correlation (sharper, for scans with little noise and much detail)">Correlation</label><select id="aSHm"><option value="cc">Cross-correlation</option><option value="phase"${p.norm==="phase"?" selected":""}>Phase correlation</option></select>
+        <label for="aSHu" class="tipd" title="The shift is found to this fraction of a cell">To 1 /</label><span class="anarows"><input id="aSHu" type="text" class="num" value="${v(p.up==null?100:p.up)}"> of a cell</span>
+        <label for="aSHn" class="tipd" title="The noise the error is worked out from: each cell's shot noise, √N, when the values are counts or count rates whose pixel time is known; else one figure for each scan from its scatter">Noise</label><select id="aSHn">${SPOT_NOISE.map(([k,t])=>`<option value="${k}"${k===(p.noise||"scatter")?" selected":""}>${t}</option>`).join("")}</select>
+        <label for="aSHt" class="tipd" title="How long each cell counted, in seconds: from the scan's header when it says">Pixel time (s)</label><span class="anarows"><input id="aSHt" type="text" class="num" value="${v(p.t)}"></span>
+        <label for="aSHo">A matrix of</label><select id="aSHo"><option value="none">Nothing</option><option value="moved"${p.out==="moved"?" selected":""}>The second moved onto the first</option><option value="diff"${p.out==="diff"?" selected":""}>The first less the second moved</option></select></div>
+        <p class="note" id="aSHmsg" aria-live="polite"></p>`; },
+    wire(box){ const F=ANA_FORMS.shift, vals=()=>{ const r={}; box.querySelectorAll("input,select").forEach(el=>{ if(el.id) r[el.id]=el.type==="checkbox"?el.checked:el.value; }); return r; };
+      const msg=()=>{ const r=vals(), w=F.why(r), el=$("#aSHmsg"); $("#aSHt").closest(".anarows").hidden=r.aSHn!=="rate"; if(w){ el.textContent=w; return; }
+        const o=F.read(r), a=matOf(o.mat), X=matAxis(a.x,a.nx), st=Math.abs(X[a.nx-1]-X[0])/(a.nx-1), u=a.xunit?" "+a.xunit:"";
+        el.textContent=`${a.ny} × ${a.nx} cells of ${fmt(st,4)}${u}: the shift to ${fmt(st/o.up,3)}${u}`; };
+      box.addEventListener("input",msg); box.addEventListener("change",msg); msg(); },
+    read(v){ const n=t=>{ const x=parseNum(String(t==null?"":t).trim()); return Number.isFinite(x)?x:null; };
+      return {mat:v.aSHa||null,mat2:v.aSHb||null,norm:v.aSHm==="phase"?"phase":"cc",up:n(v.aSHu),noise:["rate","counts"].includes(v.aSHn)?v.aSHn:"scatter",t:n(v.aSHt),out:["moved","diff"].includes(v.aSHo)?v.aSHo:"none"}; },
+    why(r){ const o=ANA_FORMS.shift.read(r), a=o.mat&&matOf(o.mat), b=o.mat2&&matOf(o.mat2); if(!a||!b) return "Choose two matrices.";
+      if(o.mat===o.mat2) return "Choose two different matrices: a scan has no shift against itself.";
+      if(a.nx!==b.nx||a.ny!==b.ny) return `The two are not the same size (${a.ny} × ${a.nx} and ${b.ny} × ${b.nx}).`;
+      if(!(o.up>=1&&o.up<=1000&&Number.isInteger(o.up))) return "The step is 1 over a whole number of cells, from 1 to 1000.";
+      if(o.noise==="rate"&&!(o.t>0)) return "The shot noise of a count rate needs its pixel time, above 0 s.";
+      return ""; },
+    valid(r){ return !ANA_FORMS.shift.why(r); },
+    inp(p,inp){ if(p.mat) inp.mat=p.mat; else delete inp.mat; if(p.mat2) inp.mat2=p.mat2; else delete inp.mat2; }},
   fft:{noGroup:true, html(p){ return `<div class="grid2">${sigWinHtml(p,"boxcar")}
       <label for="aFd" class="tipd" title="Taken off before the window: a mean or a slope otherwise puts its own large values near frequency 0">Take off</label><select id="aFd">${SIG_DETREND.map(([k,t])=>`<option value="${k}"${k===(p.detrend||"none")?" selected":""}>${t}</option>`).join("")}</select>
       <label for="aFp" class="tipd" title="Zeros added at the end: a finer frequency step to read, no new information">Padding</label><span class="anarows"><select id="aFp"><option value="none">None</option><option value="pow2"${p.pad==="pow2"?" selected":""}>To the next power of 2</option><option value="n"${Number.isFinite(+p.pad)&&+p.pad>0?" selected":""}>To a length…</option></select><input type="text" id="aFpn" inputmode="numeric" aria-label="Length to pad to" value="${Number.isFinite(+p.pad)&&+p.pad>0?Math.round(+p.pad):""}" placeholder="points"></span>
@@ -23056,6 +23171,7 @@ function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&
   if(a.kind==="subsets") return [{key:"fit",label:"Fit one of them…",title:"A linear model of the response by the columns of a subset listed",enabled:!ro&&!!(rep.subsets&&rep.subsets.length),run:()=>anaSubsetFit(a.id)}];
   if(a.kind==="spots") return [{key:"show",label:"Show the spots on its map",title:"The matrix's map with each spot ringed at its FWHM",enabled:!ro&&!!(rep.spt&&matOf(rep.spt.mat)&&rep.spt.spots.length),run:()=>spxShow(a.id)},
     {key:"plot",label:"Plot the positions",title:"Each spot's Y against its X, with their standard errors as error bars",enabled:!ro,run:()=>spxPlot(a.id)}];
+  if(a.kind==="shift") return [{key:"map",label:"Draw the map",title:"The matrix it made, as an image with its colour bar, on a new graph",enabled:!ro&&!!anaMatSheet(a),run:()=>anaMatPlot(a.id)}];
   if(a.kind==="ijmaxima") return [{key:"show",label:"Show the maxima on its map",title:"The matrix's map with a ring at each maximum",enabled:!ro&&!!(rep.ijx&&matOf(rep.ijx.mat)&&rep.ijx.pts.length),run:()=>ijxShow(a.id)}];
   if(a.kind==="ijprofile") return [{key:"plot",label:"Plot the profile",title:"The values against the distance along the line, on a graph",enabled:!ro,run:()=>ijpPlot(a.id)},
     {key:"show",label:"Show the line on its map",title:"The matrix's map with the line drawn over it",enabled:!ro&&!!(rep.ijp&&matOf(rep.ijp.mat)),run:()=>ijpShow(a.id)}];
@@ -23322,7 +23438,7 @@ function anaClean(p){ if(p.ana!==undefined&&!Array.isArray(p.ana)) delete p.ana;
     .map(a=>{ if(typeof a.name!=="string"||!a.name) a.name=ANA_KINDS[a.kind].base; if(a.recalc!=="manual") a.recalc="auto"; if(!a.in.read||typeof a.in.read!=="object") a.in.read={}; a.in.cols=a.in.cols.filter(x=>typeof x==="string");
       if(a.in.rows!==undefined&&!(Array.isArray(a.in.rows)&&a.in.rows.length===2&&a.in.rows.every(x=>x==null||(Number.isInteger(x)&&x>=1))&&a.in.rows.some(x=>x!=null))) delete a.in.rows;
       if(a.in.miss!==undefined&&a.in.miss!=="list") delete a.in.miss; if(!a.p||typeof a.p!=="object"||Array.isArray(a.p)) a.p={};
-      if(a.in.mat!==undefined&&typeof a.in.mat!=="string") delete a.in.mat; if(a.out.mat!==undefined&&typeof a.out.mat!=="string") delete a.out.mat;
+      if(a.in.mat!==undefined&&typeof a.in.mat!=="string") delete a.in.mat; if(a.in.mat2!==undefined&&typeof a.in.mat2!=="string") delete a.in.mat2; if(a.out.mat!==undefined&&typeof a.out.mat!=="string") delete a.out.mat;
       if(a.in.where!==undefined){ const w=a.in.where, o={}; if(w&&typeof w==="object"&&!Array.isArray(w)) Object.keys(w).forEach(id=>{ if(filtOk(w[id])) o[id]=w[id]; }); if(Object.keys(o).length) a.in.where=o; else delete a.in.where; }
       return a; });
   const ids=new Set((p.ana||[]).map(a=>a.id)), own=new Map((p.ana||[]).map(a=>[a.out.sheet,a.id]));
@@ -24659,6 +24775,7 @@ function matMenuItems(sid){ const s=matOf(sid), ro=S.readOnly, on=!!s&&!ro;
     {label:"To columns",enabled:on,sub:()=>[{label:"X, Y and Z columns",run:()=>matToSheet(sid,"xyz")},{label:"Z as a block, a column for each X",run:()=>matToSheet(sid,"block")}]},
     {label:"Plot",enabled:on,sub:()=>MAT_KINDS.map(([k,l])=>({label:l,run:()=>plotMatrix(sid,k)}))},
     {label:"Spots…",enabled:on,title:ANA_KINDS.spots.help,run:()=>anaDlg("spots",{p:spxStart(sid)})},
+    {label:"Shift between scans…",enabled:on&&matAll().length>1,title:matAll().length>1?ANA_KINDS.shift.help:"A second matrix of the same size is needed",run:()=>anaDlg("shift",{p:shStart(sid)})},
     {label:"ImageJ",title:"ImageJ's measurements of this matrix, and the matrix as a TIFF ImageJ opens with its calibration",sub:()=>[
       {label:"Measure…",enabled:on,title:"ImageJ's Measure over the matrix, a rectangle (the cells selected, to begin with), an oval or a polygon",run:()=>anaDlg("ijmeasure",{p:ijmStart(sid)})},
       {label:"Find maxima…",enabled:on,title:ANA_KINDS.ijmaxima.help,run:()=>anaDlg("ijmaxima",{p:ijxStart(sid)})},
@@ -24733,6 +24850,10 @@ const SPOT_RATE=/^(c\/s|cps|counts\/s|counts per second|hz|1\/s|s⁻¹|s\^-1)$/i
 // The noise a matrix's cells carry (decision 9): the shot noise of a count rate when the header gives the pixel time and Z is a rate, of
 // counts when Z is counts, else the scatter.
 function noiseStart(s){ const d=spotDwell(s), zu=(s.zunit||"").trim(); return {noise:d&&SPOT_RATE.test(zu)?"rate":SPOT_COUNTS.test(zu)?"counts":"scatter",t:d?+d.t.toPrecision(12):null}; }
+// Shift between scans: the matrix in front first, the second another of the same size (another sheet of its book before another book).
+function shStart(sid){ sid=sid||matFront(); const s=matOf(sid); if(!s) return {}; const all=matAll().map(q=>q.s).filter(q=>q.id!==sid&&q.nx===s.nx&&q.ny===s.ny);
+  const bk=matBookOf(sid), same=all.find(q=>bk&&bk.sheets.some(t=>t.id===q.id)), two=same||all[0];
+  return Object.assign({mat:sid,mat2:two?two.id:null,norm:"cc",up:100,out:"none"},noiseStart(s)); }
 function spxStart(sid){ sid=sid||matFront(); const s=matOf(sid); if(!s) return {}; const v=s.z.filter(x=>x!=null&&Number.isFinite(x)).sort((a,b)=>a-b);
   const md=quantileSorted(v,0.5), dv=v.map(x=>Math.abs(x-md)).sort((a,b)=>a-b), sc=1.4826*quantileSorted(dv,0.5);
   return Object.assign({mat:sid,prom:sc>0?+(5*sc).toPrecision(2):0,shape:"round",split:true,out:"none"},noiseStart(s)); }
@@ -30255,7 +30376,8 @@ function analyzeMenu(){
       return [{label:"Measure…", title:ok?ANA_KINDS.ijmeasure.help:need, run:()=>anaDlg("ijmeasure",{p:ijmStart()}), enabled:ok},
         {label:"Find maxima…", title:ok?ANA_KINDS.ijmaxima.help:need, run:()=>anaDlg("ijmaxima",{p:ijxStart()}), enabled:ok},
         {label:"Profile…", title:ok?ANA_KINDS.ijprofile.help:need, run:()=>anaDlg("ijprofile",{p:ijpStart()}), enabled:ok},"-",
-        {label:"Spots…", title:ok?ANA_KINDS.spots.help:need, run:()=>anaDlg("spots",{p:spxStart()}), enabled:ok}]; }},
+        {label:"Spots…", title:ok?ANA_KINDS.spots.help:need, run:()=>anaDlg("spots",{p:spxStart()}), enabled:ok},
+        {label:"Shift between scans…", title:ok&&matAll().length>1?ANA_KINDS.shift.help:"Two matrices of one size are needed", run:()=>anaDlg("shift",{p:shStart()}), enabled:ok&&matAll().length>1}]; }},
     {label:"Statistics", sub:()=>[{label:"Quick statistics…", title:"The Statistics window: each column's numbers at a glance, the integral of the range in view, the noise and the signal to noise, with no sheet made", run:go("desc"), enabled:has},
       {label:"Descriptive", sub:()=>[{label:"Statistics on columns…", title:ANA_KINDS.desc.help, run:()=>anaDlg("desc"), enabled:!S.readOnly&&!!P()},
         {label:"Frequency counts…", title:ANA_KINDS.freq.help, run:()=>anaDlg("freq"), enabled:!S.readOnly&&!!P()},
@@ -32599,7 +32721,7 @@ ${DL([["Numbers","equals, does not equal, is less than, is at most, is greater t
 ${DL([["Stack columns","The columns ticked one under another in a column of values, with a column naming where each came from; columns ticked under <em>Kept beside</em> are repeated by each value (wide to long). Empty cells are left out unless you say otherwise."],["Unstack","A column of values into a column per level of a group column (long to wide): by their order within each level, or matched by an identifier column (then an identifier seen twice in a level keeps its first value, said)."],["Split by groups","The rows of each level of a group column, or every n rows, as a block of the columns ticked, side by side."],["Pivot table","The levels of one column down and another's across, each cell the count, sum, mean, SD, minimum, maximum, median or first of a column of values (or the number of rows), with totals."],["Reduce rows","Every nth row kept, every n rows merged (by their mean or another aggregate; X by its mean), or rows put into bins of X a width wide, X then each bin's centre."],["Duplicate rows","Rows whose key columns repeat: the first or the last of each kept, all averaged into one, or only the duplicates kept; numbers within a tolerance count as one."],["A sorted copy","The rows sorted by up to three columns, each up or down: numbers, then text, then empty cells; rows that tie keep their order. The only way rows are really reordered, and it is a copy."],["Transpose","Rows turned into columns, the first column ticked naming them when asked."],["Join two sheets","This sheet's rows beside another sheet's whose key matches: only rows matched in both, every row of this sheet, or every row of both. A row matching several gives one each."],["Append sheets","Other sheets' rows under this one's, columns matched by name or by position, with a column naming each row's sheet."]])}
 <h2>How they behave</h2>
 <p>Each is an ${DA("analyses","analysis")} under ${MP("Data › Reshape")}: it reads the cells as the worksheet holds them (numbers and text, not processed), writes a result sheet that is worked out again when they change, and can be changed, recalculated, cut from its data (the cells kept on an ordinary sheet) or deleted, each one step to undo. Its rows can be limited, and on a filtered sheet it offers the filter's rows as its own. The report says how many rows it read and made, and what it left out.</p>`},
-{id:"matrices", g:"Data", t:"Matrices", kw:"matrix matrices matrix book matrix sheet grid image z values surface 2d two-dimensional measure region roi oval polygon spots spot fit gaussian localisation localization sub-pixel subpixel psf point spread function resolution fwhm emitter nv centre center photon shot noise poisson maximum likelihood split overlap crowded find maxima maximum minima peaks spots prominence noise tolerance strict exclude edges light background profile line profile plot profile makeline line width wide line band edge width 10-90 knife edge line spread error function erf area intden integrated density centroid centre of mass center of mass histogram imagej fiji tif tiff 32-bit float calibration pixel size qudi confocal scan nv apd counter channel positions depth scan back scan header transpose flip turn rotate rot90 crop resample interpolate bilinear arithmetic set values formula picture png jpeg grey gray channel from columns to columns xyz block heat map contour",
+{id:"matrices", g:"Data", t:"Matrices", kw:"matrix matrices matrix book matrix sheet grid image z values surface 2d two-dimensional measure region roi oval polygon spots spot fit gaussian localisation localization sub-pixel subpixel psf point spread function resolution fwhm emitter nv centre center photon shot noise poisson maximum likelihood split overlap crowded find maxima maximum minima peaks spots prominence noise tolerance strict exclude edges light background profile line profile plot profile makeline line width wide line band edge width 10-90 knife edge line spread error function erf shift drift registration register align alignment cross-correlation phase correlation subpixel back scan forward scan lag hysteresis area intden integrated density centroid centre of mass center of mass histogram imagej fiji tif tiff 32-bit float calibration pixel size qudi confocal scan nv apd counter channel positions depth scan back scan header transpose flip turn rotate rot90 crop resample interpolate bilinear arithmetic set values formula picture png jpeg grey gray channel from columns to columns xyz block heat map contour",
  lead:"A grid of values Z with its X along the top and its Y down the side, as Origin's matrix: kept in a book of its own, drawn by a graph as a map.",
  body:`<h2>Making one</h2>
 <p>${MP("Data › Matrix")} has three ways in. <em>New matrix…</em> asks for the rows and columns, X and Y from first to last (evenly spaced), and the values: empty, one number in every cell, or a formula. <em>From columns…</em> reads the block selected in the worksheet: its columns become the matrix's columns and its rows the rows; when its first row and first column are numbers running one way and the corner is empty, they are X and Y. <em>From a picture…</em> reads a PNG or JPEG: its grey values (0 to 255, weighted as ITU-R BT.601), or its red, green, blue or opacity; X counts the pixels from the left and Y from the bottom, so the picture is upright on a graph.</p>
@@ -32620,6 +32742,8 @@ ${DL([["Transpose","Rows become columns, and X becomes Y."],["Flip","Left to rig
 <p>${MP("Analyze › Image › Spots…")} (or the window's Matrix › Spots…) measures each spot of a scan as ImageJ cannot: where it is to a small fraction of a cell, how wide, how bright above its background, and how sure each number is. The seeds are the maxima ImageJ's Find Maxima gives at the prominence (five times the values' scatter, to begin with). Each spot is fitted with a two-dimensional Gaussian, round or elliptical and turned, on a flat background, over the cells within the <em>window's radius</em> of it (1.5 times the median FWHM measured at the seeds, unless typed). Spots closer than twice that are fitted together, sharing their background, so a neighbour's light is not taken for one's own.</p>
 <p>When the scan's header says how long each cell counted (qudi's scanner clock, or the new format's pixel frequency), each cell is a count with its shot noise, √N: the fit is Poisson's maximum likelihood, the standard errors are those the counts allow, and the reduced χ² near 1 says Poisson's noise is all there is (above 1, the model is missing something: an elliptical spot fitted round, a second spot). Without the pixel time the errors come from the scatter about the fit. <em>Split spots that overlap</em> finds spots that make one maximum together: a spot is added where the residual is largest and kept when the likelihood ratio test of the two fits gives p below 0.001, the new spot is the size of the others and half a FWHM from them, and, for round spots, two round spots explain it better than one elliptical spot by a clear margin (Akaike's criterion, by more than 10). Two spots closer than their FWHM are found that way; for such pairs, choose round spots: two elliptical ones can share the light in several ways.</p>
 <p>A row a spot: X and Y with their standard errors (drawn as error bars when the positions are plotted), the FWHM (or both axes and the angle), the peak above the background, the background, the volume A·π·w₁·w₂/(4 ln 2), each with its error; the peak's t; the nearest other spot; its group; the reduced χ²; whether it settled, was added by splitting, or had its window cut by the edge. The summary gives the spots, the median FWHM and its spread (the point-spread function, the resolution), the median background and the density. The report rings each spot at its FWHM on the matrix's map and plots the positions; the model or the residuals can be written as a matrix. The analysis follows its matrix.</p>
+<h2 id="shift">The shift between two scans</h2>
+<p>${MP("Analyze › Image › Shift between scans…")} (or the window's Matrix › Shift between scans…) says how far the second of two scans of one place has moved against the first: the drift between two scans, or the lag of a back scan behind its forward scan. The two must be the same size with cells of the same size. Their cross-correlation's peak gives the shift to a cell, and the correlation worked out again about it on a finer grid gives it to a hundredth of a cell (Guizar-Sicairos's method; the step can be set). Each shift has a standard error, found by splitting each scan into two halves of independent noise (from the cells' shot noise when the pixel time is known, else from the scan's scatter), registering the halves, and comparing. The shift is given in cells and in X and Y's units (counting where each grid starts). <em>Phase correlation</em> is sharper for scans with much detail and little noise; with few counts the cross-correlation is steadier. A matrix can be made of the second scan moved onto the first, or of the first less it, to see what changed beside the drift. A spot that enters or leaves the scan pulls the shift a little; scans that share most of their area give the truest one.</p>
 <h2 id="noise">Intensities with their noise</h2>
 <p>Measure… has a part <em>Beyond ImageJ</em>: the sum and the mean of the region with their standard errors, and, given a <em>background ring</em> (a distance), the background per cell, the mean of the cells outside the region within that distance of it, taken off every cell of the region: the sum less it, with its error, and the signal to noise (the sum less the background over its error). The errors come from each cell's shot noise, √N, when the scan's header gives the pixel time (or the values are counts), else from the ring's scatter, the same for every cell (right for a faint region on a noisy background; a bright one's own shot noise is then left out). Take a region that holds the spot's light, out to about 1.5 times its FWHM from its centre, and a ring beyond it: a spot's tails in the ring raise the background and take light off the sum.</p>
 <h2 id="maxima">Maxima and profiles as ImageJ finds them</h2>
