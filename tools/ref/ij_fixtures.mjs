@@ -66,17 +66,40 @@ const measFail = [
   { name: "a polygon outside the matrix", m: meas[0].m, reg: R("poly", { pts: [[10, 10], [12, 10], [11, 12]] }) },
   { name: "every cell empty", m: { nx: 2, ny: 2, x: { a: 0, b: 1 }, y: { a: 0, b: 1 }, z: [null, null, null, null] }, reg: ALL },
 ];
+/* Find Maxima and Plot Profile (QUDI_SPEC Q.4): two spots on noise with a flat top and a maximum at the edge, ties of whole numbers,
+   a spot with empty cells, a range under the prominence, one value; each with prominences, strict, edges left out and minima
+   (light background); lines across them, diagonal, the full width, from beyond the edge, along a row a third apart (its ends a hair
+   off the centres, taken as them), on pixels that are not square. */
+const twoSpots = vals(24 * 18, (i) => { const c = i % 24, r = Math.floor(i / 24); let v = 20 + 400 * Math.exp(-((c - 6) ** 2 + (r - 5) ** 2) / 8) + 150 * Math.exp(-((c - 17) ** 2 + (r - 12) ** 2) / 5) + 3 * gauss();
+  if (c >= 11 && c <= 13 && r >= 2 && r <= 3) v = 90; if (c === 23 && r === 9) v = 120; return Math.round(v * 8) / 8; });
+const PK = [
+  Object.assign(C("two spots, a flat top, an edge maximum", { nx: 24, ny: 18, x: { a: 0, b: 5.75 }, y: { a: 0, b: 4.25 }, z: twoSpots }, { xunit: "µm", yunit: "µm", zunit: "c/s" }),
+    { maxima: [{ prom: 1 }, { prom: 10 }, { prom: 50 }, { prom: 200 }, { prom: 10, strict: true }, { prom: 10, edges: true }, { prom: 10, light: true }, { prom: 60, light: true, strict: true }],
+      profiles: [{ x0: 0.3, y0: 0.4, x1: 5.1, y1: 3.9 }, { x0: -0.125, y0: 1.25, x1: 5.875, y1: 1.25 }, { x0: 1.5, y0: -1, x1: 1.5, y1: 5 }, { x0: 4.4, y0: 3.3, x1: 4.6, y1: 3.4 }] }),
+  Object.assign(C("ties of whole numbers", { nx: 13, ny: 11, x: { a: 1, b: 13 }, y: { a: 1, b: 11 }, z: vals(143, () => Math.floor(6 * rnd())) }, {}),
+    { maxima: [{ prom: 0 }, { prom: 1 }, { prom: 2 }, { prom: 1, strict: true }, { prom: 1, edges: true }], profiles: [{ x0: 1, y0: 1, x1: 13, y1: 11 }] }),
+  Object.assign(C("a spot with empty cells", meas[1].m, meas[1].o), { maxima: [{ prom: 20 }, { prom: 300, edges: true }, { prom: 20, light: true }], profiles: [{ x0: 0.2, y0: 2.1, x1: 6.8, y1: 2.9 }] }),
+  Object.assign(C("a range under the prominence", { nx: 7, ny: 6, x: { a: 0, b: 6 }, y: { a: 0, b: 5 }, z: vals(42, (i) => 100 + ((i * 13) % 5)) }, {}), { maxima: [{ prom: 10 }, { prom: 10, strict: true }] }),
+  Object.assign(C("one value throughout", { nx: 5, ny: 4, x: { a: 0, b: 4 }, y: { a: 0, b: 3 }, z: vals(20, () => 7) }, {}), { maxima: [{ prom: 0 }, { prom: 0, strict: true }] }),
+  Object.assign(C("rows a third apart, a line along one", { nx: 6, ny: 4, x: { a: 1, b: 6 }, y: { a: 2, b: 4.5 }, z: vals(24, (i) => 1000 + 37 * ((i * 7) % 11)) }, { xunit: "µm", yunit: "µm" }),
+    { maxima: [{ prom: 50 }], profiles: [{ x0: 1, y0: 2.8333333333333335, x1: 6, y1: 2.8333333333333335 }, { x0: 1, y0: 2.833333333333, x1: 6, y1: 2.833333333333 }, { x0: 2, y0: 2, x1: 2, y1: 4.5 }] }),
+  Object.assign(C("pixels not square, axes descending", { nx: 11, ny: 7, x: { a: 5, b: -5 }, y: { a: 3, b: 0 }, z: vals(77, (i) => Math.sin(i / 3) * 50 + (i % 11) * 2) }, { xunit: "µm", yunit: "µm" }),
+    { maxima: [{ prom: 5 }], profiles: [{ x0: 4.5, y0: 0.2, x1: -4.5, y1: 2.8 }, { x0: -5, y0: 1.5, x1: 5, y1: 1.5 }, { x0: 2, y0: -0.5, x1: 2.4, y1: 3.5 }] }),
+];
 const dir = mkdtempSync(join(tmpdir(), "kurve-ij-")), out = [], jobs = {};
 const write = (c, k, pre) => { const t = matTiff(c.m, c.o); if (t.fail) throw new Error(`${c.name}: ${t.fail}`);
   const f = `${pre}${String(k).padStart(2, "0")}.tif`; writeFileSync(join(dir, f), t.bytes); c.file = f; c.sha = createHash("sha256").update(t.bytes).digest("hex"); };
 cases.forEach((c, k) => write(c, k, "c"));
 meas.forEach((c, k) => { write(c, k, "m"); jobs[c.file] = { ax: { x: c.m.x, y: c.m.y, nx: c.m.nx, ny: c.m.ny }, regs: c.regs }; });
+PK.forEach((c, k) => { write(c, k, "p"); jobs[c.file] = { maxima: c.maxima || [], profiles: c.profiles || [] }; });
 writeFileSync(join(dir, "jobs.json"), JSON.stringify(jobs));
 const read = JSON.parse(execFileSync("python3.13", ["-I", join(here, "ij_read.py"), dir], { encoding: "utf8", maxBuffer: 1 << 28 }));
 rmSync(dir, { recursive: true, force: true });
 for (const c of cases) out.push({ name: c.name, m: c.m, o: c.o, sha: c.sha, pil: read[c.file].pil, ij: read[c.file].ij });
 const mout = meas.map((c) => ({ name: c.name, m: c.m, o: c.o, sha: c.sha, regs: c.regs, res: read[c.file].meas }));
-const fx = { about: "Kurve's TIFF for ImageJ (QUDI_SPEC Q.2), read by Pillow and by ImageJ 1.54f's reading written out from its source; ImageJ's Measure on it (Q.3), its own arithmetic written out from its source and the same definitions in exact arithmetic (tools/ref/ij_read.py)", cases: out,
+const pout = PK.map((c) => ({ name: c.name, m: c.m, o: c.o, sha: c.sha, maxima: c.maxima || [], profiles: c.profiles || [], pmax: read[c.file].maxima, nan: read[c.file].pil.z.map((v) => v === null),
+  pprof: read[c.file].profiles }));
+const fx = { peaks: pout, about: "Kurve's TIFF for ImageJ (QUDI_SPEC Q.2), read by Pillow and by ImageJ 1.54f's reading written out from its source; ImageJ's Measure on it (Q.3), its own arithmetic written out from its source and the same definitions in exact arithmetic (tools/ref/ij_read.py)", cases: out,
   refusals: refusals.map((c) => ({ name: c.name, m: c.m, o: c.o, fail: true })), meas: mout, measFail };
 writeFileSync(join(here, "fixtures", "imagej.json"), JSON.stringify(fx) + "\n");
-console.log(`${out.length} cases, ${refusals.length} refusals, ${mout.length} images measured over ${mout.reduce((t, c) => t + c.regs.length, 0)} regions → tools/ref/fixtures/imagej.json`);
+console.log(`${out.length} cases, ${refusals.length} refusals, ${mout.length} images measured over ${mout.reduce((t, c) => t + c.regs.length, 0)} regions, ${pout.length} images for maxima and profiles → tools/ref/fixtures/imagej.json`);

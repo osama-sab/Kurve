@@ -90,15 +90,21 @@ console.log("Q.2 A matrix for ImageJ");
 // what ImageJ reads from a TIFF: Pillow's pixels and ImageJ's calibration, as tools/ref/ij_read.py works them out
 const ijRead = (bytes) => { const d = mkdtempSync(join(tmpdir(), "kurve-ijd-")); writeFileSync(join(d, "m.tif"), bytes);
   try { return JSON.parse(execFileSync("python3.13", ["-I", join(here, "ref", "ij_read.py"), d], { encoding: "utf8" }))["m.tif"]; } finally { rmSync(d, { recursive: true, force: true }); } };
+// the matrix window's Matrix › ImageJ › an item (the last menu open is the submenu)
+const mxIJ = async (p, label) => { await p.click(".mxwin [data-mxmenu]"); await p.waitForTimeout(150);
+  await p.hover(".menu [role=menuitem]:has-text('ImageJ')"); await p.waitForTimeout(300);
+  return p.locator(`.menu [role=menuitem]:has-text('${label}')`).last().click(); };
 await page(async p => {
   const f = file(/0930-46_confocal_xy_image_Dev1Ctr1/), w = want(f);
   await p.setInputFiles("#fileIn", join(QD, f)); await p.waitForFunction(() => matAll().length >= 1, null, { timeout: 8000 }); await p.waitForTimeout(400);
-  // the matrix window's Matrix menu: Save for ImageJ (.tif)
-  await p.click(".mxwin [data-mxmenu]"); await p.waitForTimeout(150);
-  const [dl] = await Promise.all([p.waitForEvent("download", { timeout: 8000 }), p.click(".menu [role=menuitem]:has-text('Save for ImageJ')")]);
+  // the matrix window's Matrix › ImageJ: its four items, then Save as a TIFF (.tif)
+  await p.click(".mxwin [data-mxmenu]"); await p.waitForTimeout(150); await p.hover(".menu [role=menuitem]:has-text('ImageJ')"); await p.waitForTimeout(300);
+  const subs = await p.evaluate(() => [...[...document.querySelectorAll(".menu.sub")].pop().querySelectorAll("[role=menuitem]")].map(e => (e.querySelector(".mlab") || e).textContent.trim()));
+  check("the matrix window's Matrix › ImageJ: Measure…, Find maxima…, Profile…, Save as a TIFF (.tif)", subs.join("|") === "Measure…|Find maxima…|Profile…|Save as a TIFF (.tif)", subs.join("|"));
+  const [dl] = await Promise.all([p.waitForEvent("download", { timeout: 8000 }), p.locator(".menu [role=menuitem]:has-text('Save as a TIFF')").last().click()]);
   const bytes = readFileSync(await dl.path()), name = dl.suggestedFilename();
   const same = await p.evaluate(b => { const s = matOf(matFront()), t = matTiff(s, { xunit: s.xunit, yunit: s.yunit, zunit: s.zunit, name: matBookOf(s.id).name }); return t.bytes.length === b.length && t.bytes.every((v, i) => v === b[i]); }, [...bytes]);
-  check("the matrix window's Matrix › Save for ImageJ (.tif): the file is the matrix as matTiff writes it, named after its book", same && name === "Confocal_xy_20261118-0930-46.tif", name);
+  check("the matrix window's Matrix › ImageJ › Save as a TIFF (.tif): the file is the matrix as matTiff writes it, named after its book", same && name === "Confocal_xy_20261118-0930-46.tif", name);
   const toastT = await p.evaluate(() => ($("#toast") || {}).textContent || "");
   const px = (w.x[1] - w.x[0]), py = (w.y[1] - w.y[0]), f6 = (v) => String(+v.toPrecision(6));
   check("…the message says its pixels, their size and single precision", toastT.includes(`${w.nx} × ${w.ny} pixels of ${f6(px)} µm by ${f6(py)} µm, the values as single precision`), toastT);
@@ -122,10 +128,10 @@ await page(async p => {
   const f = file(/0930-46_confocal_xy_image_Dev1Ctr1/), w = want(f);
   await p.setInputFiles("#fileIn", join(QD, f)); await p.waitForFunction(() => matAll().length >= 1, null, { timeout: 8000 }); await p.waitForTimeout(400);
   const sid = await p.evaluate(() => matAll()[0].s.id);
-  // the matrix window's Matrix › Measure (ImageJ)…: the whole matrix to begin with (one cell selected)
-  await p.click(".mxwin [data-mxmenu]"); await p.waitForTimeout(150); await p.click(".menu [role=menuitem]:has-text('Measure (ImageJ)')"); await p.waitForSelector("#aQr");
+  // the matrix window's Matrix › ImageJ › Measure…: the whole matrix to begin with (one cell selected)
+  await mxIJ(p, "Measure…"); await p.waitForSelector("#aQr");
   let r = await p.evaluate(() => ({ region: $("#aQr").value, msg: $("#aQmsg").textContent, edges: $("#aQx0").closest(".anarows").hidden, ok: $("#formOk").disabled }));
-  check("Matrix › Measure (ImageJ)…: the whole matrix, the cells it holds and ImageJ's own selection said", r.region === "all" && r.msg === `${w.nx * w.ny} cells: in ImageJ, run("Select None");` && r.edges && !r.ok, JSON.stringify(r));
+  check("Matrix › ImageJ › Measure…: the whole matrix, the cells it holds and ImageJ's own selection said", r.region === "all" && r.msg === `${w.nx * w.ny} cells: in ImageJ, run("Select None");` && r.edges && !r.ok, JSON.stringify(r));
   // an oval inside the outer cells, the values as ImageJ holds them
   const ov = { x0: w.x[1], x1: w.x[w.nx - 2], y0: w.y[1], y1: w.y[w.ny - 2] };
   await p.selectOption("#aQr", "oval"); for (const [k, v] of Object.entries(ov)) await p.fill(`#aQ${k}`, String(v)); await p.check("#aQs"); await p.waitForTimeout(100);
@@ -183,6 +189,94 @@ await page(async p => {
   r = await p.evaluate(() => anaList().filter(x => x.kind === "ijmeasure").map(a => !!(a.res && a.res.report) && !anaStale(a)));
   check("a reload: both measurements there, up to date", r.length === 2 && r.every(Boolean), JSON.stringify(r));
 }, { name: "Q.3" });
+
+console.log("Q.4 ImageJ's Find Maxima and Plot Profile");
+await page(async p => {
+  const f = file(/0930-46_confocal_xy_image_Dev1Ctr1/), w = want(f);
+  await p.setInputFiles("#fileIn", join(QD, f)); await p.waitForFunction(() => matAll().length >= 1, null, { timeout: 8000 }); await p.waitForTimeout(400);
+  const sid = await p.evaluate(() => matAll()[0].s.id);
+  const lastOf = (kind) => p.waitForFunction((k) => { const a = anaList().filter(x => x.kind === k).slice(-1)[0]; return a && a.res && (a.res.report || a.res.err); }, kind, { timeout: 15000 });
+  // the sheet of the last Find maxima against ijMaxima with its settings
+  const cmpX = () => p.evaluate(() => { const a = anaList().filter(x => x.kind === "ijmaxima").slice(-1)[0], s = matOf(a.p.mat), r = ijMaxima(s, a.p), col = q => (P().cols.find(c => c.ana === a.id && c.ak === q) || {});
+    const same = ["x", "y", "v", "px", "py"].every(k => { const d = col(k).data || []; return d.length === r.n && r.pts.every((q, i) => d[i] === q[k]); });
+    return { id: a.id, err: a.res.err, n: r.n, same, names: ["x", "y", "v", "px", "py"].map(k => col(k).name), xrole: col("x").role, sn: (col("sn").data || [])[0], method: a.res.report && a.res.report.method, pts: r.pts.map(q => [q.x, q.y]) }; });
+  // Matrix › ImageJ › Find maxima…: the matrix in front, a tenth of its range as the prominence, the count said
+  await mxIJ(p, "Find maxima…"); await p.waitForSelector("#aFXp");
+  let r = await p.evaluate(() => { const s = matOf($("#aFXm").value), { lo, hi } = matRange(s.z), x = ijMaxima(s, { prom: parseNum($("#aFXp").value) });
+    return { mat: $("#aFXm").value, prom: parseNum($("#aFXp").value), want: +((hi - lo) / 10).toPrecision(2), msg: $("#aFXmsg").textContent, n: x.n, ok: $("#formOk").disabled }; });
+  check("Matrix › ImageJ › Find maxima…: the matrix in front, a tenth of its range as the prominence, the maxima counted as it is set", r.mat === sid && r.prom === r.want && r.msg === `${r.n} ${r.n === 1 ? "maximum" : "maxima"}` && !r.ok, JSON.stringify(r));
+  await p.check("#aFXl"); await p.waitForTimeout(100); r = await p.evaluate(() => $("#aFXmsg").textContent);
+  check("…Light background counts the minima", /^\d+ minim(um|a)$/.test(r), r);
+  await p.uncheck("#aFXl"); await p.fill("#aFXp", "-1"); await p.waitForTimeout(100);
+  r = await p.evaluate(() => ({ msg: $("#aFXmsg").textContent, ok: $("#formOk").disabled }));
+  check("…a prominence below 0: refused in words, Work it out not offered", r.msg === "The prominence is a number, 0 or more." && r.ok, JSON.stringify(r));
+  await p.fill("#aFXp", String(await p.evaluate(() => { const { lo, hi } = matRange(matOf(matFront()).z); return +((hi - lo) / 10).toPrecision(2); }))); await p.waitForTimeout(100);
+  await p.click("#formOk"); await lastOf("ijmaxima");
+  r = await cmpX();
+  check("…the result sheet: a row a maximum in ImageJ's order, X, Y, value and ImageJ's pixel, each ijMaxima's", !r.err && r.same && r.n > 0 && r.n === r.sn && r.names.join() === "X (µm),Y (µm),Value (c/s),Pixel X,Pixel Y" && r.xrole === "x", JSON.stringify([r.err, r.same, r.n, r.sn, r.names]));
+  check("…the method gives ImageJ's own command with the same settings", /run\("Find Maxima\.\.\.", "prominence=[\d.e+-]+ output=List"\);/.test(r.method), r.method);
+  const xid = r.id, nX = r.n;
+  // the report's Show the maxima on its map: a ring at each, once however often it is asked; undone in one step
+  await p.evaluate((id) => anaReport(id), xid); await p.waitForTimeout(500);
+  await p.click(`#w-res button[data-anaact="show"]`); await p.waitForTimeout(700);
+  const rings = () => p.evaluate(([sid, id]) => { const g = P().graphs.find(g => g.plot && g.plot.mat === sid), an = (P().annos || []).filter(a => a.ijx === id);
+    return { g: !!g, n: an.length, onG: an.every(a => a.g === g.id && a.t === "ellipse" && a.xu === "µm"), drawn: document.querySelectorAll("#plot [data-anno] ellipse").length }; }, [sid, xid]);
+  r = await rings();
+  check("Show the maxima on its map: the matrix's map made, a ring round each maximum in the matrix's units", r.g && r.n === Math.min(nX, 400) && r.onG && r.drawn >= r.n, JSON.stringify(r));
+  await p.evaluate((id) => anaReport(id), xid); await p.waitForTimeout(400); await p.click(`#w-res button[data-anaact="show"]`); await p.waitForTimeout(600);
+  const again = await rings(); await p.evaluate(() => undo()); await p.waitForTimeout(400); const undone = await rings();
+  check("…asked again, the rings replaced, not doubled; one undo takes the second drawing back", again.n === r.n && undone.n === r.n, JSON.stringify([r.n, again.n, undone.n]));
+  // two spots of known places on a matrix made for the test, from Analyze › Image › Find maxima…
+  const tid = await p.evaluate(() => { const nx = 41, ny = 31, z = []; for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) { const x = i * 0.5, y = j * 0.5;
+      z.push(1 * Math.exp(-((x - 5) ** 2 + (y - 5) ** 2) / 2) + 0.8 * Math.exp(-((x - 14) ** 2 + (y - 10) ** 2) / 2) + 0.01 * ((i * 7 + j * 3) % 5) / 5); }
+    const s = matSheetNew({ nx, ny, x: { a: 0, b: 20 }, y: { a: 0, b: 15 }, z }, "Spots", { xunit: "µm", yunit: "µm", zunit: "c/s" }); matSaveNew([matBookNew(s, "Spots")], { undo: "a test matrix", log: "made a test matrix" }); matOpen(matBookOf(s.id).id); return s.id; });
+  await p.waitForTimeout(400);
+  await p.click(".mb[data-menu=analyze]"); await p.waitForTimeout(150); await p.hover(".menu [role=menuitem]:has-text('Image')"); await p.waitForTimeout(250);
+  await p.locator(".menu [role=menuitem]:has-text('Find maxima…')").last().click(); await p.waitForSelector("#aFXp", { timeout: 4000 });
+  r = await p.evaluate(() => $("#aFXm").value); check("Analyze › Image › Find maxima… opens on the matrix in front", r === tid, r);
+  await p.fill("#aFXp", "0.3"); await p.check("#aFXe"); await p.waitForTimeout(100); r = await p.evaluate(() => $("#aFXmsg").textContent);
+  check("…two spots and a ripple of 0.01: two maxima at a prominence of 0.3, edge maxima left out", r === "2 maxima", r);
+  await p.click("#formOk"); await lastOf("ijmaxima"); r = await cmpX();
+  check("…the higher spot first, each at its centre; ImageJ's command with exclude", r.same && JSON.stringify(r.pts) === JSON.stringify([[5, 5], [14, 10]]) && / exclude output=List/.test(r.method), JSON.stringify(r.pts));
+  // Matrix › ImageJ › Profile…: across the middle row of the qudi scan to begin with
+  await p.evaluate((sid) => matOpen(matBookOf(sid).id), sid); await p.waitForTimeout(400);
+  await mxIJ(p, "Profile…"); await p.waitForSelector("#aPLx0");
+  r = await p.evaluate(() => { const s = matOf($("#aPLm").value), X = matAxis(s.x, s.nx), Y = matAxis(s.y, s.ny), row = Math.floor((s.ny - 1) / 2), n7 = v => +(+v).toPrecision(12), v = id => parseNum($(id).value), x = ijProfile(s, { x0: v("#aPLx0"), y0: v("#aPLy0"), x1: v("#aPLx1"), y1: v("#aPLy1") });
+    return { mat: $("#aPLm").value, ends: [v("#aPLx0"), v("#aPLy0"), v("#aPLx1"), v("#aPLy1")], want: [n7(X[0]), n7(Y[row]), n7(X[s.nx - 1]), n7(Y[row])], msg: $("#aPLmsg").textContent, n: x.n, macro: x.macro }; });
+  check("Matrix › ImageJ › Profile…: the middle row's first and last cells, the samples and ImageJ's makeLine said", r.mat === sid && JSON.stringify(r.ends) === JSON.stringify(r.want) && r.msg === `${r.n} samples: in ImageJ, ${r.macro}`, JSON.stringify(r));
+  await p.fill("#aPLx1", ""); await p.waitForTimeout(100); r = await p.evaluate(() => ({ msg: $("#aPLmsg").textContent, ok: $("#formOk").disabled }));
+  check("…an end not given: refused in words", r.msg === "Give the line's two ends in X and Y." && r.ok, JSON.stringify(r));
+  await p.fill("#aPLx1", String(await p.evaluate(() => { const s = matOf(matFront()); return +(+matAxis(s.x, s.nx)[s.nx - 1]).toPrecision(12); }))); await p.waitForTimeout(100);
+  await p.click("#formOk"); await lastOf("ijprofile");
+  const cmpP = () => p.evaluate(() => { const a = anaList().filter(x => x.kind === "ijprofile").slice(-1)[0], s = matOf(a.p.mat), r = ijProfile(s, a.p), col = q => (P().cols.find(c => c.ana === a.id && c.ak === q) || {});
+    const same = ["d", "v", "x", "y"].every(k => { const d = col(k).data || []; return d.length === r.n && d.every((v, i) => v === r[k][i]); });
+    const row = Math.floor((s.ny - 1) / 2), along = [...Array(s.nx).keys()].map(c => s.z[row * s.nx + c]);
+    return { id: a.id, err: a.res.err, n: r.n, same, names: ["d", "v", "x", "y"].map(k => col(k).name), drole: col("d").role, rowSame: r.n === s.nx && along.every((v, i) => v === r.v[i]), mat: a.p.mat, ends: [a.p.x0, a.p.y0, a.p.x1, a.p.y1] }; });
+  r = await cmpP();
+  check("…the result sheet: distance, value, X and Y of each sample, each ijProfile's", !r.err && r.same && r.names.join() === "Distance (µm),Value (c/s),X (µm),Y (µm)" && r.drole === "x", JSON.stringify([r.err, r.same, r.names, r.drole]));
+  check("…along a row of cells, a sample a cell, its values the row's own", r.rowSame, JSON.stringify(r.n));
+  const pid = r.id, ends = r.ends;
+  await p.evaluate((id) => anaReport(id), pid); await p.waitForTimeout(500); await p.click(`#w-res button[data-anaact="plot"]`); await p.waitForTimeout(700);
+  r = await p.evaluate(() => { const g = P().graphs.slice(-1)[0], c = colById(g.cols[0]); return { ak: c && c.ak, type: g.plot.series && g.plot.series[g.cols[0]] && g.plot.series[g.cols[0]].type, n: g.cols.length }; });
+  check("Plot the profile: the values on a graph of their own, as a line", r.ak === "v" && r.type === "line" && r.n === 1, JSON.stringify(r));
+  await p.evaluate((id) => anaReport(id), pid); await p.waitForTimeout(400); await p.click(`#w-res button[data-anaact="show"]`); await p.waitForTimeout(700);
+  r = await p.evaluate((sid) => { const g = P().graphs.find(g => g.plot && g.plot.mat === sid), an = (P().annos || []).filter(a => a.g === g.id && a.t === "arrow"); return an.map(a => [a.x, a.y, a.x2, a.y2]); }, sid);
+  check("Show the line on its map: an arrow from the line's first end to its other, on the matrix's map", r.length === 1 && JSON.stringify(r[0]) === JSON.stringify(ends), JSON.stringify(r));
+  // a diagonal on the test matrix: every sample ijProfile's, the first at the spot's centre
+  await p.evaluate((tid) => { anaDlg("ijprofile", { p: { mat: tid, x0: 5, y0: 5, x1: 14, y1: 10 } }); }, tid); await p.waitForSelector("#aPLx0"); await p.waitForTimeout(100);
+  await p.click("#formOk"); await lastOf("ijprofile"); r = await cmpP();
+  const first = await p.evaluate((tid) => { const s = matOf(tid); return s.z[10 * s.nx + 10]; }, tid);
+  const v0 = await p.evaluate(() => { const a = anaList().filter(x => x.kind === "ijprofile").slice(-1)[0]; return (P().cols.find(c => c.ana === a.id && c.ak === "v") || {}).data[0]; });
+  check("a diagonal across the test matrix's two spots: each sample ijProfile's, the first the spot's own value", r.same && r.n === 22 && v0 === first, JSON.stringify([r.same, r.n, v0, first]));
+  // followed: a cell on the qudi scan's middle row changed, the profile and the maxima worked out again
+  await p.evaluate((sid) => { matPut(sid, s => { const z = s.z.slice(), row = Math.floor((s.ny - 1) / 2); z[row * s.nx + 2] = 5e6; return Object.assign({}, s, { z }); }, { undo: "a test value", log: "typed a test value" }); }, sid); await p.waitForTimeout(900);
+  r = await p.evaluate(([pid, xid]) => { const a = anaOf(pid), x = anaOf(xid), v = (P().cols.find(c => c.ana === pid && c.ak === "v") || {}).data, px = (P().cols.find(c => c.ana === xid && c.ak === "v") || {}).data || [];
+    return { v2: v && v[2], stale: anaStale(a) || anaStale(x), peak: px.includes(5e6) }; }, [pid, xid]);
+  check("a cell changed: the profile follows (its sample there the new value), and so do the maxima (the new value among them)", r.v2 === 5e6 && !r.stale && r.peak, JSON.stringify(r));
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  r = await p.evaluate(() => anaList().filter(x => x.kind === "ijmaxima" || x.kind === "ijprofile").map(a => !!(a.res && a.res.report) && !anaStale(a)));
+  check("a reload: the maxima and profiles there, up to date", r.length === 4 && r.every(Boolean), JSON.stringify(r));
+}, { name: "Q.4" });
 
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -1133,7 +1133,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   down from the largest Y, a missing cell NaN; the ImageDescription `ImageJ=1.54f`, `unit`, `yunit`, `vunit`, `min`, `max`,
   `xorigin` = 0.5 − lo/pw, `yorigin` = hi/ph + 0.5 (the least double where it would be 0, which ImageJ reads as none),
   `inverty=true`, `name`; `{bytes, desc, w, h, pw, ph, xo, yo, rx, ry, flipX, flipY, dev, lost}`). The page: `exportMatTiff(sid)`
-  (the matrix window's Matrix › Save for ImageJ (.tif), Publish › Matrix for ImageJ (.tif); the toast the pixels, their size,
+  (the matrix window's Matrix › ImageJ › Save as a TIFF (.tif), Publish › Matrix for ImageJ (.tif); the toast the pixels, their size,
   single precision, values lost, a listed axis's spacing, an inexact pixel size). `tools/ref/ij_fixtures.mjs` writes TIFFs of 15
   matrices with matTiff and reads them with `tools/ref/ij_read.py` (Pillow, and ImageJ 1.54f's reading written out from its
   source: the rational, the description as java.util.Properties, `getX(x + 0.5)`, `getY(y + 0.5, h)` with inverty) into
@@ -1157,11 +1157,34 @@ graph first, with the taskbar kept at the bottom of the screen.
   in ImageJ). The page: `ANA_FORMS.ijmeasure` (`#aQm`, `#aQr`, `#aQx0`/`#aQx1`, `#aQy0`/`#aQy1` in `.anarows`, `#aQp`, `#aQs`,
   `#aQmsg` the cells and the macro, or the refusal), `ijParsePts`, `ijmStart(sid)` (the matrix in front, its window's selection as
   a rectangle), the report's `ijmShow(id)` (the region drawn on the matrix's map, made if there is none) and `ijmHist(id)`;
-  Analyze › Image › Measure…, the matrix window's Matrix › Measure (ImageJ)…. A matrix's map draws annotations now (`annoCtx`'s
+  Analyze › Image › Measure…, the matrix window's Matrix › ImageJ › Measure…. A matrix's map draws annotations now (`annoCtx`'s
   `heat` false for it; `addAnno` takes the matrix's units there). `tools/ref/ij_read.py` ports ImageJ's Measure (FloatStatistics'
   raw sums, OvalRoi, PolygonFiller with its float corners and bounds) and works the same definitions out in exact rationals;
   `fixtures/imagej.json`'s `meas` (9 images, 27 regions) and `measFail`; ref-test's `ijMeasure.cells`, `.order` (exact), `.geo`,
   `.stats` (against exact) and `ijPort.mean`, ImageJ's own raw-sum errors said beside.
+  **ImageJ's Find Maxima and Plot Profile** (QUDI_SPEC Q.4): in MAT `ijImage(M, single)` (ImageJ's image of a matrix: `{G, W, H,
+  v (top row first, a missing cell NaN), xs, ys}`), `ijMaxima(M, {prom, strict, edges, light, single})` (MaximumFinder of 1.54f:
+  candidates with no higher neighbour of eight, sorted by ImageJ's integer key `(int)(float(v − min)·vFactor)` then pixel, each
+  flooded from the highest down within the prominence (`v ≥ v0 − tol` in float), its sorting error `1.1·span/2e9` in float, edge
+  rules (strict, or `v ≥ v0`), a flat top's point nearest the mean of its equal points; strict with a range no more than the
+  prominence finds none; light the image inverted as FloatProcessor does; NaN cells never maxima (ImageJ lists them); `{pts:[{px,
+  py, c, r, x, y, v}], n, geom}`), `ijProfile(M, {x0, y0, x1, y1, single})` (ProfilePlot of a straight line, its ends in X and Y
+  turned to ImageJ's line coordinates (`X/pw + xo − 0.5`, `yo − Y/ph − 0.5`): `getLine`'s count, `n = round(len)` and one more
+  unless along a whole row or column, `getInterpolatedValue`'s bilinear with Java's truncation and its edge rule; the distance
+  `i·pw`, or the calibrated length per pixel when the pixels are not square; `{d, x, y, v, n, step, line, macro (makeLine), geom}`
+  or `{fail}`). In ANA kinds `ijmaxima` (`p.mat`, `prom`, `strict`, `edges`, `light`, `single`; the section's `sn`, `sprom`; a row a
+  maximum, `x` (an X), `y`, `v`, `px`, `py`; the method ImageJ's `run("Find Maxima...", …)`; `report.ijx {mat, pts (the first
+  2000), pw, ph}`) and `ijprofile` (`p.mat`, `x0`, `y0`, `x1`, `y1`, `single`; `d` (an X), `v`, `x`, `y`; the section's `sn`,
+  `sstep`, `slen`; `report.ijp {mat, x0, y0, x1, y1}`). The page: `ANA_FORMS.ijmaxima` (`#aFXm`, `#aFXp`, `#aFXs`, `#aFXe`, `#aFXl`,
+  `#aFXq`, `#aFXmsg` the count) and `ANA_FORMS.ijprofile` (`#aPLm`, `#aPLx0`, `#aPLy0`, `#aPLx1`, `#aPLy1`, `#aPLs`, `#aPLmsg` the
+  samples and the makeLine); `ijxStart(sid)` (a tenth of the range, two digits), `ijpStart(sid)` (the window's selection corner to
+  corner, else the middle row), `ijMapOf(sid)` (the matrix's map brought forward or made), the report's `ijxShow(id)` (an ellipse
+  0.7 of a pixel across round each of the first 400, marked `ijx` with the analysis's id, replaced when asked again; one undo step),
+  `ijpPlot(id)`, `ijpShow(id)` (an arrow along the line). The matrix window's Matrix › ImageJ (Measure…, Find maxima…, Profile…,
+  Save as a TIFF (.tif)); Analyze › Image (Measure…, Find maxima…, Profile…). `tools/ref/ij_read.py` ports MaximumFinder and
+  ProfilePlot (float arithmetic where ImageJ's is float); `fixtures/imagej.json`'s `peaks` (6 images: spots with a flat top and an
+  edge maximum, whole-number ties, empty cells, a range under the prominence, one value, pixels not square on descending axes, each
+  with several settings and lines); ref-test's `ijMaxima.list` and `ijProfile` (exact).
   `tools/ref/qudi_fixtures.py` writes `tools/ref/qudi/` as qudi-core 1.5.0 and the classic `save_logic` do (their
   code reproduced, not run) and `fixtures/qudi.json`; `tools/parser-test.mjs` reads them, `tools/qudi-drive.mjs` imports them.
   `batchFile` reads one-column
@@ -3847,7 +3870,11 @@ Dimensions dialog's header fields, undo, a reload, a refusal; Q.2, a qudi scan s
 Publish, the file matTiff's, the message, and ImageJ's calibration of it (`tools/ref/ij_read.py`) giving the scan's positions, an
 uneven X refused; Q.3, Measure from the matrix window and Analyze › Image (the whole matrix, an oval with single precision, a
 polygon typed, each value against ijMeasure, the histogram, the region drawn on the map, Plot the histogram, refusals in the
-dialog, a changed cell followed, a reload). Run it after touching the import or the matrices.
+dialog, a changed cell followed, a reload); Q.4, Find maxima and Profile from the ImageJ submenu and Analyze › Image (the
+prominence and count, minima, a refusal, each row against ijMaxima, ImageJ's command, the maxima ringed once however often asked,
+two spots of a test matrix at their centres with edges left out, a profile along the middle row giving that row's values, against
+ijProfile, plotted and drawn on the map, a diagonal, a changed cell followed by both, a reload). Run it after touching the import or
+the matrices.
 `node tools/sheet-drive.mjs [path]` (Playwright; `ONLY=3.1` runs one section) checks the worksheet as a table
 (`ux/spec/SHEET_SPEC.md`, wave 3): 3.1, formulas typed into the F(x)= row (an aggregate, rows of other rows, a running
 sum, text compared, `=` as equality, another sheet by a name with its spaces left out, that sheet renamed and a column
@@ -5599,7 +5626,11 @@ done 19.11: a matrix saved as a 32-bit TIFF ImageJ opens with its calibration, e
 in 10¹⁵; checked with Pillow and ImageJ's reading written out from its source (running ImageJ's jar was refused here). Slice Q.3
 done 20.11: ImageJ's Measure on a matrix over the whole of it, a rectangle, an oval or a polygon, into a result sheet under ImageJ's
 names; its cells, order statistics, mode and histogram exactly ImageJ's arithmetic, its moments within 8e-16 of exact arithmetic
-(ImageJ's own raw sums 1.8e-7 off on an SD, its kurtosis meaningless on values with a large offset).
+(ImageJ's own raw sums 1.8e-7 off on an SD, its kurtosis meaningless on values with a large offset). Slice Q.4 done 20.11:
+ImageJ's Find Maxima (prominence, strict, edges, light background) and Plot Profile of a straight line on a matrix, each a result
+sheet that follows its matrix, the maxima ringed and the line drawn on its map; every maximum and every sample exactly the arithmetic
+of ImageJ 1.54f's MaximumFinder and ProfilePlot as written out from its source; the matrix window's ImageJ submenu. QUDI_SPEC's four
+slices are done.
 
 ## Known gaps
 
@@ -6031,6 +6062,12 @@ names; its cells, order statistics, mode and histogram exactly ImageJ's arithmet
   (not kept in colour); a formula reads x, y, i, j, constants and other matrices of the same size, cell by cell (no
   neighbours, no sums over a row); a matrix's graph draws it alone (no curves beside it, no readers, no cuts of it as a
   map of a series has), and the matrix window has no History box, no hidden or sized rows and columns, no fill
+- qudi and ImageJ: qudi's classic and qudi-iqo-modules files are read (not qudi's HDF5 or NPY storage, a 3D scan, or a
+  scan's pulsed or ODMR data); ImageJ's Measure, Find Maxima (its list of maxima: not the segmented image, the point selection
+  or the count alone) and Plot Profile of a straight line (no segmented or freehand line, no line wider than a pixel, no column
+  average of a rectangle) on a matrix, not Analyze Particles, thresholds or filters; checked against ImageJ 1.54f's arithmetic
+  written out from its source and Pillow's reading, as ImageJ itself (its jar) was not run here (`tools/ref/ij/IJRef.java` is
+  ready for it)
 - Excel: `.xlsx` and `.xlsm` only (not `.xls`, `.ods`, nor one protected by a password or a zip64
   file); a formula's value as Excel last worked it out (a formula is never carried over or written);
   styles, charts, pictures, comments in cells and defined names are not read; a header is frozen

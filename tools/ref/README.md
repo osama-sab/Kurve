@@ -71,7 +71,10 @@ and writes `fixtures/imagej.json` with each file's SHA-256, which ref-test check
 is the same readout from ImageJ itself, for where its jar may be run (not run in this repository's checks: the environment that
 built them refused it). The same script measures (QUDI_SPEC Q.3): `jobs.json` beside the TIFFs names regions, and each is measured by
 ImageJ's Measure written out from its source (its FloatStatistics' raw sums, OvalRoi's mask, PolygonFiller with float corners) and by
-the same definitions in exact rationals, which ref-test judges Kurve's `ijMeasure` against:
+the same definitions in exact rationals, which ref-test judges Kurve's `ijMeasure` against. And it finds maxima and profiles
+(QUDI_SPEC Q.4): `jobs.json` names each image's Find Maxima settings and lines, run through MaximumFinder and ProfilePlot written
+out from ImageJ's source with its float arithmetic where it is float; ref-test judges `ijMaxima` and `ijProfile` against them,
+exactly:
 
 ```sh
 javac -cp ij.jar -d /tmp/ijref tools/ref/ij/IJRef.java

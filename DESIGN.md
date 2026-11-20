@@ -898,6 +898,21 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-20: ImageJ's Find Maxima and Plot Profile (QUDI_SPEC Q.4)
+
+- **ImageJ's algorithm, not one like it.** Find Maxima's answer depends on its order (from the highest down), its prominence
+  test and how it breaks ties; a list that differs from ImageJ's by one maximum is a list nobody can compare. Kurve does what
+  ImageJ 1.54f's MaximumFinder does, its float arithmetic included, and the method gives ImageJ's command for the same.
+- **Positions in X and Y, pixels beside them.** A maximum's row gives the cell's X and Y in the matrix's units, and ImageJ's pixel
+  next to it, so the list reads beside ImageJ's and beside the scan. A line for a profile is given by its ends in X and Y, and
+  the dialog gives the `makeLine` that draws it in ImageJ.
+- **A centre meant is a centre.** Positions typed in micrometres are a hair off a cell's centre in pixels (2.8333… µm); a line's
+  end within 10⁻⁹ of a pixel of a centre is taken as that centre, so a profile along a row of cells is that row's values, as a
+  line drawn on the row in ImageJ is.
+- **Empty is not a maximum.** ImageJ lists a NaN pixel as a maximum; a cell with no value never is one here.
+- **One submenu for ImageJ.** The matrix window's ImageJ items (Measure…, Find maxima…, Profile…, Save as a TIFF) are under
+  Matrix › ImageJ, as Analyze › Image has the three measurements: the menu says where the numbers' definitions come from.
+
 ### 2026-11-20: ImageJ's Measure (QUDI_SPEC Q.3)
 
 - **ImageJ's names and definitions.** The user asked for ImageJ's statistics, so the result sheet's columns are ImageJ's (Area,

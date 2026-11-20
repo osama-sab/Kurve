@@ -370,6 +370,21 @@ if (fixtures.imagej) {
     });
   }
   for (const c of fixtures.imagej.measFail || []) { const r = MS(c.m, c.reg); if (!r || !r.fail) refBad.push(`ijMeasure ${c.name}: measured, where it should be refused`); }
+  /* Find Maxima and Plot Profile (QUDI_SPEC Q.4): every maximum in ImageJ's order, as ImageJ's MaximumFinder gives it in single precision
+     (but a pixel ImageJ lists at an empty cell, NaN, which Kurve does not call a maximum), and each line's samples and distances */
+  const MX = get("ijMaxima"), PR = get("ijProfile");
+  for (const c of fixtures.imagej.peaks || []) {
+    const t = T(c.m, c.o);
+    if (t.fail || createHash("sha256").update(t.bytes).digest("hex") !== c.sha) { refBad.push(`ijMaxima ${c.name}: the TIFF is not the one the fixture read; make it again`); continue; }
+    c.maxima.forEach((q, k) => { const r = MX(c.m, Object.assign({ single: true }, q)), W = c.m.nx, want = c.pmax[k].filter(([x, y]) => !c.nan[y * W + x]);
+      const got = r.fail ? null : r.pts.map((p) => [p.px, p.py]);
+      note("ijMaxima.list", got && got.join(";") === want.join(";") ? 0 : 1, `${c.name}, ${JSON.stringify(q)}: ${got ? got.length : r.fail} against ${want.length}${got && got.join(";") !== want.join(";") ? ` (${JSON.stringify(got.slice(0, 6))} / ${JSON.stringify(want.slice(0, 6))})` : ""}`); });
+    c.profiles.forEach((q, k) => { const r = PR(c.m, Object.assign({ single: true }, q)), w = c.pprof[k];
+      if (r.fail) { refBad.push(`ijProfile ${c.name} ${k}: ${r.fail}`); return; }
+      let e = r.n === w.n ? 0 : 1; const sc = Math.max(1, ...w.v.filter((v) => v != null).map(Math.abs));
+      for (let i = 0; i < Math.min(r.n, w.n); i++) { const a = r.v[i], b = w.v[i]; if (b == null || Number.isNaN(a)) { if (!(b == null && Number.isNaN(a))) e = 1; continue; } e = Math.max(e, Math.abs(a - b) / sc, Math.abs(r.d[i] - w.d[i]) / Math.max(1, Math.abs(w.d[w.n - 1]))); }
+      note("ijProfile", e, `${c.name}, line ${k}: ${r.n} samples against ${w.n}`); });
+  }
   if (fixtures.imagej.meas) console.log(`  ImageJ's own raw sums against exact arithmetic (said, not judged): SD ${ijw.sd.toExponential(1)}, skewness ${ijw.skew.toExponential(1)}, kurtosis ${ijw.kurt.toExponential(1)}`);
 }
 

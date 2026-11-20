@@ -213,5 +213,13 @@ apart, bilinear, into a column against the distance, plotted.
 **Checks.** ImageJ's MaximumFinder and ProfilePlot on the same TIFFs: the same maxima in the same
 order, the same profile values.
 
+**Done 20.11.** `ijImage`, `ijMaxima`, `ijProfile` in the MAT block, the kinds `ijmaxima` and `ijprofile` in ANA, their dialogs,
+the report's Show the maxima on its map, Plot the profile and Show the line on its map, and the matrix window's Matrix › ImageJ
+submenu (Measure…, Find maxima…, Profile…, Save as a TIFF). `tools/ref/ij_read.py` ports MaximumFinder and ProfilePlot from
+ImageJ 1.54f's source with its float arithmetic, over 7 images, 26 settings and 12 lines: every maximum in ImageJ's order and every
+sample exactly the port's. Two differences, both meant: an empty cell is never a maximum (ImageJ lists a NaN pixel), and a line's end
+within 10⁻⁹ of a pixel of a cell's centre is that centre, so a profile along a row given in micrometres is the row's values. ImageJ
+itself was not run (see Q.2).
+
 **Not in it** (asked for when wanted). Analyze Particles and thresholds, filters on images (Gaussian
 blur, background subtraction), stacks (a z-series), colour images, ImageJ's ROI files.

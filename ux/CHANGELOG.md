@@ -1024,9 +1024,30 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## qudi's confocal scans, slice Q.4: ImageJ's Find Maxima and Plot Profile (2026-11-20)
+
+- **Analyze › Image › Find maxima…**, and the matrix window's **Matrix › ImageJ › Find maxima…**: ImageJ's Process › Find Maxima
+  on a matrix, with its prominence (a tenth of the values' range to begin with), Strict, Exclude edge maxima and Light background
+  (the minima); the dialog counts them as it is set. A result sheet of a row a maximum in ImageJ's order: X, Y, the value and
+  ImageJ's pixel; the method gives ImageJ's own command for the same. The report's **Show the maxima on its map** rings each one.
+- **Analyze › Image › Profile…**, and **Matrix › ImageJ › Profile…**: ImageJ's Analyze › Plot Profile of a straight line given by
+  its ends in X and Y (the cells selected, corner to corner, or the middle row, to begin with): the values a pixel apart, bilinear
+  as ImageJ's, against the distance in the matrix's units; the dialog gives the samples and ImageJ's `makeLine`. The report's
+  **Plot the profile** and **Show the line on its map**. Both follow their matrix.
+- The matrix window's ImageJ items gathered in one submenu, **Matrix › ImageJ** (Measure…, Find maxima…, Profile…, Save as a
+  TIFF (.tif)).
+- Refused in words: a prominence below 0, a line's end not given, a line shorter than a pixel.
+
+Checked: `tools/ref/ij_read.py` ports ImageJ 1.54f's MaximumFinder and ProfilePlot from its source, with ImageJ's float
+arithmetic where it is float, over 7 images (spots with a flat top and an edge maximum, ties of whole numbers, empty cells, a range
+under the prominence, one value, rows a third apart, pixels not square on descending axes) and 26 settings and 12 lines;
+ref-test's `ijMaxima.list` and `ijProfile` exact; qudi-drive (20 new, one of them the submenu's items). Two differences, both meant: Kurve never lists an empty cell
+as a maximum (ImageJ lists a NaN pixel), and a line's end within 10⁻⁹ of a pixel of a cell's centre is that centre (found by the
+drive: a row at Y = 2.8333… µm read a hair off it).
+
 ## qudi's confocal scans, slice Q.3: ImageJ's Measure (2026-11-20)
 
-- **Analyze › Image › Measure…**, and the matrix window's **Matrix › Measure (ImageJ)…** (the cells selected as its rectangle to
+- **Analyze › Image › Measure…**, and the matrix window's **Matrix › Measure (ImageJ)…** (since Q.4 **Matrix › ImageJ › Measure…**) (the cells selected as its rectangle to
   begin with): ImageJ's Analyze › Measure over the whole matrix, a rectangle, an oval or a polygon given in X and Y, into a result
   sheet: Area, Mean, StdDev, Mode, Min, Max, X, Y, XM, YM, BX, BY, Width, Height, IntDen, RawIntDen, Median, Skew, Kurt under ImageJ's
   names and in the matrix's units, and the region's histogram in ImageJ's 256 bins. The dialog counts the cells and gives the same

@@ -51,6 +51,12 @@
  "ijPort.mean": {
   "tol": 1e-12
  },
+ "ijMaxima.list": {
+  "tol": 0
+ },
+ "ijProfile": {
+  "tol": 0
+ },
  "reshape": {
   "tol": 1e-13
  },

@@ -273,6 +273,132 @@ def measure(vals, W, H, ij, reg, pos):
           "ym": float(sum(p * v for p, v in zip(Py, V)) / sum(V)) if sum(V) != 0 else None}
     return {"port": port, "exact": ex}
 
+# ---- Find Maxima and Plot Profile (QUDI_SPEC Q.4), ImageJ 1.54f's arithmetic written out from its source ----
+def find_maxima(vals, W, H, prom, strict, edges, light, dmin, dmax):
+    """MaximumFinder.findMaxima with output List: getSortedMaxPoints and analyzeAndMarkMaxima, in single precision as ImageJ.
+    light: ImageJ inverts the image first (FloatProcessor.invert: max - (v - min), the display range min, max, as floats)."""
+    v = [F32(x) for x in vals]
+    if light:
+        mn2, mx2 = F32(dmin), F32(dmax)
+        v = [F32(mx2 - F32(x - mn2)) for x in v]
+    gmin, gmax = F32(FLT_MAX), F32(-FLT_MAX)
+    for x in v:                                   # NaN compares false: left out of the range
+        if gmin > x: gmin = x
+        if gmax < x: gmax = x
+    tol = float(prom)
+    possible = gmax > gmin
+    if strict and float(F32(gmax - gmin)) <= tol:         # a float difference, compared as a double
+        possible = False
+    if not possible:
+        return []
+    DX = [0, 1, 1, 1, 0, -1, -1, -1]; DY = [-1, -1, 0, 1, 1, 1, 0, -1]
+    def within(x, y, d):
+        xm, ym = W - 1, H - 1
+        return [y > 0, x < xm and y > 0, x < xm, x < xm and y < ym, y < ym, x > 0 and y < ym, x > 0, x > 0 and y > 0][d]
+    MAXIMUM, LISTED, PROCESSED, MAX_AREA, EQUAL, MAX_POINT = 1, 2, 4, 8, 16, 32
+    types = [0] * (W * H)
+    pts = []
+    for y in range(H):
+        for x in range(W):
+            i = x + y * W; q = v[i]
+            if q == gmin: continue
+            if edges and (x == 0 or x == W - 1 or y == 0 or y == H - 1): continue
+            ismax = True
+            for d in range(8):
+                if within(x, y, d) and v[i + DX[d] + DY[d] * W] > q:
+                    ismax = False; break
+            if ismax:
+                types[i] = MAXIMUM
+    with np.errstate(all="ignore"):
+        vf = F32(2e9 / float(F32(gmax - gmin)))           # (float)(2e9/(globalMax-globalMin)), the difference a float
+        keys = []
+        for i in range(W * H):
+            if types[i] == MAXIMUM:
+                keys.append((jint(float(F32(F32(v[i] - gmin) * vf))), i))
+    keys.sort()
+    err = F32(F32(1.1) * F32((gmax - gmin) / F32(2e9)))
+    ftol = F32(tol)
+    plist = [0] * (W * H)
+    for _, o0 in reversed(keys):
+        if types[o0] & PROCESSED: continue
+        x0, y0 = o0 % W, o0 // W; v0 = v[o0]
+        while True:
+            plist[0] = o0; types[o0] |= (EQUAL | LISTED); n = 1; li = 0
+            edgemax = (x0 == 0 or x0 == W - 1 or y0 == 0 or y0 == H - 1)
+            sorterr = False; maxpos = True; xe, ye, ne = float(x0), float(y0), 1
+            while True:
+                off = plist[li]; x, y = off % W, off // W
+                for d in range(8):
+                    o2 = off + DX[d] + DY[d] * W
+                    if within(x, y, d) and (types[o2] & LISTED) == 0:
+                        if types[o2] & PROCESSED:
+                            maxpos = False; break
+                        x2, y2 = x + DX[d], y + DY[d]; v2 = v[o2]
+                        with np.errstate(all="ignore"):
+                            if v2 > F32(v0 + err):
+                                maxpos = False; break
+                            elif v2 >= F32(v0 - ftol):
+                                if v2 > v0:
+                                    sorterr = True; o0 = o2; v0 = v2; x0 = x2; y0 = y2
+                                plist[n] = o2; n += 1; types[o2] |= LISTED
+                                if (x2 == 0 or x2 == W - 1 or y2 == 0 or y2 == H - 1) and (strict or v2 >= v0):
+                                    edgemax = True
+                                    if edges:
+                                        maxpos = False; break
+                                if v2 == v0:
+                                    types[o2] |= EQUAL; xe += x2; ye += y2; ne += 1
+                li += 1
+                if li >= n: break
+            if sorterr:
+                for j in range(n): types[plist[j]] = 0
+                continue
+            reset = ~(LISTED if maxpos else (LISTED | EQUAL)); xe /= ne; ye /= ne
+            md, ni = 1e20, 0
+            for j in range(n):
+                off = plist[j]; x, y = off % W, off // W
+                types[off] &= reset; types[off] |= PROCESSED
+                if maxpos:
+                    types[off] |= MAX_AREA
+                    if types[off] & EQUAL:
+                        dd = (xe - x) * (xe - x) + (ye - y) * (ye - y)
+                        if dd < md: md, ni = dd, j
+            if maxpos:
+                off = plist[ni]; types[off] |= MAX_POINT
+                if not (edges and edgemax):
+                    pts.append([off % W, off // W])
+            break
+    return pts
+
+def profile(vals, W, H, lx0, ly0, lx1, ly1, pw, ph):
+    """Line.getPixels -> ImageProcessor.getLine(x1, y1, x2, y2) with interpolation, getInterpolatedValue, getInterpolatedEdgeValue;
+    ProfilePlot's step (pixelWidth, or the calibrated length over the pixel length)."""
+    def px(x, y): return float(vals[y * W + x])
+    def edge(x, y):
+        x = 0 if x <= 0 else (W - 1 if x >= W else x); y = 0 if y <= 0 else (H - 1 if y >= H else y); return px(x, y)
+    def interp(x, y):
+        f = px
+        if x < 0.0 or x >= W - 1.0 or y < 0.0 or y >= H - 1.0:
+            if x < -1.0 or x >= W or y < -1.0 or y >= H: return 0.0
+            f = edge
+        xb, yb = jint(x), jint(y); xf, yf = x - xb, y - yb
+        if xf < 0.0: xf = 0.0
+        if yf < 0.0: yf = 0.0
+        ll, lr, ur, ul = f(xb, yb), f(xb + 1, yb), f(xb + 1, yb + 1), f(xb, yb + 1)
+        ua = ul + xf * (ur - ul); la = ll + xf * (lr - ll)
+        return la + yf * (ua - la)
+    dx, dy = lx1 - lx0, ly1 - ly0
+    n = int(np.floor(math.sqrt(dx * dx + dy * dy) + 0.5))      # Math.round
+    xinc = dx / n if n > 0 else 0.0; yinc = dy / n if n > 0 else 0.0
+    if not ((xinc == 0 and n == H) or (yinc == 0 and n == W)): n += 1
+    out, rx, ry = [], lx0, ly0
+    for i in range(n):
+        out.append(interp(rx, ry)); rx += xinc; ry += yinc
+    step = pw
+    if pw != ph:
+        L = math.sqrt(dx * dx + dy * dy); cx, cy = pw * dx, ph * dy
+        step = math.sqrt(cx * cx + cy * cy) * 1.0 / L
+    return {"v": [None if t != t else t for t in out], "d": [i * step for i in range(n)], "n": n}
+
 if __name__ == "__main__":
     d = sys.argv[1]
     out = {f: read(os.path.join(d, f)) for f in sorted(os.listdir(d)) if f.endswith(".tif")}
@@ -282,5 +408,13 @@ if __name__ == "__main__":
         for f, jb in jobs.items():
             r = out[f]; W, H = r["pil"]["w"], r["pil"]["h"]
             vals = [float("nan") if v is None else (math.inf if v == "Infinity" else -math.inf if v == "-Infinity" else v) for v in r["pil"]["z"]]
-            r["meas"] = [measure(vals, W, H, r["ij"], reg, positions(jb["ax"])) for reg in jb["regs"]]
+            r["meas"] = [measure(vals, W, H, r["ij"], reg, positions(jb["ax"])) for reg in jb.get("regs", [])]
+            ij = r["ij"]
+            r["maxima"] = [find_maxima(vals, W, H, q["prom"], q.get("strict", False), q.get("edges", False), q.get("light", False), ij["min"], ij["max"]) for q in jb.get("maxima", [])]
+            r["profiles"] = []
+            for q in jb.get("profiles", []):   # the ends in X and Y, to ImageJ's line coordinates by its calibration (a line's whole numbers the pixels' centres)
+                pw, ph, xo, yo = ij["pw"], ij["ph"], ij["xo"], ij["yo"]
+                snap = lambda v: float(round(v)) if abs(v - round(v)) <= 1e-9 else v   # a position within 1e-9 pixel of a centre is the centre (makeLine's whole numbers)
+                l = [snap(q["x0"] / pw + xo - 0.5), snap(yo - q["y0"] / ph - 0.5), snap(q["x1"] / pw + xo - 0.5), snap(yo - q["y1"] / ph - 0.5)]
+                r["profiles"].append(dict(profile(vals, W, H, *l, pw, ph), line=l))
     print(json.dumps(out))
