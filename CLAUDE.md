@@ -1739,6 +1739,20 @@ graph first, with the taskbar kept at the bottom of the screen.
   sheet of original data, one undo step, one record entry), `mxPaste`, `mxSelText`, `wireMx` (the keys of a sheet,
   Shift and Ctrl with them, Delete, Ctrl+A/C/V, a drag, headers selecting rows and columns, tabs with a double click to
   rename and a right-click menu), `matMenuItems(sid)` (the window's Matrix button, the cells' and tabs' right-click),
+  **the image view** (IMAGE_SPEC I.2; `mxSt`'s `view` "img"|"cells", decided at the first drawing: an image unless the sheet
+  holds nothing; `mag` (CSS px a cell along X), `cx`, `cy` (the image's point at the box's middle, in cells, row 0 the top),
+  `imk`, `isel` (a cell selected on the image); `.mxview-sw` `[data-mxv]`, `.mxzoom` `[data-mxz]`, `.mxinfo` with `.mxdim` and
+  `.mxread`, `.mximg` with its canvas; `.mxwin.mximgv` hides the cell's address and value): in MAT `IJ_ZOOM`, `ijZoomUp`,
+  `ijZoomDown` (ImageCanvas's levels) and `ij8(v, min, max)` (create8BitImage's index); `mxAspect(s)` (a cell's height to its
+  width: the steps when X and Y share a unit, else 1), `mxDisp(s)` (grays over the range as floats), `mxLut`, `mxImage(s, d)` (a
+  canvas of nx × ny, X rising to the right, the top row the largest Y, an empty cell clear; `MXIMG` per values), `mxFit` (the
+  whole image, a whole number of device pixels a cell from two up), `mxClamp` (centred while smaller than the box, else
+  covering it), `mxCellRect(g, r, c)`, `mxImgAt(g, px, py)`, `mxImgDraw` (no smoothing; the selection in ImageJ's yellow; the
+  box's `_g` `{tx, ty, mx, my, W, H, fx, fy, nx, ny, dpr}`), `mxMagText`, `mxDimText` (ImageJ's size line), `mxImgBar`, `mxRead`
+  (the cell under the pointer, `box._pt`), `mxZoomTo(id, m, px, py)` (about a point), `mxZoomStep`, `mxZoomFit`, `mxImgReveal`,
+  `mxSetView`, `mxMagItems`, `mxFocusEl` (matOpen and `winTakeFocus`), `wireMxImg` (the wheel a level a notch about the pointer,
+  Ctrl+wheel and two fingers continuous, a drag pans, Shift selects, a click a cell, a double click fits; + − 0, the arrows with
+  Y up, F2, Esc, Ctrl+C; its right-click menu; a ResizeObserver keeping the magnification);
   `matDataItems` (Data › Matrix: New, From columns, From a picture, Open, then the matrix in front's, `matFront`),
   `matPlotItems` (Plot › Plot a matrix). The graph: `plotCfg` forces the heat layout while `plot.mat` names a matrix;
   `buildPlot` draws it with no column (`MAT`: `ps` from its names, no points, `matViewOf` the zoom in its X units or
@@ -5742,7 +5756,10 @@ eight slices are done. Then, 20.11, the user's report: zooming out was hard and 
 more of ImageJ, worked as ImageJ works images, integrated into Kurve. The plan is `ux/spec/IMAGE_SPEC.md` (ten decisions, seven
 slices: I.1 the map's shape and zoom, I.2 the image view, I.3 lookup tables and contrast, I.4 selections and the ROI Manager, I.5
 ImageJ's filters, I.6 threshold and particles, I.7 scale bar, channels, histogram). Slice I.1 done 20.11: a matrix's map keeps its
-cells square at any window shape, zooms out by Alt+click, −, or 0, and never past the scan.
+cells square at any window shape, zooms out by Alt+click, −, or 0, and never past the scan. Slice I.2 done 20.11: the matrix
+window opens a scan as an image, each cell a block of the screen's pixels at its true shape whatever the window, zoomed through
+ImageJ's levels by the wheel about the pointer, + − 0, Fit and 100 %, panned by a drag, ImageJ's size line and the cell under the
+pointer over it, cells selected on it starting the commands, the sheets as channels; Image and Cells on its bar.
 
 ## Known gaps
 

@@ -568,6 +568,18 @@ body.dwin-page{margin:0;height:100vh;overflow:hidden;background:var(--panel);col
 .mxbar .mxval{width:12em;font-family:var(--mono)}
 .mxbar .mxval.bad,.mxed.bad{box-shadow:inset 0 0 0 2px var(--bad)}
 .mxgrid{flex:1;min-height:0;overflow:auto;position:relative;background:var(--panel);outline:none}
+.mxgrid[hidden],.mximg[hidden],.mxinfo[hidden]{display:none}
+.mximg{flex:1;min-height:0;position:relative;overflow:hidden;background:var(--well);outline:none;cursor:grab;touch-action:none;user-select:none}
+.mximg.panning{cursor:grabbing}
+.mximg:focus-visible{box-shadow:inset 0 0 0 2px var(--focus)}
+.mximg canvas{position:absolute;left:0;top:0;display:block}
+.mxinfo{display:flex;flex-wrap:wrap;gap:0 var(--sp-5);align-items:baseline;padding:var(--sp-1) var(--sp-3);font-size:var(--fs-tab);color:var(--muted);background:var(--panel);border-bottom:1px solid var(--rule-2);flex:0 0 auto;font-variant-numeric:tabular-nums}
+.mxinfo .mxread{margin-left:auto;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.mxbar .seg.mini{margin-left:0}
+.mxzoom{display:inline-flex;align-items:center;gap:var(--sp-1)}
+.mxzoom .mxmag{min-width:5.2em;justify-content:center;font-variant-numeric:tabular-nums}
+.mxzoom b{font-weight:600;font-size:15px;line-height:1}
+.mxwin:not(.mximgv) .mxzoom,.mxwin.mximgv .mxaddr,.mxwin.mximgv .mxval{display:none}
 .mxgrid:focus-visible{box-shadow:inset 0 0 0 2px var(--focus)}
 .mxview{position:sticky;left:0;top:0;width:0;height:0;overflow:visible;z-index:1}
 .mxsp{pointer-events:none}
@@ -2182,6 +2194,7 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
   .win-rz,.win-h [data-wmax],.win-h [data-wpop]{display:none}
   .win.gwin .win-b{height:52vh;min-height:300px;flex:0 0 auto;overflow:hidden}
   .win.figw .win-b{height:84vh;min-height:420px}
+  .win.mxwin .win-b{height:72vh;min-height:360px;flex:0 0 auto;overflow:hidden}
   .win.gwin.haslive:not(.figw) .win-b{height:68vh;min-height:360px}
   #w-sheet .win-b{max-height:70vh}
   #w-help .win-b{height:80vh;overflow:hidden;flex:0 0 auto}
@@ -10996,6 +11009,13 @@ function kMeasure(M,reg,o){ o=o||{}; const nx=M.nx, ny=M.ny, z=M.z;
   else if(nb>1){ ssum=sdB*Math.sqrt(n); smean=sdB/Math.sqrt(n); sbg=sdB/Math.sqrt(nb); how="ring"; } else how="none";
   const net=nb?sum-n*bg:null, snet=nb&&ssum!=null&&sbg!=null?Math.sqrt(ssum*ssum+n*n*sbg*sbg):null, ca=Math.abs((xs[nx-1]-xs[0])/(nx-1||1))*Math.abs((ys[ny-1]-ys[0])/(ny-1||1));
   return {n,cells:cellIdx.length,sum,ssum,mean:sum/n,smean,nb,bg,sbg,sdB,net,snet,ca,netI:net!=null?net*ca:null,snetI:snet!=null?snet*ca:null,snr:snet>0?net/snet:null,ringIdx,cellIdx,noise,how}; }
+/* ImageJ's display of a 32-bit image (IMAGE_SPEC I.2, I.3): its magnifications (ImageCanvas.zoomLevels) with the next one up and
+   down, and the 8-bit index a value is shown with (FloatProcessor.create8BitImage: the value as a float less the minimum, below
+   zero as zero, times 255/(max − min), plus a half, truncated as Java's (int) does, NaN to 0, past 255 to 255). */
+const IJ_ZOOM=[1/72,1/48,1/32,1/24,1/16,1/12,1/8,1/6,1/4,1/3,1/2,0.75,1,1.5,2,3,4,6,8,12,16,24,32];
+function ijZoomUp(m){ let n=32; for(let i=IJ_ZOOM.length-1;i>=0;i--){ if(IJ_ZOOM[i]>m) n=IJ_ZOOM[i]; else break; } return n; }
+function ijZoomDown(m){ let n=IJ_ZOOM[0]; for(let i=0;i<IJ_ZOOM.length;i++){ if(IJ_ZOOM[i]<m) n=IJ_ZOOM[i]; else break; } return n; }
+function ij8(v,min,max){ let d=Math.fround(v)-min; if(d<0) d=0; const t=d*(255/(max-min))+0.5; return t>=255?255:t>=1?Math.floor(t):0; }
 /* ==MAT:END== */
 /* ==SIG:START== Signal processing and mathematics (ux/spec/SIGNAL_SPEC.md, wave 5), pure: the transform of any
    length, windows and spectra (5.1); the later slices' filters, correlation, envelopes, wavelets, interpolation and
@@ -24644,7 +24664,7 @@ function matExtent(s){ const {X,Y}=matXYOf(s), e=A=>{ const n=A.length; if(n===1
    whole row or column at a time, as a spreadsheet scrolls. ---- */
 const mxWinId=bid=>"mx-"+bid, mxBid=id=>WINS[id]&&WINS[id].mx||null;
 const matWinIds=()=>matBooks().map(b=>mxWinId(b.id)).filter(id=>WINS[id]);
-function mxSt(bid){ S.mxs=S.mxs||{}; const k=S.pid+":"+bid; let st=S.mxs[k]; if(!st) st=S.mxs[k]={sid:null,r:0,c:0,er:0,ec:0,edit:null};
+function mxSt(bid){ S.mxs=S.mxs||{}; const k=S.pid+":"+bid; let st=S.mxs[k]; if(!st) st=S.mxs[k]={sid:null,r:0,c:0,er:0,ec:0,edit:null,view:null,mag:null,cx:0,cy:0,isel:false};
   const b=matBooks().find(q=>q.id===bid); if(b&&!b.sheets.some(s=>s.id===st.sid)){ st.sid=b.sheets[0].id; Object.assign(st,{r:0,c:0,er:0,ec:0,edit:null}); }
   const s=matOf(st.sid); if(s){ const cl=(v,n)=>Math.max(0,Math.min(n-1,v)); st.r=cl(st.r,s.ny); st.er=cl(st.er,s.ny); st.c=cl(st.c,s.nx); st.ec=cl(st.ec,s.nx); } return st; }
 function mxStFor(sid){ const b=matBookOf(sid); if(!b) return null; const st=mxSt(b.id); return st.sid===sid?st:null; }
@@ -24653,7 +24673,8 @@ const mxNum=v=>v==null?"":fmt(v,6);
 // The matrix sheet the commands act on: the one shown in the matrix window in front, else the last one.
 function matFront(){ const ids=matWinIds().filter(id=>winOpen(id)).sort((a,b)=>winState(b).z-winState(a).z); const id=ids[0]||matWinIds()[0]; return id?mxSt(mxBid(id)).sid:null; }
 function matOpen(bid,sid){ syncMatWins(); const id=mxWinId(bid); if(!WINS[id]) return; if(sid){ const st=mxSt(bid); if(st.sid!==sid){ st.sid=sid; Object.assign(st,{r:0,c:0,er:0,ec:0,edit:null}); mxScrollHome(id); } }
-  openWin(id); focusWin(id); renderMatWin(id); const g=$(`#w-${id} .mxgrid`); if(g) g.focus({preventScroll:true}); }
+  openWin(id); focusWin(id); renderMatWin(id); const g=mxFocusEl(id); if(g) g.focus({preventScroll:true}); }
+const mxFocusEl=id=>{ const el=$("#w-"+id); return el?el.querySelector(mxSt(mxBid(id)).view==="cells"?".mxgrid":".mximg"):null; };
 function syncMatWins(){ const books=matBooks(), want=new Set(books.map(b=>mxWinId(b.id)));
   Object.keys(WINS).forEach(k=>{ if(WINS[k].mx&&!want.has(k)){ const el=$("#w-"+k); if(el) el.remove(); delete WINS[k]; } });
   let made=false;
@@ -24661,7 +24682,9 @@ function syncMatWins(){ const books=matBooks(), want=new Set(books.map(b=>mxWinI
     if(!WINS[id]){ WINS[id]={title:b.name,icon:"grid",def:[0.06+(i%6)*0.03,0.05+(i%6)*0.04,0.52,0.62],open:false,mx:b.id};
       const prev=[...document.querySelectorAll(".win.mxwin,.win.wswin")].pop()||$("#w-sheet");
       prev.insertAdjacentHTML("afterend",`<section class="win mxwin" id="w-${id}" data-win="${id}" aria-label="${esc(b.name)}"><header class="win-h">${ICON("grid","sm")}<h2 class="win-t">${esc(b.name)}</h2><span class="win-sub"></span><span class="sp"></span></header><div class="win-b mx-b">
-        <div class="mxbar"><span class="mxaddr" title="The cell: its row and column"></span><input class="mxval" type="text" spellcheck="false" aria-label="The cell's value" title="The cell's value: type a number and press Enter"><span class="sp"></span><button class="btn sm" data-mxmenu aria-haspopup="menu" title="What can be done to this matrix">Matrix ${ICON("chev","sm")}</button><button class="btn sm" data-mxplot aria-haspopup="menu" title="Plot this matrix on a graph of its own">${ICON("chart","sm")}Plot</button></div>
+        <div class="mxbar"><div class="seg mini mxview-sw" role="group" aria-label="View"><button data-mxv="img" aria-pressed="true" title="The matrix as an image, each cell a pixel at its true shape">Image</button><button data-mxv="cells" aria-pressed="false" title="The matrix as cells, to read and type values">Cells</button></div><span class="mxzoom"><button class="btn icon sm" data-mxz="out" title="Zoom out (−)" aria-label="Zoom out"><b aria-hidden="true">−</b></button><button class="btn sm mxmag" data-mxz="menu" aria-haspopup="menu" title="The magnification: ImageJ's levels, Fit and 100 %"></button><button class="btn icon sm" data-mxz="in" title="Zoom in (+)" aria-label="Zoom in">${ICON("plus","sm")}</button><button class="btn sm" data-mxz="fit" title="The whole image, as large as the window allows (0, or a double-click)">Fit</button></span><span class="mxaddr" title="The cell: its row and column"></span><input class="mxval" type="text" spellcheck="false" aria-label="The cell's value" title="The cell's value: type a number and press Enter"><span class="sp"></span><button class="btn sm" data-mxmenu aria-haspopup="menu" title="What can be done to this matrix">Matrix ${ICON("chev","sm")}</button><button class="btn sm" data-mxplot aria-haspopup="menu" title="Plot this matrix on a graph of its own">${ICON("chart","sm")}Plot</button></div>
+        <div class="mxinfo" hidden><span class="mxdim"></span><span class="mxread" aria-live="off"></span></div>
+        <div class="mximg" tabindex="0" role="img" hidden><canvas></canvas></div>
         <div class="mxgrid" tabindex="0" role="grid" aria-label="The matrix's values"><div class="mxview"></div><div class="mxsp"></div></div>
         <div class="wstabs mxtabs" role="tablist" aria-label="Matrix sheets"></div>
         <div class="mxfoot"><span class="mxsize"></span><span class="mxstate"></span><span class="mxsel"></span></div></div></section>`);
@@ -24673,7 +24696,11 @@ function renderMatWin(id){ const el=$("#w-"+id), bid=mxBid(id), b=matBooks().fin
   const sub=el.querySelector(".win-sub"); if(sub) sub.textContent=b.sheets.length>1?s.name:s.name===b.name?"":s.name;
   const tabs=el.querySelector(".mxtabs"), tk=b.sheets.map(q=>q.id+q.name).join("|")+st.sid;
   if(tabs._k!==tk){ tabs._k=tk; tabs.innerHTML=b.sheets.map(q=>`<button class="wstab" role="tab" aria-selected="${q.id===st.sid}" tabindex="${q.id===st.sid?0:-1}" data-mxs="${q.id}" title="${esc(q.name)}: ${q.ny} × ${q.nx}${q.fx?`, = ${esc(q.fx.src)}`:""} (double-click to rename)">${esc(q.name)}</button>`).join("")+`<button class="btn icon sm wstnew" data-mxnew title="A new matrix sheet in ${esc(b.name)}" aria-label="A new matrix sheet"${S.readOnly?" disabled":""}>${ICON("plus","sm")}</button>`; }
-  mxDraw(id); mxBar(id); mxFoot(id); }
+  if(!st.view) st.view=matRangeOf(s.z).n?"img":"cells";   // an image, unless there is nothing yet to see
+  const img=st.view==="img", ib=el.querySelector(".mximg"), gr=el.querySelector(".mxgrid");
+  ib.hidden=!img; el.querySelector(".mxinfo").hidden=!img; gr.hidden=img; el.classList.toggle("mximgv",img);
+  el.querySelectorAll("[data-mxv]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mxv===st.view)));
+  if(img){ mxImgDraw(id); mxImgBar(id); } else { mxDraw(id); mxBar(id); } mxFoot(id); }
 function mxDraw(id){ const el=$("#w-"+id), grid=el&&el.querySelector(".mxgrid"); if(!grid) return; const st=mxSt(mxBid(id)), s=matOf(st.sid); const view=grid.querySelector(".mxview"), sp=grid.querySelector(".mxsp");
   if(!s){ view.innerHTML=""; return; }
   sp.style.width=(MX_SW+s.nx*MX_CW)+"px"; sp.style.height=(MX_RH*(s.ny+2))+"px";
@@ -24706,7 +24733,116 @@ function mxReveal(id){ const el=$("#w-"+id), grid=el&&el.querySelector(".mxgrid"
   const vr=Math.max(1,Math.floor((grid.clientHeight-MX_RH)/MX_RH)-1), vc=Math.max(1,Math.floor((grid.clientWidth-MX_SW)/MX_CW)-1), r0=Math.floor(grid.scrollTop/MX_RH), c0=Math.floor(grid.scrollLeft/MX_CW);
   if(st.er<r0) grid.scrollTop=st.er*MX_RH; else if(st.er>r0+vr) grid.scrollTop=(st.er-vr)*MX_RH;
   if(st.ec<c0) grid.scrollLeft=st.ec*MX_CW; else if(st.ec>c0+vc) grid.scrollLeft=(st.ec-vc)*MX_CW; }
-function mxShow(id){ mxReveal(id); mxDraw(id); mxBar(id); mxFoot(id); }
+function mxShow(id){ if(mxSt(mxBid(id)).view==="img"){ mxImgReveal(id); mxImgDraw(id); mxImgBar(id); mxFoot(id); return; } mxReveal(id); mxDraw(id); mxBar(id); mxFoot(id); }
+/* ---- The image view (IMAGE_SPEC I.2): the sheet as an image, as ImageJ shows one. Each cell a block of screen pixels at the
+   scan's true shape (its height to its width the Y step to the X step when X and Y share a unit, else square), never stretched by
+   the window, which shows more of it or the space around it; X to the right and Y up, as the graph and the TIFF. ImageJ's
+   magnifications (IJ_ZOOM) by the wheel about the pointer, + and −; Fit (the whole image, each cell a whole number of the
+   screen's pixels when they are two or more) and 100 % (a cell a pixel of the page); dragged to pan, the image kept in reach
+   (centred while it is smaller than the window, else covering it). A click selects a cell, Shift a rectangle of them. ---- */
+function mxAspect(s){ if((s.xunit||"")!==(s.yunit||"")) return 1; const e=matExtent(s), r=((e.y1-e.y0)/s.ny)/((e.x1-e.x0)/s.nx); return Number.isFinite(r)&&r>0?Math.max(1/64,Math.min(64,r)):1; }
+// What the image shows: ImageJ's grays over the values' range (the range as floats, as ImageJ finds it).
+function mxDisp(s){ const R=matRangeOf(s.z), lo=R.n?Math.fround(R.lo):0, hi=R.n?Math.fround(R.hi):1; return {lut:"grays",lo,hi,inv:false}; }
+function mxLut(name,inv){ const L=new Uint8Array(768); for(let i=0;i<256;i++){ const v=inv?255-i:i; L[3*i]=L[3*i+1]=L[3*i+2]=v; } return L; }
+// The image of a sheet at its display, one pixel a cell (an empty cell clear), kept with its values.
+const MXIMG=new WeakMap();
+function mxImage(s,d){ const k=[s.nx,s.ny,JSON.stringify([s.x,s.y]),d.lut,d.lo,d.hi,d.inv].join("|"); let o=MXIMG.get(s.z); if(o&&o.k===k) return o;
+  const {X,Y}=matXYOf(s), fx=s.nx>1&&X[0]>X[s.nx-1], fy=s.ny>1&&Y[0]<Y[s.ny-1], cv=document.createElement("canvas"); cv.width=s.nx; cv.height=s.ny;
+  const ctx=cv.getContext("2d"), im=ctx.createImageData(s.nx,s.ny), px=im.data, L=mxLut(d.lut,d.inv), z=s.z;
+  for(let j=0;j<s.ny;j++){ const o=(fy?s.ny-1-j:j)*s.nx; for(let i=0;i<s.nx;i++){ const v=z[o+(fx?s.nx-1-i:i)]; if(v==null) continue; const q=4*(j*s.nx+i), t=3*ij8(v,d.lo,d.hi); px[q]=L[t]; px[q+1]=L[t+1]; px[q+2]=L[t+2]; px[q+3]=255; } }
+  ctx.putImageData(im,0,0); o={k,cv,fx,fy}; MXIMG.set(s.z,o); return o; }
+function mxFit(st,s,W,H){ const ry=mxAspect(s), dpr=window.devicePixelRatio||1; let m=Math.min(W/s.nx,H/(s.ny*ry)); if(m*dpr>=2) m=Math.floor(m*dpr+1e-9)/dpr;
+  st.mag=Math.max(IJ_ZOOM[0],Math.min(1024,m)); st.cx=s.nx/2; st.cy=s.ny/2; }
+function mxClamp(st,s,W,H){ const mx=st.mag, my=st.mag*mxAspect(s);
+  st.cx=s.nx*mx<=W?s.nx/2:Math.max(W/(2*mx),Math.min(s.nx-W/(2*mx),st.cx)); st.cy=s.ny*my<=H?s.ny/2:Math.max(H/(2*my),Math.min(s.ny-H/(2*my),st.cy)); }
+// Where a cell is drawn (its rectangle in the box), and which cell is under a point of the box.
+function mxCellRect(g,r,c){ const i=g.fx?g.nx-1-c:c, j=g.fy?g.ny-1-r:r; return {x:g.tx+i*g.mx,y:g.ty+j*g.my,w:g.mx,h:g.my}; }
+function mxImgAt(g,px,py){ const i=Math.floor((px-g.tx)/g.mx), j=Math.floor((py-g.ty)/g.my); if(i<0||j<0||i>=g.nx||j>=g.ny) return null; return {c:g.fx?g.nx-1-i:i,r:g.fy?g.ny-1-j:j}; }
+function mxImgDraw(id){ const el=$("#w-"+id), box=el&&el.querySelector(".mximg"); if(!box||box.hidden) return; const st=mxSt(mxBid(id)), s=matOf(st.sid), cv=box.querySelector("canvas"); if(!s||!cv) return;
+  const W=box.clientWidth, H=box.clientHeight; if(W<4||H<4) return; const dpr=window.devicePixelRatio||1, ry=mxAspect(s), cw=Math.round(W*dpr), ch=Math.round(H*dpr);
+  if(cv.width!==cw||cv.height!==ch){ cv.width=cw; cv.height=ch; cv.style.width=W+"px"; cv.style.height=H+"px"; }
+  const key=s.nx+"x"+s.ny+"|"+ry; if(st.mag==null||st.imk!==key){ mxFit(st,s,W,H); st.imk=key; }
+  mxClamp(st,s,W,H);
+  const mx=st.mag, my=st.mag*ry, tx=Math.round((W/2-st.cx*mx)*dpr)/dpr, ty=Math.round((H/2-st.cy*my)*dpr)/dpr, im=mxImage(s,mxDisp(s)), ctx=cv.getContext("2d");
+  ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cw,ch); ctx.imageSmoothingEnabled=false;
+  ctx.setTransform(dpr*mx,0,0,dpr*my,dpr*tx,dpr*ty); ctx.drawImage(im.cv,0,0); ctx.setTransform(1,0,0,1,0,0);
+  const g={tx,ty,mx,my,W,H,fx:im.fx,fy:im.fy,nx:s.nx,ny:s.ny,dpr}; box._g=g;
+  const q=mxSel(st); if(st.isel||q.r0!==q.r1||q.c0!==q.c1){ const a=mxCellRect(g,q.r0,q.c0), b=mxCellRect(g,q.r1,q.c1), lw=Math.max(1,Math.round(dpr)), h=(lw%2)/2;
+    const X0=Math.round(Math.min(a.x,b.x)*dpr)+h, Y0=Math.round(Math.min(a.y,b.y)*dpr)+h, X1=Math.round(Math.max(a.x+a.w,b.x+b.w)*dpr)-h, Y1=Math.round(Math.max(a.y+a.h,b.y+b.h)*dpr)-h;
+    ctx.lineWidth=lw; ctx.strokeStyle="#ffff00"; ctx.strokeRect(X0,Y0,Math.max(0,X1-X0),Math.max(0,Y1-Y0)); }
+  box.setAttribute("aria-label",`${s.name}: an image of ${s.ny} × ${s.nx} cells at ${mxMagText(mx)}`); mxRead(id); }
+const mxMagText=m=>{ const p=m*100; return (p>=100||Math.abs(p-Math.round(p))<0.05?String(Math.round(p)):p.toFixed(1))+" %"; };
+// ImageJ's line over the image: the calibrated size, the cells, the values' kind.
+function mxDimText(s){ const e=matExtent(s), w=e.x1-e.x0, h=e.y1-e.y0, f=v=>{ const a=Math.abs(v); return a>=1000&&a<1e6?v.toFixed(0):a>=1e-3&&a<1000?v.toPrecision(3):fmt(v,3); };
+  const xu=s.xunit||"", yu=s.yunit||"", n=`(${s.nx} × ${s.ny})`;
+  const size=!xu&&!yu?"":xu===yu?`${f(w)} × ${f(h)} ${xu} `:`${f(w)} ${xu} × ${f(h)} ${yu} `.replace(/  +/g," ");
+  return `${size}${size?n:`${s.nx} × ${s.ny} cells`}; 64-bit${s.zunit?`, ${s.zunit}`:""}`; }
+function mxImgBar(id){ const el=$("#w-"+id); if(!el) return; const st=mxSt(mxBid(id)), s=matOf(st.sid); if(!s) return;
+  el.querySelector(".mxmag").textContent=st.mag==null?"Fit":mxMagText(st.mag); el.querySelector(".mxdim").textContent=mxDimText(s); }
+// The readout: the cell under the pointer (or the one selected), as ImageJ's status bar gives it.
+function mxRead(id,pt){ const el=$("#w-"+id), box=el&&el.querySelector(".mximg"), out=el&&el.querySelector(".mxread"); if(!out||!box._g) return; const st=mxSt(mxBid(id)), s=matOf(st.sid); if(!s) return;
+  if(pt!==undefined) box._pt=pt; const p=box._pt, at=p?mxImgAt(box._g,p.x,p.y):st.isel?{r:st.r,c:st.c}:null;
+  if(!at){ out.textContent=""; return; } const {X,Y}=matXYOf(s), v=s.z[at.r*s.nx+at.c], u=(t,un)=>`${fmt(t,6)}${un?" "+un:""}`;
+  out.textContent=`${s.xname||"X"} ${u(X[at.c],s.xunit)} · ${s.yname||"Y"} ${u(Y[at.r],s.yunit)} · ${v==null?"empty":u(v,s.zunit)} · row ${at.r+1}, column ${at.c+1}`; }
+// Zooms to m about a point of the box (its middle by default), keeping the cell there under it.
+function mxZoomTo(id,m,px,py){ const el=$("#w-"+id), box=el&&el.querySelector(".mximg"); if(!box) return; const st=mxSt(mxBid(id)), s=matOf(st.sid); if(!s) return;
+  const W=box.clientWidth, H=box.clientHeight, ry=mxAspect(s); if(st.mag==null) mxFit(st,s,W,H); if(px==null){ px=W/2; py=H/2; }
+  m=Math.max(IJ_ZOOM[0],Math.min(Math.max(32,st.mag),m)); const ux=st.cx+(px-W/2)/st.mag, uy=st.cy+(py-H/2)/(st.mag*ry);
+  st.mag=m; st.cx=ux-(px-W/2)/m; st.cy=uy-(py-H/2)/(m*ry); mxImgDraw(id); mxImgBar(id); }
+function mxZoomStep(id,up,pt){ const st=mxSt(mxBid(id)); if(st.mag==null) return; const m=up?ijZoomUp(st.mag):ijZoomDown(st.mag); if(m!==st.mag) mxZoomTo(id,m,pt&&pt.x,pt&&pt.y); }
+function mxZoomFit(id){ const el=$("#w-"+id), box=el&&el.querySelector(".mximg"), st=mxSt(mxBid(id)), s=matOf(st.sid); if(!box||!s) return; mxFit(st,s,box.clientWidth,box.clientHeight); mxImgDraw(id); mxImgBar(id); }
+// Brings the active corner of the selection into view.
+function mxImgReveal(id){ const el=$("#w-"+id), box=el&&el.querySelector(".mximg"), g=box&&box._g; if(!g) return; const st=mxSt(mxBid(id)), rc=mxCellRect(g,st.er,st.ec);
+  if(rc.x<0) st.cx-=(-rc.x)/g.mx+0.5; else if(rc.x+rc.w>g.W) st.cx+=(rc.x+rc.w-g.W)/g.mx+0.5;
+  if(rc.y<0) st.cy-=(-rc.y)/g.my+0.5; else if(rc.y+rc.h>g.H) st.cy+=(rc.y+rc.h-g.H)/g.my+0.5; }
+function mxSetView(id,v){ const st=mxSt(mxBid(id)); if(st.view===v) return; if(st.edit) mxEdEnd(id,true,true); st.view=v; renderMatWin(id); if(v==="cells"){ mxReveal(id); mxDraw(id); }
+  const f=mxFocusEl(id); if(f) f.focus({preventScroll:true}); }
+function mxMagItems(id){ const st=mxSt(mxBid(id)), m=st.mag;
+  return [{label:"Fit",kbd:"0",run:()=>mxZoomFit(id)},{label:"100 %",run:()=>mxZoomTo(id,1)},"-"].concat(IJ_ZOOM.slice().reverse().map(z=>({label:mxMagText(z),radio:true,checked:m!=null&&Math.abs(z-m)<1e-9,run:()=>mxZoomTo(id,z)}))); }
+function wireMxImg(el,id){ const box=el.querySelector(".mximg"), bid=()=>mxBid(id), pts=new Map(); let drag=null, acc=0, accT=0, pinch=null, space=false;
+  const at=e=>{ const r=box.getBoundingClientRect(); return {x:e.clientX-r.left,y:e.clientY-r.top}; };
+  el.querySelectorAll("[data-mxv]").forEach(b=>b.addEventListener("click",()=>mxSetView(id,b.dataset.mxv)));
+  el.querySelector(".mxzoom").addEventListener("click",e=>{ const b=e.target.closest("[data-mxz]"); if(!b) return; const k=b.dataset.mxz;
+    if(k==="menu") toggleMenu(b,()=>mxMagItems(id),{label:"Magnification",focus:"checked"}); else if(k==="fit") mxZoomFit(id); else mxZoomStep(id,k==="in"); });
+  box.addEventListener("wheel",e=>{ e.preventDefault(); const st=mxSt(bid()); if(st.mag==null) return; const p=at(e);
+    if(e.ctrlKey){ mxZoomTo(id,st.mag*Math.exp(-e.deltaY/120),p.x,p.y); return; }   // a pinch on a trackpad
+    const now=performance.now(); if(now-accT>400) acc=0; accT=now; acc+=e.deltaY*(e.deltaMode===1?33:e.deltaMode===2?400:1);
+    while(Math.abs(acc)>=100){ mxZoomStep(id,acc<0,p); acc-=100*Math.sign(acc); } },{passive:false});
+  box.addEventListener("pointerdown",e=>{ if(e.button===2) return; box.focus({preventScroll:true}); const p=at(e); pts.set(e.pointerId,p); box.setPointerCapture(e.pointerId);
+    const st=mxSt(bid());
+    if(pts.size===2){ const [a,b]=[...pts.values()]; pinch={d:Math.hypot(a.x-b.x,a.y-b.y),m:st.mag,c:{x:(a.x+b.x)/2,y:(a.y+b.y)/2}}; drag=null; return; }
+    const sel=e.shiftKey&&e.button===0&&!space; drag={x:p.x,y:p.y,cx:st.cx,cy:st.cy,moved:false,sel,pan:!sel}; e.preventDefault();
+    if(sel&&box._g){ const c=mxImgAt(box._g,p.x,p.y); if(c){ st.er=c.r; st.ec=c.c; st.isel=true; mxImgDraw(id); mxFoot(id); } } });
+  box.addEventListener("pointermove",e=>{ const p=at(e), st=mxSt(bid());
+    if(pts.has(e.pointerId)) pts.set(e.pointerId,p);
+    if(pinch&&pts.size>=2){ const [a,b]=[...pts.values()], d=Math.hypot(a.x-b.x,a.y-b.y), c={x:(a.x+b.x)/2,y:(a.y+b.y)/2}; if(pinch.d>0&&d>0){ mxZoomTo(id,pinch.m*d/pinch.d,pinch.c.x,pinch.c.y); st.cx-=(c.x-pinch.c.x)/st.mag; st.cy-=(c.y-pinch.c.y)/(st.mag*mxAspect(matOf(st.sid))); pinch.c=c; pinch.m=st.mag; pinch.d=d; mxImgDraw(id); } return; }
+    if(drag&&(e.buttons&5)){ if(!drag.moved&&Math.hypot(p.x-drag.x,p.y-drag.y)>3) drag.moved=true; if(!drag.moved) return;
+      if(drag.pan){ box.classList.add("panning"); st.cx=drag.cx-(p.x-drag.x)/st.mag; st.cy=drag.cy-(p.y-drag.y)/(st.mag*mxAspect(matOf(st.sid))); mxImgDraw(id); }
+      else if(box._g){ const c=mxImgAt(box._g,Math.max(0,Math.min(box._g.W-1,p.x)),Math.max(0,Math.min(box._g.H-1,p.y)))||null; if(c&&(c.r!==st.er||c.c!==st.ec)){ st.er=c.r; st.ec=c.c; mxImgDraw(id); mxFoot(id); } } }
+    mxRead(id,p); });
+  const up=e=>{ pts.delete(e.pointerId); if(pts.size<2) pinch=null; box.classList.remove("panning"); const d=drag; drag=null; if(!d||d.moved||e.type==="pointercancel") return;
+    const st=mxSt(bid()), c=box._g&&mxImgAt(box._g,d.x,d.y); if(!c) return;
+    if(e.shiftKey){ st.er=c.r; st.ec=c.c; } else { st.r=st.er=c.r; st.c=st.ec=c.c; } st.isel=true; mxImgDraw(id); mxFoot(id); };
+  box.addEventListener("pointerup",up); box.addEventListener("pointercancel",up);
+  box.addEventListener("pointerleave",()=>{ if(!drag) mxRead(id,null); });
+  box.addEventListener("dblclick",e=>{ if(!e.shiftKey) mxZoomFit(id); });
+  box.addEventListener("keyup",e=>{ if(e.key===" ") space=false; });
+  box.addEventListener("keydown",e=>{ const st=mxSt(bid()), s=matOf(st.sid); if(!s) return; const k=e.key, ctl=e.ctrlKey||e.metaKey, p=box._pt;
+    if(k===" "){ space=true; e.preventDefault(); return; }
+    if(!ctl&&!e.altKey&&(k==="+"||k==="=")){ e.preventDefault(); mxZoomStep(id,true,p); return; }
+    if(!ctl&&!e.altKey&&(k==="-"||k==="_")){ e.preventDefault(); mxZoomStep(id,false,p); return; }
+    if(!ctl&&!e.altKey&&k==="0"){ e.preventDefault(); mxZoomFit(id); return; }
+    const mv={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1]}[k];
+    if(mv){ e.preventDefault(); const g=box._g; let [dr,dc]=mv; if(g){ if(g.fy) dr=-dr; if(g.fx) dc=-dc; } st.isel=true; mxMove(id,[dr,dc],e.shiftKey,ctl); mxRead(id); return; }
+    if(k==="Escape"){ if(st.isel||st.er!==st.r||st.ec!==st.c){ e.preventDefault(); st.er=st.r; st.ec=st.c; st.isel=false; mxImgDraw(id); mxFoot(id); mxRead(id); } return; }
+    if(ctl&&(k==="c"||k==="C")){ e.preventDefault(); copyText(mxSelText(s,mxSel(st)),"The cells"); return; }
+    if(k==="F2"){ e.preventDefault(); mxSetView(id,"cells"); mxEdBegin(id); return; } });
+  box.addEventListener("contextmenu",e=>{ e.preventDefault(); const st=mxSt(bid()), s=matOf(st.sid); if(!s) return; const p=at(e), c=box._g&&mxImgAt(box._g,p.x,p.y), q=mxSel(st);
+    if(c&&!(c.r>=q.r0&&c.r<=q.r1&&c.c>=q.c0&&c.c<=q.c1)){ st.r=st.er=c.r; st.c=st.ec=c.c; st.isel=true; mxImgDraw(id); mxFoot(id); }
+    openMenu(pointerAnchor(e.clientX,e.clientY),[{label:"Zoom in",kbd:"+",run:()=>mxZoomStep(id,true,p)},{label:"Zoom out",kbd:"−",run:()=>mxZoomStep(id,false,p)},{label:"Fit",kbd:"0",run:()=>mxZoomFit(id)},{label:"100 %",run:()=>mxZoomTo(id,1,p.x,p.y)},"-",
+      {label:"Copy the cells",kbd:"Ctrl+C",run:()=>copyText(mxSelText(s,mxSel(st)),"The cells")},{label:"Show the cell's value",kbd:"F2",title:"The Cells view at this cell",run:()=>{ mxSetView(id,"cells"); }},
+      {label:"Crop to the selection…",enabled:!S.readOnly&&(q.r0!==q.r1||q.c0!==q.c1),run:()=>matCropDlg(s.id)},"-"].concat(matMenuItems(s.id)),{label:"Image"}); });
+  new ResizeObserver(()=>{ if(winOpen(id)&&!box.hidden&&!box._rz) box._rz=requestAnimationFrame(()=>{ box._rz=0; mxImgDraw(id); mxImgBar(id); }); }).observe(box); }
 /* Typing into a cell: a box over it; Enter, Tab and the arrows enter the value, Escape leaves it. */
 function mxEdBegin(id,init){ const bid=mxBid(id), st=mxSt(bid), s=matOf(st.sid); if(!s||S.readOnly) return;
   if(s.fx){ toast(`${s.name} is worked out by = ${s.fx.src}. Set values… changes the formula; Keep the values only lets you type.`,{action:"Set values…",run:()=>matSetValuesDlg(s.id)}); return; }
@@ -24744,7 +24880,7 @@ function mxPaste(id,text){ const st=mxSt(mxBid(id)), s=matOf(st.sid); if(!s||S.r
   if(mxWrite(s.id,cells,`pasted ${rows.length} × ${Math.max(...rows.map(r=>r.length))} values at row ${st.r+1}, column ${st.c+1}`)){ st.er=Math.min(s.ny-1,st.r+rows.length-1); st.ec=Math.min(s.nx-1,st.c+Math.max(...rows.map(r=>r.length))-1); }
   if(bad||cut) toast([bad?`${bad} value${bad===1?" was":"s were"} not a number and left out`:"",cut?`${cut} fell outside the matrix`:""].filter(Boolean).join("; ")+"."); renderMatWin(id); }
 function wireMx(el,id){ const grid=el.querySelector(".mxgrid"), bid=()=>mxBid(id);
-  let drag=null;
+  let drag=null; wireMxImg(el,id);
   grid.addEventListener("scroll",()=>{ if(!grid._raf) grid._raf=requestAnimationFrame(()=>{ grid._raf=0; mxDraw(id); }); },{passive:true});
   grid.addEventListener("mousedown",e=>{ if(e.button!==0||e.target.closest(".mxed")) return; const st=mxSt(bid()), s=matOf(st.sid); if(!s) return;
     const td=e.target.closest("td[data-r]"), tx=e.target.closest("th[data-c]"), ty=e.target.closest("th[data-r]"), tc=e.target.closest("th.mxc");
@@ -24789,7 +24925,7 @@ function wireMx(el,id){ const grid=el.querySelector(".mxgrid"), bid=()=>mxBid(id
   const tabs=el.querySelector(".mxtabs");
   tabs.addEventListener("click",e=>{ if(e.target.closest("[data-mxnew]")){ matAddSheet(bid()); return; } const t=e.target.closest("[data-mxs]"); if(!t) return; const st=mxSt(bid());
     if(e.detail===2){ matRenameSheet(t.dataset.mxs); return; }
-    if(st.sid!==t.dataset.mxs){ if(st.edit) mxEdEnd(id,false); st.sid=t.dataset.mxs; Object.assign(st,{r:0,c:0,er:0,ec:0}); mxScrollHome(id); renderMatWin(id); } });
+    if(st.sid!==t.dataset.mxs){ if(st.edit) mxEdEnd(id,false); st.sid=t.dataset.mxs; Object.assign(st,{r:0,c:0,er:0,ec:0,isel:false}); mxScrollHome(id); renderMatWin(id); } });
   tabs.addEventListener("contextmenu",e=>{ const t=e.target.closest("[data-mxs]"); if(!t) return; e.preventDefault(); const sid=t.dataset.mxs;
     openMenu(pointerAnchor(e.clientX,e.clientY),[{group:(matOf(sid)||{}).name||"",plain:true},{label:"Rename…",enabled:!S.readOnly,run:()=>matRenameSheet(sid)}].concat(matMenuItems(sid).slice(0)),{label:"Matrix sheet"}); });
   tabs.addEventListener("keydown",e=>{ const t=e.target.closest("[data-mxs]"); if(!t) return; const all=[...tabs.querySelectorAll("[data-mxs]")], i=all.indexOf(t);
@@ -32765,7 +32901,8 @@ ${DL([["Stack columns","The columns ticked one under another in a column of valu
 <h2 id="qudi">From qudi's confocal scans</h2>
 <p>A scan saved by qudi (the measurement suite of confocal microscopes) becomes a matrix when it is imported, dropped or chosen with other files: its X and Y (Z for a depth scan) are the scan's positions, in micrometres when the scan spans less than a millimetre, its values the channel's (the channel names it), and every line of the file's header is kept with it, listed in <em>Dimensions and labels…</em> and carried by the project file. qudi's two kinds of file are read: the classic one (<code>…_confocal_xy_image_&lt;channel&gt;.dat</code>, and the data file of x, y and z positions and count rates beside it) and qudi-iqo-modules' (<code>…_2D-scan_with_x_y_axes_from_channel_….dat</code>; a scan back says so, and pixels a stopped scan never reached are empty cells). The files of one scan go into one book, a sheet a channel; a data file whose z changes over the image (a tilted sample) adds a sheet of its z. A scan along one axis opens the import dialog as a curve against its positions. The matrix is original data, and its record says the file it was read from.</p>
 <h2>The matrix window</h2>
-<p>Each book has a window of its own, a document in the taskbar and the ${DA("explorer","Project Explorer")}: the grid with X along the top, Y down the side and row 1 at the top, a tab for each matrix of the book (+ adds one, a double click renames, a right-click has the rest), the cell and its value above, and below the size, whether its values are original data or computed, and the N, mean, minimum and maximum of the cells selected. It is used as the worksheet is: click, drag, Shift and the arrows select; typing, F2 or a double click edits; Delete clears; Ctrl+C and Ctrl+V copy and paste tab-separated blocks. Only what is in view is drawn, so a million cells scroll as easily as a hundred.</p>
+<p>Each book has a window of its own, a document in the taskbar and the ${DA("explorer","Project Explorer")}, which shows a matrix as an <b>image</b> (one with nothing in it yet as cells); <b>Image</b> and <b>Cells</b> on its bar switch. The image is drawn as ImageJ draws one: each cell a block of the screen's pixels at the scan's true shape (square when X and Y have the same unit and step), X to the right and Y up, the window's size never stretching it (a larger window shows more of it, or the space around it). It zooms through ImageJ's magnifications, from 1/72 to 32: the wheel about the pointer, ${K("+")} and ${K("−")} (or the buttons), the magnification's list, ${K("0")}, Fit or a double click for the whole image (each cell a whole number of the screen's pixels where they are two or more), 100 % for a cell a pixel; two fingers on a touch screen. A drag moves it, kept in reach. The line above the image is ImageJ's (the size in the scan's units, the cells, the values' unit), and beside it the cell under the pointer: X, Y, the value, row and column. A click selects a cell, Shift a rectangle of them (the commands start from it), the arrows move it with Y up, ${K("F2")} types into it in the Cells view, ${K("Esc")} lets go. A tab is a sheet of the book, as ImageJ's channels: sheets of one size keep the zoom and the place.</p>
+<p>The Cells view is the grid with X along the top, Y down the side and row 1 at the top, a tab for each matrix of the book (+ adds one, a double click renames, a right-click has the rest), the cell and its value above, and below the size, whether its values are original data or computed, and the N, mean, minimum and maximum of the cells selected. It is used as the worksheet is: click, drag, Shift and the arrows select; typing, F2 or a double click edits; Delete clears; Ctrl+C and Ctrl+V copy and paste tab-separated blocks. Only what is in view is drawn, so a million cells scroll as easily as a hundred.</p>
 <h2>Original data or computed</h2>
 <p>Values typed, read from columns or a picture, or transformed in place are <strong>original data</strong>: each change is one step to undo and an entry in the matrix's own record with the check code of its values (the SHA-256 of its rows written as the worksheet's original data is). <em>Set values…</em> makes a matrix <strong>computed</strong>: a formula of <code>x</code> and <code>y</code> (each cell's X and Y), <code>i</code> and <code>j</code> (its row and column from 1), the project's ${DA("formulas#consts","constants")} and other matrices of the same size by name (<code>Base * 2 + i</code>). It is worked out again whenever what it reads changes, and says why when it cannot be (a matrix it reads gone or of another size). <em>Keep the values only</em> drops the formula and keeps the values as original data. A matrix's name is a formula's name: a letter, then letters, digits and _.</p>
 <h2>Changing one</h2>
@@ -34127,7 +34264,7 @@ function toggleWin(id){ const st=winState(id); if(!st.open) openWin(id); else if
    restored, typing went nowhere. */
 function winTakeFocus(id){ const el=$("#w-"+id); if(!el||el.hidden||!winOpen(id)) return;
   const a=document.activeElement; if(a&&a!==document.body&&el.contains(a)) return;
-  const t=el.contains($("#ws"))?($("#ws input.wsed")||$("#ws")):el.contains($("#plot"))?$("#plot"):el; if(!t) return;
+  const t=el.contains($("#ws"))?($("#ws input.wsed")||$("#ws")):el.contains($("#plot"))?$("#plot"):mxBid(id)?mxFocusEl(id)||el:el; if(!t) return;
   if(t===el&&!el.hasAttribute("tabindex")) el.tabIndex=-1;
   t.focus({preventScroll:true}); }
 function toggleMax(id){ const st=winState(id); st.max=!st.max; st.z=++LAYOUT.z; applyWins(); saveLayout(); }

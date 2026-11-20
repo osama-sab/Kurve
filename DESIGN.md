@@ -906,6 +906,17 @@ them all at once is slice 2.
 - **Out is one gesture, as in is.** The Zoom tool zooms in by a click and out by Alt+click, as ImageJ's magnifier; − and + and 0
   on the keys; and a map is never zoomed out past the scan, so zooming out ends at the whole of it.
 
+### 2026-11-20: A matrix is an image first (IMAGE_SPEC I.2)
+
+- **Looked at before it is read.** A scan opens as an image in its own window, and the grid of numbers is one click away (Cells);
+  a matrix with nothing in it yet opens as cells, since there is nothing to look at and something to type.
+- **The window shows more, never wider.** Its size decides how much of the image is in view; the magnification is kept when it is
+  resized, the cells keep their shape, and Fit makes each cell a whole number of the screen's pixels so no column of cells is wider
+  than its neighbour.
+- **ImageJ's numbers where ImageJ's users look.** The magnification as ImageJ's percentages and levels, its size line over the
+  image, the cell under the pointer beside it; the wheel zooms (about the pointer, as a map does) and a drag pans, because looking
+  comes before selecting; Shift selects.
+
 ### 2026-11-20: The shift between two scans (QUDI_SPEC Q.8)
 
 - **In cells and in the scan's units.** A drift is read in nanometres and judged against the cell; both are columns, so neither has to

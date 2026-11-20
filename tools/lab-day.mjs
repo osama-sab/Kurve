@@ -173,6 +173,15 @@ const ACTIONS = [
       const nw = page.locator(".menu .mi", { hasText: "New matrix…" }); if (!(await nw.count())) { await key("Escape"); return "no item"; } await nw.first().click(); await pause(200, 400);
       if (await page.isVisible("#mnV")) { await page.fill("#mnR", String(Math.round(between(1, 60)))); await page.fill("#mnC", String(Math.round(between(1, 60)))); await page.fill("#mnV", pick(["", "", "3.5", "sin(x)*cos(y)", "x*y + i", junk().slice(0, 10)])); await pause(100, 200);
         if (await page.isEnabled("#formOk")) { await page.click("#formOk"); return "made one"; } await key("Escape"); return "refused"; } return "no dialog"; }
+    // the image view (IMAGE_SPEC I.2): its switch, the zoom's buttons and list, the wheel, a drag, a click, the keys
+    const im = await vis(".mxwin .mximg");
+    if (im.length && R() < .6) { const m = pick(im), q = R(), [x, y] = [m.b.x + m.b.width * R(), m.b.y + m.b.height * R()];
+      if (q < .15) { const b = await vis(".mxwin [data-mxv], .mxwin [data-mxz]"); if (b.length) { await clickAt(...mid(pick(b).b)); await pause(100, 250); const its = await vis(".menu .mi:not(:disabled)"); if (its.length) await clickAt(...mid(pick(its).b)); } return "image bar"; }
+      if (q < .4) { await page.mouse.move(x, y); for (let i = Math.round(between(1, 5)); i > 0; i--) { await page.mouse.wheel(0, pick([-100, 100, -30, 240])); await pause(30, 120); } return "wheel"; }
+      if (q < .6) { await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + between(-300, 300), y + between(-300, 300), { steps: 6 }); await page.mouse.up(); return "panned"; }
+      if (q < .8) { await clickAt(x, y); await key(pick(["+", "-", "0", "ArrowUp", "ArrowLeft", "Shift+ArrowRight", "Escape", "Control+c", "F2"])); return "image keys"; }
+      await page.mouse.dblclick(x, y); return "fit"; }
+    if (!cells.length) { const b = await vis('.mxwin [data-mxv="cells"]'); if (b.length) { await clickAt(...mid(b[0].b)); return "to the cells"; } }
     if (k < .55) { const c = pick(cells); await page.mouse.dblclick(...mid(c.b)); await pause(80, 200); await type(R() < .7 ? String(Math.round((R() - .5) * 1e4) / 100) : junk().slice(0, 8)); await key(pick(["Enter", "Tab", "Escape", "ArrowDown"])); return "typed"; }
     if (k < .65) { const c = pick(cells); await clickAt(...mid(c.b)); await key("Shift+ArrowRight"); await key("Shift+ArrowDown"); await key(pick(["Delete", "Control+c", "Escape"])); return "selected"; }
     if (k < .85) { const b = await vis(".mxwin [data-mxmenu]"); if (!b.length) return "no button"; await clickAt(...mid(pick(b).b)); await pause(150, 300); const its = await vis(".menu .mi:not(:disabled)"); if (!its.length) return "empty"; await clickAt(...mid(pick(its).b)); await pause(200, 400);

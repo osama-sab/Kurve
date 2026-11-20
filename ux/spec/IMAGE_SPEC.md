@@ -68,6 +68,15 @@ magnification on the bar; the Hand tool and Space+drag pan, the image kept in re
 channels. **Checks**: a cell's drawn size at every level, square at any window shape; the pointer's cell; zoom about the
 pointer keeps the cell under it; at phone width.
 
+**Done 20.11.** The matrix window's Image and Cells (an image unless the sheet holds nothing yet); the canvas at the magnification,
+each cell drawn with ImageJ's 8-bit index of its value (`ij8`, create8BitImage) in grays over the values' range as floats (the
+tables and range are I.3's); `IJ_ZOOM` with `ijZoomUp`/`ijZoomDown`; Fit with each cell a whole number of the screen's pixels from two
+up; the wheel a level a notch about the pointer (Ctrl+wheel, a trackpad's pinch, and two fingers continuous); a drag pans, the image
+centred while smaller than the window and covering it once larger; the info line *8.13 × 8.13 µm (64 × 64); 64-bit, c/s* (ImageJ's
+size is the cells' extent, 64 × 0.127 µm; Kurve's values are 64-bit) and the readout; a click or Shift a selection the commands start
+from, the arrows with Y up, F2 into the Cells view. **Checks** (`tools/img-drive.mjs`, 25): those named, the pixels read back against
+`ij8`, the selection feeding Measure, a second sheet keeping the zoom, at 390 px and two fingers.
+
 **I.3 Lookup tables and contrast.** Decisions 4 and 5: the tables (LutLoader's twelve exactly, with its interpolation of
 32 entries), invert, HiLo; the Brightness and Contrast panel; the calibration bar beside the image; the graph's map, the
 TIFF's min and max and *Save the view as PNG* (the image at a whole multiple of its cells, with the bar) following.

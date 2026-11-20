@@ -669,6 +669,7 @@ if (want("3.6")) {
     await p.fill("#mnNm", "two words"); await p.waitForTimeout(100); const why = await p.textContent("#mnHint"), dis = await p.isDisabled("#formOk");
     await p.fill("#mnNm", "Surf"); await p.waitForTimeout(100);
     await p.click("#formOk"); await p.waitForTimeout(500);
+    await p.evaluate(() => matWinIds().forEach(id => mxSetView(id, "cells"))); await p.waitForTimeout(150);   // typed into as cells (it opens as an image, IMAGE_SPEC I.2)
     let b = await book(p, 0), want = []; for (let r = 0; r < 6; r++) for (let c = 0; c < 8; c++) want.push(c * 10 + r);
     let w = await p.evaluate(id => ({ open: winOpen(mxWinId(id)), cells: document.querySelectorAll(`#w-${mxWinId(id)} .mxt td`).length, foot: $(`#w-${mxWinId(id)} .mxfoot`).textContent, tk: !!document.querySelector(`#taskbar .tk[data-tk="${mxWinId(id)}"]`), log: P().log.slice(-1)[0].text }), b.id);
     check("a name that a formula cannot read is refused in words", dis && /begins with a letter/.test(why), why);
@@ -676,6 +677,7 @@ if (want("3.6")) {
     // A recorded matrix, typed into as a spreadsheet is.
     await p.evaluate(() => { matNewDlg(); }); await p.waitForTimeout(150); await p.fill("#mnNm", "Rec"); await p.fill("#mnR", "6"); await p.fill("#mnC", "8"); await p.fill("#mnX0", "0"); await p.fill("#mnX1", "7"); await p.fill("#mnY0", "0"); await p.fill("#mnY1", "5"); await p.fill("#mnV", "1"); await p.click("#formOk"); await p.waitForTimeout(500);
     const rb = (await book(p, 1)).id, sel = `#w-mx-${rb}`;
+    await p.click(`${sel} [data-mxv="cells"]`); await p.waitForTimeout(150);
     await p.locator(`${sel} .mxt td[data-r="1"][data-c="2"]`).dblclick(); await p.waitForTimeout(150);
     await p.keyboard.press("Control+A"); await p.keyboard.type("7.25"); await p.keyboard.press("Enter"); await p.waitForTimeout(300);
     await p.keyboard.type("abc"); await p.keyboard.press("Enter"); await p.waitForTimeout(200); const kept = await p.evaluate(s => !!document.querySelector(s + " .mxed.bad"), sel);

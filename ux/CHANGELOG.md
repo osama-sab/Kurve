@@ -1024,6 +1024,19 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Images, slice I.2: the image view (2026-11-20)
+
+- A matrix's window opens it as an **image**: each cell a block of the screen's pixels at the scan's true shape, X to the right and
+  Y up, drawn as ImageJ draws a 32-bit image (grays over the values' range); *Image* and *Cells* on its bar switch.
+- Resizing the window keeps the magnification and the cells' shape; it shows more of the image.
+- ImageJ's magnifications (1/72 to 32): the wheel about the pointer, + and − (keys and buttons), the magnification's list, Fit, 0 or a
+  double click for the whole image, 100 %; two fingers on a touch screen; a drag pans, the image kept in reach.
+- ImageJ's line over the image (*8.13 × 8.13 µm (64 × 64)*) and the cell under the pointer: X, Y, value, row and column.
+- A click selects a cell and Shift a rectangle, which Measure, Profile and the rest start from; the arrows move it, F2 types into it.
+- The book's sheets are its channels: switching keeps the zoom and the place.
+
+Checked: `tools/img-drive.mjs` (25 new, 37): those, the drawn pixels against ImageJ's 8-bit mapping, at phone width.
+
 ## Images, slice I.1: the map keeps its shape (2026-11-20)
 
 The user's report: zoomed in, a scan could not easily be zoomed out, and resizing the window stretched its pixels. The plan for
