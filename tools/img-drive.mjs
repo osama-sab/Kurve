@@ -124,6 +124,7 @@ await page(async p => {
   const rd = await p.evaluate(() => { const s = matOf(matFront()), { X, Y } = matXYOf(s); return { xn: s.xname, yn: s.yname, x: fmt(X[40], 6), y: fmt(Y[28], 6), v: fmt(s.z[28 * 64 + 40], 6) }; });
   check(`the readout under the pointer (“${w.read}”): X, Y, the value and its unit, row and column`, w.read.includes(`${rd.xn} ${rd.x} µm`) && w.read.includes(`${rd.yn} ${rd.y} µm`) && w.read.includes(`${rd.v} c/s`) && w.read.includes("row 29, column 41"), w.read);
   // a drag pans; the image kept in reach
+  await p.click(`#w-${w.id} [data-mxt="hand"]`); await p.mouse.move(b.x, b.y);   // the Hand tool (Rectangle is ImageJ's first, I.4)
   const cx0 = w.cx; await p.mouse.down(); await p.mouse.move(b.x + 120, b.y + 40, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(100); w = await mxw(p);
   check(`a drag pans the image (${(cx0 - w.cx).toFixed(2)} cells for 120 px at ${w.mag} px a cell), selecting nothing`, Math.abs((cx0 - w.cx) - 120 / w.mag) < 0.02 && !(await p.evaluate(() => mxSt(mxBid(matWinIds()[0])).isel)), JSON.stringify([cx0, w.cx]));
   b = await cellAt(p, 32, 32); await p.mouse.move(b.x, b.y); await p.mouse.down(); await p.mouse.move(b.x + 3000, b.y + 3000, { steps: 10 }); await p.mouse.up(); w = await mxw(p);
@@ -132,6 +133,7 @@ await page(async p => {
   await p.click(`#w-${w.id} [data-mxz="fit"]`); w = await mxw(p); const fitm = w.mag;
   await p.evaluate(() => mxZoomTo(matWinIds()[0], 24)); await p.focus(`#w-${w.id} .mximg`); await p.keyboard.press("0"); const k0 = (await mxw(p)).mag;
   await p.evaluate(() => mxZoomTo(matWinIds()[0], 24)); b = await cellAt(p, 32, 32); await p.mouse.dblclick(b.x, b.y); await p.waitForTimeout(100); const kd = (await mxw(p)).mag;
+  await p.click(`#w-${w.id} [data-mxt="rect"]`);
   check(`Fit, 0 and a double click each show the whole image again (${fitm}, ${k0}, ${kd} px a cell)`, fitm === k0 && k0 === kd && 64 * fitm <= w.W, JSON.stringify([fitm, k0, kd]));
   // a click selects a cell, Shift a rectangle; the arrows move it with Y up; Measure starts from it
   a = await cellAt(p, 10, 12); b = await cellAt(p, 14, 20); await p.mouse.click(a.x, a.y); await p.keyboard.down("Shift"); await p.mouse.click(b.x, b.y); await p.keyboard.up("Shift"); await p.waitForTimeout(100); w = await mxw(p);
@@ -240,6 +242,92 @@ await page(async p => {
     const p1 = cloneProj(P()); p1.mats[0].sheets[0].disp = { lut: "~ij:fire", lo: 9, hi: 2 }; matClean(p1); return [a, p1.mats[0].sheets[0].disp]; });
   check(`a display read from storage in a broken form is cleaned (${JSON.stringify(junk)})`, junk[0].lut === "ij:grays" && !("inv" in junk[0]) && !("lo" in junk[0]) && junk[1].lut === "ij:grays" && !("lo" in junk[1]), JSON.stringify(junk));
 }, { name: "I.3" });
+
+console.log("I.4 Selections and the ROI Manager");
+await page(async p => {
+  const sid = await nv(p); await p.evaluate(() => { const id = matWinIds()[0], st = winState(id); st.g = [0.03, 0.03, 0.8, 0.9]; st.max = false; applyWins(); }); await p.waitForTimeout(300);
+  const id = await p.evaluate(() => matWinIds()[0]), W = `#w-${id}`;
+  await p.evaluate(() => mxZoomTo(matWinIds()[0], 8)); await p.waitForTimeout(100);
+  const tools = await p.evaluate(s => [...document.querySelectorAll(s + " [data-mxt]")].map(b => [b.dataset.mxt, b.getAttribute("aria-checked")]), W);
+  check(`six of ImageJ's tools on the image's bar, Rectangle chosen (${tools.map(t => t[0]).join(", ")})`, tools.length === 6 && tools.find(t => t[0] === "rect")[1] === "true", JSON.stringify(tools));
+  const st = () => p.evaluate(() => { const s = mxSt(mxBid(matWinIds()[0])); return { r: s.r, c: s.c, er: s.er, ec: s.ec, roi: s.roi, draft: s.draft, roiId: s.roiId, tool: s.tool }; });
+  const drag = async (a, b, steps = 8) => { await p.mouse.move(a.x, a.y); await p.mouse.down(); await p.mouse.move(b.x, b.y, { steps }); await p.mouse.up(); await p.waitForTimeout(80); };
+  // a rectangle dragged over cells
+  let a = await cellAt(p, 40, 20), b = await cellAt(p, 34, 28); await drag(a, b); let q = await st();
+  check(`Rectangle: a drag from one cell to another selects the cells between (rows ${Math.min(q.r, q.er) + 1}–${Math.max(q.r, q.er) + 1}, columns ${Math.min(q.c, q.ec) + 1}–${Math.max(q.c, q.ec) + 1}), with ImageJ's eight handles`,
+    q.roi && q.roi.kind === "rect" && q.r === 40 && q.c === 20 && q.er === 34 && q.ec === 28 && (await p.evaluate(() => { const id = matWinIds()[0]; return mxHandles($("#w-" + id + " .mximg")._g, mxSt(mxBid(id)), matOf(matFront())).length; })) === 8, JSON.stringify(q));
+  // its south-east handle and a move
+  const hs = await p.evaluate(() => { const id = matWinIds()[0], box = $("#w-" + id + " .mximg"), r = box.getBoundingClientRect(); return mxHandles(box._g, mxSt(mxBid(id)), matOf(matFront())).map(h => ({ k: h.k, x: r.x + h.x, y: r.y + h.y, mx: box._g.mx })); });
+  const se = hs.find(h => h.k === "se"); await drag({ x: se.x, y: se.y }, { x: se.x + 3 * se.mx, y: se.y + 2 * se.mx }); q = await st();
+  check(`its corner handle dragged three cells right and two down: the columns to ${Math.max(q.c, q.ec) + 1}, the rows from ${Math.min(q.r, q.er) + 1} (Y up)`, Math.max(q.c, q.ec) === 31 && Math.min(q.r, q.er) === 32 && Math.max(q.r, q.er) === 40 && Math.min(q.c, q.ec) === 20, JSON.stringify(q));
+  a = await cellAt(p, 36, 24); await drag(a, { x: a.x + 2 * se.mx, y: a.y }); q = await st();
+  check("dragged from inside, the rectangle moves two cells right whole", Math.min(q.c, q.ec) === 22 && Math.max(q.c, q.ec) === 33 && Math.min(q.r, q.er) === 32, JSON.stringify(q));
+  await p.focus(`${W} .mximg`); await p.keyboard.press("ArrowUp"); await p.keyboard.press("ArrowLeft"); q = await st();
+  check("↑ and ← move it a cell up the image (a larger Y) and left", Math.min(q.r, q.er) === 33 && Math.max(q.r, q.er) === 41 && Math.min(q.c, q.ec) === 21, JSON.stringify(q));
+  // M: kept and measured into the book's Results, one undo step
+  const n0 = await p.evaluate(() => undoStack.length); await p.keyboard.press("m"); await p.waitForTimeout(400);
+  const m1 = await p.evaluate(() => { const b = matBooks()[0], a = anaList().find(x => x.kind === "ijrois"), s = matOf(matFront()), { X, Y } = matXYOf(s), st = mxSt(b.id), q = mxSel(st);
+    const want = ijMeasure({ nx: s.nx, ny: s.ny, xs: X, ys: Y, z: s.z }, { kind: "rect", x0: X[q.c0], x1: X[q.c1], y0: Y[q.r0], y1: Y[q.r1] }, {});
+    const col = k => P().cols.find(c => c.ana === (a && a.id) && c.ak === k); return { rois: (b.rois || []).map(r => r.name), a: a && a.name, mean: col("mean") && col("mean").data[0], n: col("n") && col("n").data[0], want: [want.mean, want.n], u: undoStack.length }; });
+  check(`M keeps the rectangle (${m1.rois.join(", ")}) and measures it into ${m1.a}, ImageJ's Measure (mean ${m1.mean && m1.mean.toFixed(3)} of ${m1.n} cells), one undo step`, m1.rois.length === 1 && m1.mean === m1.want[0] && m1.n === m1.want[1] && m1.u === n0 + 1, JSON.stringify(m1));
+  // an oval, then the dialog of Measure starting from it
+  await p.click(`${W} [data-mxt="oval"]`); a = await cellAt(p, 20, 40); b = await cellAt(p, 12, 50); await drag(a, b);
+  const om = await p.evaluate(() => ijmStart(matFront()));
+  check(`Oval: a drag selects an oval, and Measure's dialog starts from it (${om.region}, X ${om.x0}–${om.x1})`, om.region === "oval" && om.x0 < om.x1 && om.y0 < om.y1, JSON.stringify(om));
+  // a polygon clicked corner by corner, finished by Enter
+  await p.click(`${W} [data-mxt="poly"]`); const corners = [[30, 10], [30, 20], [22, 22], [20, 12]]; for (const [r, c] of corners) { const t = await cellAt(p, r, c); await p.mouse.click(t.x, t.y); await p.waitForTimeout(60); }
+  await p.keyboard.press("Enter"); q = await st(); const pm = await p.evaluate(() => ijmStart(matFront()));
+  const pv = await p.evaluate((pts) => { const s = matOf(matFront()), { X, Y } = matXYOf(s); const r = ijMeasure({ nx: s.nx, ny: s.ny, xs: X, ys: Y, z: s.z }, { kind: "poly", pts }, {}); return [r.n, r.mean]; }, pm.pts || []);
+  check(`Polygon: four corners clicked and Enter (${q.roi && q.roi.pts.length} corners), Measure's dialog starts from them (${pv[0]} cells inside)`, q.roi && q.roi.kind === "poly" && q.roi.pts.length === 4 && pm.region === "poly" && pm.pts.length === 4 && pv[0] > 20, JSON.stringify([q.roi, pm, pv]));
+  await p.keyboard.press("t"); await p.waitForTimeout(200);
+  // a straight line and K: the profile worked out and plotted at once
+  await p.click(`${W} [data-mxt="line"]`); a = await cellAt(p, 50, 5); b = await cellAt(p, 50, 58); await drag(a, b); q = await st();
+  await p.focus(`${W} .mximg`); const g0 = await p.evaluate(() => (P().graphs || []).length); await p.keyboard.press("k"); await p.waitForTimeout(500);
+  const pk = await p.evaluate(() => { const a = anaList().filter(x => x.kind === "ijprofile").pop(), s = matOf(matFront()), r = mxSt(mxBid(matWinIds()[0])).roi, { X, Y } = matXYOf(s);
+    const want = ijProfile({ nx: s.nx, ny: s.ny, xs: X, ys: Y, z: s.z }, { x0: a.p.x0, y0: a.p.y0, x1: a.p.x1, y1: a.p.y1 }), v = P().cols.find(c => c.ana === a.id && c.ak === "v");
+    return { n: want.n, same: v && want.v.every((x, i) => x === v.data[i]), ends: [a.p.x0, a.p.x1, r.x0, r.x1].map(t => +t.toPrecision(10)), graphs: (P().graphs || []).length }; });
+  check(`Straight line and K: the line's profile worked out (${pk.n} samples, Plot Profile's) and plotted at once`, pk.same && pk.graphs === g0 + 1 && Math.abs(pk.ends[0] - pk.ends[2]) < 1e-9 && Math.abs(pk.ends[1] - pk.ends[3]) < 1e-9, JSON.stringify(pk));
+  await p.evaluate(() => focusWin(matWinIds()[0])); await p.waitForTimeout(200);
+  // points, kept and measured
+  await p.click(`${W} [data-mxt="point"]`); for (const [r, c] of [[5, 5], [10, 40], [60, 60]]) { const t = await cellAt(p, r, c); await p.mouse.click(t.x, t.y); await p.waitForTimeout(50); }
+  q = await st(); await p.focus(`${W} .mximg`); await p.keyboard.press("m"); await p.waitForTimeout(400);
+  const pm2 = await p.evaluate(() => { const a = anaList().find(x => x.kind === "ijrois"), s = matOf(matFront()), cc = k => P().cols.find(c => c.ana === a.id && c.ak === k), nmc = cc("nm"), mean = cc("mean").data;
+    const rows = mean.map((v, i) => [cellTxt(nmc, i), v]).filter(r => /^Points/.test(r[0] || "")); return { rows, want: [[5, 5], [10, 40], [60, 60]].map(([r, c]) => s.z[r * s.nx + c]), rois: matBooks()[0].rois.map(r => r.name) }; });
+  check(`Points: three clicked, M measures each point's value (${pm2.rows.map(r => r[1]).join(", ")}) beside the selections kept (${pm2.rois.join(", ")})`, q.roi && q.roi.pts.length === 3 && JSON.stringify(pm2.rows.map(r => r[1])) === JSON.stringify(pm2.want) && pm2.rois.length === 3, JSON.stringify(pm2));
+  // the ROI Manager: its list, a row shown, renamed, deleted and undone, Show all
+  if (await p.getAttribute(`${W} [data-mxrm]`, "aria-pressed") !== "true") await p.click(`${W} [data-mxrm]`); await p.waitForTimeout(150); const rows = await p.evaluate(s => [...document.querySelectorAll(s + " .roirow .rl")].map(e => e.textContent), W);
+  await p.click(`${W} .roirow >> nth=0`); await p.waitForTimeout(150); q = await st();
+  check(`the ROI Manager lists the selections kept (${rows.join(", ")}); a click shows the first on the image`, rows.length === 3 && q.roi && q.roi.kind === "rect" && Math.min(q.c, q.ec) === 21, JSON.stringify([rows, q]));
+  await p.dblclick(`${W} .roirow >> nth=1`); await p.waitForTimeout(200); await p.fill("#rnN", "Background"); await p.click("#formOk"); await p.waitForTimeout(200);
+  const rn = await p.evaluate(() => matBooks()[0].rois.map(r => r.name));
+  await p.click(`${W} .roirow >> nth=2`); await p.click(`${W} [data-rma="del"]`); await p.waitForTimeout(200); const dl = await p.evaluate(() => matBooks()[0].rois.length); await p.evaluate(() => undo()); await p.waitForTimeout(200); const ud = await p.evaluate(() => matBooks()[0].rois.length);
+  check(`a double click renames one (${rn[1]}); Delete takes one away (${dl} left) and undo brings it back (${ud})`, rn[1] === "Background" && dl === 2 && ud === 3, JSON.stringify([rn, dl, ud]));
+  await p.click(`${W} [data-rmall]`); await p.waitForTimeout(150);
+  const cy = await p.evaluate(() => { const id = matWinIds()[0], box = $("#w-" + id + " .mximg"), g = box._g, r = matBooks()[0].rois[1], ctx = box.querySelector("canvas").getContext("2d"); let n = 0;
+    for (const q of r.pts) { const t = mxD2S(g, q[0], q[1]); for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) { const a = ctx.getImageData(Math.round((t.x + dx) * g.dpr), Math.round((t.y + dy) * g.dpr), 1, 1).data; if (a[0] < 40 && a[1] > 200 && a[2] > 200) { n++; dx = dy = 2; } } } return n; });
+  check(`Show all draws the other selections in ImageJ's cyan (the polygon's corners: ${cy} of 4)`, cy >= 3, cy);
+  // the Results follow the matrix
+  const before = await p.evaluate(() => { const a = anaList().find(x => x.kind === "ijrois"); return P().cols.find(c => c.ana === a.id && c.ak === "max").data[0]; });
+  await p.evaluate(() => { const st = mxSt(mxBid(matWinIds()[0])), q = mxSel(st); mxWrite(st.sid, [[q.r0, q.c0, 999999]], "typed into a cell"); }); await p.waitForTimeout(500);
+  const after = await p.evaluate(() => { const a = anaList().find(x => x.kind === "ijrois"); return P().cols.find(c => c.ana === a.id && c.ak === "max").data[0]; });
+  check(`the Results follow the matrix: a value typed into the rectangle and its Max is ${after}`, before !== 999999 && after === 999999, JSON.stringify([before, after]));
+  // results on the image: Find maxima's crosses in cyan, switched off
+  await p.focus(`${W} .mximg`); await p.keyboard.press("Escape");
+  const aidx = await p.evaluate(() => anaMakeTyped("ijmaxima", Object.assign(ijxStart(matFront()), { prom: 3000 }), {})); await p.evaluate(() => { focusWin(matWinIds()[0]); renderMatWin(matWinIds()[0]); }); await p.waitForTimeout(300);
+  const ov = await p.evaluate(() => { const id = matWinIds()[0], box = $("#w-" + id + " .mximg"), g = box._g, a = anaList().find(x => x.kind === "ijmaxima"), ctx = box.querySelector("canvas").getContext("2d");
+    const cyan = (x, y) => { const d = ctx.getImageData(Math.floor(Math.round(x) * g.dpr), Math.floor(Math.round(y) * g.dpr), 1, 1).data; return d[0] < 40 && d[1] > 200 && d[2] > 200; };
+    let n = 0, m = 0; for (const q of a.res.report.ijx.pts.slice(0, 8)) { const t = mxD2S(g, q[0], q[1]); if (t.x < 4 || t.y < 4 || t.x > g.W - 4 || t.y > g.H - 4) continue; m++; if (cyan(t.x + 3, t.y) || cyan(t.x, t.y + 3)) n++; }
+    mxSt(mxBid(id)).ov = false; mxImgDraw(id); let k = 0; for (const q of a.res.report.ijx.pts.slice(0, 8)) { const t = mxD2S(g, q[0], q[1]); if (cyan(t.x + 3, t.y) || cyan(t.x, t.y + 3)) k++; } mxSt(mxBid(id)).ov = true; mxImgDraw(id); return { n, m, k }; });
+  check(`Find maxima's maxima drawn on the image as ImageJ's cyan crosses (${ov.n} of ${ov.m} in view), gone when Results on the image is off`, ov.m > 3 && ov.n === ov.m && ov.k === 0, JSON.stringify(ov));
+  // Escape lets go; Ctrl+A selects every cell
+  await p.focus(`${W} .mximg`); await p.keyboard.press("Escape"); q = await st(); await p.keyboard.press("Control+a"); const qa = await st();
+  check("Esc lets go of the selection, Ctrl+A selects every cell as a rectangle", !q.roi && qa.roi && qa.roi.kind === "rect" && Math.max(qa.r, qa.er) === 63 && Math.max(qa.c, qa.ec) === 63, JSON.stringify([q, qa]));
+  // kept with the book
+  await p.evaluate(() => flushEdits()); await p.waitForTimeout(800); await p.reload(); await ready(p); await p.waitForTimeout(600);
+  const rl = await p.evaluate(() => matBooks()[0].rois.map(r => [r.name, r.kind]));
+  const jk = await p.evaluate(() => { const p0 = cloneProj(P()); p0.mats[0].rois = [{ id: "x", kind: "rect", x0: 1, x1: "a", y0: 0, y1: 1 }, { id: "y", kind: "blob" }, { id: "z", kind: "poly", pts: [[1, 2], [3, 4]] }, { id: "w", kind: "point", pts: [[1, 2], ["q", 3]] }, null]; matClean(p0); return p0.mats[0].rois; });
+  check(`the selections are kept with the book across a reload (${rl.map(r => r[0]).join(", ")}), and broken ones from storage cleaned`, rl.length === 3 && rl[1][0] === "Background" && jk.length === 1 && jk[0].id === "w" && jk[0].pts.length === 1, JSON.stringify([rl, jk]));
+}, { name: "I.4" });
 
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);

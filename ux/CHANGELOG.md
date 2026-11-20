@@ -1024,6 +1024,17 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Images, slice I.4: selections and the ROI Manager (2026-11-20)
+
+- **ImageJ's selection tools** on the image's bar: Rectangle (chosen to begin with), Oval, Polygon, Straight line, Points, and the Hand;
+  the selection drawn in yellow with handles to resize and a drag inside to move it, the arrows a cell; Esc, Ctrl+A.
+- **ImageJ's keys**: M measures the selection, K plots a line's profile at once, T keeps it. Measure…, Profile… start from it.
+- **The ROI Manager** (*Selections*): kept with the book; shown, renamed, updated, deleted; Show all numbers them on the image; Measure
+  makes the book's *Results*, a row a selection, which follows the matrix.
+- **Results on the image**: Find maxima's maxima, Spots' ellipses, a profile's line and Measure's region drawn over the image in cyan.
+
+Checked: `tools/img-drive.mjs` (18 new, 72).
+
 ## Images, slice I.3: lookup tables and contrast (2026-11-20)
 
 - **Lookup tables**: ImageJ's thirteen (Grays, Fire, Ice, Spectrum, 3-3-2 RGB, Red, Green, Blue, Cyan, Magenta, Yellow, Red/Green, HiLo)

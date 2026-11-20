@@ -103,6 +103,18 @@ dialogs started from the selection, overlays of an analysis's maxima, spots and 
 `ijRegion` takes them (ImageJ's), its macro; Measure on the manager's selections against ijMeasure one by one; undo;
 a reload; the keys.
 
+**Done 20.11.** The image bar's tools (`MX_TOOLS`: Hand, Rectangle as ImageJ's first, Oval, Polygon, Straight line, Points; `st.tool`),
+the selection (`st.roi`: a rectangle's and an oval's cells the cell selection, a polygon's corners, a line's ends and points in X and Y;
+`st.draft` a polygon being drawn) drawn in yellow with its handles (`mxShape`, `mxHandles`, `mxOnRoi`; an edge to the nearest cells'
+boundary), moved by a drag or an arrow (`mxRoiShift`), Esc, Ctrl+A; M (`mxMeasure`: kept and measured, one undo step), K (`mxProfile`:
+worked out and plotted), T (`mxRoiAdd`); Measure's and Profile's dialogs start from it. The ROI Manager (`b.rois` on the book, kept by
+`matClean`; `mxRoiDraw`, `mxRoiWire`, `matRoisSet`) and the book's Results (kind `ijrois`: ijMeasure over a rectangle's, an oval's or a
+polygon's cells, a line's profile statistics with its length and angle, each point's value), made without a dialog by `anaMakeTyped`.
+Overlays (`mxOverlay`): Find maxima's crosses, Spots' ellipses, a profile's line, Measure's region in cyan, the manager's with Show all.
+**Checks** (`tools/img-drive.mjs`, 18): each tool, a handle and a move, the arrows, M against ijMeasure in one undo step, an oval's and a
+polygon's dialogs, K against ijProfile with its graph, points' values, the manager's list, a rename, a delete undone, Show all's cyan, the
+Results following a value typed, the overlay's crosses and their switch, Esc and Ctrl+A, a reload, junk from storage.
+
 **I.5 Process.** ImageJ's Smooth, Sharpen, Find Edges (3 × 3), Gaussian Blur (σ in cells or the scan's units, ImageJ's
 kernel and edges), Mean, Median, Minimum, Maximum, Variance (RankFilters' circular kernels), Unsharp Mask, Subtract
 Background (the rolling ball and the sliding paraboloid), Math (add, subtract, multiply, divide, min, max, gamma, log, exp,

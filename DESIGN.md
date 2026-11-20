@@ -906,6 +906,17 @@ them all at once is slice 2.
 - **Out is one gesture, as in is.** The Zoom tool zooms in by a click and out by Alt+click, as ImageJ's magnifier; − and + and 0
   on the keys; and a map is never zoomed out past the scan, so zooming out ends at the whole of it.
 
+### 2026-11-20: Selecting as ImageJ selects (IMAGE_SPEC I.4)
+
+- **Rectangle first, as ImageJ.** A drag on the image draws a selection; moving the image is the Hand, Space or the middle button, as in
+  ImageJ, because selecting is what an image is opened for. A click still picks one cell.
+- **ImageJ's keys do ImageJ's things.** M measures, K plots a line's profile, T keeps a selection, so a hand that knows ImageJ works at
+  once. M is one undo step: the selection kept and the Results worked out again together.
+- **Results are an analysis, not a log.** ImageJ's Results grows a row at each M and forgets where they came from; Kurve's Results is
+  the book's selections measured, worked out again when the matrix changes, so a row never disagrees with its data.
+- **What was found is drawn where it was found.** Maxima, spots, lines and regions are shown on the image they came from, in ImageJ's
+  overlay cyan, beside the yellow of what is selected.
+
 ### 2026-11-20: What an image is shown in (IMAGE_SPEC I.3)
 
 - **ImageJ's names, ImageJ's numbers.** The tables are called what ImageJ calls them and Auto behaves as ImageJ's (each press

@@ -1762,7 +1762,18 @@ graph first, with the taskbar kept at the bottom of the screen.
   `.lnm`, `mxLutItems`) and `[data-mxbc]`; `.mxiw` holding `.mximg` and the panel `.mxbc` (`st.bc`; `mxBcDraw`, `mxBcWire`,
   `mxBcToggle`, `mxBcOpen`, `mxBcAct(id, "auto"|"reset"|"set"|"enh", sid)` with `S.ijAuto` per sheet and `S.ijSat`; `#bsLo`, `#bsHi`,
   `#bsAll`, `#beSat`); `mxSavePng`; `plotCfg` gives a matrix's graph its display (`cmap`, `matRng`) when the graph sets no `cmap`;
-  `matTiff`'s `min`/`max`);
+  `matTiff`'s `min`/`max`); **selections** (I.4: `MX_TOOLS` and `st.tool` (`.mxtools` `[data-mxt]`, the box's `data-tool`), `st.roi`
+  (`{kind:"rect"|"oval"}` over the cell selection, `{kind:"poly", pts}`, `{kind:"line", x0, y0, x1, y1}`, `{kind:"point", pts}` in X and
+  Y), `st.draft` (a polygon being drawn, `mxPolyEnd`), `st.roiId` (the manager's selection shown), `st.roiAll`, `st.ov` (results on the
+  image), `st.rm` (the manager open); `mxD2S`/`mxS2D` (X and Y on the box through the cells' extent, `g.e`), `mxRoiNow`, `mxShape`,
+  `mxHandlesDraw`, `mxHandles` (a rectangle's `nw`…`w`, a polygon's `v<i>`, a line's `a`, `b`), `mxOnRoi`, `mxOverlay` (in cyan: `ijx`
+  crosses, `spt` ellipses, `ijp` lines, `ijm` regions, the manager's numbered), `mxRoiShift`, `mxRoiKeep`, `mxRoiShow`, `roiWord`,
+  `mxRoiAdd` (T), `mxMeasure` (M: kept and measured, one undo step), `mxRoisMeasure(id, rois)`, `mxProfile` (K); the manager
+  `.mxroi` in `.mxside` beside `.mxbc` (`mxRoiDraw`, `mxRoiWire`: `[data-roi]` rows, `[data-rma]` add, upd, del, meas, prof, clr,
+  `[data-rmall]`, `#rnN`), `matRoisSet(bid, rois, undo, log)`, a book's `rois` `[{id, name, kind, x0, x1, y0, y1, pts}]` (`matClean`);
+  `anaMakeTyped(kind, kp, {id, pre, undo, log, show})` an analysis of a typed kind without its dialog (`pre(q)` a change made with it);
+  in ANA `IJ_ROI_KINDS`, `ijRoiReg`, `ANA_KINDS.ijrois` (`p.mat`, `book`, `rois`, `single`; keys `nm`, `kind` text, the Measure columns,
+  `len`, `ang`; `report.ijr`) and its form `ANA_FORMS.ijrois` (`#aRm`, `#aRs`); `ijmStart` takes an oval or a polygon, `ijpStart` a line);
   `matDataItems` (Data › Matrix: New, From columns, From a picture, Open, then the matrix in front's, `matFront`),
   `matPlotItems` (Plot › Plot a matrix). The graph: `plotCfg` forces the heat layout while `plot.mat` names a matrix;
   `buildPlot` draws it with no column (`MAT`: `ps` from its names, no points, `matViewOf` the zoom in its X units or
@@ -5773,6 +5784,9 @@ pointer over it, cells selected on it starting the commands, the sheets as chann
 20.11: ImageJ's thirteen lookup tables (and Kurve's maps, inverted or not) and Brightness and Contrast beside the image (the histogram,
 Minimum, Maximum, Brightness and Contrast as ImageJ's sliders, Auto saturating more at each press, Reset, Set…, Enhance contrast), kept
 with the matrix and followed by its graph, its TIFF and a PNG of the image; a Python port of ImageJ's source exact on every number.
+Slice I.4 done 20.11: ImageJ's selection tools on the image (Rectangle, Oval, Polygon, Straight line, Points, the Hand), handles, the
+arrows, M, K and T; the ROI Manager kept with the book and measured into its Results sheet, which follows the matrix; what the analyses
+found drawn over the image in cyan.
 
 ## Known gaps
 

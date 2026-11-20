@@ -576,7 +576,7 @@ body.dwin-page{margin:0;height:100vh;overflow:hidden;background:var(--panel);col
 .mxinfo{display:flex;flex-wrap:wrap;gap:0 var(--sp-5);align-items:baseline;padding:var(--sp-1) var(--sp-3);font-size:var(--fs-tab);color:var(--muted);background:var(--panel);border-bottom:1px solid var(--rule-2);flex:0 0 auto;font-variant-numeric:tabular-nums}
 .mxinfo .mxread{margin-left:auto;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .mxbar .seg.mini{margin-left:0}
-.mxzoom{display:inline-flex;align-items:center;gap:var(--sp-1)}
+.mxzoom{display:inline-flex;align-items:center;gap:var(--sp-1);flex-wrap:wrap;min-width:0}
 .mxzoom .mxmag{min-width:5.2em;justify-content:center;font-variant-numeric:tabular-nums}
 .mxzoom b{font-weight:600;font-size:15px;line-height:1}
 .mxwin:not(.mximgv) .mxzoom,.mxwin.mximgv .mxaddr,.mxwin.mximgv .mxval{display:none}
@@ -586,17 +586,30 @@ body.dwin-page{margin:0;height:100vh;overflow:hidden;background:var(--panel);col
 .mxlutb .lsw{display:inline-block;width:28px;height:10px;border-radius:2px;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 30%,transparent);vertical-align:middle}
 .mxlutb .lnm{max-width:7em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mxinfo .mxdsp{white-space:nowrap}
-.mxbc{flex:0 0 252px;width:252px;border-left:1px solid var(--rule-2);background:var(--panel);padding:var(--sp-3);overflow:auto;display:flex;flex-direction:column;gap:var(--sp-2);font-size:var(--fs-tab)}
-.mxbc[hidden]{display:none}
+.mxside{flex:0 0 252px;width:252px;border-left:1px solid var(--rule-2);background:var(--panel);overflow:auto;display:flex;flex-direction:column}
+.mxside[hidden]{display:none}
+.mxbc,.mxroi{padding:var(--sp-3);display:flex;flex-direction:column;gap:var(--sp-2);font-size:var(--fs-tab)}
+.mxroi{border-top:1px solid var(--rule-2)}
+.mxbc[hidden],.mxroi[hidden]{display:none}
+.mxroi>*{flex:0 0 auto}
+.mxroi .roilist{display:flex;flex-direction:column;max-height:220px;overflow:auto;border:1px solid var(--rule-2);border-radius:var(--r-s);background:var(--panel-2)}
+.mxroi .roirow{display:grid;grid-template-columns:2em 1fr auto;gap:var(--sp-2);align-items:center;text-align:left;border:0;border-bottom:1px solid var(--rule-2);background:transparent;padding:var(--sp-1) var(--sp-2);cursor:pointer;color:var(--ink);font:inherit}
+.mxroi .roirow:last-child{border-bottom:0}
+.mxroi .roirow:hover{background:var(--hi)}
+.mxroi .roirow[aria-selected="true"]{background:var(--sel);box-shadow:inset 3px 0 0 var(--accent)}
+.mxroi .roirow .rn{color:var(--muted);font-variant-numeric:tabular-nums}
+.mxroi .roirow .rk{color:var(--muted)}
+.mximg:not([data-tool="hand"]){cursor:crosshair}
+.mximg[data-tool="hand"]{cursor:grab}
 .mxbc>*{flex:0 0 auto}
-.mxbc .bch{display:flex;align-items:center;justify-content:space-between;font-size:var(--fs-body)}
+.mxbc .bch,.mxroi .bch{display:flex;align-items:center;justify-content:space-between;font-size:var(--fs-body)}
 .mxbc .bchist{width:100%;height:96px;display:block;background:var(--panel-2);border:1px solid var(--rule-2);border-radius:var(--r-s)}
 .mxbc .bcbars{fill:var(--ink-2)}
 .mxbc .bcline{stroke:var(--accent,#2563eb);stroke-width:1.5;fill:none;vector-effect:non-scaling-stroke}
 .mxbc .bclut{height:12px;border-radius:2px;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 30%,transparent)}
 .mxbc .bcends{display:flex;justify-content:space-between;font-family:var(--mono);color:var(--ink)}
 .mxbc .bcs{display:grid;grid-template-columns:5.6em 1fr;align-items:center;gap:var(--sp-2);color:var(--ink-2)}
-.mxbc .bcbtns{display:flex;flex-wrap:wrap;gap:var(--sp-1)}
+.mxbc .bcbtns,.mxroi .bcbtns{display:flex;flex-wrap:wrap;gap:var(--sp-1)}
 .mxbc .bclt{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2)}
 .mxbc .bclt select{max-width:100%}
 .mi .mgrad{display:inline-block;width:56px;height:10px;border-radius:2px;margin-left:var(--sp-3);flex:0 0 auto;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 25%,transparent)}
@@ -2216,7 +2229,7 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
   .win.figw .win-b{height:84vh;min-height:420px}
   .win.mxwin .win-b{height:72vh;min-height:360px;flex:0 0 auto;overflow:hidden}
   .mxiw{flex-direction:column}
-  .mxbc{flex:0 0 auto;width:auto;max-height:46%;border-left:0;border-top:1px solid var(--rule-2)}
+  .mxside{flex:0 0 auto;width:auto;max-height:46%;border-left:0;border-top:1px solid var(--rule-2)}
   .win.gwin.haslive:not(.figw) .win-b{height:68vh;min-height:360px}
   #w-sheet .win-b{max-height:70vh}
   #w-help .win-b{height:80vh;overflow:hidden;flex:0 0 auto}
@@ -2315,7 +2328,7 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
   <symbol id="i-hline" viewBox="0 0 24 24"><path d="M3 12h18M3.5 5v14"/></symbol>
   <symbol id="i-band" viewBox="0 0 24 24"><rect x="8" y="3.5" width="8" height="17" fill="currentColor" fill-opacity=".22" stroke="none"/><path d="M8 3.5v17M16 3.5v17"/></symbol>
   <symbol id="i-text" viewBox="0 0 24 24"><path d="M5 7V5h14v2M12 5v14M9 19h6"/></symbol>
-  <symbol id="i-rect" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="1.5"/></symbol>
+  <symbol id="i-rect" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="1.5"/></symbol><symbol id="i-poly" viewBox="0 0 24 24"><path d="M5 18 4 7l8-3 8 6-4 9z"/></symbol><symbol id="i-line" viewBox="0 0 24 24"><path d="M5.5 18.5 18.5 5.5"/><circle cx="5" cy="19" r="1.6"/><circle cx="19" cy="5" r="1.6"/></symbol><symbol id="i-point" viewBox="0 0 24 24"><path d="M12 4v5M12 15v5M4 12h5M15 12h5"/><circle cx="12" cy="12" r="1.6"/></symbol>
   <symbol id="i-ellipse" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8.5" ry="6"/></symbol>
   <symbol id="i-inset" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1.5"/><rect x="12" y="6.5" width="6.5" height="5.5"/></symbol>
   <symbol id="i-shape" viewBox="0 0 24 24"><rect x="3" y="3.5" width="11" height="9" rx="1"/><ellipse cx="15" cy="15.5" rx="6" ry="4.5"/></symbol>
@@ -10267,6 +10280,38 @@ ANA_KINDS.ijmeasure={label:"Measure (ImageJ)", base:"Measure", typed:true, typed
         if(K.how==="none") notes.push("No errors beyond ImageJ: give the pixel time for the shot noise, or a background ring for the scatter."); } }
     const G=r.geom, method=`ImageJ 1.54f's Analyze › Measure of ${mq.name} (${M.ny} × ${M.nx}) over ${ijRegText(reg)}: ${r.cells} cell${r.cells===1?"":"s"}, ${r.n} with a value, each a pixel of ${fmt(G.pw,6)}${xu?" "+xu:""} by ${fmt(G.ph,6)}${yu?" "+yu:""}; ImageJ's definitions (StdDev over n − 1, the mode the middle of the fullest of 256 bins from Min to Max, Skew and Kurt from the moments over n, Kurt less 3, X and Y the cells' mean position, XM and YM weighted by the values, BX and BY the bounding rectangle's left and upper edges), worked out in doubles${p.single?" on the values rounded to single precision, as ImageJ's 32-bit image holds them":""}; the same selection in ImageJ, on the TIFF Kurve writes for this matrix: ${r.region.macro}`;
     return {tables:[{cols}],report:{sections:secs,method:method+kmeth,ijm:{mat:p.mat||null,region:reg,rect:[r.bx,r.by,r.w,r.h],macro:r.region.macro}},notes}; }};
+/* The ROI Manager's Measure (IMAGE_SPEC I.4): a row a selection kept with a matrix's book, ImageJ's columns over a rectangle's, an
+   oval's or a polygon's cells (ijMeasure); a straight line its length, its angle (degrees anticlockwise from X) and Plot Profile's
+   samples' statistics (ijProfile); each point of a set of points its cell's value. A selection is {name, kind, x0, x1, y0, y1, pts}
+   in X and Y. */
+const IJ_ROI_KINDS=[["rect","Rectangle"],["oval","Oval"],["poly","Polygon"],["line","Straight line"],["point","Points"]];
+function ijRoiReg(r){ if(!r) return null; if(r.kind==="rect"||r.kind==="oval") return {kind:r.kind,x0:r.x0,x1:r.x1,y0:r.y0,y1:r.y1}; if(r.kind==="poly") return {kind:"poly",pts:r.pts||[]}; return null; }
+ANA_KINDS.ijrois={label:"Measure the selections (ImageJ)", base:"Results", typed:true, typedWhat:"a matrix's selections",
+  help:"ImageJ's ROI Manager › Measure on a matrix: a row a selection kept with its book (rectangles, ovals, polygons, straight lines and points), ImageJ's columns over its cells",
+  run(ins,p){ p=p||{}; const mq=ins.find(q=>q.mat); if(!mq) return {fail:"Its matrix has been deleted."}; const M=mq.mat, rois=Array.isArray(p.rois)?p.rois:[];
+    if(!rois.length) return {fail:"The book has no selections to measure: keep one with T (or Add) first."};
+    const xu=M.xunit||"", yu=M.yunit||"", zu=M.zunit||"", U=(n,u)=>u?`${n} (${u})`:n, au=xu&&yu?(xu===yu?xu+"²":xu+"·"+yu):"", iu=zu&&au?zu+"·"+au:"";
+    const MM={nx:M.nx,ny:M.ny,xs:M.xs,ys:M.ys,z:M.z}, rows=[], notes=[], word=k=>(IJ_ROI_KINDS.find(e=>e[0]===k)||[k,k])[1];
+    rois.forEach((r,i)=>{ const nm=String(r.name||i+1), reg=ijRoiReg(r);
+      if(reg){ const m=ijMeasure(MM,reg,{single:!!p.single}); if(m.fail){ notes.push(`${nm}: ${m.fail}`); return; }
+        rows.push({nm,kind:word(r.kind),n:m.n,area:m.area,mean:m.mean,sd:m.sd,mode:m.mode,min:m.min,max:m.max,x:m.x,y:m.y,xm:m.xm,ym:m.ym,bx:m.bx,by:m.by,w:m.w,h:m.h,intden:m.intden,raw:m.raw,median:m.median,skew:m.skew,kurt:m.kurt,len:null,ang:null}); return; }
+      if(r.kind==="line"){ const q=ijProfile(MM,{x0:r.x0,y0:r.y0,x1:r.x1,y1:r.y1,single:!!p.single}); if(q.fail){ notes.push(`${nm}: ${q.fail}`); return; }
+        const v=q.v.filter(Number.isFinite), n=v.length; if(!n){ notes.push(`${nm}: every sample along it is empty.`); return; }
+        const mean=v.reduce((a,b)=>a+b,0)/n, sd=n>1?Math.sqrt(v.reduce((a,b)=>a+(b-mean)*(b-mean),0)/(n-1)):0, dx=r.x1-r.x0, dy=r.y1-r.y0;
+        rows.push({nm,kind:word("line"),n,mean,sd,min:Math.min(...v),max:Math.max(...v),x:(r.x0+r.x1)/2,y:(r.y0+r.y1)/2,len:Math.hypot(dx,dy),ang:Math.atan2(dy,dx)*180/Math.PI,
+          area:null,mode:null,xm:null,ym:null,bx:null,by:null,w:null,h:null,intden:null,raw:null,median:null,skew:null,kurt:null}); return; }
+      if(r.kind==="point"){ const X=M.xs, Y=M.ys, near=(A,t)=>{ let b=0; for(let k=1;k<A.length;k++) if(Math.abs(A[k]-t)<Math.abs(A[b]-t)) b=k; return b; };
+        (r.pts||[]).forEach((pt,k)=>{ const c=near(X,pt[0]), rr=near(Y,pt[1]), v=M.z[rr*M.nx+c], f=v==null?null:p.single?Math.fround(v):v;
+          rows.push({nm:`${nm}:${k+1}`,kind:word("point"),n:f==null?0:1,mean:f,min:f,max:f,x:X[c],y:Y[rr],raw:f,median:f,area:null,sd:null,mode:null,xm:null,ym:null,bx:null,by:null,w:null,h:null,intden:null,skew:null,kurt:null,len:null,ang:null}); });
+        return; }
+      notes.push(`${nm}: a selection Kurve does not know.`); });
+    if(!rows.length) return {fail:notes[0]||"Nothing could be measured."};
+    const spec=[["nm","Label"],["kind","Selection"],["n","Cells"],["area",U("Area",au)],["mean",U("Mean",zu)],["sd",U("StdDev",zu)],["mode",U("Mode",zu)],["min",U("Min",zu)],["max",U("Max",zu)],["x",U("X",xu)],["y",U("Y",yu)],
+      ["xm",U("XM",xu)],["ym",U("YM",yu)],["bx",U("BX",xu)],["by",U("BY",yu)],["w",U("Width",xu)],["h",U("Height",yu)],["intden",U("IntDen",iu)],["raw",U("RawIntDen",zu)],["median",U("Median",zu)],["skew","Skew"],["kurt","Kurt"],
+      ["len",U("Length",xu===yu?xu:"")],["ang","Angle (°)"]];
+    const cols=[], secs=[]; anaTab("Results",spec,rows,cols,secs);
+    const method=`ImageJ 1.54f's ROI Manager › Measure of ${mq.name} (${M.ny} × ${M.nx}): ${rois.length} selection${rois.length===1?"":"s"} kept with its book, a rectangle's, an oval's or a polygon's cells as Analyze › Measure takes them (ImageJ's definitions), a straight line's samples as Plot Profile takes them (their mean, SD over n − 1, min and max) with its length and angle, each point its cell's value${p.single?"; every value in single precision first, as ImageJ holds them":""}.`;
+    return {tables:[{cols}],report:{sections:secs,method,ijr:{mat:p.mat||null,book:p.book||null,n:rois.length}},notes}; }};
 /* ImageJ's Find Maxima and Plot Profile on a matrix (QUDI_SPEC Q.4): ijMaxima and ijProfile (the MAT block); a row a maximum in
    ImageJ's order with its position, value and ImageJ's pixel, or the line's samples against the distance along it. */
 ANA_KINDS.ijmaxima={label:"Find maxima (ImageJ)", base:"Maxima", typed:true, typedWhat:"a matrix",
@@ -24431,7 +24476,11 @@ function matClean(p){ if(p.mats==null) return; if(!Array.isArray(p.mats)){ delet
       if(s.fx&&typeof s.fx==="object"&&typeof s.fx.src==="string"&&s.fx.refs&&typeof s.fx.refs==="object"){ o.fx={src:s.fx.src.slice(0,4000),refs:Object.assign(Object.create(null),...Object.entries(s.fx.refs).filter(([k,v])=>typeof v==="string").map(([k,v])=>({[k]:v})))}; if(typeof s.fx.err==="string") o.fx.err=s.fx.err; }
       if(s.raw&&typeof s.raw==="object"&&Array.isArray(s.raw.hist)) o.raw={fp:typeof s.raw.fp==="string"?s.raw.fp:"",hist:s.raw.hist.filter(e=>e&&typeof e==="object"&&typeof e.text==="string").slice(-60)};
       return o; });
-    return {id:b.id,name:str(b.name)||"MBook",sheets}; }).filter(b=>b.sheets.length);
+    const o={id:b.id,name:str(b.name)||"MBook",sheets};
+    if(Array.isArray(b.rois)){ const fin=v=>typeof v==="number"&&Number.isFinite(v), rois=b.rois.filter(r=>r&&typeof r==="object"&&typeof r.id==="string"&&IJ_ROI_KINDS.some(e=>e[0]===r.kind)).slice(0,1000).map(r=>{   /* the ROI Manager's selections (IMAGE_SPEC I.4) */
+        const q={id:r.id.slice(0,40),name:str(r.name)||r.kind,kind:r.kind}; if(r.kind==="poly"||r.kind==="point"){ q.pts=(Array.isArray(r.pts)?r.pts:[]).filter(t=>Array.isArray(t)&&fin(t[0])&&fin(t[1])).slice(0,2000).map(t=>[t[0],t[1]]); return q.pts.length>=(r.kind==="poly"?3:1)?q:null; }
+        return fin(r.x0)&&fin(r.x1)&&fin(r.y0)&&fin(r.y1)?Object.assign(q,{x0:r.x0,x1:r.x1,y0:r.y0,y1:r.y1}):null; }).filter(Boolean); if(rois.length) o.rois=rois; }
+    return o; }).filter(b=>b.sheets.length);
   if(!p.mats.length) delete p.mats; }
 /* ---- The check code of a recorded sheet: SHA-256 of matText, at once up to MAT_FP_SYNC cells,
    else a row at a time between whatever the page does, put into the record once known. ---- */
@@ -24756,7 +24805,7 @@ function matExtent(s){ const {X,Y}=matXYOf(s), e=A=>{ const n=A.length; if(n===1
    whole row or column at a time, as a spreadsheet scrolls. ---- */
 const mxWinId=bid=>"mx-"+bid, mxBid=id=>WINS[id]&&WINS[id].mx||null;
 const matWinIds=()=>matBooks().map(b=>mxWinId(b.id)).filter(id=>WINS[id]);
-function mxSt(bid){ S.mxs=S.mxs||{}; const k=S.pid+":"+bid; let st=S.mxs[k]; if(!st) st=S.mxs[k]={sid:null,r:0,c:0,er:0,ec:0,edit:null,view:null,mag:null,cx:0,cy:0,isel:false};
+function mxSt(bid){ S.mxs=S.mxs||{}; const k=S.pid+":"+bid; let st=S.mxs[k]; if(!st) st=S.mxs[k]={sid:null,r:0,c:0,er:0,ec:0,edit:null,view:null,mag:null,cx:0,cy:0,isel:false,tool:"rect",roi:null,draft:null,ov:true};
   const b=matBooks().find(q=>q.id===bid); if(b&&!b.sheets.some(s=>s.id===st.sid)){ st.sid=b.sheets[0].id; Object.assign(st,{r:0,c:0,er:0,ec:0,edit:null}); }
   const s=matOf(st.sid); if(s){ const cl=(v,n)=>Math.max(0,Math.min(n-1,v)); st.r=cl(st.r,s.ny); st.er=cl(st.er,s.ny); st.c=cl(st.c,s.nx); st.ec=cl(st.ec,s.nx); } return st; }
 function mxStFor(sid){ const b=matBookOf(sid); if(!b) return null; const st=mxSt(b.id); return st.sid===sid?st:null; }
@@ -24846,9 +24895,9 @@ function syncMatWins(){ const books=matBooks(), want=new Set(books.map(b=>mxWinI
     if(!WINS[id]){ WINS[id]={title:b.name,icon:"grid",def:[0.06+(i%6)*0.03,0.05+(i%6)*0.04,0.52,0.62],open:false,mx:b.id};
       const prev=[...document.querySelectorAll(".win.mxwin,.win.wswin")].pop()||$("#w-sheet");
       prev.insertAdjacentHTML("afterend",`<section class="win mxwin" id="w-${id}" data-win="${id}" aria-label="${esc(b.name)}"><header class="win-h">${ICON("grid","sm")}<h2 class="win-t">${esc(b.name)}</h2><span class="win-sub"></span><span class="sp"></span></header><div class="win-b mx-b">
-        <div class="mxbar"><div class="seg mini mxview-sw" role="group" aria-label="View"><button data-mxv="img" aria-pressed="true" title="The matrix as an image, each cell a pixel at its true shape">Image</button><button data-mxv="cells" aria-pressed="false" title="The matrix as cells, to read and type values">Cells</button></div><span class="mxzoom"><button class="btn icon sm" data-mxz="out" title="Zoom out (−)" aria-label="Zoom out"><b aria-hidden="true">−</b></button><button class="btn sm mxmag" data-mxz="menu" aria-haspopup="menu" title="The magnification: ImageJ's levels, Fit and 100 %"></button><button class="btn icon sm" data-mxz="in" title="Zoom in (+)" aria-label="Zoom in">${ICON("plus","sm")}</button><button class="btn sm" data-mxz="fit" title="The whole image, as large as the window allows (0, or a double-click)">Fit</button><button class="btn sm mxlutb" data-mxlut aria-haspopup="menu" title="The lookup table: the colours the values are shown in"><span class="lsw" aria-hidden="true"></span><span class="lnm"></span>${ICON("chev","sm")}</button><button class="btn sm" data-mxbc aria-pressed="false" title="Brightness and contrast: the range of values the table spans (C)">Contrast</button></span><span class="mxaddr" title="The cell: its row and column"></span><input class="mxval" type="text" spellcheck="false" aria-label="The cell's value" title="The cell's value: type a number and press Enter"><span class="sp"></span><button class="btn sm" data-mxmenu aria-haspopup="menu" title="What can be done to this matrix">Matrix ${ICON("chev","sm")}</button><button class="btn sm" data-mxplot aria-haspopup="menu" title="Plot this matrix on a graph of its own">${ICON("chart","sm")}Plot</button></div>
+        <div class="mxbar"><div class="seg mini mxview-sw" role="group" aria-label="View"><button data-mxv="img" aria-pressed="true" title="The matrix as an image, each cell a pixel at its true shape">Image</button><button data-mxv="cells" aria-pressed="false" title="The matrix as cells, to read and type values">Cells</button></div><span class="mxzoom"><button class="btn icon sm" data-mxz="out" title="Zoom out (−)" aria-label="Zoom out"><b aria-hidden="true">−</b></button><button class="btn sm mxmag" data-mxz="menu" aria-haspopup="menu" title="The magnification: ImageJ's levels, Fit and 100 %"></button><button class="btn icon sm" data-mxz="in" title="Zoom in (+)" aria-label="Zoom in">${ICON("plus","sm")}</button><button class="btn sm" data-mxz="fit" title="The whole image, as large as the window allows (0, or a double-click)">Fit</button><button class="btn sm mxlutb" data-mxlut aria-haspopup="menu" title="The lookup table: the colours the values are shown in"><span class="lsw" aria-hidden="true"></span><span class="lnm"></span>${ICON("chev","sm")}</button><button class="btn sm" data-mxbc aria-pressed="false" title="Brightness and contrast: the range of values the table spans (C)">Contrast</button><span class="seg mini mxtools" role="radiogroup" aria-label="Selection tool">${MX_TOOLS.map(([k,ic,t])=>`<button type="button" role="radio" data-mxt="${k}" aria-checked="${k==="rect"}" title="${t}" aria-label="${t}">${ICON(ic,"sm")}</button>`).join("")}</span><button class="btn sm" data-mxrm aria-pressed="false" title="The ROI Manager: the selections kept with this book, measured together (T keeps the selection, M measures it)">Selections</button></span><span class="mxaddr" title="The cell: its row and column"></span><input class="mxval" type="text" spellcheck="false" aria-label="The cell's value" title="The cell's value: type a number and press Enter"><span class="sp"></span><button class="btn sm" data-mxmenu aria-haspopup="menu" title="What can be done to this matrix">Matrix ${ICON("chev","sm")}</button><button class="btn sm" data-mxplot aria-haspopup="menu" title="Plot this matrix on a graph of its own">${ICON("chart","sm")}Plot</button></div>
         <div class="mxinfo" hidden><span class="mxdim"></span><span class="mxdsp"></span><span class="mxread" aria-live="off"></span></div>
-        <div class="mxiw" hidden><div class="mximg" tabindex="0" role="img"><canvas></canvas></div><aside class="mxbc" hidden aria-label="Brightness and contrast"></aside></div>
+        <div class="mxiw" hidden><div class="mximg" tabindex="0" role="img"><canvas></canvas></div><div class="mxside" hidden><section class="mxbc" hidden aria-label="Brightness and contrast"></section><section class="mxroi" hidden aria-label="Selections"></section></div></div>
         <div class="mxgrid" tabindex="0" role="grid" aria-label="The matrix's values"><div class="mxview"></div><div class="mxsp"></div></div>
         <div class="wstabs mxtabs" role="tablist" aria-label="Matrix sheets"></div>
         <div class="mxfoot"><span class="mxsize"></span><span class="mxstate"></span><span class="mxsel"></span></div></div></section>`);
@@ -24863,9 +24912,11 @@ function renderMatWin(id){ const el=$("#w-"+id), bid=mxBid(id), b=matBooks().fin
   if(!st.view) st.view=matRangeOf(s.z).n?"img":"cells";   // an image, unless there is nothing yet to see
   const img=st.view==="img", ib=el.querySelector(".mximg"), gr=el.querySelector(".mxgrid");
   ib.closest(".mxiw").hidden=!img; el.querySelector(".mxinfo").hidden=!img; gr.hidden=img; el.classList.toggle("mximgv",img);
-  const bc=el.querySelector(".mxbc"); bc.hidden=!(img&&st.bc);
+  const bc=el.querySelector(".mxbc"), rm=el.querySelector(".mxroi"); bc.hidden=!(img&&st.bc); rm.hidden=!(img&&st.rm); el.querySelector(".mxside").hidden=bc.hidden&&rm.hidden;
+  el.querySelectorAll("[data-mxt]").forEach(b=>{ const on=b.dataset.mxt===st.tool; b.setAttribute("aria-checked",String(on)); b.tabIndex=on?0:-1; }); el.querySelector("[data-mxrm]").setAttribute("aria-pressed",String(!!st.rm));
   el.querySelectorAll("[data-mxv]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mxv===st.view)));
-  if(img){ mxImgDraw(id); mxImgBar(id); mxBcDraw(id); } else { mxDraw(id); mxBar(id); } mxFoot(id); }
+  ib.dataset.tool=st.tool;
+  if(img){ mxImgDraw(id); mxImgBar(id); mxBcDraw(id); mxRoiDraw(id); } else { mxDraw(id); mxBar(id); } mxFoot(id); }
 function mxDraw(id){ const el=$("#w-"+id), grid=el&&el.querySelector(".mxgrid"); if(!grid) return; const st=mxSt(mxBid(id)), s=matOf(st.sid); const view=grid.querySelector(".mxview"), sp=grid.querySelector(".mxsp");
   if(!s){ view.innerHTML=""; return; }
   sp.style.width=(MX_SW+s.nx*MX_CW)+"px"; sp.style.height=(MX_RH*(s.ny+2))+"px";
@@ -24955,10 +25006,145 @@ function mxImgDraw(id){ const el=$("#w-"+id), box=el&&el.querySelector(".mximg")
   ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cw,ch); ctx.imageSmoothingEnabled=false;
   ctx.setTransform(dpr*mx,0,0,dpr*my,dpr*tx,dpr*ty); ctx.drawImage(im.cv,0,0); ctx.setTransform(1,0,0,1,0,0);
   const g={tx,ty,mx,my,W,H,fx:im.fx,fy:im.fy,nx:s.nx,ny:s.ny,dpr}; box._g=g;
-  const q=mxSel(st); if(st.isel||q.r0!==q.r1||q.c0!==q.c1){ const a=mxCellRect(g,q.r0,q.c0), b=mxCellRect(g,q.r1,q.c1), lw=Math.max(1,Math.round(dpr)), h=(lw%2)/2;
+  g.e=matExtent(s); mxOverlay(ctx,g,s,st);
+  const q=mxSel(st), roi=st.roi;
+  if(roi&&roi.kind!=="rect"&&roi.kind!=="oval") mxShape(ctx,g,mxRoiNow(st,s),"#ffff00",true);
+  else if(st.isel||q.r0!==q.r1||q.c0!==q.c1||roi){ const a=mxCellRect(g,q.r0,q.c0), b=mxCellRect(g,q.r1,q.c1), lw=Math.max(1,Math.round(dpr)), h=(lw%2)/2;
     const X0=Math.round(Math.min(a.x,b.x)*dpr)+h, Y0=Math.round(Math.min(a.y,b.y)*dpr)+h, X1=Math.round(Math.max(a.x+a.w,b.x+b.w)*dpr)-h, Y1=Math.round(Math.max(a.y+a.h,b.y+b.h)*dpr)-h;
-    ctx.lineWidth=lw; ctx.strokeStyle="#ffff00"; ctx.strokeRect(X0,Y0,Math.max(0,X1-X0),Math.max(0,Y1-Y0)); }
+    ctx.lineWidth=lw; ctx.strokeStyle="#ffff00";
+    if(roi&&roi.kind==="oval"){ ctx.beginPath(); ctx.ellipse((X0+X1)/2,(Y0+Y1)/2,Math.max(0.5,(X1-X0)/2),Math.max(0.5,(Y1-Y0)/2),0,0,2*Math.PI); ctx.stroke(); }
+    else ctx.strokeRect(X0,Y0,Math.max(0,X1-X0),Math.max(0,Y1-Y0));
+    if(roi) mxHandlesDraw(ctx,g,mxHandles(g,st,s)); }
+  if(st.draft) mxShape(ctx,g,{kind:"poly",pts:st.draft.pts.concat(st.draft.cur?[st.draft.cur]:[]),open:true},"#ffff00",false);
   box.setAttribute("aria-label",`${s.name}: an image of ${s.ny} × ${s.nx} cells at ${mxMagText(mx)}`); mxRead(id); }
+/* ---- Selections (IMAGE_SPEC I.4): ImageJ's tools on the image (Hand, Rectangle, Oval, Polygon, Straight line, Points), the
+   selection drawn in ImageJ's yellow with its handles, moved and resized, an arrow moving it a cell; a rectangle's and an oval's
+   cells are the cell selection (st.r…er), a polygon's corners, a line's ends and the points are in X and Y (st.roi). M measures it,
+   K profiles a line, T keeps it in the book's ROI Manager. ---- */
+const MX_TOOLS=[["hand","pan","Hand: drag to move the image (Space+drag with any tool)"],["rect","rect","Rectangle: drag over cells"],["oval","ellipse","Oval: drag its bounding cells"],["poly","poly","Polygon: click each corner, double-click or Enter to finish"],["line","line","Straight line: drag from one end to the other (K profiles it)"],["point","point","Points: click each one"]];
+// A point of the image (in X and Y) on the box and back, through the cells' extent (the image drawn evenly, as ImageJ's).
+function mxD2S(g,x,y){ const e=g.e; return {x:g.tx+(x-e.x0)/(e.x1-e.x0)*g.nx*g.mx, y:g.ty+(e.y1-y)/(e.y1-e.y0)*g.ny*g.my}; }
+function mxS2D(g,px,py){ const e=g.e; return [e.x0+(px-g.tx)/(g.mx*g.nx)*(e.x1-e.x0), e.y1-(py-g.ty)/(g.my*g.ny)*(e.y1-e.y0)]; }
+// The selection now, in X and Y: {kind, x0, x1, y0, y1} for a rectangle or an oval (its cells' centres), else st.roi.
+function mxRoiNow(st,s){ const r=st.roi; if(!r) return null; if(r.kind==="rect"||r.kind==="oval"){ const {X,Y}=matXYOf(s), q=mxSel(st); return {kind:r.kind,x0:X[q.c0],x1:X[q.c1],y0:Y[q.r0],y1:Y[q.r1]}; } return r; }
+// A shape on the canvas: a rectangle or an oval in X and Y (the cells' centres, drawn to their edges), a polygon, a line, points.
+function mxShape(ctx,g,r,col,handles,label){ if(!r) return; const d=g.dpr; ctx.save(); ctx.setTransform(d,0,0,d,0,0); ctx.lineWidth=1; ctx.strokeStyle=col; ctx.fillStyle=col;
+  const P=q=>mxD2S(g,q[0],q[1]); let lab=null;
+  if(r.kind==="rect"||r.kind==="oval"){ const hx=(g.e.x1-g.e.x0)/g.nx/2, hy=(g.e.y1-g.e.y0)/g.ny/2, a=P([Math.min(r.x0,r.x1)-hx,Math.max(r.y0,r.y1)+hy]), b=P([Math.max(r.x0,r.x1)+hx,Math.min(r.y0,r.y1)-hy]);
+    ctx.beginPath(); if(r.kind==="oval") ctx.ellipse((a.x+b.x)/2,(a.y+b.y)/2,Math.abs(b.x-a.x)/2,Math.abs(b.y-a.y)/2,0,0,2*Math.PI); else ctx.rect(a.x,a.y,b.x-a.x,b.y-a.y); ctx.stroke(); lab=a; }
+  else if(r.kind==="poly"&&r.pts&&r.pts.length){ ctx.beginPath(); r.pts.forEach((q,i)=>{ const t=P(q); if(i) ctx.lineTo(t.x,t.y); else ctx.moveTo(t.x,t.y); }); if(!r.open) ctx.closePath(); ctx.stroke(); lab=P(r.pts[0]);
+    if(handles) mxHandlesDraw(ctx,null,r.pts.map(P)); }
+  else if(r.kind==="line"){ const a=P([r.x0,r.y0]), b=P([r.x1,r.y1]); ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); lab=a; if(handles) mxHandlesDraw(ctx,null,[a,b]); }
+  else if(r.kind==="point") (r.pts||[]).forEach((q,i)=>{ const t=P(q), x=Math.round(t.x)+0.5, y=Math.round(t.y)+0.5; ctx.beginPath(); ctx.moveTo(x-5,y); ctx.lineTo(x+6,y); ctx.moveTo(x,y-5); ctx.lineTo(x,y+6); ctx.stroke(); if(i===0) lab=t; });
+  if(label&&lab){ ctx.font="11px sans-serif"; ctx.textBaseline="bottom"; ctx.fillText(label,lab.x+2,lab.y-2); }
+  ctx.restore(); }
+function mxHandlesDraw(ctx,g,pts){ ctx.save(); if(g) ctx.setTransform(g.dpr,0,0,g.dpr,0,0); pts.forEach(q=>{ ctx.fillStyle="#ffffff"; ctx.strokeStyle="#000000"; ctx.lineWidth=1; ctx.fillRect(Math.round(q.x)-2.5,Math.round(q.y)-2.5,5,5); ctx.strokeRect(Math.round(q.x)-2.5,Math.round(q.y)-2.5,5,5); }); ctx.restore(); }
+// The handles of the selection on the box: a rectangle's or an oval's corners and sides (k: "nw" … "e"), a polygon's corners, a line's ends.
+function mxHandles(g,st,s){ const r=st.roi; if(!r) return [];
+  if(r.kind==="rect"||r.kind==="oval"){ const q=mxSel(st), a=mxCellRect(g,q.r0,q.c0), b=mxCellRect(g,q.r1,q.c1), x0=Math.min(a.x,b.x), y0=Math.min(a.y,b.y), x1=Math.max(a.x+a.w,b.x+b.w), y1=Math.max(a.y+a.h,b.y+b.h), xm=(x0+x1)/2, ym=(y0+y1)/2;
+    return [["nw",x0,y0],["n",xm,y0],["ne",x1,y0],["e",x1,ym],["se",x1,y1],["s",xm,y1],["sw",x0,y1],["w",x0,ym]].map(([k,x,y])=>({k,x,y})); }
+  if(r.kind==="poly") return r.pts.map((q,i)=>Object.assign({k:"v"+i},mxD2S(g,q[0],q[1])));
+  if(r.kind==="line") return [Object.assign({k:"a"},mxD2S(g,r.x0,r.y0)),Object.assign({k:"b"},mxD2S(g,r.x1,r.y1))];
+  return []; }
+// Whether a point of the box is on the selection (to move it): inside a rectangle, an oval or a polygon, near a line or a point.
+function mxOnRoi(g,st,s,px,py){ const r=mxRoiNow(st,s); if(!r) return false; const P=q=>mxD2S(g,q[0],q[1]);
+  if(r.kind==="rect"||r.kind==="oval"){ const q=mxSel(st), a=mxCellRect(g,q.r0,q.c0), b=mxCellRect(g,q.r1,q.c1), x0=Math.min(a.x,b.x), y0=Math.min(a.y,b.y), x1=Math.max(a.x+a.w,b.x+b.w), y1=Math.max(a.y+a.h,b.y+b.h);
+    if(r.kind==="rect") return px>=x0&&px<=x1&&py>=y0&&py<=y1; const cx=(x0+x1)/2, cy=(y0+y1)/2, rx=(x1-x0)/2||1, ry=(y1-y0)/2||1; return ((px-cx)/rx)**2+((py-cy)/ry)**2<=1; }
+  if(r.kind==="poly"){ const V=r.pts.map(P); let inn=false; for(let i=0,j=V.length-1;i<V.length;j=i++){ const a=V[i], b=V[j]; if((a.y>py)!==(b.y>py)&&px<(b.x-a.x)*(py-a.y)/(b.y-a.y)+a.x) inn=!inn; } return inn; }
+  if(r.kind==="line"){ const a=P([r.x0,r.y0]), b=P([r.x1,r.y1]), dx=b.x-a.x, dy=b.y-a.y, L=dx*dx+dy*dy||1, t=Math.max(0,Math.min(1,((px-a.x)*dx+(py-a.y)*dy)/L)); return Math.hypot(a.x+t*dx-px,a.y+t*dy-py)<=4; }
+  if(r.kind==="point") return (r.pts||[]).some(q=>{ const t=P(q); return Math.hypot(t.x-px,t.y-py)<=5; });
+  return false; }
+// What analyses of this matrix found, drawn over its image in ImageJ's cyan: maxima as crosses, spots as their FWHM ellipses, a
+// profile's line, Measure's region, the ROI Manager's selections numbered (with Show all).
+function mxOverlay(ctx,g,s,st){ const b=matBookOf(s.id); if(st.rm&&st.roiAll&&b&&b.rois) b.rois.forEach((r,i)=>{ if(!(r.id===st.roiId&&st.roi)) mxShape(ctx,g,r,"#00ffff",false,String(i+1)); });
+  if(!st.ov) return; const d=g.dpr; ctx.save(); ctx.setTransform(d,0,0,d,0,0); ctx.strokeStyle="#00ffff"; ctx.lineWidth=1;
+  anaList().forEach(a=>{ const rep=a.res&&a.res.report; if(!rep||anaStale(a)) return;
+    if(rep.ijx&&rep.ijx.mat===s.id){ ctx.beginPath(); rep.ijx.pts.forEach(q=>{ const t=mxD2S(g,q[0],q[1]), x=Math.round(t.x)+0.5, y=Math.round(t.y)+0.5; ctx.moveTo(x-4,y); ctx.lineTo(x+5,y); ctx.moveTo(x,y-4); ctx.lineTo(x,y+5); }); ctx.stroke(); }
+    if(rep.spt&&rep.spt.mat===s.id){ const sx=g.nx*g.mx/(g.e.x1-g.e.x0), sy=g.ny*g.my/(g.e.y1-g.e.y0);
+      rep.spt.spots.forEach(([x,y,w1,w2,th])=>{ const t=mxD2S(g,x,y), a=th*Math.PI/180; ctx.beginPath(); ctx.ellipse(t.x,t.y,Math.max(1,w1/2*Math.hypot(Math.cos(a)*sx,Math.sin(a)*sy)),Math.max(1,w2/2*Math.hypot(Math.sin(a)*sx,Math.cos(a)*sy)),-Math.atan2(Math.sin(a)*sy,Math.cos(a)*sx),0,2*Math.PI); ctx.stroke(); }); }
+    if(rep.ijp&&rep.ijp.mat===s.id){ const A=mxD2S(g,rep.ijp.x0,rep.ijp.y0), B=mxD2S(g,rep.ijp.x1,rep.ijp.y1); ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke(); }
+    if(rep.ijm&&rep.ijm.mat===s.id&&rep.ijm.region&&rep.ijm.region.kind!=="all"){ ctx.restore(); mxShape(ctx,g,rep.ijm.region,"#00ffff",false); ctx.save(); ctx.setTransform(d,0,0,d,0,0); ctx.strokeStyle="#00ffff"; } });
+  ctx.restore(); }
+function mxPolyEnd(id){ const st=mxSt(mxBid(id)), d=st.draft; if(!d) return; st.draft=null; const g=$(`#w-${id} .mximg`)._g;
+  const P=d.pts.filter((q,i)=>{ if(!i||!g) return true; const a=mxD2S(g,...q), b=mxD2S(g,...d.pts[i-1]); return Math.hypot(a.x-b.x,a.y-b.y)>2; });
+  if(P.length<3){ toast("A polygon has three corners at least."); mxImgDraw(id); return; } st.roi={kind:"poly",pts:P}; st.roiId=null; st.isel=true; mxImgDraw(id); mxRoiDraw(id); }
+// Moves the selection by whole cells (an arrow), or a rectangle's or an oval's edges to a cell.
+function mxRoiShift(id,dr,dc){ const st=mxSt(mxBid(id)), s=matOf(st.sid), g=$(`#w-${id} .mximg`)._g; if(!s||!st.roi||!g) return; const r=st.roi;
+  if(r.kind==="rect"||r.kind==="oval"){ const q=mxSel(st), cl=(v,n)=>Math.max(0,Math.min(n-1,v)); let ddr=dr, ddc=dc; if(q.r0+ddr<0) ddr=-q.r0; if(q.r1+ddr>s.ny-1) ddr=s.ny-1-q.r1; if(q.c0+ddc<0) ddc=-q.c0; if(q.c1+ddc>s.nx-1) ddc=s.nx-1-q.c1;
+    st.r=cl(st.r+ddr,s.ny); st.er=cl(st.er+ddr,s.ny); st.c=cl(st.c+ddc,s.nx); st.ec=cl(st.ec+ddc,s.nx); return; }
+  const {X,Y}=matXYOf(s), dx=s.nx>1?(X[s.nx-1]-X[0])/(s.nx-1):1, dy=s.ny>1?(Y[s.ny-1]-Y[0])/(s.ny-1):1, mv=([x,y])=>[x+dc*dx,y+dr*dy];
+  if(r.kind==="line"){ const [a,b]=[mv([r.x0,r.y0]),mv([r.x1,r.y1])]; st.roi=Object.assign({},r,{x0:a[0],y0:a[1],x1:b[0],y1:b[1]}); } else st.roi=Object.assign({},r,{pts:r.pts.map(mv)}); }
+// The selection as the ROI Manager keeps it ({id, name, kind, x0, x1, y0, y1, pts}), or null with nothing selected.
+function mxRoiKeep(st,s,name){ const r=mxRoiNow(st,s)||(st.isel?mxRoiNow(Object.assign({},st,{roi:{kind:"rect"}}),s):null); if(!r) return null;
+  const o={id:"r"+Math.random().toString(36).slice(2,9),name:name||"",kind:r.kind}; if(r.pts) o.pts=r.pts.map(q=>[+q[0],+q[1]]); else Object.assign(o,{x0:r.x0,x1:r.x1,y0:r.y0,y1:r.y1}); return o; }
+// A selection from the ROI Manager made the one on the image.
+function mxRoiShow(id,r){ const st=mxSt(mxBid(id)), s=matOf(st.sid); if(!s||!r) return; st.roiId=r.id; st.draft=null;
+  if(r.kind==="rect"||r.kind==="oval"){ const {X,Y}=matXYOf(s); st.c=matCellAt(X,r.x0); st.ec=matCellAt(X,r.x1); st.r=matCellAt(Y,r.y0); st.er=matCellAt(Y,r.y1);
+    if(st.c<0||st.ec<0||st.r<0||st.er<0){ toast(`${r.name} lies outside this matrix.`); return; } st.roi={kind:r.kind}; }
+  else st.roi=JSON.parse(JSON.stringify({kind:r.kind,x0:r.x0,x1:r.x1,y0:r.y0,y1:r.y1,pts:r.pts}));
+  st.isel=true; mxImgDraw(id); mxFoot(id); }
+function matRoisSet(bid,rois,undo,log){ const b=matBooks().find(q=>q.id===bid); if(!b||S.readOnly) return false; pushUndo(undo);
+  save({mats:matBooks().map(q=>q.id===bid?Object.assign({},q,{rois}):q)},log); return true; }
+const roiWord=k=>(IJ_ROI_KINDS.find(e=>e[0]===k)||[k,k])[1];
+// T: the selection kept in the book's ROI Manager, named by its kind and number.
+function mxRoiAdd(id,quiet){ const bid=mxBid(id), st=mxSt(bid), s=matOf(st.sid), b=matBookOf(st.sid); if(!s||!b||S.readOnly) return null;
+  const rs=(b.rois||[]).slice(); let n=rs.length+1; while(rs.some(r=>r.name===`${roiWord((st.roi||{kind:"rect"}).kind)} ${n}`)) n++;
+  const o=mxRoiKeep(st,s,`${roiWord((st.roi||{kind:"rect"}).kind)} ${n}`); if(!o){ if(!quiet) toast("Select something on the image first: a tool's drag, or a click on a cell."); return null; }
+  const same=rs.find(r=>r.kind===o.kind&&JSON.stringify([r.x0,r.x1,r.y0,r.y1,r.pts])===JSON.stringify([o.x0,o.x1,o.y0,o.y1,o.pts])); if(same){ st.roiId=same.id; return same; }
+  rs.push(o); matRoisSet(bid,rs,"keeping a selection",`kept ${o.name} in the selections of ${b.name}`); st.roiId=o.id; st.rm=true; renderMatWin(id); return o; }
+// M: the selection kept, then the book's Results (one analysis a book) worked out again over every selection kept.
+// M: the selection kept (when it is not yet) and the book's Results worked out again over every selection kept, one undo step.
+function mxMeasure(id){ const bid=mxBid(id), st=mxSt(bid), s=matOf(st.sid), b=matBookOf(st.sid); if(!s||!b||S.readOnly) return;
+  let rs=(b.rois||[]).slice(); if(st.roi||st.isel){ let n=rs.length+1; const w=roiWord((st.roi||{kind:"rect"}).kind); while(rs.some(r=>r.name===`${w} ${n}`)) n++;
+    const o=mxRoiKeep(st,s,`${w} ${n}`), same=o&&rs.find(r=>r.kind===o.kind&&JSON.stringify([r.x0,r.x1,r.y0,r.y1,r.pts])===JSON.stringify([o.x0,o.x1,o.y0,o.y1,o.pts]));
+    if(same) st.roiId=same.id; else if(o){ rs.push(o); st.roiId=o.id; } }
+  mxRoisMeasure(id,rs); }
+function mxRoisMeasure(id,rs0){ const bid=mxBid(id), st=mxSt(bid), b=matBooks().find(q=>q.id===bid); if(!b||S.readOnly) return; const rois=rs0||b.rois||[];
+  if(!rois.length){ toast("Keep a selection first (T, or M on a selection)."); return; }
+  const a0=anaList().find(a=>a.kind==="ijrois"&&a.p&&a.p.book===bid), kp=Object.assign({},a0?a0.p:{},{mat:st.sid,book:bid,rois:JSON.parse(JSON.stringify(rois))});
+  const pre=rs0?q=>{ q.mats=matBooks(q).map(x=>x.id===bid?Object.assign({},x,{rois:rs0}):x); }:null;
+  const aid=anaMakeTyped("ijrois",kp,{id:a0&&a0.id,pre,undo:"measuring the selections",log:`measured the ${rois.length} selection${rois.length===1?"":"s"} of ${b.name}`,show:!a0});
+  const a=aid&&anaOf(aid); if(!a) return; if(a.res&&a.res.err){ toast(`${a.name} could not be worked out: ${a.res.err}.`); return; }
+  toast(`${a.name}: ${rois.length} selection${rois.length===1?"":"s"} of ${b.name} measured, a row each.`,{action:"Show",run:()=>showSheet(a.out.sheet)}); }
+// K: a straight line's profile, worked out and plotted at once (ImageJ's Plot Profile).
+function mxProfile(id){ const st=mxSt(mxBid(id)), s=matOf(st.sid); if(!s||S.readOnly) return; const r=st.roi;
+  if(!r||r.kind!=="line"){ toast("K profiles a straight line: draw one with the Straight line tool."); return; }
+  const kp=Object.assign(ijpStart(s.id),{x0:r.x0,y0:r.y0,x1:r.x1,y1:r.y1}), aid=anaMakeTyped("ijprofile",kp,{undo:"a profile",show:false}); if(aid) ijpPlot(aid); }
+// An analysis of a typed kind made, or its settings changed, without its dialog (the selections' M, K and Measure).
+function anaMakeTyped(kind,kp,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[kind]||{}, q=P(); if(!K||!q||S.readOnly) return null;
+  const inp={cols:[],by:null,read:{},masked:false}; if(F.inp) F.inp(kp,inp); else if(kp.mat) inp.mat=kp.mat;
+  const ana=anaList(q).map(x=>Object.assign({},x)), a0=o.id?ana.find(x=>x.id===o.id):null, mt=r=>o.pre?Object.assign(r,{mats:q.mats}):r;
+  if(a0){ pushUndo(o.undo||`the settings of ${a0.name}`); if(o.pre) o.pre(q); Object.assign(a0,{in:inp,p:kp,by:who()}); runAna(a0,q); save(mt(anaPatch({ana,cols:q.cols},q)),o.log||`changed the settings of ${a0.name}`); return a0.id; }
+  pushUndo(o.undo||K.label.toLowerCase()); if(o.pre) o.pre(q); stampSheets(q);
+  const used=new Set(ana.map(x=>x.name).concat(sheetList(q).map(x=>x.name))); let n=1; while(used.has(`${K.base} ${n}`)) n++;
+  const name=`${K.base} ${n}`, sh={id:newSheetId(),name}, a={id:newAnaId(),kind,name,in:inp,p:kp,out:{sheet:sh.id},recalc:"auto",at:Date.now(),by:who()};
+  sh.ana=a.id; const ss=sheetList(q).concat([sh]); q.sheets=ss; ana.push(a); runAna(a,q);
+  const tw=typeof K.typedWhat==="function"?K.typedWhat(kp):K.typedWhat;
+  save(mt(anaPatch({ana,sheets:ss,cols:q.cols},q)),o.log||`worked out ${name} (${K.label.toLowerCase()}) of ${tw||"a matrix"}`); if(o.show) showSheet(sh.id,{quiet:true}); return a.id; }
+/* ---- The ROI Manager (IMAGE_SPEC I.4): the selections kept with the book, beside the image: a list (a click shows one, a double
+   click renames it), Add (T), Update, Delete, Measure (M: the book's Results, a row a selection, following the matrix), Profile (K, a
+   line), Show all (every one numbered on the image), Delete all. ---- */
+function mxRoiDraw(id){ const el=$("#w-"+id), box=el&&el.querySelector(".mxroi"); if(!box||box.hidden) return; const st=mxSt(mxBid(id)), b=matBookOf(st.sid); if(!b) return;
+  const rs=b.rois||[], ro=S.readOnly, cur=rs.find(r=>r.id===st.roiId), sig=JSON.stringify([rs,st.roiId,!!st.roiAll,ro,!!(st.roi||st.isel)]); if(box._sig===sig) return; box._sig=sig;
+  box.innerHTML=`<div class="bch"><b>Selections</b><button class="btn icon sm" data-rmx title="Close" aria-label="Close">${ICON("x","sm")}</button></div>
+    ${rs.length?`<div class="roilist" role="listbox" aria-label="The selections kept">${rs.map((r,i)=>`<button type="button" class="roirow" role="option" data-roi="${r.id}" aria-selected="${r.id===st.roiId}" title="${esc(roiWord(r.kind))}: a click shows it, a double click renames it"><span class="rn">${i+1}</span><span class="rl">${esc(r.name)}</span><span class="rk">${esc(roiWord(r.kind))}</span></button>`).join("")}</div>`
+      :`<p class="note">Draw a selection on the image and press T (or Add) to keep it here; M measures it.</p>`}
+    <div class="bcbtns"><button class="btn sm" data-rma="add" title="Keep the selection (T)"${ro||!(st.roi||st.isel)?" disabled":""}>Add</button><button class="btn sm" data-rma="upd" title="The selection shown takes the one on the image"${ro||!cur||!(st.roi||st.isel)?" disabled":""}>Update</button><button class="btn sm" data-rma="del" title="Delete the selection shown"${ro||!cur?" disabled":""}>Delete</button>
+      <button class="btn sm" data-rma="meas" title="Measure every selection into the book's Results, a row each (M measures the one on the image)"${ro||!rs.length?" disabled":""}>Measure</button><button class="btn sm" data-rma="prof" title="The line's profile (K)"${ro||!(st.roi&&st.roi.kind==="line")?" disabled":""}>Profile</button><button class="btn sm" data-rma="clr" title="Delete every selection kept"${ro||!rs.length?" disabled":""}>Delete all</button></div>
+    <label class="chk"><input type="checkbox" data-rmall${st.roiAll?" checked":""}> Show all</label>`; }
+function mxRoiWire(el,id){ const box=el.querySelector(".mxroi"), bid=()=>mxBid(id);
+  box.addEventListener("click",async e=>{ const st=mxSt(bid()), b=matBooks().find(q=>q.id===bid()); if(!b) return;
+    if(e.target.closest("[data-rmx]")){ st.rm=false; renderMatWin(id); return; }
+    const row=e.target.closest("[data-roi]"); if(row){ const r=(b.rois||[]).find(q=>q.id===row.dataset.roi); if(!r) return;
+      if(e.detail===2&&!S.readOnly){ const v=await formDlg({title:"Rename the selection",ok:"Rename",focus:"#rnN",html:`<div class="frow"><label for="rnN">Name</label><input id="rnN" type="text" value="${esc(r.name)}" spellcheck="false"></div>`,valid:v=>!!String(v.rnN||"").trim()});
+        if(v) matRoisSet(b.id,b.rois.map(q=>q.id===r.id?Object.assign({},q,{name:String(v.rnN).trim().slice(0,80)}):q),"renaming a selection",`renamed the selection ${r.name} of ${b.name} ${String(v.rnN).trim()}`); return; }
+      mxRoiShow(id,r); box._sig=null; mxRoiDraw(id); return; }
+    const a=e.target.closest("[data-rma]"); if(!a||a.disabled) return; const k=a.dataset.rma, s=matOf(st.sid), cur=(b.rois||[]).find(q=>q.id===st.roiId);
+    if(k==="add") mxRoiAdd(id); else if(k==="meas") mxRoisMeasure(id); else if(k==="prof") mxProfile(id);
+    else if(k==="upd"&&cur){ const o=mxRoiKeep(st,s,cur.name); if(o){ o.id=cur.id; matRoisSet(b.id,b.rois.map(q=>q.id===cur.id?o:q),"updating a selection",`changed the selection ${cur.name} of ${b.name}`); } }
+    else if(k==="del"&&cur){ matRoisSet(b.id,b.rois.filter(q=>q.id!==cur.id),"deleting a selection",`deleted the selection ${cur.name} of ${b.name}`); st.roiId=null; toast(`Deleted ${cur.name}.`,{action:"Undo",run:undo}); }
+    else if(k==="clr"){ const n=(b.rois||[]).length; matRoisSet(b.id,[],"deleting the selections",`deleted the ${n} selections of ${b.name}`); st.roiId=null; toast(`Deleted ${n} selection${n===1?"":"s"}.`,{action:"Undo",run:undo}); } });
+  box.addEventListener("change",e=>{ if(e.target.matches("[data-rmall]")){ const st=mxSt(bid()); st.roiAll=e.target.checked; box._sig=null; mxImgDraw(id); } }); }
 const mxMagText=m=>{ const p=m*100; return (p>=100||Math.abs(p-Math.round(p))<0.05?String(Math.round(p)):p.toFixed(1))+" %"; };
 // ImageJ's line over the image: the calibrated size, the cells, the values' kind.
 function mxDimText(s){ const e=matExtent(s), w=e.x1-e.x0, h=e.y1-e.y0, f=v=>{ const a=Math.abs(v); return a>=1000&&a<1e6?v.toFixed(0):a>=1e-3&&a<1000?v.toPrecision(3):fmt(v,3); };
@@ -24994,7 +25180,10 @@ function mxMagItems(id){ const st=mxSt(mxBid(id)), m=st.mag;
 function wireMxImg(el,id){ const box=el.querySelector(".mximg"), bid=()=>mxBid(id), pts=new Map(); let drag=null, acc=0, accT=0, pinch=null, space=false;
   const at=e=>{ const r=box.getBoundingClientRect(); return {x:e.clientX-r.left,y:e.clientY-r.top}; };
   el.querySelectorAll("[data-mxv]").forEach(b=>b.addEventListener("click",()=>mxSetView(id,b.dataset.mxv)));
-  mxBcWire(el,id);
+  mxBcWire(el,id); mxRoiWire(el,id);
+  el.querySelector(".mxtools").addEventListener("click",e=>{ const b=e.target.closest("[data-mxt]"); if(!b) return; const st=mxSt(bid()); st.tool=b.dataset.mxt; st.draft=null; renderMatWin(id); box.focus({preventScroll:true}); });
+  el.querySelector(".mxtools").addEventListener("keydown",e=>{ if(e.key!=="ArrowRight"&&e.key!=="ArrowLeft") return; e.preventDefault(); const st=mxSt(bid()), i=MX_TOOLS.findIndex(t=>t[0]===st.tool), k=MX_TOOLS[(i+(e.key==="ArrowRight"?1:-1)+MX_TOOLS.length)%MX_TOOLS.length][0]; st.tool=k; st.draft=null; renderMatWin(id); const q=el.querySelector(`[data-mxt="${k}"]`); if(q) q.focus(); });
+  el.querySelector("[data-mxrm]").addEventListener("click",e=>{ e.stopPropagation(); const st=mxSt(bid()); st.rm=!st.rm; renderMatWin(id); });
   el.querySelector("[data-mxlut]").addEventListener("click",e=>{ e.stopPropagation(); toggleMenu(e.currentTarget,()=>mxLutItems(mxSt(bid()).sid),{label:"Lookup table",focus:"checked"}); });
   el.querySelector("[data-mxbc]").addEventListener("click",e=>{ e.stopPropagation(); mxBcToggle(id); });
   el.querySelector(".mxzoom").addEventListener("click",e=>{ const b=e.target.closest("[data-mxz]"); if(!b) return; const k=b.dataset.mxz;
@@ -25003,24 +25192,57 @@ function wireMxImg(el,id){ const box=el.querySelector(".mximg"), bid=()=>mxBid(i
     if(e.ctrlKey){ mxZoomTo(id,st.mag*Math.exp(-e.deltaY/120),p.x,p.y); return; }   // a pinch on a trackpad
     const now=performance.now(); if(now-accT>400) acc=0; accT=now; acc+=e.deltaY*(e.deltaMode===1?33:e.deltaMode===2?400:1);
     while(Math.abs(acc)>=100){ mxZoomStep(id,acc<0,p); acc-=100*Math.sign(acc); } },{passive:false});
+  // the cell under a point of the box, in the image's order (i to the right, j down) and as a cell, kept on the image
+  const dcell=(g,px,py)=>{ const i=Math.max(0,Math.min(g.nx-1,Math.floor((px-g.tx)/g.mx))), j=Math.max(0,Math.min(g.ny-1,Math.floor((py-g.ty)/g.my))); return {i,j,c:g.fx?g.nx-1-i:i,r:g.fy?g.ny-1-j:j}; };
+  const toC=(g,i,j)=>({c:g.fx?g.nx-1-i:i,r:g.fy?g.ny-1-j:j}), toI=(g,r,c)=>({i:g.fx?g.nx-1-c:c,j:g.fy?g.ny-1-r:r});
   box.addEventListener("pointerdown",e=>{ if(e.button===2) return; box.focus({preventScroll:true}); const p=at(e); pts.set(e.pointerId,p); box.setPointerCapture(e.pointerId);
-    const st=mxSt(bid());
+    const st=mxSt(bid()), s=matOf(st.sid), g=box._g; if(!s||!g) return;
     if(pts.size===2){ const [a,b]=[...pts.values()]; pinch={d:Math.hypot(a.x-b.x,a.y-b.y),m:st.mag,c:{x:(a.x+b.x)/2,y:(a.y+b.y)/2}}; drag=null; return; }
-    const sel=e.shiftKey&&e.button===0&&!space; drag={x:p.x,y:p.y,cx:st.cx,cy:st.cy,moved:false,sel,pan:!sel}; e.preventDefault();
-    if(sel&&box._g){ const c=mxImgAt(box._g,p.x,p.y); if(c){ st.er=c.r; st.ec=c.c; st.isel=true; mxImgDraw(id); mxFoot(id); } } });
-  box.addEventListener("pointermove",e=>{ const p=at(e), st=mxSt(bid());
+    e.preventDefault(); const base={x:p.x,y:p.y,cx:st.cx,cy:st.cy,moved:false};
+    if(space||e.button===1||st.tool==="hand"){ drag=Object.assign(base,{k:"pan"}); return; }
+    if(st.draft){ drag=Object.assign(base,{k:"poly"}); return; }
+    const snap={r:st.r,c:st.c,er:st.er,ec:st.ec,roi:st.roi&&JSON.parse(JSON.stringify(st.roi)),d0:mxS2D(g,p.x,p.y)};
+    const h=!e.shiftKey&&mxHandles(g,st,s).find(q=>Math.hypot(q.x-p.x,q.y-p.y)<=6); if(h){ drag=Object.assign(base,{k:"h",h:h.k,snap}); return; }
+    if(!e.shiftKey&&st.roi&&mxOnRoi(g,st,s,p.x,p.y)){ drag=Object.assign(base,{k:"m",snap,a:dcell(g,p.x,p.y)}); return; }
+    if(e.shiftKey&&(st.tool==="rect"||st.tool==="oval")){ const c=dcell(g,p.x,p.y); st.er=c.r; st.ec=c.c; st.isel=true; drag=Object.assign(base,{k:"ext"}); mxImgDraw(id); mxFoot(id); return; }
+    drag=Object.assign(base,{k:st.tool==="line"?"newline":st.tool==="poly"?"poly":st.tool==="point"?"pt":"new",a:dcell(g,p.x,p.y),d0:mxS2D(g,p.x,p.y)}); });
+  box.addEventListener("pointermove",e=>{ const p=at(e), st=mxSt(bid()), s=matOf(st.sid), g=box._g;
     if(pts.has(e.pointerId)) pts.set(e.pointerId,p);
     if(pinch&&pts.size>=2){ const [a,b]=[...pts.values()], d=Math.hypot(a.x-b.x,a.y-b.y), c={x:(a.x+b.x)/2,y:(a.y+b.y)/2}; if(pinch.d>0&&d>0){ mxZoomTo(id,pinch.m*d/pinch.d,pinch.c.x,pinch.c.y); st.cx-=(c.x-pinch.c.x)/st.mag; st.cy-=(c.y-pinch.c.y)/(st.mag*mxAspect(matOf(st.sid))); pinch.c=c; pinch.m=st.mag; pinch.d=d; mxImgDraw(id); } return; }
-    if(drag&&(e.buttons&5)){ if(!drag.moved&&Math.hypot(p.x-drag.x,p.y-drag.y)>3) drag.moved=true; if(!drag.moved) return;
-      if(drag.pan){ box.classList.add("panning"); st.cx=drag.cx-(p.x-drag.x)/st.mag; st.cy=drag.cy-(p.y-drag.y)/(st.mag*mxAspect(matOf(st.sid))); mxImgDraw(id); }
-      else if(box._g){ const c=mxImgAt(box._g,Math.max(0,Math.min(box._g.W-1,p.x)),Math.max(0,Math.min(box._g.H-1,p.y)))||null; if(c&&(c.r!==st.er||c.c!==st.ec)){ st.er=c.r; st.ec=c.c; mxImgDraw(id); mxFoot(id); } } }
+    if(st.draft&&g&&!(e.buttons&1)){ st.draft.cur=mxS2D(g,p.x,p.y); mxImgDraw(id); }
+    if(drag&&(e.buttons&5)&&s&&g){ if(!drag.moved&&Math.hypot(p.x-drag.x,p.y-drag.y)>3) drag.moved=true; if(!drag.moved){ mxRead(id,p); return; }
+      const k=drag.k, c=dcell(g,p.x,p.y), d1=mxS2D(g,p.x,p.y);
+      if(k==="pan"){ box.classList.add("panning"); st.cx=drag.cx-(p.x-drag.x)/st.mag; st.cy=drag.cy-(p.y-drag.y)/(st.mag*mxAspect(s)); }
+      else if(k==="ext"){ st.er=c.r; st.ec=c.c; }
+      else if(k==="new"){ st.roi={kind:st.tool}; st.roiId=null; st.r=drag.a.r; st.c=drag.a.c; st.er=c.r; st.ec=c.c; st.isel=true; }
+      else if(k==="newline"){ st.roi={kind:"line",x0:drag.d0[0],y0:drag.d0[1],x1:d1[0],y1:d1[1]}; st.roiId=null; st.isel=true; }
+      else if(k==="h"){ const sn=drag.snap, r=sn.roi;
+        if(r.kind==="rect"||r.kind==="oval"){ const A=toI(g,sn.r,sn.c), B=toI(g,sn.er,sn.ec); let i0=Math.min(A.i,B.i), i1=Math.max(A.i,B.i), j0=Math.min(A.j,B.j), j1=Math.max(A.j,B.j);
+          // an edge goes to the cells' boundary nearest the pointer, a cell at least between them, as ImageJ's handles snap to pixels
+          const bi=Math.max(0,Math.min(g.nx,Math.round((p.x-g.tx)/g.mx))), bj=Math.max(0,Math.min(g.ny,Math.round((p.y-g.ty)/g.my)));
+          if(drag.h.includes("n")) j0=Math.min(bj,j1); if(drag.h.includes("s")) j1=Math.max(bj-1,j0); if(drag.h.includes("w")) i0=Math.min(bi,i1); if(drag.h.includes("e")) i1=Math.max(bi-1,i0);
+          const P0=toC(g,Math.min(i0,i1),Math.min(j0,j1)), P1=toC(g,Math.max(i0,i1),Math.max(j0,j1)); st.r=P0.r; st.c=P0.c; st.er=P1.r; st.ec=P1.c; }
+        else if(r.kind==="poly"){ const pts2=r.pts.map(q=>q.slice()); pts2[+drag.h.slice(1)]=d1; st.roi=Object.assign({},r,{pts:pts2}); }
+        else if(r.kind==="line") st.roi=Object.assign({},r,drag.h==="a"?{x0:d1[0],y0:d1[1]}:{x1:d1[0],y1:d1[1]}); }
+      else if(k==="m"){ const sn=drag.snap, r=sn.roi;
+        if(r.kind==="rect"||r.kind==="oval"){ Object.assign(st,{r:sn.r,c:sn.c,er:sn.er,ec:sn.ec,roi:r}); const di=c.i-drag.a.i, dj=c.j-drag.a.j; mxRoiShift(id,g.fy?-dj:dj,g.fx?-di:di); }
+        else { const dx=d1[0]-sn.d0[0], dy=d1[1]-sn.d0[1], mv=q=>[q[0]+dx,q[1]+dy]; st.roi=r.kind==="line"?Object.assign({},r,{x0:r.x0+dx,y0:r.y0+dy,x1:r.x1+dx,y1:r.y1+dy}):Object.assign({},r,{pts:r.pts.map(mv)}); } }
+      mxImgDraw(id); if(k!=="pan") mxFoot(id); }
     mxRead(id,p); });
-  const up=e=>{ pts.delete(e.pointerId); if(pts.size<2) pinch=null; box.classList.remove("panning"); const d=drag; drag=null; if(!d||d.moved||e.type==="pointercancel") return;
-    const st=mxSt(bid()), c=box._g&&mxImgAt(box._g,d.x,d.y); if(!c) return;
-    if(e.shiftKey){ st.er=c.r; st.ec=c.c; } else { st.r=st.er=c.r; st.c=st.ec=c.c; } st.isel=true; mxImgDraw(id); mxFoot(id); };
+  const up=e=>{ pts.delete(e.pointerId); if(pts.size<2) pinch=null; box.classList.remove("panning"); const d=drag; drag=null; if(!d||e.type==="pointercancel") return;
+    const st=mxSt(bid()), s=matOf(st.sid), g=box._g; if(!s||!g) return;
+    if(d.moved){ if(d.k==="new"||d.k==="newline"||d.k==="h"||d.k==="m") { box._sig=null; const rm=$(`#w-${id} .mxroi`); if(rm) rm._sig=null; mxRoiDraw(id); } return; }
+    if(d.k==="pan"||d.k==="h"||d.k==="m"||d.k==="ext") return;
+    const c=dcell(g,d.x,d.y), pt=mxS2D(g,d.x,d.y);
+    if(d.k==="poly"){ if(!st.draft){ st.draft={pts:[pt],cur:null}; st.roi=null; }
+      else { const f=mxD2S(g,...st.draft.pts[0]); if(st.draft.pts.length>=3&&Math.hypot(f.x-d.x,f.y-d.y)<=6){ mxPolyEnd(id); return; } const l=mxD2S(g,...st.draft.pts[st.draft.pts.length-1]); if(Math.hypot(l.x-d.x,l.y-d.y)>2) st.draft.pts.push(pt); }
+      mxImgDraw(id); return; }
+    if(d.k==="pt"){ const {X,Y}=matXYOf(s), q=[X[c.c],Y[c.r]]; st.roi=st.roi&&st.roi.kind==="point"?Object.assign({},st.roi,{pts:st.roi.pts.concat([q])}):{kind:"point",pts:[q]}; st.roiId=null; st.isel=true; mxImgDraw(id); mxRoiDraw(id); mxRead(id); return; }
+    // a click: the cell, and no shape
+    st.roi=null; st.roiId=null; st.r=st.er=c.r; st.c=st.ec=c.c; st.isel=true; mxImgDraw(id); mxFoot(id); mxRoiDraw(id); };
   box.addEventListener("pointerup",up); box.addEventListener("pointercancel",up);
   box.addEventListener("pointerleave",()=>{ if(!drag) mxRead(id,null); });
-  box.addEventListener("dblclick",e=>{ if(!e.shiftKey) mxZoomFit(id); });
+  box.addEventListener("dblclick",e=>{ const st=mxSt(bid()); if(st.draft){ mxPolyEnd(id); return; } if(!e.shiftKey&&(st.tool==="hand"||!st.roi)) mxZoomFit(id); });
   box.addEventListener("keyup",e=>{ if(e.key===" ") space=false; });
   box.addEventListener("keydown",e=>{ const st=mxSt(bid()), s=matOf(st.sid); if(!s) return; const k=e.key, ctl=e.ctrlKey||e.metaKey, p=box._pt;
     if(k===" "){ space=true; e.preventDefault(); return; }
@@ -25029,13 +25251,24 @@ function wireMxImg(el,id){ const box=el.querySelector(".mximg"), bid=()=>mxBid(i
     if(!ctl&&!e.altKey&&k==="0"){ e.preventDefault(); mxZoomFit(id); return; }
     if(!ctl&&!e.altKey&&(k==="c"||k==="C")){ e.preventDefault(); mxBcToggle(id); return; }
     const mv={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1]}[k];
-    if(mv){ e.preventDefault(); const g=box._g; let [dr,dc]=mv; if(g){ if(g.fy) dr=-dr; if(g.fx) dc=-dc; } st.isel=true; mxMove(id,[dr,dc],e.shiftKey,ctl); mxRead(id); return; }
-    if(k==="Escape"){ if(st.isel||st.er!==st.r||st.ec!==st.c){ e.preventDefault(); st.er=st.r; st.ec=st.c; st.isel=false; mxImgDraw(id); mxFoot(id); mxRead(id); } return; }
+    if(mv){ e.preventDefault(); const g=box._g; let [dr,dc]=mv; if(g){ if(g.fy) dr=-dr; if(g.fx) dc=-dc; }
+      if(st.roi&&!e.shiftKey){ mxRoiShift(id,dr,dc); mxImgReveal(id); mxImgDraw(id); mxFoot(id); return; }
+      st.isel=true; mxMove(id,[dr,dc],e.shiftKey,ctl); mxRead(id); return; }
+    if(st.draft&&(k==="Enter"||k==="Escape"||k==="Backspace")){ e.preventDefault(); if(k==="Enter") mxPolyEnd(id); else if(k==="Escape") st.draft=null; else { st.draft.pts.pop(); if(!st.draft.pts.length) st.draft=null; } mxImgDraw(id); return; }
+    if(k==="Escape"){ if(st.roi||st.isel||st.er!==st.r||st.ec!==st.c){ e.preventDefault(); st.er=st.r; st.ec=st.c; st.isel=false; st.roi=null; st.roiId=null; mxImgDraw(id); mxFoot(id); mxRead(id); mxRoiDraw(id); } return; }
+    if(!ctl&&!e.altKey&&(k==="m"||k==="M")){ e.preventDefault(); mxMeasure(id); return; }
+    if(!ctl&&!e.altKey&&(k==="k"||k==="K")){ e.preventDefault(); mxProfile(id); return; }
+    if(!ctl&&!e.altKey&&(k==="t"||k==="T")){ e.preventDefault(); mxRoiAdd(id); return; }
+    if(ctl&&(k==="a"||k==="A")){ e.preventDefault(); st.r=0; st.c=0; st.er=s.ny-1; st.ec=s.nx-1; st.roi={kind:"rect"}; st.roiId=null; st.isel=true; mxImgDraw(id); mxFoot(id); mxRoiDraw(id); return; }
     if(ctl&&(k==="c"||k==="C")){ e.preventDefault(); copyText(mxSelText(s,mxSel(st)),"The cells"); return; }
     if(k==="F2"){ e.preventDefault(); mxSetView(id,"cells"); mxEdBegin(id); return; } });
   box.addEventListener("contextmenu",e=>{ e.preventDefault(); const st=mxSt(bid()), s=matOf(st.sid); if(!s) return; const p=at(e), c=box._g&&mxImgAt(box._g,p.x,p.y), q=mxSel(st);
     if(c&&!(c.r>=q.r0&&c.r<=q.r1&&c.c>=q.c0&&c.c<=q.c1)){ st.r=st.er=c.r; st.c=st.ec=c.c; st.isel=true; mxImgDraw(id); mxFoot(id); }
     openMenu(pointerAnchor(e.clientX,e.clientY),[{label:"Zoom in",kbd:"+",run:()=>mxZoomStep(id,true,p)},{label:"Zoom out",kbd:"−",run:()=>mxZoomStep(id,false,p)},{label:"Fit",kbd:"0",run:()=>mxZoomFit(id)},{label:"100 %",run:()=>mxZoomTo(id,1,p.x,p.y)},"-",
+      {label:"Measure",kbd:"M",title:"ImageJ's Measure of the selection, kept with the book and measured with the others into its Results",enabled:!S.readOnly&&!!(st.roi||st.isel),run:()=>mxMeasure(id)},
+      {label:"Profile",kbd:"K",title:"The straight line's profile, plotted",enabled:!S.readOnly&&!!(st.roi&&st.roi.kind==="line"),run:()=>mxProfile(id)},
+      {label:"Keep the selection",kbd:"T",title:"Into the book's ROI Manager",enabled:!S.readOnly&&!!(st.roi||st.isel),run:()=>mxRoiAdd(id)},
+      {label:"Results on the image",checked:st.ov!==false,title:"What analyses of this matrix found (maxima, spots, profiles, regions), drawn over it in cyan",run:()=>{ st.ov=st.ov===false; mxImgDraw(id); }},"-",
       {label:"Copy the cells",kbd:"Ctrl+C",run:()=>copyText(mxSelText(s,mxSel(st)),"The cells")},{label:"Show the cell's value",kbd:"F2",title:"The Cells view at this cell",run:()=>{ mxSetView(id,"cells"); }},
       {label:"Crop to the selection…",enabled:!S.readOnly&&(q.r0!==q.r1||q.c0!==q.c1),run:()=>matCropDlg(s.id)},"-"].concat(matMenuItems(s.id)),{label:"Image"}); });
   new ResizeObserver(()=>{ if(winOpen(id)&&!box.hidden&&!box._rz) box._rz=requestAnimationFrame(()=>{ box._rz=0; mxImgDraw(id); mxImgBar(id); }); }).observe(box); }
@@ -25173,8 +25406,19 @@ function ijParsePts(t){ const out=[]; for(const ln of String(t||"").split(/[\n;]
     let q=ln.split(/\s+/); if(q.length!==2) q=ln.split(/\s*,\s*/); const v=q.map(x=>parseNum(x));
     if(q.length!==2||!v.every(Number.isFinite)){ out.bad=ln; continue; } out.push(v); } return out; }
 // The dialog's start: the matrix in front, and its window's selection as a rectangle when it is more than one cell.
+// The ROI Manager's Results: its settings (the matrix measured, single precision); its selections are the book's, from Measure.
+ANA_FORMS.ijrois={noGroup:true,
+  html(p){ const M=matAll(), sid=p.mat&&matOf(p.mat)?p.mat:(matFront()||(M[0]&&M[0].s.id)), n=Array.isArray(p.rois)?p.rois.length:0;
+    return `<div class="grid2"><label for="aRm">Matrix</label><select id="aRm">${M.map(q=>`<option value="${q.s.id}"${q.s.id===sid?" selected":""}>${esc(matName(q.s.id))}</option>`).join("")}</select>
+      <span></span><label class="chk tipd" title="Every value rounded to single precision first, as ImageJ's 32-bit image holds them"><input type="checkbox" id="aRs"${p.single?" checked":""}> Values as ImageJ holds them</label></div>
+      <p class="note">${n} selection${n===1?"":"s"} kept with the book; its ROI Manager's Measure measures them again.</p>`; },
+  read(v,p0){ return Object.assign({},p0||{},{mat:v.aRm,single:!!v.aRs}); },
+  inp(p,inp){ if(p.mat) inp.mat=p.mat; else delete inp.mat; }};
 function ijmStart(sid){ sid=sid||matFront(); const s=matOf(sid); if(!s) return {};
-  const st=mxStFor(sid), o=Object.assign({mat:sid,region:"all"},noiseStart(s)); if(st&&(st.r!==st.er||st.c!==st.ec)){ const X=matAxis(s.x,s.nx), Y=matAxis(s.y,s.ny), n7=v=>+(+v).toPrecision(12);
+  const st=mxStFor(sid), o=Object.assign({mat:sid,region:"all"},noiseStart(s)), rr=st&&st.roi?mxRoiNow(st,s):null;
+  if(rr&&rr.kind==="poly"){ o.region="poly"; o.pts=rr.pts.map(q=>[+(+q[0]).toPrecision(12),+(+q[1]).toPrecision(12)]); return o; }
+  if(rr&&rr.kind==="oval"){ const n7=v=>+(+v).toPrecision(12); Object.assign(o,{region:"oval",x0:n7(Math.min(rr.x0,rr.x1)),x1:n7(Math.max(rr.x0,rr.x1)),y0:n7(Math.min(rr.y0,rr.y1)),y1:n7(Math.max(rr.y0,rr.y1))}); return o; }
+  if(st&&(st.r!==st.er||st.c!==st.ec)){ const X=matAxis(s.x,s.nx), Y=matAxis(s.y,s.ny), n7=v=>+(+v).toPrecision(12);
     o.region="rect"; o.x0=n7(X[Math.min(st.c,st.ec)]); o.x1=n7(X[Math.max(st.c,st.ec)]); o.y0=n7(Y[Math.min(st.r,st.er)]); o.y1=n7(Y[Math.max(st.r,st.er)]); }
   return o; }
 // The report's Show the region on its map: the matrix's map (made if there is none) with the region drawn over it.
@@ -25193,6 +25437,7 @@ function ijxStart(sid){ sid=sid||matFront(); const s=matOf(sid); if(!s) return {
 // Profile's start: the window's selection corner to corner when it is more than one cell, else across the middle row.
 function ijpStart(sid){ sid=sid||matFront(); const s=matOf(sid); if(!s) return {}; const X=matAxis(s.x,s.nx), Y=matAxis(s.y,s.ny), st=mxStFor(sid), n7=v=>+(+v).toPrecision(12);
   const ns=Object.assign({fit:"none"},noiseStart(s));
+  if(st&&st.roi&&st.roi.kind==="line"){ const r=st.roi; return Object.assign({mat:sid,x0:n7(r.x0),y0:n7(r.y0),x1:n7(r.x1),y1:n7(r.y1)},ns); }
   if(st&&(st.r!==st.er||st.c!==st.ec)) return Object.assign({mat:sid,x0:n7(X[st.c]),y0:n7(Y[st.r]),x1:n7(X[st.ec]),y1:n7(Y[st.er])},ns);
   const r=Math.floor((s.ny-1)/2); return Object.assign({mat:sid,x0:n7(X[0]),y0:n7(Y[r]),x1:n7(X[s.nx-1]),y1:n7(Y[r])},ns); }
 // The matrix's map in front (made when there is none, or the one shown kept), for drawing a result over it.
@@ -33103,6 +33348,8 @@ ${DL([["Stack columns","The columns ticked one under another in a column of valu
 <h2>The matrix window</h2>
 <p>Each book has a window of its own, a document in the taskbar and the ${DA("explorer","Project Explorer")}, which shows a matrix as an <b>image</b> (one with nothing in it yet as cells); <b>Image</b> and <b>Cells</b> on its bar switch. The image is drawn as ImageJ draws one: each cell a block of the screen's pixels at the scan's true shape (square when X and Y have the same unit and step), X to the right and Y up, the window's size never stretching it (a larger window shows more of it, or the space around it). It zooms through ImageJ's magnifications, from 1/72 to 32: the wheel about the pointer, ${K("+")} and ${K("−")} (or the buttons), the magnification's list, ${K("0")}, Fit or a double click for the whole image (each cell a whole number of the screen's pixels where they are two or more), 100 % for a cell a pixel; two fingers on a touch screen. A drag moves it, kept in reach. The line above the image is ImageJ's (the size in the scan's units, the cells, the values' unit), and beside it the cell under the pointer: X, Y, the value, row and column. A click selects a cell, Shift a rectangle of them (the commands start from it), the arrows move it with Y up, ${K("F2")} types into it in the Cells view, ${K("Esc")} lets go. A tab is a sheet of the book, as ImageJ's channels: sheets of one size keep the zoom and the place.</p>
 <p>The image is shown as ImageJ shows a 32-bit image: each value scaled into 256 steps between the range shown (below it the table's first colour, above it its last) and coloured by a <b>lookup table</b>, the button beside Fit: ImageJ's own (Grays, Fire, Ice, Spectrum, 3-3-2 RGB, Red, Green, Blue, Cyan, Magenta, Yellow, Red/Green, HiLo, which marks the lowest step blue and the highest red) or Kurve's maps, and <em>Inverted</em> for its colours in the other order. <b>Contrast</b> (or ${K("C")}) opens ImageJ's Brightness and Contrast beside the image: the values' histogram with the range shown drawn over it, the table under it with the range's ends, and Minimum, Maximum, Brightness and Contrast as ImageJ's sliders (the image follows as one moves; letting go is one undo step). <em>Auto</em> is ImageJ's: each press leaves more of the brightest and darkest values out of the range, and after a few presses starts again; <em>Reset</em> the values' whole range; <em>Set…</em> two numbers (for every sheet of the book, if asked); <em>Enhance…</em> ImageJ's Enhance Contrast, the share of the values shown in the end colours (0.35 % to begin with). The table and range are kept with the matrix and undone with it, but are no change of its values (nothing in its record): a graph of the matrix uses them unless it has a colour map of its own, a TIFF saved for ImageJ carries the range as its display range, and Matrix › Save the image as PNG writes the image as shown, each cell a block of pixels, with a calibration bar beside it.</p>
+<p><b>Selections</b> are made as in ImageJ, with the tools on the image's bar: the Hand (to move the image; Space+drag or the middle button with any tool), Rectangle (ImageJ's first, chosen to begin with), Oval, Polygon (a click at each corner, a double click, ${K("Enter")} or a click on the first corner to finish, ${K("Backspace")} for the last corner), Straight line and Points (a click each). The selection is drawn in ImageJ's yellow with its handles: drag a handle to resize it (a rectangle's and an oval's edges go to the cells' boundaries), drag inside it to move it, and the arrows move it a cell; ${K("Esc")} lets go of it, ${K("Ctrl+A")} selects every cell. ImageJ's keys: ${K("M")} measures the selection, ${K("K")} plots a line's profile at once, ${K("T")} keeps it. Measure…, Profile… and the rest start from it.</p>
+<p>The <b>ROI Manager</b> (<em>Selections</em> on the bar) keeps selections with the book, as ImageJ's: a click on one shows it on the image, a double click renames it; Add, Update, Delete, Delete all; <em>Show all</em> draws every one numbered in cyan. <em>Measure</em> (or ${K("M")}) puts a row a selection into the book's <em>Results</em> sheet, ImageJ's columns over a rectangle's, an oval's or a polygon's cells, a line's length, angle and its profile's statistics, each point's value; the Results follow the matrix as any analysis does. What the analyses of a matrix found is drawn over its image in cyan (Find maxima's maxima, Spots' FWHM ellipses, a profile's line, Measure's region); the image's right-click has <em>Results on the image</em> to hide them.</p>
 <p>The Cells view is the grid with X along the top, Y down the side and row 1 at the top, a tab for each matrix of the book (+ adds one, a double click renames, a right-click has the rest), the cell and its value above, and below the size, whether its values are original data or computed, and the N, mean, minimum and maximum of the cells selected. It is used as the worksheet is: click, drag, Shift and the arrows select; typing, F2 or a double click edits; Delete clears; Ctrl+C and Ctrl+V copy and paste tab-separated blocks. Only what is in view is drawn, so a million cells scroll as easily as a hundred.</p>
 <h2>Original data or computed</h2>
 <p>Values typed, read from columns or a picture, or transformed in place are <strong>original data</strong>: each change is one step to undo and an entry in the matrix's own record with the check code of its values (the SHA-256 of its rows written as the worksheet's original data is). <em>Set values…</em> makes a matrix <strong>computed</strong>: a formula of <code>x</code> and <code>y</code> (each cell's X and Y), <code>i</code> and <code>j</code> (its row and column from 1), the project's ${DA("formulas#consts","constants")} and other matrices of the same size by name (<code>Base * 2 + i</code>). It is worked out again whenever what it reads changes, and says why when it cannot be (a matrix it reads gone or of another size). <em>Keep the values only</em> drops the formula and keeps the values as original data. A matrix's name is a formula's name: a letter, then letters, digits and _.</p>
