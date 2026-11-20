@@ -906,6 +906,15 @@ them all at once is slice 2.
 - **Out is one gesture, as in is.** The Zoom tool zooms in by a click and out by Alt+click, as ImageJ's magnifier; − and + and 0
   on the keys; and a map is never zoomed out past the scan, so zooming out ends at the whole of it.
 
+### 2026-11-20: What an image is shown in (IMAGE_SPEC I.3)
+
+- **ImageJ's names, ImageJ's numbers.** The tables are called what ImageJ calls them and Auto behaves as ImageJ's (each press
+  saturating more, then starting again), so someone who has worked in ImageJ finds the same image at the same press.
+- **Contrast beside the image, not in a dialog.** The panel stays open while the image is looked at, the image follows a slider as it
+  moves, and letting go is the one undo step: adjusting contrast is looking, and the record of it should be one line.
+- **A view, kept.** The table and range belong to the matrix (a colleague opening the project sees it the same), are undone with it,
+  and never touch its values or its record; the graph, the TIFF and a PNG follow them, so a figure shows what was looked at.
+
 ### 2026-11-20: A matrix is an image first (IMAGE_SPEC I.2)
 
 - **Looked at before it is read.** A scan opens as an image in its own window, and the grid of numbers is one click away (Cells);

@@ -93,6 +93,24 @@
  "regShift.r": {
   "tol": 1e-12
  },
+ "ijLut.tables": {
+  "tol": 0
+ },
+ "ijHist.bins": {
+  "tol": 0
+ },
+ "ij8.index": {
+  "tol": 0
+ },
+ "ijAuto.range": {
+  "tol": 0
+ },
+ "ijEnhance.range": {
+  "tol": 0
+ },
+ "ijBC.sliders": {
+  "tol": 0
+ },
  "reshape": {
   "tol": 1e-13
  },

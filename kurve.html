@@ -580,6 +580,26 @@ body.dwin-page{margin:0;height:100vh;overflow:hidden;background:var(--panel);col
 .mxzoom .mxmag{min-width:5.2em;justify-content:center;font-variant-numeric:tabular-nums}
 .mxzoom b{font-weight:600;font-size:15px;line-height:1}
 .mxwin:not(.mximgv) .mxzoom,.mxwin.mximgv .mxaddr,.mxwin.mximgv .mxval{display:none}
+.mxiw{flex:1;min-height:0;display:flex}
+.mxiw[hidden]{display:none}
+.mxiw .mximg{flex:1;min-width:0}
+.mxlutb .lsw{display:inline-block;width:28px;height:10px;border-radius:2px;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 30%,transparent);vertical-align:middle}
+.mxlutb .lnm{max-width:7em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mxinfo .mxdsp{white-space:nowrap}
+.mxbc{flex:0 0 252px;width:252px;border-left:1px solid var(--rule-2);background:var(--panel);padding:var(--sp-3);overflow:auto;display:flex;flex-direction:column;gap:var(--sp-2);font-size:var(--fs-tab)}
+.mxbc[hidden]{display:none}
+.mxbc>*{flex:0 0 auto}
+.mxbc .bch{display:flex;align-items:center;justify-content:space-between;font-size:var(--fs-body)}
+.mxbc .bchist{width:100%;height:96px;display:block;background:var(--panel-2);border:1px solid var(--rule-2);border-radius:var(--r-s)}
+.mxbc .bcbars{fill:var(--ink-2)}
+.mxbc .bcline{stroke:var(--accent,#2563eb);stroke-width:1.5;fill:none;vector-effect:non-scaling-stroke}
+.mxbc .bclut{height:12px;border-radius:2px;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 30%,transparent)}
+.mxbc .bcends{display:flex;justify-content:space-between;font-family:var(--mono);color:var(--ink)}
+.mxbc .bcs{display:grid;grid-template-columns:5.6em 1fr;align-items:center;gap:var(--sp-2);color:var(--ink-2)}
+.mxbc .bcbtns{display:flex;flex-wrap:wrap;gap:var(--sp-1)}
+.mxbc .bclt{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2)}
+.mxbc .bclt select{max-width:100%}
+.mi .mgrad{display:inline-block;width:56px;height:10px;border-radius:2px;margin-left:var(--sp-3);flex:0 0 auto;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 25%,transparent)}
 .mxgrid:focus-visible{box-shadow:inset 0 0 0 2px var(--focus)}
 .mxview{position:sticky;left:0;top:0;width:0;height:0;overflow:visible;z-index:1}
 .mxsp{pointer-events:none}
@@ -2195,6 +2215,8 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
   .win.gwin .win-b{height:52vh;min-height:300px;flex:0 0 auto;overflow:hidden}
   .win.figw .win-b{height:84vh;min-height:420px}
   .win.mxwin .win-b{height:72vh;min-height:360px;flex:0 0 auto;overflow:hidden}
+  .mxiw{flex-direction:column}
+  .mxbc{flex:0 0 auto;width:auto;max-height:46%;border-left:0;border-top:1px solid var(--rule-2)}
   .win.gwin.haslive:not(.figw) .win-b{height:68vh;min-height:360px}
   #w-sheet .win-b{max-height:70vh}
   #w-help .win-b{height:80vh;overflow:hidden;flex:0 0 auto}
@@ -10542,7 +10564,7 @@ function matTiff(m,o){ o=o||{}; const nx=m.nx, ny=m.ny;
   const G=ijGeom(m.x,m.y,nx,ny); if(G.fail) return G; const {AX,AY,rx,ry,pw,ph,xo,yo}=G;
   const {lo,hi,n}=matRange(m.z), U=t=>t==null?"":String(t), xu=U(o.xunit), yu=U(o.yunit), zu=U(o.zunit);
   const lines=["ImageJ=1.54f"]; if(xu) lines.push("unit="+ijEsc(xu)); if(yu!==xu&&yu) lines.push("yunit="+ijEsc(yu)); if(zu) lines.push("vunit="+ijEsc(zu));
-  if(n){ lines.push("min="+lo,"max="+hi); } if(xo!==0) lines.push("xorigin="+xo); lines.push("yorigin="+yo,"inverty=true"); if(o.name) lines.push("name="+ijEsc(o.name));
+  if(n){ lines.push("min="+(Number.isFinite(o.min)?o.min:lo),"max="+(Number.isFinite(o.max)?o.max:hi)); } if(xo!==0) lines.push("xorigin="+xo); lines.push("yorigin="+yo,"inverty=true"); if(o.name) lines.push("name="+ijEsc(o.name));
   const desc=lines.join("\n")+"\n", dl=desc.length+1;
   const tags=[[256,4,1,nx],[257,4,1,ny],[258,3,1,32],[259,3,1,1],[262,3,1,1],[270,2,dl,"d"],[273,4,1,"p"],[277,3,1,1],[278,4,1,ny],[279,4,1,nx*ny*4],[282,5,1,"x"],[283,5,1,"y"],[296,3,1,1],[339,3,1,3]];
   const ifd=8, ifdLen=2+tags.length*12+4, dAt=ifd+ifdLen, rAt=dAt+dl+(dl&1), pAt=(rAt+16+3)&~3, size=pAt+nx*ny*4;
@@ -11016,6 +11038,67 @@ const IJ_ZOOM=[1/72,1/48,1/32,1/24,1/16,1/12,1/8,1/6,1/4,1/3,1/2,0.75,1,1.5,2,3,
 function ijZoomUp(m){ let n=32; for(let i=IJ_ZOOM.length-1;i>=0;i--){ if(IJ_ZOOM[i]>m) n=IJ_ZOOM[i]; else break; } return n; }
 function ijZoomDown(m){ let n=IJ_ZOOM[0]; for(let i=0;i<IJ_ZOOM.length;i++){ if(IJ_ZOOM[i]<m) n=IJ_ZOOM[i]; else break; } return n; }
 function ij8(v,min,max){ let d=Math.fround(v)-min; if(d<0) d=0; const t=d*(255/(max-min))+0.5; return t>=255?255:t>=1?Math.floor(t):0; }
+/* ImageJ's lookup tables (IMAGE_SPEC I.3; LutLoader of 1.54f): fire and ice its 32 entries spread over 256 by its interpolate (each
+   channel (1 − f)·a + f·b, truncated), spectrum Java's Color.HSBtoRGB(i/255, 1, 1) in floats, 3-3-2 RGB by its bits, the primaries
+   and their mixtures by its colour bits (red 4, green 2, blue 1), red/green with Java's byte casts, and HiLo (grays, 0 blue and 255
+   red). ijLut(key) is a Uint8Array of 768, r, g, b an entry, or null for a key it does not know. */
+const IJ_LUTS=[["grays","Grays"],["fire","Fire"],["ice","Ice"],["spectrum","Spectrum"],["332","3-3-2 RGB"],["red","Red"],["green","Green"],["blue","Blue"],["cyan","Cyan"],["magenta","Magenta"],["yellow","Yellow"],["redgreen","Red/Green"],["hilo","HiLo"]];
+const IJ_FIRE=[[0,0,1,25,49,73,98,122,146,162,173,184,195,207,217,229,240,252,255,255,255,255,255,255,255,255,255,255,255,255,255,255],
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,14,35,57,79,101,117,133,147,161,175,190,205,219,234,248,255,255,255,255],
+  [0,61,96,130,165,192,220,227,210,181,151,122,93,64,35,5,0,0,0,0,0,0,0,0,0,0,0,35,98,160,223,255]];
+const IJ_ICE=[[0,0,0,0,0,0,19,29,50,48,79,112,134,158,186,201,217,229,242,250,250,250,250,251,250,250,250,250,251,251,243,230],
+  [156,165,176,184,190,196,193,184,171,162,146,125,107,93,81,87,92,97,95,93,93,90,85,69,64,54,47,35,19,0,4,0],
+  [140,147,158,166,170,176,209,220,234,225,236,246,250,251,250,250,245,230,230,222,202,180,163,142,123,114,106,94,84,64,26,27]];
+// Java's Color.HSBtoRGB(h, 1, 1), its float arithmetic step by step.
+function ijHSB(h){ const f=Math.fround, hh=f(f(h-Math.floor(h))*6), fr=f(hh-Math.floor(hh)), c=v=>Math.trunc(f(f(v*255)+0.5)), B=c(1), P=c(0), Q=c(f(1-fr)), T=c(f(1-f(1-fr)));
+  switch(Math.trunc(hh)){ case 0: return [B,T,P]; case 1: return [Q,B,P]; case 2: return [P,B,T]; case 3: return [P,Q,B]; case 4: return [T,P,B]; default: return [B,P,Q]; } }
+function ijLut(k){ const L=new Uint8Array(768), set=(i,r,g,b)=>{ L[3*i]=r; L[3*i+1]=g; L[3*i+2]=b; }, pc={red:4,green:2,blue:1,cyan:3,magenta:5,yellow:6}[k];
+  if(k==="fire"||k==="ice"){ const T=k==="fire"?IJ_FIRE:IJ_ICE, n=T[0].length, sc=n/256;
+    for(let i=0;i<256;i++){ const i1=Math.trunc(i*sc), i2=i1+1===n?n-1:i1+1, fr=i*sc-i1; set(i,...[0,1,2].map(c=>Math.trunc((1-fr)*T[c][i1]+fr*T[c][i2])&255)); } return L; }
+  if(k==="grays"||k==="hilo"){ for(let i=0;i<256;i++) set(i,i,i,i); if(k==="hilo"){ set(0,0,0,255); set(255,255,0,0); } return L; }
+  if(k==="spectrum"){ for(let i=0;i<256;i++) set(i,...ijHSB(Math.fround(i/255))); return L; }
+  if(k==="332"){ for(let i=0;i<256;i++) set(i,i&0xe0,(i<<3)&0xe0,(i<<6)&0xc0); return L; }
+  if(pc){ for(let i=0;i<256;i++) set(i,pc&4?i:0,pc&2?i:0,pc&1?i:0); return L; }
+  if(k==="redgreen"){ for(let i=0;i<256;i++) set(i,i<128?(i*2)&255:0,i<128?0:(i*2)&255,0); return L; }
+  return null; }
+// Image › Lookup Tables › Invert LUT: the entries in the other order.
+function ijLutInv(L){ const R=new Uint8Array(768); for(let i=0;i<256;i++){ const j=255-i; R[3*i]=L[3*j]; R[3*i+1]=L[3*j+1]; R[3*i+2]=L[3*j+2]; } return R; }
+/* A 32-bit image's statistics for its display (FloatStatistics): the values as floats, an empty cell or a value past single precision
+   left out; min, max and 256 bins from min to max, a value's bin (int)(256/(max − min)·(v − min)), max in the last; {n, min, max,
+   binSize, counts}. */
+function ijHist(z){ let lo=Infinity, hi=-Infinity, n=0; const F=new Float64Array(z.length);
+  for(let i=0;i<z.length;i++){ const v=z[i]; if(v==null) continue; const f=Math.fround(v); if(!Number.isFinite(f)) continue; F[n++]=f; if(f<lo) lo=f; if(f>hi) hi=f; }
+  const counts=new Int32Array(256); if(!n) return {n:0,min:0,max:0,binSize:0,counts};
+  const sc=256/(hi-lo); for(let i=0;i<n;i++){ let k=Math.trunc(sc*(F[i]-lo)); if(!(k>=0)) k=0; if(k>=256) k=255; counts[k]++; }
+  return {n,min:lo,max:hi,binSize:(hi-lo)/256,counts}; }
+/* Brightness and Contrast's Auto (ContrastAdjuster.autoAdjust): a press's divisor (ijAutoStep: 5000 at the first press, halved, in
+   whole numbers, at each next, and 5000 again once below 10); the first and the last bin holding more than n/divisor values, a bin past
+   a tenth of them counted as none; the range from the first bin's lower edge to the last's lower edge, the values' range when they
+   meet; null (Reset) when none. ijEnhance (ContrastEnhancer, Process › Enhance Contrast): the bins where the count from each end
+   passes n·saturated/200; null (no change) unless the last is past the first. */
+const ijAutoStep=a=>a<10?5000:Math.trunc(a/2);
+function ijAuto(H,a){ if(!H.n) return null; const limit=Math.trunc(H.n/10), th=Math.trunc(H.n/a), C=H.counts; let i=-1, found=false;
+  do { i++; let c=C[i]; if(c>limit) c=0; found=c>th; } while(!found&&i<255); const h0=i; i=256;
+  do { i--; let c=C[i]; if(c>limit) c=0; found=c>th; } while(!found&&i>0); const h1=i;
+  if(h1<h0) return null; let min=H.min+h0*H.binSize, max=H.min+h1*H.binSize; if(min===max){ min=H.min; max=H.max; } return {min,max}; }
+function ijEnhance(H,sat){ if(!H.n) return null; const th=sat>0?Math.trunc(H.n*sat/200):0, C=H.counts; let i=-1, cnt=0, found=false;
+  do { i++; cnt+=C[i]; found=cnt>th; } while(!found&&i<255); const h0=i; i=256; cnt=0;
+  do { i--; cnt+=C[i]; found=cnt>th; } while(!found&&i>0); const h1=i;
+  return h1>h0?{min:H.min+h0*H.binSize,max:H.min+h1*H.binSize}:null; }
+/* Brightness and Contrast's four sliders (ContrastAdjuster): their range from the values' range dmin…dmax (whole numbers past 640
+   halved, past 1280 a fifth, kept within 256…1024, larger by 1.6666 when a wide range is shown narrowly), each slider's place for a
+   display range, and the range a slider gives (minimum, maximum, brightness keeping the width, contrast keeping the middle). */
+function ijBCRange(dmin,dmax,min,max){ const vr=Math.trunc(dmax-dmin); let r=vr; if(r>640&&r<1280) r=Math.trunc(r/2); else if(r>=1280) r=Math.trunc(r/5);
+  if(r<256) r=256; if(r>1024) r=1024; if(vr>=1280&&vr!==0&&(max-min)/vr<0.25) r=Math.trunc(r*1.6666); return r; }
+function ijBCPlaces(dmin,dmax,min,max,sr){ const mid=sr/2; let c=((dmax-dmin)/(max-min))*mid; if(c>mid) c=sr-((max-min)/(dmax-dmin))*mid;
+  const down=v=>Math.trunc(((v<dmin?dmin:v>dmax?dmax:v)-dmin)*(sr-1)/(dmax-dmin));
+  return {min:down(min),max:down(max),brightness:Math.trunc((1-(min+(max-min)/2-dmin)/(dmax-dmin))*sr),contrast:Math.trunc(c)}; }
+function ijBCSet(k,v,dmin,dmax,min,max,sr){
+  if(k==="min"){ min=dmin+v*(dmax-dmin)/(sr-1); if(max>dmax) max=dmax; if(min>max) max=min; }
+  else if(k==="max"){ max=dmin+v*(dmax-dmin)/(sr-1); if(min<dmin) min=dmin; if(max<min) min=max; }
+  else if(k==="brightness"){ const c=dmin+(dmax-dmin)*((sr-v)/sr), w=max-min; min=c-w/2; max=c+w/2; }
+  else if(k==="contrast"){ const c=min+(max-min)/2, mid=sr/2, sl=v<=mid?v/mid:mid/(sr-v); if(sl>0){ min=c-(0.5*(dmax-dmin))/sl; max=c+(0.5*(dmax-dmin))/sl; } }
+  return {min,max}; }
 /* ==MAT:END== */
 /* ==SIG:START== Signal processing and mathematics (ux/spec/SIGNAL_SPEC.md, wave 5), pure: the transform of any
    length, windows and spectra (5.1); the later slices' filters, correlation, envelopes, wavelets, interpolation and
@@ -15288,7 +15371,7 @@ function plotCfg(){
   const g=pv?null:graphOf(id), on=g?g.cols:pv?null:[]; if(on) o.hidden=o.hidden.concat(yCols().filter(c=>!on.includes(c.id)).map(c=>c.id));
   o.gcols=g?g.cols:null;
   // A graph of a matrix draws it as a map, whatever the layout says.
-  if(o.mat){ if(matOf(o.mat,p)) o.layout="heat"; else delete o.mat; }
+  if(o.mat){ const ms=matOf(o.mat,p); if(ms){ o.layout="heat"; if(src.cmap==null&&ms.disp){ const d=matDispOf(ms); o.cmap=(d.inv?"~":"")+d.lut; o.matRng=[d.lo,d.hi]; } } else delete o.mat; }
   o.annos=((pv?src.annos:(p&&p.annos))||[]).filter(a=>annoInGraph(a,id));
   // A panel of a figure: its shared axes' inner numbers and titles give way, the
   // panels sharing an axis show the same range of it, it carries its letter, and
@@ -16063,11 +16146,19 @@ const CMAPS={
   magma:["#000004","#180F3E","#451077","#721F81","#9F2F7F","#CD4071","#F1605D","#FD9567","#FEC98D","#FCFDBF"],
   gray:["#0A0A0A","#FAFAFA"],
   coolwarm:["#3B4CC0","#6F92F3","#AAC7FD","#DDDDDD","#F7B89C","#E7745B","#B40426"]};
-function cmapAt(name,t){ const c=CMAPS[name]||CMAPS.viridis, u=Math.max(0,Math.min(1,t))*(c.length-1), i=Math.min(c.length-2,Math.floor(u)), f=u-i;
+// ImageJ's tables as colour maps of their own ("ij:<table>", 256 stops each), so a graph's map, its colour bar and a matrix's image
+// can all use them; a name led by "~" is the map reversed (a table inverted).
+IJ_LUTS.forEach(([k])=>{ const L=ijLut(k), a=[]; for(let i=0;i<256;i++) a.push("#"+[L[3*i],L[3*i+1],L[3*i+2]].map(v=>v.toString(16).padStart(2,"0")).join("")); CMAPS["ij:"+k]=a; });
+const CMSTOPS={};
+function cmapStops(name){ name=name||"viridis"; const inv=name[0]==="~", k=inv?name.slice(1):name, base=CMAPS[k]||CMAPS.viridis; return inv?(CMSTOPS[k]||(CMSTOPS[k]=base.slice().reverse())):base; }
+const cmapOk=name=>typeof name==="string"&&!!CMAPS[name.replace(/^~/,"")];
+// A CSS gradient of a colour map (16 of its colours), for a menu's or a panel's strip.
+const cmapCss=name=>{ const st=cmapStops(name), n=st.length; return "linear-gradient(90deg,"+Array.from({length:16},(_,i)=>st[Math.round(i*(n-1)/15)]).join(",")+")"; };
+function cmapAt(name,t){ const c=cmapStops(name), u=Math.max(0,Math.min(1,t))*(c.length-1), i=Math.min(c.length-2,Math.floor(u)), f=u-i;
   const h=s=>[1,3,5].map(k=>parseInt(s.slice(k,k+2),16)), a=h(c[i]), b=h(c[i+1]); return a.map((v,k)=>Math.round(v+(b[k]-v)*f)); }
 // The colour map at 1024 places: a heat map asked it once a pixel, parsing its colours each time.
 const CMLUT={};
-function cmapLut(name){ const k=CMAPS[name]?name:"viridis"; let L=CMLUT[k]; if(!L){ L=new Uint8Array(3*1024); for(let i=0;i<1024;i++){ const c=cmapAt(k,i/1023); L[3*i]=c[0]; L[3*i+1]=c[1]; L[3*i+2]=c[2]; } CMLUT[k]=L; } return L; }
+function cmapLut(name){ const k=cmapOk(name)?name:"viridis"; let L=CMLUT[k]; if(!L){ L=new Uint8Array(3*1024); for(let i=0;i<1024;i++){ const c=cmapAt(k,i/1023); L[3*i]=c[0]; L[3*i+1]=c[1]; L[3*i+2]=c[2]; } CMLUT[k]=L; } return L; }
 // A heat map's grid and picture, kept for the curves, view and size they were made for (three of them:
 // the graph in front and a picture or two; a grid of 2000 rows across a screen is tens of megabytes),
 // so a save that changes none of them does not make them again.
@@ -16121,7 +16212,7 @@ function heatImage(rows,cols,val,lo,hi,cmap,logZ){
    series is the spectrum measured nearest it, on a graph of its own. */
 const MAP_KINDS=[["image","An image"],["filled","Filled contours"],["lines","Contour lines"],["both","An image with contour lines"]];
 const MAP_Y=[["index","Each column in its order"],["series","The series variable, at real spacing"]];
-const CMAP_LIST=[["viridis","Viridis"],["magma","Magma"],["coolwarm","Cool to warm"],["gray","Grey"]];
+const CMAP_LIST=[["viridis","Viridis"],["magma","Magma"],["coolwarm","Cool to warm"],["gray","Grey"]].concat(IJ_LUTS.map(([k,l])=>["ij:"+k,l+" (ImageJ)"]));
 /* The rows of a map: each spectrum with where it sits up the side (its index,
    or its series value, sorted), and the side's range. Null in series mode
    when fewer than two spectra have distinct values: the map then falls back
@@ -17492,7 +17583,7 @@ function buildPlot(W,H,pal,colEx,opt){
   /* A matrix: each pixel the cell whose span holds it (an image), or the value between the cells' centres,
      bilinear (filled contours and lines); worked out at the screen's pixels (1200 a side at most, 2400 in an export). */
   const matMapSvg=()=>{ const kind=cfg.mapKind||"image", {X:MX,Y:MY}=matXYOf(MAT), Z=MAT.z, nx=MAT.nx, ny=MAT.ny, rg=matRangeOf(Z);
-    let lo=rg.n?rg.lo:0, hi=rg.n?rg.hi:1, out="";
+    let lo=rg.n?rg.lo:0, hi=rg.n?rg.hi:1, out=""; if(cfg.matRng){ lo=cfg.matRng[0]; hi=cfg.matRng[1]; }
     if(logY&&!(lo>0)){ let m=Infinity; for(let i=0;i<Z.length;i++){ const z=Z[i]; if(z!=null&&z>0&&z<m) m=z; } lo=m<Infinity?m:1; if(!(hi>lo)) hi=lo*10; }
     if(cfg.ax.y2&&cfg.ax.y2.min!=null&&cfg.ax.y2.min!=="") lo=+cfg.ax.y2.min; if(cfg.ax.y2&&cfg.ax.y2.max!=null&&cfg.ax.y2.max!=="") hi=+cfg.ax.y2.max;
     if(!(hi>lo)){ const m=lo; lo=logY?m/2:m-0.5; hi=logY?m*2:m+0.5; }
@@ -17777,7 +17868,7 @@ function buildPlot(W,H,pal,colEx,opt){
   if(heat){ const rows=mapS?[]:[act].concat(oser.map(o=>o.c));
     rows.forEach((c,k)=>{ const y=Y(k); if(rows.length<=24||k%Math.ceil(rows.length/24)===0) s+=`<text x="${L-7}" y="${(y+fs*0.35).toFixed(1)}" text-anchor="end"${tAt(Object.assign({},TK,{size:Math.min(TK.size,Math.max(8,mh/rows.length*0.8))}),pal.ink)}>${esc(specName(c).slice(0,14))}</text>`; });
     drawn.yW=Math.max(drawn.yW,ylw);
-    const cbx=L+pw+18, z=geo.heatZ||[0,1], stops=CMAPS[cfg.cmap]||CMAPS.viridis;
+    const cbx=L+pw+18, z=geo.heatZ||[0,1], stops=cmapStops(cfg.cmap);
     s+=`<defs><linearGradient id="cbar" x1="0" y1="1" x2="0" y2="0">${stops.map((c,i)=>`<stop offset="${(i/(stops.length-1)).toFixed(3)}" stop-color="${c}"/>`).join("")}</linearGradient></defs><rect x="${cbx}" y="${T}" width="14" height="${mh}" fill="url(#cbar)" stroke="${fcol}" stroke-width="0.8"/>`;
     const zt=axisTicks(z[0],z[1],mh/(50*tkDen),cfg.ax.y2||{},logY), Z=mkY(z[0],z[1],T,mh,logY);
     let zw=0; zt.ticks.forEach(t=>{ const y=Z(t.v); if(y<T-0.5||y>T+mh+0.5) return; const zs=Object.assign({},TK,{size:TK.size*0.85}); s+=`<path d="M${cbx+14},${y}h4" stroke="${fcol}"/>`+tLab(t.lab,cbx+21,y+TK.size*0.3,"start",zs,pal.ink); zw=Math.max(zw,labW(t.lab,zs)); });
@@ -17787,7 +17878,7 @@ function buildPlot(W,H,pal,colEx,opt){
     // The contour levels across the bar.
     if((geo.mapLevs||[]).length) s+=`<path d="${geo.mapLevs.map(l=>{ const y=Z(l); return y>=T&&y<=T+mh?`M${cbx},${y.toFixed(1)}h14`:""; }).join("")}" stroke="${pal.bg}" stroke-width="1.2"/><path d="${geo.mapLevs.map(l=>{ const y=Z(l); return y>=T&&y<=T+mh?`M${cbx},${y.toFixed(1)}h14`:""; }).join("")}" stroke="${pal.ink}" stroke-width="0.5" stroke-opacity="0.7"/>`; }
   // The colour bar of symbols coloured by a column.
-  if(zb){ const bx=L+pw+zbX+2, Z=mkY(zb.lo,zb.hi,T,mh,false), stops=CMAPS[cfg.cmap]||CMAPS.viridis, zs=Object.assign({},TK,{size:TK.size*0.85}); let wmax=0;
+  if(zb){ const bx=L+pw+zbX+2, Z=mkY(zb.lo,zb.hi,T,mh,false), stops=cmapStops(cfg.cmap), zs=Object.assign({},TK,{size:TK.size*0.85}); let wmax=0;
     s+=`<defs><linearGradient id="zbar" x1="0" y1="1" x2="0" y2="0">${stops.map((c,i)=>`<stop offset="${(i/(stops.length-1)).toFixed(3)}" stop-color="${c}"/>`).join("")}</linearGradient></defs><rect x="${f1(bx)}" y="${T}" width="12" height="${mh}" fill="url(#zbar)" stroke="${fcol}" stroke-width="0.8"/>`;
     zbT.ticks.forEach(t=>{ const y=Z(t.v); if(y<T-0.5||y>T+mh+0.5) return; s+=`<path d="M${f1(bx+12)},${f1(y)}h4" stroke="${fcol}"/>`+tLab(t.lab,bx+19,y+zs.size*0.3,"start",zs,pal.ink); wmax=Math.max(wmax,labW(t.lab,zs)); });
     s+=richText(zb.name,{tf:`translate(${f1(bx+19+wmax+6+TS.axis.size*0.8)},${f1(T+mh/2)}) rotate(90)`,anchor:"middle",st:TS.axis,fill:pal.ink}); }
@@ -24335,6 +24426,7 @@ function matClean(p){ if(p.mats==null) return; if(!Array.isArray(p.mats)){ delet
       const o={id:s.id,name:nm,nx:s.nx,ny:s.ny,x:ax(s.x,s.nx),y:ax(s.y,s.ny),z};
       ["xname","xunit","yname","yunit","zname","zunit"].forEach(k=>{ if(typeof s[k]==="string"&&s[k]) o[k]=str(s[k]); });
       if(typeof s.ana==="string"&&s.ana) o.ana=s.ana;
+      if(s.disp&&typeof s.disp==="object"){ const d=dispClean(s.disp); if(d) o.disp=d; }   /* how it is shown (IMAGE_SPEC I.3) */
       if(s.meta&&typeof s.meta==="object"&&!Array.isArray(s.meta)){ const m={}; Object.keys(s.meta).slice(0,200).forEach(k=>{ const v=s.meta[k]; if(typeof v==="string"||typeof v==="number") m[String(k).slice(0,200)]=String(v).slice(0,400); }); if(Object.keys(m).length) o.meta=m; }   /* the file's header fields (QUDI_SPEC decision 4) */
       if(s.fx&&typeof s.fx==="object"&&typeof s.fx.src==="string"&&s.fx.refs&&typeof s.fx.refs==="object"){ o.fx={src:s.fx.src.slice(0,4000),refs:Object.assign(Object.create(null),...Object.entries(s.fx.refs).filter(([k,v])=>typeof v==="string").map(([k,v])=>({[k]:v})))}; if(typeof s.fx.err==="string") o.fx.err=s.fx.err; }
       if(s.raw&&typeof s.raw==="object"&&Array.isArray(s.raw.hist)) o.raw={fp:typeof s.raw.fp==="string"?s.raw.fp:"",hist:s.raw.hist.filter(e=>e&&typeof e==="object"&&typeof e.text==="string").slice(-60)};
@@ -24674,6 +24766,78 @@ const mxNum=v=>v==null?"":fmt(v,6);
 function matFront(){ const ids=matWinIds().filter(id=>winOpen(id)).sort((a,b)=>winState(b).z-winState(a).z); const id=ids[0]||matWinIds()[0]; return id?mxSt(mxBid(id)).sid:null; }
 function matOpen(bid,sid){ syncMatWins(); const id=mxWinId(bid); if(!WINS[id]) return; if(sid){ const st=mxSt(bid); if(st.sid!==sid){ st.sid=sid; Object.assign(st,{r:0,c:0,er:0,ec:0,edit:null}); mxScrollHome(id); } }
   openWin(id); focusWin(id); renderMatWin(id); const g=mxFocusEl(id); if(g) g.focus({preventScroll:true}); }
+/* ---- Brightness and contrast (IMAGE_SPEC I.3): a panel beside the image, as ImageJ's B&C window: the histogram of the values
+   (256 bins from their min to max, the tallest bar a third above the next when it towers), the range shown drawn over it as ImageJ's
+   line, the table under it with the range's ends; Minimum, Maximum, Brightness and Contrast as ImageJ's sliders (ijBCPlaces,
+   ijBCSet), the image following as they move and one undo step when let go; Auto (each press saturating more, ImageJ's), Reset,
+   Set… and Enhance contrast…; the table and Inverted. ---- */
+function mxBcDraw(id){ const el=$("#w-"+id), box=el&&el.querySelector(".mxbc"); if(!box||box.hidden) return; const st=mxSt(mxBid(id)), s=matOf(st.sid); if(!s) return;
+  const d=matDispOf(s), H=d.H, dmin=H.min, dmax=H.n&&H.max>H.min?H.max:H.min+1, sr=ijBCRange(dmin,dmax,d.lo,d.hi), pl=ijBCPlaces(dmin,dmax,d.lo,d.hi,sr), ro=S.readOnly||!H.n;
+  const sig=[s.id,objId(s.z),d.lut,d.inv,d.lo,d.hi,ro].join("|");
+  if(box._sig===sig){ return; } const keep=box.contains(document.activeElement)?document.activeElement.dataset.bck:null; box._sig=sig;
+  const W=240, Hh=96, C=H.counts; let m1=0, m2=0; for(let i=0;i<256;i++){ const c=C[i]; if(c>m1){ m2=m1; m1=c; } else if(c>m2) m2=c; } const top=m1>1.5*m2&&m2>0?1.5*m2:m1||1;
+  let bars=""; for(let i=0;i<256;i++){ const h=Math.min(Hh,C[i]/top*Hh); if(h>0) bars+=`M${(i*W/256).toFixed(2)},${Hh}v${(-h).toFixed(2)}h${(W/256).toFixed(2)}v${h.toFixed(2)}z`; }
+  const xs=v=>(v-dmin)/(dmax-dmin)*W, x0=xs(d.lo), x1=xs(d.hi);
+  const svg=`<svg class="bchist" viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none" aria-hidden="true"><path d="${bars}" class="bcbars"/><path d="M${Math.max(-W,Math.min(2*W,x0)).toFixed(1)},${Hh}L${Math.max(-W,Math.min(2*W,x1)).toFixed(1)},0" class="bcline"/></svg>`;
+  const sl=(k,lab,v,tip)=>`<label class="bcs" title="${esc(tip)}"><span>${lab}</span><input type="range" data-bck="${k}" min="0" max="${k==="min"||k==="max"?sr-1:sr}" step="1" value="${v}"${ro?" disabled":""}></label>`;
+  box.innerHTML=`<div class="bch"><b>Brightness and contrast</b><button class="btn icon sm" data-bcx title="Close (C)" aria-label="Close">${ICON("x","sm")}</button></div>
+    ${svg}<div class="bclut" style="background:${cmapCss((d.inv?"~":"")+d.lut)}" title="${esc(lutName(d.lut))}"></div>
+    <div class="bcends"><span title="The lowest value shown, the table's first colour">${esc(fmt(d.lo,5))}</span><span title="The highest value shown, the table's last colour">${esc(fmt(d.hi,5))}</span></div>
+    ${sl("min","Minimum",pl.min,"The lowest value shown: below it, the table's first colour")}${sl("max","Maximum",pl.max,"The highest value shown: above it, the table's last colour")}
+    ${sl("brightness","Brightness",pl.brightness,"The range shown moved down or up, its width kept")}${sl("contrast","Contrast",pl.contrast,"The range shown narrowed or widened about its middle")}
+    <div class="bcbtns"><button class="btn sm" data-bca="auto" title="ImageJ's Auto: each press saturates more of the values${ro?"":""}"${ro?" disabled":""}>Auto</button><button class="btn sm" data-bca="reset" title="The values' whole range"${ro?" disabled":""}>Reset</button><button class="btn sm" data-bca="set" title="The range typed, as ImageJ's Set"${ro?" disabled":""}>Set…</button><button class="btn sm" data-bca="enh" title="Process › Enhance Contrast: a share of the values saturated"${ro?" disabled":""}>Enhance…</button></div>
+    <div class="bclt"><label for="bcL_${id}">Table</label><select id="bcL_${id}" data-bclut${ro?" disabled":""}>${CMAP_LIST.map(([k,l])=>`<option value="${k}"${k===d.lut?" selected":""}>${esc(l)}</option>`).join("")}</select><label class="chk"><input type="checkbox" data-bcinv${d.inv?" checked":""}${ro?" disabled":""}> Inverted</label></div>`;
+  if(keep){ const q=box.querySelector(`[data-bck="${keep}"]`); if(q) q.focus({preventScroll:true}); }
+  box.querySelectorAll('input[type="range"]').forEach(paintRange); }
+function mxBcWire(el,id){ const box=el.querySelector(".mxbc"), sid=()=>mxSt(mxBid(id)).sid;
+  const at=(k,v)=>{ const s=matOf(sid()); if(!s) return null; const d=matDispOf(s), H=d.H, dmin=H.min, dmax=H.n&&H.max>H.min?H.max:H.min+1, sr=ijBCRange(dmin,dmax,d.lo,d.hi); return ijBCSet(k,v,dmin,dmax,d.lo,d.hi,sr); };
+  box.addEventListener("input",e=>{ const k=e.target.dataset.bck; if(!k) return; const r=at(k,+e.target.value), s=matOf(sid()); if(!r||!s) return;
+    S.dispPv={sid:s.id,d:Object.assign({},s.disp||{},{lo:r.min,hi:r.max})}; const st=mxSt(mxBid(id)); paintRange(e.target);
+    mxImgDraw(id); mxImgBar(id); const en=box.querySelectorAll(".bcends span"); if(en.length){ en[0].textContent=fmt(r.min,5); en[1].textContent=fmt(r.max,5); } });
+  box.addEventListener("change",e=>{ const s=matOf(sid()); if(!s) return;
+    if(e.target.dataset.bck){ const pv=S.dispPv&&S.dispPv.sid===s.id?S.dispPv.d:null; if(pv) matDispSet(s.id,{lo:pv.lo,hi:pv.hi},{burst:true}); return; }
+    if(e.target.matches("[data-bclut]")) matDispSet(s.id,{lut:e.target.value});
+    else if(e.target.matches("[data-bcinv]")) matDispSet(s.id,{inv:e.target.checked}); });
+  box.addEventListener("click",e=>{ const b=e.target.closest("[data-bca],[data-bcx]"); if(!b) return; if(b.dataset.bcx!=null){ mxBcToggle(id,false); return; } mxBcAct(id,b.dataset.bca); }); }
+function mxBcOpen(sid){ const b=matBookOf(sid); if(!b) return; matOpen(b.id,sid); const id=mxWinId(b.id); if(mxSt(b.id).view!=="img") mxSetView(id,"img"); mxBcToggle(id,true); }
+function mxBcToggle(id,on){ const st=mxSt(mxBid(id)); st.bc=on==null?!st.bc:!!on; renderMatWin(id); if(st.bc){ const f=$(`#w-${id} .mxbc [data-bca="auto"]`); if(f&&!f.disabled) f.focus({preventScroll:true}); } else { const f=mxFocusEl(id); if(f) f.focus({preventScroll:true}); } }
+// Auto, Reset, Set… and Enhance… of the matrix shown (from the panel, the menus and the keys).
+async function mxBcAct(id,a,sid){ sid=sid||mxSt(mxBid(id)).sid; const s=matOf(sid); if(!s||S.readOnly) return; const d=matDispOf(s), H=d.H; if(!H.n){ toast("The matrix has no values to show."); return; }
+  if(a==="auto"){ S.ijAuto=S.ijAuto||{}; const k=S.ijAuto[sid]=ijAutoStep(S.ijAuto[sid]||0), r=ijAuto(H,k);
+    if(!r){ S.ijAuto[sid]=0; matDispSet(sid,{lo:null,hi:null},{log:`showed the matrix ${s.name} over its values' range (Auto)`}); return; }
+    matDispSet(sid,{lo:r.min,hi:r.max},{log:`showed the matrix ${s.name} from ${fmt(r.min,6)} to ${fmt(r.max,6)} (Auto: from the first to the last bin holding more than ${Math.trunc(H.n/k)} values)`}); return; }
+  if(a==="reset"){ if(S.ijAuto) S.ijAuto[sid]=0; matDispSet(sid,{lo:null,hi:null},{log:`showed the matrix ${s.name} over its values' range`}); return; }
+  if(a==="set"){ const r=await formDlg({title:"Set the range shown",ok:"Set",focus:"#bsLo",html:`<div class="frow"><label for="bsLo">Minimum</label><input id="bsLo" type="text" value="${esc(String(d.lo))}" spellcheck="false"></div><div class="frow"><label for="bsHi">Maximum</label><input id="bsHi" type="text" value="${esc(String(d.hi))}" spellcheck="false"></div>`+(matBookOf(sid).sheets.length>1?`<label class="chk"><input type="checkbox" id="bsAll"> Every sheet of the book</label>`:"")+`<p class="note" id="bsMsg"></p>`,
+      valid:v=>{ const lo=parseNum(v.bsLo), hi=parseNum(v.bsHi), ok=Number.isFinite(lo)&&Number.isFinite(hi)&&lo<=hi; $("#bsMsg").textContent=ok?"":"Two numbers, the minimum not above the maximum."; return ok; }});
+    if(!r) return; r.lo=parseNum(r.bsLo); r.hi=parseNum(r.bsHi); r.all=!!r.bsAll;
+    if(r.all){ const b=matBookOf(sid); pushUndo("changing how "+b.name+" is shown"); let mats=matBooks(); b.sheets.forEach(q=>{ mats=matsWith(q.id,o=>Object.assign({},o,{disp:dispClean(Object.assign({},o.disp||{},{lo:r.lo,hi:r.hi}))}),{mats}); });
+      save({mats},`showed every sheet of ${b.name} from ${fmt(r.lo,6)} to ${fmt(r.hi,6)}`); return; }
+    matDispSet(sid,{lo:r.lo,hi:r.hi}); return; }
+  if(a==="enh"){ const v0=await formDlg({title:"Enhance contrast",ok:"Enhance",focus:"#beSat",html:`<div class="frow"><label for="beSat" title="The share of the values shown in the table's end colours, half at each end">Saturated (%)</label><input id="beSat" type="text" value="${S.ijSat!=null?S.ijSat:0.35}" spellcheck="false"></div><p class="note" id="beMsg"></p>`,
+      valid:v=>{ const x=parseNum(v.beSat), ok=Number.isFinite(x)&&x>=0&&x<100; $("#beMsg").textContent=ok?"":"A share from 0 to under 100 %."; return ok; }});
+    if(!v0) return; const r=parseNum(v0.beSat); S.ijSat=r; const q=ijEnhance(H,r);
+    if(!q){ toast(`Saturating ${r} % changes nothing here.`); return; }
+    matDispSet(sid,{lo:q.min,hi:q.max},{log:`showed the matrix ${s.name} from ${fmt(q.min,6)} to ${fmt(q.max,6)} (Enhance contrast, ${r} % saturated)`}); } }
+/* The image as a picture (IMAGE_SPEC I.3): each cell k × k pixels of its colour (k the whole number that makes the longer side about
+   800 pixels, 1 to 16; the cells' true shape when X and Y share a unit), an empty cell clear, and a calibration bar beside it: the table
+   from bottom to top with the range's ends and the values' unit, as ImageJ's Calibration Bar. */
+async function mxSavePng(sid){ const s=matOf(sid); if(!s) return; const d=matDispOf(s), im=mxImage(s,d), ry=mxAspect(s), k=Math.max(1,Math.min(16,Math.round(800/Math.max(s.nx,s.ny*ry))));
+  const w=s.nx*k, h=Math.max(1,Math.round(s.ny*k*ry)), lab=[fmt(d.hi,5),fmt(d.lo,5)], u=s.zunit||"", fs=13, font=`${fs}px ${getComputedStyle(document.body).fontFamily}`;
+  const c0=document.createElement("canvas").getContext("2d"); c0.font=font; const tw=Math.ceil(Math.max(...lab.concat([u]).map(t=>c0.measureText(t).width)));
+  const bw=18, gap=12, W=w+gap+bw+6+tw+4, H=Math.max(h,120), cv=document.createElement("canvas"); cv.width=W; cv.height=H; const g=cv.getContext("2d");
+  g.imageSmoothingEnabled=false; g.drawImage(im.cv,0,Math.round((H-h)/2),w,h);
+  const L=mxLut(d.lut,d.inv), bh=Math.min(h,256*Math.max(1,Math.floor(h/256)))||h, by=Math.round((H-bh)/2), bx=w+gap;
+  for(let i=0;i<256;i++){ g.fillStyle=`rgb(${L[3*i]},${L[3*i+1]},${L[3*i+2]})`; const y0=by+bh-(i+1)*bh/256; g.fillRect(bx,Math.floor(y0),bw,Math.ceil(bh/256)+1); }
+  g.strokeStyle="#000"; g.lineWidth=1; g.strokeRect(bx+0.5,by+0.5,bw-1,bh-1); g.fillStyle="#000"; g.font=font; g.textBaseline="top"; g.fillText(lab[0],bx+bw+6,by); g.textBaseline="bottom"; g.fillText(lab[1],bx+bw+6,by+bh);
+  if(u){ g.textBaseline="middle"; g.fillText(u,bx+bw+6,by+bh/2); }
+  const blob=await new Promise(r=>cv.toBlob(r,"image/png")); if(!blob){ toast("The picture could not be made."); return; }
+  const b=matBookOf(sid), ok=await saveFile(safeName(b&&b.sheets.length>1?`${b.name} ${s.name}`:(b?b.name:s.name),".png"),blob,"image/png"); if(ok===false) return;
+  toast(`Saved the image: ${s.nx} × ${s.ny} cells at ${k} pixel${k>1?"s":""} a cell, in ${lutName(d.lut)}${d.inv?" inverted":""} from ${fmt(d.lo,5)} to ${fmt(d.hi,5)}${u?" "+u:""}, with its calibration bar.`); }
+// The tables, for the bar's button and the Matrix menu.
+function mxLutItems(sid){ const s=matOf(sid); if(!s) return []; const d=matDispOf(s), ro=S.readOnly;
+  return [{group:"ImageJ's"}].concat(CMAP_LIST.filter(q=>/^ij:/.test(q[0])).map(([k,l])=>({label:lutName(k),radio:true,checked:d.lut===k,enabled:!ro,grad:cmapCss(k),run:()=>matDispSet(sid,{lut:k})})),
+    [{group:"Kurve's"}],CMAP_LIST.filter(q=>!/^ij:/.test(q[0])).map(([k,l])=>({label:l,radio:true,checked:d.lut===k,enabled:!ro,grad:cmapCss(k),run:()=>matDispSet(sid,{lut:k})})),
+    ["-",{label:"Inverted",checked:d.inv,enabled:!ro,title:"The table's colours in the other order (ImageJ's Invert LUT)",run:()=>matDispSet(sid,{inv:!d.inv})}]); }
 const mxFocusEl=id=>{ const el=$("#w-"+id); return el?el.querySelector(mxSt(mxBid(id)).view==="cells"?".mxgrid":".mximg"):null; };
 function syncMatWins(){ const books=matBooks(), want=new Set(books.map(b=>mxWinId(b.id)));
   Object.keys(WINS).forEach(k=>{ if(WINS[k].mx&&!want.has(k)){ const el=$("#w-"+k); if(el) el.remove(); delete WINS[k]; } });
@@ -24682,9 +24846,9 @@ function syncMatWins(){ const books=matBooks(), want=new Set(books.map(b=>mxWinI
     if(!WINS[id]){ WINS[id]={title:b.name,icon:"grid",def:[0.06+(i%6)*0.03,0.05+(i%6)*0.04,0.52,0.62],open:false,mx:b.id};
       const prev=[...document.querySelectorAll(".win.mxwin,.win.wswin")].pop()||$("#w-sheet");
       prev.insertAdjacentHTML("afterend",`<section class="win mxwin" id="w-${id}" data-win="${id}" aria-label="${esc(b.name)}"><header class="win-h">${ICON("grid","sm")}<h2 class="win-t">${esc(b.name)}</h2><span class="win-sub"></span><span class="sp"></span></header><div class="win-b mx-b">
-        <div class="mxbar"><div class="seg mini mxview-sw" role="group" aria-label="View"><button data-mxv="img" aria-pressed="true" title="The matrix as an image, each cell a pixel at its true shape">Image</button><button data-mxv="cells" aria-pressed="false" title="The matrix as cells, to read and type values">Cells</button></div><span class="mxzoom"><button class="btn icon sm" data-mxz="out" title="Zoom out (−)" aria-label="Zoom out"><b aria-hidden="true">−</b></button><button class="btn sm mxmag" data-mxz="menu" aria-haspopup="menu" title="The magnification: ImageJ's levels, Fit and 100 %"></button><button class="btn icon sm" data-mxz="in" title="Zoom in (+)" aria-label="Zoom in">${ICON("plus","sm")}</button><button class="btn sm" data-mxz="fit" title="The whole image, as large as the window allows (0, or a double-click)">Fit</button></span><span class="mxaddr" title="The cell: its row and column"></span><input class="mxval" type="text" spellcheck="false" aria-label="The cell's value" title="The cell's value: type a number and press Enter"><span class="sp"></span><button class="btn sm" data-mxmenu aria-haspopup="menu" title="What can be done to this matrix">Matrix ${ICON("chev","sm")}</button><button class="btn sm" data-mxplot aria-haspopup="menu" title="Plot this matrix on a graph of its own">${ICON("chart","sm")}Plot</button></div>
-        <div class="mxinfo" hidden><span class="mxdim"></span><span class="mxread" aria-live="off"></span></div>
-        <div class="mximg" tabindex="0" role="img" hidden><canvas></canvas></div>
+        <div class="mxbar"><div class="seg mini mxview-sw" role="group" aria-label="View"><button data-mxv="img" aria-pressed="true" title="The matrix as an image, each cell a pixel at its true shape">Image</button><button data-mxv="cells" aria-pressed="false" title="The matrix as cells, to read and type values">Cells</button></div><span class="mxzoom"><button class="btn icon sm" data-mxz="out" title="Zoom out (−)" aria-label="Zoom out"><b aria-hidden="true">−</b></button><button class="btn sm mxmag" data-mxz="menu" aria-haspopup="menu" title="The magnification: ImageJ's levels, Fit and 100 %"></button><button class="btn icon sm" data-mxz="in" title="Zoom in (+)" aria-label="Zoom in">${ICON("plus","sm")}</button><button class="btn sm" data-mxz="fit" title="The whole image, as large as the window allows (0, or a double-click)">Fit</button><button class="btn sm mxlutb" data-mxlut aria-haspopup="menu" title="The lookup table: the colours the values are shown in"><span class="lsw" aria-hidden="true"></span><span class="lnm"></span>${ICON("chev","sm")}</button><button class="btn sm" data-mxbc aria-pressed="false" title="Brightness and contrast: the range of values the table spans (C)">Contrast</button></span><span class="mxaddr" title="The cell: its row and column"></span><input class="mxval" type="text" spellcheck="false" aria-label="The cell's value" title="The cell's value: type a number and press Enter"><span class="sp"></span><button class="btn sm" data-mxmenu aria-haspopup="menu" title="What can be done to this matrix">Matrix ${ICON("chev","sm")}</button><button class="btn sm" data-mxplot aria-haspopup="menu" title="Plot this matrix on a graph of its own">${ICON("chart","sm")}Plot</button></div>
+        <div class="mxinfo" hidden><span class="mxdim"></span><span class="mxdsp"></span><span class="mxread" aria-live="off"></span></div>
+        <div class="mxiw" hidden><div class="mximg" tabindex="0" role="img"><canvas></canvas></div><aside class="mxbc" hidden aria-label="Brightness and contrast"></aside></div>
         <div class="mxgrid" tabindex="0" role="grid" aria-label="The matrix's values"><div class="mxview"></div><div class="mxsp"></div></div>
         <div class="wstabs mxtabs" role="tablist" aria-label="Matrix sheets"></div>
         <div class="mxfoot"><span class="mxsize"></span><span class="mxstate"></span><span class="mxsel"></span></div></div></section>`);
@@ -24698,9 +24862,10 @@ function renderMatWin(id){ const el=$("#w-"+id), bid=mxBid(id), b=matBooks().fin
   if(tabs._k!==tk){ tabs._k=tk; tabs.innerHTML=b.sheets.map(q=>`<button class="wstab" role="tab" aria-selected="${q.id===st.sid}" tabindex="${q.id===st.sid?0:-1}" data-mxs="${q.id}" title="${esc(q.name)}: ${q.ny} × ${q.nx}${q.fx?`, = ${esc(q.fx.src)}`:""} (double-click to rename)">${esc(q.name)}</button>`).join("")+`<button class="btn icon sm wstnew" data-mxnew title="A new matrix sheet in ${esc(b.name)}" aria-label="A new matrix sheet"${S.readOnly?" disabled":""}>${ICON("plus","sm")}</button>`; }
   if(!st.view) st.view=matRangeOf(s.z).n?"img":"cells";   // an image, unless there is nothing yet to see
   const img=st.view==="img", ib=el.querySelector(".mximg"), gr=el.querySelector(".mxgrid");
-  ib.hidden=!img; el.querySelector(".mxinfo").hidden=!img; gr.hidden=img; el.classList.toggle("mximgv",img);
+  ib.closest(".mxiw").hidden=!img; el.querySelector(".mxinfo").hidden=!img; gr.hidden=img; el.classList.toggle("mximgv",img);
+  const bc=el.querySelector(".mxbc"); bc.hidden=!(img&&st.bc);
   el.querySelectorAll("[data-mxv]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mxv===st.view)));
-  if(img){ mxImgDraw(id); mxImgBar(id); } else { mxDraw(id); mxBar(id); } mxFoot(id); }
+  if(img){ mxImgDraw(id); mxImgBar(id); mxBcDraw(id); } else { mxDraw(id); mxBar(id); } mxFoot(id); }
 function mxDraw(id){ const el=$("#w-"+id), grid=el&&el.querySelector(".mxgrid"); if(!grid) return; const st=mxSt(mxBid(id)), s=matOf(st.sid); const view=grid.querySelector(".mxview"), sp=grid.querySelector(".mxsp");
   if(!s){ view.innerHTML=""; return; }
   sp.style.width=(MX_SW+s.nx*MX_CW)+"px"; sp.style.height=(MX_RH*(s.ny+2))+"px";
@@ -24741,9 +24906,32 @@ function mxShow(id){ if(mxSt(mxBid(id)).view==="img"){ mxImgReveal(id); mxImgDra
    screen's pixels when they are two or more) and 100 % (a cell a pixel of the page); dragged to pan, the image kept in reach
    (centred while it is smaller than the window, else covering it). A click selects a cell, Shift a rectangle of them. ---- */
 function mxAspect(s){ if((s.xunit||"")!==(s.yunit||"")) return 1; const e=matExtent(s), r=((e.y1-e.y0)/s.ny)/((e.x1-e.x0)/s.nx); return Number.isFinite(r)&&r>0?Math.max(1/64,Math.min(64,r)):1; }
-// What the image shows: ImageJ's grays over the values' range (the range as floats, as ImageJ finds it).
-function mxDisp(s){ const R=matRangeOf(s.z), lo=R.n?Math.fround(R.lo):0, hi=R.n?Math.fround(R.hi):1; return {lut:"grays",lo,hi,inv:false}; }
-function mxLut(name,inv){ const L=new Uint8Array(768); for(let i=0;i<256;i++){ const v=inv?255-i:i; L[3*i]=L[3*i+1]=L[3*i+2]=v; } return L; }
+/* A matrix's display (IMAGE_SPEC I.3, decision 5): the sheet's disp {lut (a colour map's key: ImageJ's "ij:<table>" or Kurve's),
+   inv, lo, hi (the range shown; without them the values' range as floats, as ImageJ resets it)}: a view, undone with the matrix, never
+   in its check code or record. matDispOf resolves it (S.dispPv, {sid, d}, while a slider of Brightness and Contrast moves);
+   matDispSet writes it, one undo step a burst. */
+function dispClean(d){ if(!d||typeof d!=="object") return null; const o={lut:cmapOk(d.lut)&&d.lut[0]!=="~"?d.lut:"ij:grays"}; if(d.inv===true) o.inv=true;
+  if(Number.isFinite(d.lo)&&Number.isFinite(d.hi)&&d.lo<=d.hi){ o.lo=d.lo; o.hi=d.hi; } return o; }
+const IJHM=new WeakMap();
+function ijHistOf(s){ let h=IJHM.get(s.z); if(!h){ h=ijHist(s.z); IJHM.set(s.z,h); } return h; }
+function matDispOf(s){ const d=(S.dispPv&&S.dispPv.sid===s.id?S.dispPv.d:s.disp)||{}, H=ijHistOf(s), auto=!(Number.isFinite(d.lo)&&Number.isFinite(d.hi));
+  return {lut:cmapOk(d.lut)?d.lut:"ij:grays",inv:!!d.inv,lo:auto?(H.n?H.min:0):d.lo,hi:auto?(H.n?H.max:1):d.hi,auto,H}; }
+const mxDisp=s=>matDispOf(s);
+const lutName=k=>{ const a=CMAP_LIST.find(q=>q[0]===k); return a?a[1].replace(/ \(ImageJ\)$/,""):k; };
+function matDispSet(sid,d,o){ o=o||{}; const s=matOf(sid); if(!s||S.readOnly) return false; S.dispPv=null;
+  const nd=dispClean(Object.assign({},s.disp||{},d)), was=dispClean(s.disp||{}); if(JSON.stringify(nd)===JSON.stringify(was)){ mxDispRedraw(sid); return false; }
+  const label="changing how "+s.name+" is shown"; if(o.burst) kbBurst("disp:"+sid,label); else pushUndo(label);
+  save({mats:matsWith(sid,q=>Object.assign({},q,{disp:nd}))},o.log||`showed the matrix ${s.name} ${dispText(nd,s)}`); return true; }
+// "in Fire, 700 to 25 500 c/s", "inverted", "over its values' range"
+function dispText(d,s){ const r=matDispOf(Object.assign({},s,{disp:d}));
+  return `in ${lutName(r.lut)}${r.inv?" inverted":""}, ${r.auto?"over its values' range":`from ${fmt(r.lo,6)} to ${fmt(r.hi,6)}${s.zunit?" "+s.zunit:""}`}`; }
+// The image (and the panel, the info line) drawn again for a preview, without saving.
+function mxDispRedraw(sid){ matWinIds().forEach(id=>{ if(mxSt(mxBid(id)).sid===sid&&winOpen(id)){ mxImgDraw(id); mxImgBar(id); mxBcDraw(id); } }); }
+// The 256 entries of a table, r, g, b each: ImageJ's own (ijLut), else Kurve's map at 256 places; reversed when inverted.
+const MXLUT={};
+function mxLut(k,inv){ const key=k+(inv?"~":""); if(MXLUT[key]) return MXLUT[key]; let L=/^ij:/.test(k)?ijLut(k.slice(3)):null;
+  if(!L){ L=new Uint8Array(768); for(let i=0;i<256;i++){ const c=cmapAt(k,i/255); L[3*i]=c[0]; L[3*i+1]=c[1]; L[3*i+2]=c[2]; } }
+  return MXLUT[key]=inv?ijLutInv(L):L; }
 // The image of a sheet at its display, one pixel a cell (an empty cell clear), kept with its values.
 const MXIMG=new WeakMap();
 function mxImage(s,d){ const k=[s.nx,s.ny,JSON.stringify([s.x,s.y]),d.lut,d.lo,d.hi,d.inv].join("|"); let o=MXIMG.get(s.z); if(o&&o.k===k) return o;
@@ -24758,7 +24946,7 @@ function mxClamp(st,s,W,H){ const mx=st.mag, my=st.mag*mxAspect(s);
 // Where a cell is drawn (its rectangle in the box), and which cell is under a point of the box.
 function mxCellRect(g,r,c){ const i=g.fx?g.nx-1-c:c, j=g.fy?g.ny-1-r:r; return {x:g.tx+i*g.mx,y:g.ty+j*g.my,w:g.mx,h:g.my}; }
 function mxImgAt(g,px,py){ const i=Math.floor((px-g.tx)/g.mx), j=Math.floor((py-g.ty)/g.my); if(i<0||j<0||i>=g.nx||j>=g.ny) return null; return {c:g.fx?g.nx-1-i:i,r:g.fy?g.ny-1-j:j}; }
-function mxImgDraw(id){ const el=$("#w-"+id), box=el&&el.querySelector(".mximg"); if(!box||box.hidden) return; const st=mxSt(mxBid(id)), s=matOf(st.sid), cv=box.querySelector("canvas"); if(!s||!cv) return;
+function mxImgDraw(id){ const el=$("#w-"+id), box=el&&el.querySelector(".mximg"); if(!box||box.closest(".mxiw").hidden) return; const st=mxSt(mxBid(id)), s=matOf(st.sid), cv=box.querySelector("canvas"); if(!s||!cv) return;
   const W=box.clientWidth, H=box.clientHeight; if(W<4||H<4) return; const dpr=window.devicePixelRatio||1, ry=mxAspect(s), cw=Math.round(W*dpr), ch=Math.round(H*dpr);
   if(cv.width!==cw||cv.height!==ch){ cv.width=cw; cv.height=ch; cv.style.width=W+"px"; cv.style.height=H+"px"; }
   const key=s.nx+"x"+s.ny+"|"+ry; if(st.mag==null||st.imk!==key){ mxFit(st,s,W,H); st.imk=key; }
@@ -24777,8 +24965,12 @@ function mxDimText(s){ const e=matExtent(s), w=e.x1-e.x0, h=e.y1-e.y0, f=v=>{ co
   const xu=s.xunit||"", yu=s.yunit||"", n=`(${s.nx} × ${s.ny})`;
   const size=!xu&&!yu?"":xu===yu?`${f(w)} × ${f(h)} ${xu} `:`${f(w)} ${xu} × ${f(h)} ${yu} `.replace(/  +/g," ");
   return `${size}${size?n:`${s.nx} × ${s.ny} cells`}; 64-bit${s.zunit?`, ${s.zunit}`:""}`; }
+// The display beside it: the table and the range shown.
+function mxDispLine(s){ const d=matDispOf(s); return `${lutName(d.lut)}${d.inv?" inverted":""} · ${fmt(d.lo,5)} – ${fmt(d.hi,5)}${s.zunit?" "+s.zunit:""}${d.auto?"":" (set)"}`; }
 function mxImgBar(id){ const el=$("#w-"+id); if(!el) return; const st=mxSt(mxBid(id)), s=matOf(st.sid); if(!s) return;
-  el.querySelector(".mxmag").textContent=st.mag==null?"Fit":mxMagText(st.mag); el.querySelector(".mxdim").textContent=mxDimText(s); }
+  el.querySelector(".mxmag").textContent=st.mag==null?"Fit":mxMagText(st.mag); el.querySelector(".mxdim").textContent=mxDimText(s);
+  const d=matDispOf(s), lb=el.querySelector("[data-mxlut]"); lb.querySelector(".lsw").style.background=cmapCss((d.inv?"~":"")+d.lut); lb.querySelector(".lnm").textContent=lutName(d.lut)+(d.inv?" inv.":"");
+  el.querySelector(".mxdsp").textContent=mxDispLine(s); el.querySelector("[data-mxbc]").setAttribute("aria-pressed",String(!!st.bc)); }
 // The readout: the cell under the pointer (or the one selected), as ImageJ's status bar gives it.
 function mxRead(id,pt){ const el=$("#w-"+id), box=el&&el.querySelector(".mximg"), out=el&&el.querySelector(".mxread"); if(!out||!box._g) return; const st=mxSt(mxBid(id)), s=matOf(st.sid); if(!s) return;
   if(pt!==undefined) box._pt=pt; const p=box._pt, at=p?mxImgAt(box._g,p.x,p.y):st.isel?{r:st.r,c:st.c}:null;
@@ -24802,6 +24994,9 @@ function mxMagItems(id){ const st=mxSt(mxBid(id)), m=st.mag;
 function wireMxImg(el,id){ const box=el.querySelector(".mximg"), bid=()=>mxBid(id), pts=new Map(); let drag=null, acc=0, accT=0, pinch=null, space=false;
   const at=e=>{ const r=box.getBoundingClientRect(); return {x:e.clientX-r.left,y:e.clientY-r.top}; };
   el.querySelectorAll("[data-mxv]").forEach(b=>b.addEventListener("click",()=>mxSetView(id,b.dataset.mxv)));
+  mxBcWire(el,id);
+  el.querySelector("[data-mxlut]").addEventListener("click",e=>{ e.stopPropagation(); toggleMenu(e.currentTarget,()=>mxLutItems(mxSt(bid()).sid),{label:"Lookup table",focus:"checked"}); });
+  el.querySelector("[data-mxbc]").addEventListener("click",e=>{ e.stopPropagation(); mxBcToggle(id); });
   el.querySelector(".mxzoom").addEventListener("click",e=>{ const b=e.target.closest("[data-mxz]"); if(!b) return; const k=b.dataset.mxz;
     if(k==="menu") toggleMenu(b,()=>mxMagItems(id),{label:"Magnification",focus:"checked"}); else if(k==="fit") mxZoomFit(id); else mxZoomStep(id,k==="in"); });
   box.addEventListener("wheel",e=>{ e.preventDefault(); const st=mxSt(bid()); if(st.mag==null) return; const p=at(e);
@@ -24832,6 +25027,7 @@ function wireMxImg(el,id){ const box=el.querySelector(".mximg"), bid=()=>mxBid(i
     if(!ctl&&!e.altKey&&(k==="+"||k==="=")){ e.preventDefault(); mxZoomStep(id,true,p); return; }
     if(!ctl&&!e.altKey&&(k==="-"||k==="_")){ e.preventDefault(); mxZoomStep(id,false,p); return; }
     if(!ctl&&!e.altKey&&k==="0"){ e.preventDefault(); mxZoomFit(id); return; }
+    if(!ctl&&!e.altKey&&(k==="c"||k==="C")){ e.preventDefault(); mxBcToggle(id); return; }
     const mv={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1]}[k];
     if(mv){ e.preventDefault(); const g=box._g; let [dr,dc]=mv; if(g){ if(g.fy) dr=-dr; if(g.fx) dc=-dc; } st.isel=true; mxMove(id,[dr,dc],e.shiftKey,ctl); mxRead(id); return; }
     if(k==="Escape"){ if(st.isel||st.er!==st.r||st.ec!==st.c){ e.preventDefault(); st.er=st.r; st.ec=st.c; st.isel=false; mxImgDraw(id); mxFoot(id); mxRead(id); } return; }
@@ -24947,6 +25143,10 @@ function matMenuItems(sid){ const s=matOf(sid), ro=S.readOnly, on=!!s&&!ro;
     {label:"Crop…",enabled:on,run:()=>matCropDlg(sid)},{label:"Resample…",enabled:on,run:()=>matResampleDlg(sid)},{label:"Arithmetic…",enabled:on,run:()=>matArithDlg(sid)},"-",
     {label:"To columns",enabled:on,sub:()=>[{label:"X, Y and Z columns",run:()=>matToSheet(sid,"xyz")},{label:"Z as a block, a column for each X",run:()=>matToSheet(sid,"block")}]},
     {label:"Plot",enabled:on,sub:()=>MAT_KINDS.map(([k,l])=>({label:l,run:()=>plotMatrix(sid,k)}))},
+    {label:"Lookup table",enabled:!!s,title:"The colours its image is shown in: ImageJ's tables and Kurve's",sub:()=>mxLutItems(sid)},
+    {label:"Brightness and contrast",enabled:!!s,title:"The range of values the table spans, beside its image (C in the image)",run:()=>mxBcOpen(sid)},
+    {label:"Enhance contrast…",enabled:on,title:"ImageJ's Process › Enhance Contrast: a share of the values saturated",run:()=>mxBcAct(null,"enh",sid)},
+    {label:"Save the image as PNG",enabled:!!s,title:"The image as shown, each cell a block of pixels, with its calibration bar",run:()=>mxSavePng(sid)},
     {label:"Spots…",enabled:on,title:ANA_KINDS.spots.help,run:()=>anaDlg("spots",{p:spxStart(sid)})},
     {label:"Shift between scans…",enabled:on&&matAll().length>1,title:matAll().length>1?ANA_KINDS.shift.help:"A second matrix of the same size is needed",run:()=>anaDlg("shift",{p:shStart(sid)})},
     {label:"ImageJ",title:"ImageJ's measurements of this matrix, and the matrix as a TIFF ImageJ opens with its calibration",sub:()=>[
@@ -24959,7 +25159,7 @@ function matMenuItems(sid){ const s=matOf(sid), ro=S.readOnly, on=!!s&&!ro;
    values are single precision, and what could not be kept. */
 async function exportMatTiff(sid){ sid=sid||matFront(); const s=matOf(sid); if(!s){ toast("No matrix is open."); return; }
   const b=matBookOf(sid), title=b&&b.sheets.length>1?`${b.name} ${s.name}`:(b?b.name:s.name);
-  const t=matTiff(s,{xunit:s.xunit,yunit:s.yunit,zunit:s.zunit,name:title}); if(t.fail){ toast(t.fail); return; }
+  const dsp=s.disp&&Number.isFinite(s.disp.lo)?matDispOf(s):null, t=matTiff(s,{xunit:s.xunit,yunit:s.yunit,zunit:s.zunit,name:title,min:dsp?dsp.lo:null,max:dsp?dsp.hi:null}); if(t.fail){ toast(t.fail); return; }
   const nm=safeName(title,".tif"), ok=await saveFile(nm,new Blob([t.bytes],{type:"image/tiff"}),"image/tiff"); if(ok===false) return;
   const u=(v,un)=>`${fmt(v,6)}${un?" "+un:""}`, same=t.pw===t.ph&&(s.xunit||"")===(s.yunit||"");
   const px=same?u(t.pw,s.xunit):`${u(t.pw,s.xunit)} by ${u(t.ph,s.yunit)}`, more=[];
@@ -32254,7 +32454,7 @@ function menuRows(items,acts){
     const i=acts.push(it)-1, dis=it.enabled===false;
     if(it.sub) return `<button class="mi has-sub" role="menuitem" aria-haspopup="menu" aria-expanded="false" data-mi="${i}" tabindex="-1"${dis?" disabled":""}${it.title?` title="${esc(it.title)}"`:""}><span class="mck">${it.icon?ICON(it.icon,"sm"):""}</span><span class="mlab">${esc(it.label)}</span>${it.note?`<span class="mkbd">${esc(it.note)}</span>`:""}<span class="marr">${ICON("chevr","sm")}</span></button>`;
     const role=it.checked!=null?(it.radio?"menuitemradio":"menuitemcheckbox"):"menuitem";
-    return `<button class="mi${it.danger?" danger":""}" role="${role}" data-mi="${i}" tabindex="-1"${it.checked!=null?` aria-checked="${!!it.checked}"`:""}${dis?" disabled":""}${it.title?` title="${esc(it.title)}"`:""}><span class="mck">${it.checked?ICON("check","sm"):it.icon?ICON(it.icon,"sm"):""}</span><span class="mlab"${it.font?` style="font-family:${esc(it.font)}"`:""}>${esc(it.label)}</span>${it.kbd?`<span class="mkbd">${esc(it.kbd)}</span>`:it.note?`<span class="mkbd">${esc(it.note)}</span>`:""}</button>`;
+    return `<button class="mi${it.danger?" danger":""}" role="${role}" data-mi="${i}" tabindex="-1"${it.checked!=null?` aria-checked="${!!it.checked}"`:""}${dis?" disabled":""}${it.title?` title="${esc(it.title)}"`:""}><span class="mck">${it.checked?ICON("check","sm"):it.icon?ICON(it.icon,"sm"):""}</span><span class="mlab"${it.font?` style="font-family:${esc(it.font)}"`:""}>${esc(it.label)}</span>${it.grad?`<span class="mgrad" style="background:${esc(it.grad)}" aria-hidden="true"></span>`:""}${it.kbd?`<span class="mkbd">${esc(it.kbd)}</span>`:it.note?`<span class="mkbd">${esc(it.note)}</span>`:""}</button>`;
   }).join("");
 }
 const subItems=it=>typeof it.sub==="function"?it.sub():it.sub;
@@ -32902,6 +33102,7 @@ ${DL([["Stack columns","The columns ticked one under another in a column of valu
 <p>A scan saved by qudi (the measurement suite of confocal microscopes) becomes a matrix when it is imported, dropped or chosen with other files: its X and Y (Z for a depth scan) are the scan's positions, in micrometres when the scan spans less than a millimetre, its values the channel's (the channel names it), and every line of the file's header is kept with it, listed in <em>Dimensions and labels…</em> and carried by the project file. qudi's two kinds of file are read: the classic one (<code>…_confocal_xy_image_&lt;channel&gt;.dat</code>, and the data file of x, y and z positions and count rates beside it) and qudi-iqo-modules' (<code>…_2D-scan_with_x_y_axes_from_channel_….dat</code>; a scan back says so, and pixels a stopped scan never reached are empty cells). The files of one scan go into one book, a sheet a channel; a data file whose z changes over the image (a tilted sample) adds a sheet of its z. A scan along one axis opens the import dialog as a curve against its positions. The matrix is original data, and its record says the file it was read from.</p>
 <h2>The matrix window</h2>
 <p>Each book has a window of its own, a document in the taskbar and the ${DA("explorer","Project Explorer")}, which shows a matrix as an <b>image</b> (one with nothing in it yet as cells); <b>Image</b> and <b>Cells</b> on its bar switch. The image is drawn as ImageJ draws one: each cell a block of the screen's pixels at the scan's true shape (square when X and Y have the same unit and step), X to the right and Y up, the window's size never stretching it (a larger window shows more of it, or the space around it). It zooms through ImageJ's magnifications, from 1/72 to 32: the wheel about the pointer, ${K("+")} and ${K("−")} (or the buttons), the magnification's list, ${K("0")}, Fit or a double click for the whole image (each cell a whole number of the screen's pixels where they are two or more), 100 % for a cell a pixel; two fingers on a touch screen. A drag moves it, kept in reach. The line above the image is ImageJ's (the size in the scan's units, the cells, the values' unit), and beside it the cell under the pointer: X, Y, the value, row and column. A click selects a cell, Shift a rectangle of them (the commands start from it), the arrows move it with Y up, ${K("F2")} types into it in the Cells view, ${K("Esc")} lets go. A tab is a sheet of the book, as ImageJ's channels: sheets of one size keep the zoom and the place.</p>
+<p>The image is shown as ImageJ shows a 32-bit image: each value scaled into 256 steps between the range shown (below it the table's first colour, above it its last) and coloured by a <b>lookup table</b>, the button beside Fit: ImageJ's own (Grays, Fire, Ice, Spectrum, 3-3-2 RGB, Red, Green, Blue, Cyan, Magenta, Yellow, Red/Green, HiLo, which marks the lowest step blue and the highest red) or Kurve's maps, and <em>Inverted</em> for its colours in the other order. <b>Contrast</b> (or ${K("C")}) opens ImageJ's Brightness and Contrast beside the image: the values' histogram with the range shown drawn over it, the table under it with the range's ends, and Minimum, Maximum, Brightness and Contrast as ImageJ's sliders (the image follows as one moves; letting go is one undo step). <em>Auto</em> is ImageJ's: each press leaves more of the brightest and darkest values out of the range, and after a few presses starts again; <em>Reset</em> the values' whole range; <em>Set…</em> two numbers (for every sheet of the book, if asked); <em>Enhance…</em> ImageJ's Enhance Contrast, the share of the values shown in the end colours (0.35 % to begin with). The table and range are kept with the matrix and undone with it, but are no change of its values (nothing in its record): a graph of the matrix uses them unless it has a colour map of its own, a TIFF saved for ImageJ carries the range as its display range, and Matrix › Save the image as PNG writes the image as shown, each cell a block of pixels, with a calibration bar beside it.</p>
 <p>The Cells view is the grid with X along the top, Y down the side and row 1 at the top, a tab for each matrix of the book (+ adds one, a double click renames, a right-click has the rest), the cell and its value above, and below the size, whether its values are original data or computed, and the N, mean, minimum and maximum of the cells selected. It is used as the worksheet is: click, drag, Shift and the arrows select; typing, F2 or a double click edits; Delete clears; Ctrl+C and Ctrl+V copy and paste tab-separated blocks. Only what is in view is drawn, so a million cells scroll as easily as a hundred.</p>
 <h2>Original data or computed</h2>
 <p>Values typed, read from columns or a picture, or transformed in place are <strong>original data</strong>: each change is one step to undo and an entry in the matrix's own record with the check code of its values (the SHA-256 of its rows written as the worksheet's original data is). <em>Set values…</em> makes a matrix <strong>computed</strong>: a formula of <code>x</code> and <code>y</code> (each cell's X and Y), <code>i</code> and <code>j</code> (its row and column from 1), the project's ${DA("formulas#consts","constants")} and other matrices of the same size by name (<code>Base * 2 + i</code>). It is worked out again whenever what it reads changes, and says why when it cannot be (a matrix it reads gone or of another size). <em>Keep the values only</em> drops the formula and keeps the values as original data. A matrix's name is a formula's name: a letter, then letters, digits and _.</p>

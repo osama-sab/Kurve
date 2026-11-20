@@ -449,6 +449,32 @@ if (fixtures.shift) {
     note("regShift.r", Math.abs(r.r - w.r) / Math.abs(w.r), c.name); }
 }
 
+/* ---- ImageJ's display of a 32-bit image (IMAGE_SPEC I.3): LutLoader's tables, create8BitImage, FloatStatistics' histogram,
+   ContrastAdjuster's Auto and sliders and ContrastEnhancer's saturation, written again in Python from ImageJ 1.54f's source
+   (tools/ref/ij_display.py, float32 where Java computes in float); every number the same ---- */
+if (fixtures["ij-display"]) {
+  const FX = fixtures["ij-display"], LUT = get("ijLut"), I8 = get("ij8"), HI = get("ijHist"), AU = get("ijAuto"), AS = get("ijAutoStep"), EN = get("ijEnhance"), BR = get("ijBCRange"), BP = get("ijBCPlaces"), BS = get("ijBCSet");
+  let bad = 0, at = "";
+  for (const [k, want] of Object.entries(FX.luts)) { const L = LUT(k); for (let i = 0; i < 768; i++) if (!L || L[i] !== want[i]) { bad++; at = `${k}, entry ${Math.floor(i / 3)}`; break; } }
+  note("ijLut.tables", bad, at || `${Object.keys(FX.luts).length} tables of 256`);
+  const same = (a, b) => a === b || (a == null && b == null);
+  for (const c of FX.cases) { const H = HI(c.z), w = c.hist;
+    let hb = (H.n !== w.n) + (H.n ? (H.min !== w.min) + (H.max !== w.max) + (H.binSize !== w.binSize) : 0); for (let i = 0; i < 256; i++) if (H.counts[i] !== w.counts[i]) hb++;
+    note("ijHist.bins", hb, c.name);
+    if (c.idx) { let ib = 0, iat = ""; c.z.forEach((v, i) => { if (v == null) return; const a = I8(v, w.min, w.max), b2 = I8(v, c.shown2[0], c.shown2[1]); if (a !== c.idx[i] || b2 !== c.idx2[i]) { ib++; iat = `cell ${i}: ${a}, ${b2} against ${c.idx[i]}, ${c.idx2[i]}`; } });
+      note("ij8.index", ib, `${c.name}${iat ? ", " + iat : ""}`); }
+    let ab = 0, aat = "", a = 0; c.auto.forEach((want, k) => { a = AS(a); const r = AU(H, a); const ok = want == null ? r == null : r && r.min === want[0] && r.max === want[1] && a === want[2]; if (!ok) { ab++; aat = `press ${k + 1}: ${JSON.stringify(r)} against ${JSON.stringify(want)}`; } });
+    note("ijAuto.range", ab, `${c.name}${aat ? ", " + aat : ""}`);
+    let eb = 0, eat = ""; c.enh.forEach(([sat, want]) => { const r = EN(H, sat); const ok = want == null ? r == null : r && r.min === want[0] && r.max === want[1]; if (!ok) { eb++; eat = `${sat} %: ${JSON.stringify(r)} against ${JSON.stringify(want)}`; } });
+    note("ijEnhance.range", eb, `${c.name}${eat ? ", " + eat : ""}`);
+    let sb = 0, sat2 = ""; const dmin = w.min, dmax = w.max > w.min ? w.max : w.min + 1;
+    for (const q of c.sliders) { const [mn, mx] = q.shown, sr = BR(dmin, dmax, mn, mx), pl = BP(dmin, dmax, mn, mx, q.sr);
+      if (sr !== q.sr) { sb++; sat2 = `range ${sr} against ${q.sr}`; }
+      for (const k of ["min", "max", "brightness", "contrast"]) if (pl[k] !== q.places[k]) { sb++; sat2 = `${k}'s place ${pl[k]} against ${q.places[k]}`; }
+      for (const [k, v, want] of q.sets) { const r = BS(k, v, dmin, dmax, mn, mx, q.sr); if (!(same(r.min, want[0]) && same(r.max, want[1]))) { sb++; sat2 = `${k} at ${v}: ${r.min}, ${r.max} against ${want}`; } } }
+    note("ijBC.sliders", sb, `${c.name}${sat2 ? ", " + sat2 : ""}`); }
+}
+
 /* ---- NIST's Norris: certified values read from the file itself ---- */
 {
   const txt = readFileSync(join(here, "ref", "nist", "Norris.dat"), "utf8").split(/\r?\n/);

@@ -81,7 +81,7 @@ console.log("I.2 The image view");
 // the matrix window of the scan, its box and drawing: the magnification, the image's place, a cell's size, the cells in view
 const fmtS = v => Number(v).toPrecision(4);
 const mxw = (p) => p.evaluate(() => { const id = matWinIds()[0], el = $("#w-" + id), box = el.querySelector(".mximg"), g = box._g, st = mxSt(mxBid(id)), r = box.getBoundingClientRect();
-  return { id, view: st.view, img: !box.hidden, grid: !el.querySelector(".mxgrid").hidden, mag: st.mag, cx: st.cx, cy: st.cy, g, bx: r.x, by: r.y, W: r.width, H: r.height, dpr: devicePixelRatio,
+  return { id, view: st.view, img: !box.closest(".mxiw").hidden, grid: !el.querySelector(".mxgrid").hidden, mag: st.mag, cx: st.cx, cy: st.cy, g, bx: r.x, by: r.y, W: r.width, H: r.height, dpr: devicePixelRatio,
     info: el.querySelector(".mxdim").textContent, magTxt: el.querySelector(".mxmag").textContent, read: el.querySelector(".mxread").textContent, r: st.r, c: st.c, er: st.er, ec: st.ec }; });
 const win = async (p, g) => { await p.evaluate((g) => { const id = matWinIds()[0], st = winState(id); st.g = g; st.max = false; applyWins(); }, g); await p.waitForTimeout(350); return mxw(p); };
 // where a cell is drawn, on the page
@@ -167,6 +167,79 @@ await page(async p => {
   await tp("touchStart", 30); for (const d of [40, 50, 60]) await tp("touchMove", d); await tp("touchEnd", 60); await p.waitForTimeout(150); w = await mxw(p);
   check(`two fingers spread zoom in (${m0.toFixed(2)} → ${w.mag.toFixed(2)} px a cell), the cells still square`, w.mag > 1.6 * m0 && w.g.mx === w.g.my, JSON.stringify([m0, w.mag]));
 }, { name: "I.2", vp: { width: 390, height: 844 } });
+
+console.log("I.3 Lookup tables and contrast");
+await page(async p => {
+  const sid = await nv(p); await p.evaluate(() => { const id = matWinIds()[0], st = winState(id); st.g = [0.05, 0.05, 0.75, 0.85]; st.max = false; applyWins(); }); await p.waitForTimeout(300);
+  const id = await p.evaluate(() => matWinIds()[0]);
+  // the colours of a few cells as drawn, against ImageJ's table at ImageJ's 8-bit index of each
+  const drawn = () => p.evaluate(() => { const id = matWinIds()[0], box = $("#w-" + id + " .mximg"), g = box._g, s = matOf(mxSt(mxBid(id)).sid), d = matDispOf(s), ctx = box.querySelector("canvas").getContext("2d");
+    const L = /^ij:/.test(d.lut) ? ijLut(d.lut.slice(3)) : mxLut(d.lut, false), T = d.inv ? ijLutInv(L) : L; let bad = 0, n = 0;
+    for (const [r, c] of [[0, 0], [5, 60], [17, 41], [33, 20], [40, 9], [63, 63], [31, 32], [12, 50]]) { const q = mxCellRect(g, r, c); if (q.x < 0 || q.y < 0 || q.x + q.w > g.W || q.y + q.h > g.H) continue; const a = ctx.getImageData(Math.floor((q.x + q.w / 2) * g.dpr), Math.floor((q.y + q.h / 2) * g.dpr), 1, 1).data, k = ij8(s.z[r * s.nx + c], d.lo, d.hi); n++;
+      if (a[0] !== T[3 * k] || a[1] !== T[3 * k + 1] || a[2] !== T[3 * k + 2]) bad++; } return { bad, n, lut: d.lut, inv: d.inv, lo: d.lo, hi: d.hi }; });
+  // every table through the bar's list
+  const names = await p.evaluate(() => IJ_LUTS.map(q => q[1])); let allOk = true, seen = [];
+  for (const nm of names) { await p.click(`#w-${id} [data-mxlut]`); await p.waitForTimeout(80); await p.locator(".menu .mi").filter({ hasText: new RegExp("^" + nm.replace(/[/-]/g, "\\$&") + "$") }).first().click(); await p.waitForTimeout(80);
+    const d = await drawn(); seen.push(d.lut); if (d.bad || d.n < 6) allOk = false; }
+  check(`each of ImageJ's ${names.length} tables chosen from the bar's list, each cell drawn in its colour at ImageJ's index (${seen.length} tables, ${seen.join(" ")})`, allOk && new Set(seen).size === names.length, JSON.stringify(seen));
+  await p.click(`#w-${id} [data-mxlut]`); await p.waitForTimeout(80); await p.locator(".menu .mi").filter({ hasText: /^Fire$/ }).first().click(); await p.waitForTimeout(80);
+  await p.click(`#w-${id} [data-mxlut]`); await p.waitForTimeout(80); await p.locator(".menu .mi").filter({ hasText: /^Inverted$/ }).first().click(); await p.waitForTimeout(80);
+  let d = await drawn(); const info = await p.evaluate(() => $("#w-" + matWinIds()[0] + " .mxdsp").textContent);
+  check(`Inverted draws the table's colours in the other order (Fire inverted), said beside the size (“${info}”)`, d.inv && d.lut === "ij:fire" && !d.bad && /^Fire inverted · /.test(info), JSON.stringify([d, info]));
+  const und = await p.evaluate(() => { undo(); const a = matDispOf(matOf(matFront())); undo(); const b = matDispOf(matOf(matFront())); redo(); redo(); return [a.lut, a.inv, b.lut]; });
+  check(`each change of table one undo step (undone: ${und.join(", ")}), and redone`, und[0] === "ij:fire" && und[1] === false && und[2] !== "ij:fire", JSON.stringify(und));
+  // the panel: C, its histogram and ends; Auto pressed three times as ImageJ's
+  await p.focus(`#w-${id} .mximg`); await p.keyboard.press("c"); await p.waitForTimeout(150);
+  const pan = await p.evaluate(() => { const b = $("#w-" + matWinIds()[0] + " .mxbc"); return { open: !b.hidden, ends: [...b.querySelectorAll(".bcends span")].map(e => e.textContent), bars: (b.querySelector(".bcbars").getAttribute("d").match(/M/g) || []).length }; });
+  const H = await p.evaluate(() => { const H = ijHistOf(matOf(matFront())); return { min: H.min, max: H.max, nz: [...H.counts].filter(c => c > 0).length }; });
+  check(`C opens Brightness and contrast beside the image: the histogram's ${pan.bars} bars (of ${H.nz} bins holding values), the range's ends (${pan.ends.join(" and ")})`, pan.open && pan.bars === H.nz && pan.ends.length === 2, JSON.stringify([pan, H]));
+  const autos = []; for (let k = 0; k < 3; k++) { await p.click(`#w-${id} [data-bca="auto"]`); await p.waitForTimeout(120); autos.push(await p.evaluate(() => { const s = matOf(matFront()); return [s.disp.lo, s.disp.hi]; })); }
+  const wantA = await p.evaluate(() => { const H = ijHistOf(matOf(matFront())); let a = 0; return [0, 1, 2].map(() => { a = ijAutoStep(a); const r = ijAuto(H, a); return r && [r.min, r.max]; }); });
+  check(`Auto pressed three times saturates more each time, as ImageJ's (${autos.map(r => r.map(v => v.toFixed(1)).join("–")).join(", ")})`, JSON.stringify(autos) === JSON.stringify(wantA) && autos[2][1] < autos[0][1], JSON.stringify([autos, wantA]));
+  d = await drawn(); check(`the image drawn at the range Auto set (${d.lo.toFixed(1)} to ${d.hi.toFixed(1)}), each cell at its index`, !d.bad && d.lo === autos[2][0] && d.hi === autos[2][1], JSON.stringify(d));
+  // a slider moves the image as it goes and is one undo step when let go
+  const before = await p.evaluate(() => JSON.stringify(matOf(matFront()).disp)), nu = await p.evaluate(() => undoStack.length);
+  const sv = await p.evaluate(() => { const r = $("#w-" + matWinIds()[0] + " .mxbc [data-bck=max]"); r.value = String(Math.round(+r.max * 0.3)); r.dispatchEvent(new Event("input", { bubbles: true })); return +r.value; });
+  const mid = await p.evaluate(() => ({ saved: JSON.stringify(matOf(matFront()).disp), pv: S.dispPv && S.dispPv.d.hi, drawn: matDispOf(matOf(matFront())).hi }));
+  await p.evaluate(() => { const r = $("#w-" + matWinIds()[0] + " .mxbc [data-bck=max]"); r.dispatchEvent(new Event("change", { bubbles: true })); }); await p.waitForTimeout(150);
+  const aft = await p.evaluate(([v]) => { const s = matOf(matFront()), H = ijHistOf(s), dmax = H.max, sr = ijBCRange(H.min, dmax, ...JSON.parse(localStorage.getItem("x") || "null") || [0, 0]); return { disp: s.disp, n: undoStack.length }; }, [sv]);
+  const want = await p.evaluate(([v, b]) => { const s = matOf(matFront()), H = ijHistOf(s), d = JSON.parse(b), sr = ijBCRange(H.min, H.max, d.lo, d.hi); return ijBCSet("max", v, H.min, H.max, d.lo, d.hi, sr); }, [sv, before]);
+  check(`Maximum moved: the image follows at once (${mid.drawn.toFixed(1)}) with nothing saved, and when let go one undo step saves ImageJ's adjustMax (${aft.disp.hi.toFixed(2)})`, mid.saved === before && mid.pv === mid.drawn && aft.disp.hi === want.max && aft.disp.lo === want.min && aft.n === nu + 1, JSON.stringify([mid, aft, want]));
+  // Set… refuses a minimum above the maximum, and sets
+  await p.click(`#w-${id} [data-bca="set"]`); await p.waitForTimeout(150); await p.fill("#bsLo", "9000"); await p.fill("#bsHi", "500"); await p.waitForTimeout(80); const dis = await p.isDisabled("#formOk"), bsMsg = await p.textContent("#bsMsg");
+  await p.fill("#bsLo", "1000"); await p.fill("#bsHi", "20000"); await p.click("#formOk"); await p.waitForTimeout(150); d = await drawn();
+  check(`Set… refuses a minimum above the maximum (“${bsMsg}”) and sets 1000 to 20000`, dis && /not above/.test(bsMsg) && d.lo === 1000 && d.hi === 20000 && !d.bad, JSON.stringify([dis, d]));
+  // Enhance contrast 0.35 % as ImageJ's
+  await p.click(`#w-${id} [data-bca="enh"]`); await p.waitForTimeout(150); await p.fill("#beSat", "0.35"); await p.click("#formOk"); await p.waitForTimeout(150); d = await drawn();
+  const we = await p.evaluate(() => ijEnhance(ijHistOf(matOf(matFront())), 0.35));
+  check(`Enhance contrast at 0.35 % saturated sets ImageJ's range (${d.lo.toFixed(2)} to ${d.hi.toFixed(2)})`, d.lo === we.min && d.hi === we.max && !d.bad, JSON.stringify([d, we]));
+  // the check code untouched; the graph follows; a graph with its own colour map does not
+  const fp = await p.evaluate(() => { const s = matOf(matFront()); return s.raw && s.raw.hist.length; });
+  await p.evaluate(() => plotMatrix(matFront(), "image")); await p.waitForTimeout(600);
+  const gr = await p.evaluate(() => { const s = matOf(matFront()), d = matDispOf(s), st = [...document.querySelectorAll("#plot linearGradient#cbar stop")].map(e => e.getAttribute("stop-color")); return { z: S.geo.heatZ, lo: d.lo, hi: d.hi, n: st.length, first: st[0], last: st[st.length - 1], want: cmapStops("~ij:fire") }; });
+  check(`the matrix's graph follows its display: Fire inverted on its colour bar (${gr.n} stops), the range ${gr.z.map(v => v.toFixed(1)).join(" to ")}`, gr.z[0] === gr.lo && gr.z[1] === gr.hi && gr.n === 256 && gr.first === gr.want[0] && gr.last === gr.want[255], JSON.stringify(gr));
+  await p.evaluate(() => setPlotKey("cmap", "viridis", "coloured the map viridis")); await p.waitForTimeout(300);
+  const own = await p.evaluate(() => ({ z: S.geo.heatZ, R: matRangeOf(matOf(matFront()).z), n: document.querySelectorAll("#plot linearGradient#cbar stop").length }));
+  check("a graph given a colour map of its own keeps it, over the values' range", own.n === 10 && own.z[0] === own.R.lo && own.z[1] === own.R.hi, JSON.stringify(own));
+  check("the display is no change of the values: the original data's record has no entry for it", fp === 1, fp);
+  // the TIFF's min and max, and the picture
+  const saved = await p.evaluate(async () => { const got = []; const keep = saveFile; saveFile = async (n, b) => { got.push([n, b]); return true; };
+    await exportMatTiff(matFront()); await mxSavePng(matFront()); saveFile = keep;
+    const t = new Uint8Array(await got[0][1].arrayBuffer()), txt = new TextDecoder("latin1").decode(t), mm = [/min=([^\n]+)/.exec(txt)[1], /max=([^\n]+)/.exec(txt)[1]].map(Number);
+    const bm = await createImageBitmap(got[1][1]), cv = document.createElement("canvas"); cv.width = bm.width; cv.height = bm.height; const g = cv.getContext("2d"); g.drawImage(bm, 0, 0);
+    const s = matOf(matFront()), d = matDispOf(s), L = ijLutInv(ijLut("fire")), k = Math.max(1, Math.min(16, Math.round(800 / 64))), H = Math.max(64 * k, 120), y0 = Math.round((H - 64 * k) / 2);
+    let bad = 0; for (const [r, c] of [[0, 0], [17, 41], [63, 63], [30, 30]]) { const a = g.getImageData(c * k + k / 2, y0 + (63 - r) * k + k / 2, 1, 1).data, q = ij8(s.z[r * 64 + c], d.lo, d.hi); if (a[0] !== L[3 * q] || a[1] !== L[3 * q + 1] || a[2] !== L[3 * q + 2]) bad++; }
+    return { mm, lo: d.lo, hi: d.hi, w: bm.width, h: bm.height, k, bad, names: got.map(q => q[0]) }; });
+  check(`the TIFF for ImageJ carries the range shown as its min and max (${saved.mm.join(", ")})`, saved.mm[0] === saved.lo && saved.mm[1] === saved.hi, JSON.stringify(saved));
+  check(`Save the image as PNG: ${saved.w} × ${saved.h} px, each cell ${saved.k} × ${saved.k} pixels of its colour, a calibration bar beside it`, saved.bad === 0 && saved.w > 64 * saved.k + 30 && saved.h === 64 * saved.k, JSON.stringify(saved));
+  // kept with the project
+  await p.evaluate(() => flushEdits()); await p.waitForTimeout(800); await p.reload(); await ready(p); await p.waitForTimeout(600);
+  const rl = await p.evaluate(() => { const s = matAll()[0].s; return s.disp; });
+  check(`the display is kept with the matrix across a reload (${JSON.stringify(rl)})`, rl && rl.lut === "ij:fire" && rl.inv === true && Number.isFinite(rl.lo), JSON.stringify(rl));
+  const junk = await p.evaluate(() => { const p0 = cloneProj(P()); p0.mats[0].sheets[0].disp = { lut: "nonsense", inv: "yes", lo: "a", hi: 5 }; matClean(p0); const a = p0.mats[0].sheets[0].disp;
+    const p1 = cloneProj(P()); p1.mats[0].sheets[0].disp = { lut: "~ij:fire", lo: 9, hi: 2 }; matClean(p1); return [a, p1.mats[0].sheets[0].disp]; });
+  check(`a display read from storage in a broken form is cleaned (${JSON.stringify(junk)})`, junk[0].lut === "ij:grays" && !("inv" in junk[0]) && !("lo" in junk[0]) && junk[1].lut === "ij:grays" && !("lo" in junk[1]), JSON.stringify(junk));
+}, { name: "I.3" });
 
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -1752,7 +1752,17 @@ graph first, with the taskbar kept at the bottom of the screen.
   (the cell under the pointer, `box._pt`), `mxZoomTo(id, m, px, py)` (about a point), `mxZoomStep`, `mxZoomFit`, `mxImgReveal`,
   `mxSetView`, `mxMagItems`, `mxFocusEl` (matOpen and `winTakeFocus`), `wireMxImg` (the wheel a level a notch about the pointer,
   Ctrl+wheel and two fingers continuous, a drag pans, Shift selects, a click a cell, a double click fits; + − 0, the arrows with
-  Y up, F2, Esc, Ctrl+C; its right-click menu; a ResizeObserver keeping the magnification);
+  Y up, F2, Esc, Ctrl+C; its right-click menu; a ResizeObserver keeping the magnification); **the display** (I.3: in MAT `IJ_LUTS`,
+  `IJ_FIRE`, `IJ_ICE`, `ijHSB`, `ijLut(key)` (LutLoader's tables and HiLo, 768 bytes), `ijLutInv`, `ijHist(z)` (FloatStatistics' 256
+  bins of the floats: `{n, min, max, binSize, counts}`), `ijAutoStep`, `ijAuto(H, a)`, `ijEnhance(H, sat)`, `ijBCRange`, `ijBCPlaces`,
+  `ijBCSet(k, v, dmin, dmax, min, max, sr)`; the tables as colour maps `ij:<table>` in `CMAPS` and `CMAP_LIST`, a name led by `~` the
+  map reversed (`cmapStops`, `cmapOk`, `cmapCss` a strip; menus' items take `grad`); a sheet's `disp` {lut, inv, lo, hi} (`dispClean`, in
+  `matClean`; `ijHistOf` per values; `matDispOf(s)` with `S.dispPv` a slider's preview; `matDispSet(sid, d, {burst, log})`; `dispText`,
+  `lutName`, `mxDispRedraw`, `mxLut(k, inv)` 256 entries; `mxDispLine` the info line's `.mxdsp`); the bar's `[data-mxlut]` (`.lsw`,
+  `.lnm`, `mxLutItems`) and `[data-mxbc]`; `.mxiw` holding `.mximg` and the panel `.mxbc` (`st.bc`; `mxBcDraw`, `mxBcWire`,
+  `mxBcToggle`, `mxBcOpen`, `mxBcAct(id, "auto"|"reset"|"set"|"enh", sid)` with `S.ijAuto` per sheet and `S.ijSat`; `#bsLo`, `#bsHi`,
+  `#bsAll`, `#beSat`); `mxSavePng`; `plotCfg` gives a matrix's graph its display (`cmap`, `matRng`) when the graph sets no `cmap`;
+  `matTiff`'s `min`/`max`);
   `matDataItems` (Data › Matrix: New, From columns, From a picture, Open, then the matrix in front's, `matFront`),
   `matPlotItems` (Plot › Plot a matrix). The graph: `plotCfg` forces the heat layout while `plot.mat` names a matrix;
   `buildPlot` draws it with no column (`MAT`: `ps` from its names, no points, `matViewOf` the zoom in its X units or
@@ -5759,7 +5769,10 @@ ImageJ's filters, I.6 threshold and particles, I.7 scale bar, channels, histogra
 cells square at any window shape, zooms out by Alt+click, −, or 0, and never past the scan. Slice I.2 done 20.11: the matrix
 window opens a scan as an image, each cell a block of the screen's pixels at its true shape whatever the window, zoomed through
 ImageJ's levels by the wheel about the pointer, + − 0, Fit and 100 %, panned by a drag, ImageJ's size line and the cell under the
-pointer over it, cells selected on it starting the commands, the sheets as channels; Image and Cells on its bar.
+pointer over it, cells selected on it starting the commands, the sheets as channels; Image and Cells on its bar. Slice I.3 done
+20.11: ImageJ's thirteen lookup tables (and Kurve's maps, inverted or not) and Brightness and Contrast beside the image (the histogram,
+Minimum, Maximum, Brightness and Contrast as ImageJ's sliders, Auto saturating more at each press, Reset, Set…, Enhance contrast), kept
+with the matrix and followed by its graph, its TIFF and a PNG of the image; a Python port of ImageJ's source exact on every number.
 
 ## Known gaps
 

@@ -1024,6 +1024,21 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Images, slice I.3: lookup tables and contrast (2026-11-20)
+
+- **Lookup tables**: ImageJ's thirteen (Grays, Fire, Ice, Spectrum, 3-3-2 RGB, Red, Green, Blue, Cyan, Magenta, Yellow, Red/Green, HiLo)
+  and Kurve's maps, each inverted on demand, from the image bar's table button (with a strip of each) or Matrix › Lookup table; the
+  graph's colour maps list ImageJ's too.
+- **Brightness and contrast** beside the image (the Contrast button or C): the histogram with the range shown over it, the table's
+  strip with its ends, ImageJ's Minimum, Maximum, Brightness and Contrast sliders (the image follows as they move), Auto (ImageJ's,
+  saturating more at each press), Reset, Set… (for every sheet of the book, if asked), Enhance contrast… (0.35 % saturated to begin with).
+- The table and range are kept with the matrix and undone with it, never in its record; the matrix's graph uses them unless given a
+  colour map of its own; the TIFF for ImageJ carries the range; **Matrix › Save the image as PNG** writes the image as shown with a
+  calibration bar.
+
+Checked: a Python port of ImageJ 1.54f's LutLoader, create8BitImage, FloatStatistics, ContrastAdjuster and ContrastEnhancer, exact on
+every number (six new bench entries); `tools/img-drive.mjs` (17 new, 54).
+
 ## Images, slice I.2: the image view (2026-11-20)
 
 - A matrix's window opens it as an **image**: each cell a block of the screen's pixels at the scan's true shape, X to the right and

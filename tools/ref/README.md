@@ -82,6 +82,13 @@ sample's error through the interpolation's weights) and fits it with SciPy's cur
 an edge in counts and a noise-free spot: `fixtures/profile.json`, judged by ref-test's `kProfile.*`.
 `tools/ref/shift_fixtures.py` (QUDI_SPEC Q.8) is the registration of two scans in NumPy, written from Guizar-Sicairos, Thurman and
 Fienup (2008), on synthetic scans and a back scan of the NV scan: `fixtures/shift.json`, judged by ref-test's `regShift.*`.
+`tools/ref/ij_display.py` (IMAGE_SPEC I.3) is ImageJ 1.54f's display of a 32-bit image written again in Python from its source (read as
+text): LutLoader's tables (fire and ice from their 32 entries by its interpolate, spectrum by java.awt.Color.HSBtoRGB in float32), HiLo,
+FloatProcessor.create8BitImage, FloatStatistics' 256 bins, ContrastAdjuster's Auto over twelve presses and its four sliders,
+ContrastEnhancer's saturation, on eight matrices (the NV scan, empty cells, one value, a range of millions, thirds single precision
+rounds, small counts, none); `fixtures/ij-display.json`. ref-test's `ijLut.tables`, `ijHist.bins`, `ij8.index`, `ijAuto.range`,
+`ijEnhance.range` and `ijBC.sliders` must be exact.
+
 ImageJ's own readout, where its jar may be run:
 
 ```sh

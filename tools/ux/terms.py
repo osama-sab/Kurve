@@ -77,6 +77,7 @@ KEEP = [
     ("spectrum", re.compile(r"For a spectrum, the Overview|an infrared spectrum with overlapping bands|a Raman spectrum straight from")),  # the Start page describes the examples
     ("spectrum", re.compile(r"one spectrum against its|The spectrum is drawn as a line|the spectrum's X column|A gamma spectrum, start")),  # the import article's part on gamma spectra
     ("spectrum", re.compile(r"spectral density")),                   # physics: a density per unit of X
+    ("spectrum", re.compile(r"Grays, Fire, Ice, Spectrum, 3-3-2 RGB")),  # ImageJ's table of that name (IMAGE_SPEC I.3)
     ("spectrum", re.compile(r"power spectrum")),                     # physics: a signal's power by frequency (the FFT filter's search words)
     ("spectrum", re.compile(r"_Spectra\(|\['spectra'\]|the spectra dict")),  # Python's own names
     ("analysed", re.compile(r"was analysed as typed")),             # the verb

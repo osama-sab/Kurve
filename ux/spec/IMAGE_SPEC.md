@@ -83,6 +83,20 @@ TIFF's min and max and *Save the view as PNG* (the image at a whole multiple of 
 **Checks**: each of ImageJ's tables against LutLoader ported; the 8-bit index of every cell against create8BitImage; Auto
 over repeated presses and Enhance at 0.35 % against ContrastAdjuster and ContrastEnhancer ported; undo; a reload.
 
+**Done 20.11.** In MAT `IJ_LUTS`, `ijLut` (LutLoader: fire and ice by its interpolate, spectrum by `ijHSB`, Java's HSBtoRGB in
+floats, 3-3-2 RGB, the primaries, red/green, HiLo), `ijLutInv`, `ijHist` (FloatStatistics' 256 bins of the floats), `ijAutoStep`/`ijAuto`
+(ContrastAdjuster.autoAdjust), `ijEnhance` (ContrastEnhancer), `ijBCRange`, `ijBCPlaces`, `ijBCSet` (the four sliders); the tables are
+colour maps too (`ij:<table>`, `~` inverted: `cmapStops`), so the graph's maps and colour bars have them. A sheet's `disp` {lut, inv, lo,
+hi} (`dispClean`, `matDispOf`, `matDispSet`: one undo step, a burst for a slider; kept by `matClean`; no record entry), shown on the image
+bar (the table's button with its strip, Contrast) and the info line; the panel beside the image (`mxBcDraw`, `mxBcWire`, `mxBcAct`: the
+histogram with ImageJ's line, the table's strip and ends, the four sliders previewing as they move, Auto, Reset, Set… (every sheet of the
+book), Enhance…, the table and Inverted; C); the graph of the matrix following unless it has a colour map of its own; the TIFF's min and
+max; *Save the image as PNG* (whole pixels a cell, a calibration bar). The calibration bar beside the image itself is the panel's table
+strip (ImageJ's Calibration Bar as an overlay is I.7's). **Checks**: `tools/ref/ij_display.py` against ImageJ's source, exact on every
+table entry, bin, index, Auto press, saturation and slider (six bench entries); `tools/img-drive.mjs` (17): each table drawn at its index,
+Inverted, undo, the panel, Auto three times, a slider's preview and one undo step, Set… refusing, Enhance, the graph following and not,
+the record untouched, the TIFF's range, the PNG's pixels, a reload, junk from storage.
+
 **I.4 Selections and the ROI Manager.** Decisions 6 to 8: the tools, handles, keys (M, K, T, Delete, Escape, arrows move a
 selection a pixel), the manager's list (name, show all, measure, delete, rename), the Results sheet of the book, the
 dialogs started from the selection, overlays of an analysis's maxima, spots and lines. **Checks**: a selection's cells as
