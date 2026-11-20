@@ -278,6 +278,62 @@ await page(async p => {
   check("a reload: the maxima and profiles there, up to date", r.length === 4 && r.every(Boolean), JSON.stringify(r));
 }, { name: "Q.4" });
 
+console.log("Q.5 Spots");
+await page(async p => {
+  const SP = JSON.parse(readFileSync(join(here, "ref", "fixtures", "spots.json"), "utf8")), tr = SP.scan.truth, want = SP.cases[0];
+  await p.setInputFiles("#fileIn", join(here, "ref", SP.scan.file)); await p.waitForFunction(() => matAll().length >= 1, null, { timeout: 8000 }); await p.waitForTimeout(400);
+  const sid = await p.evaluate(() => matAll()[0].s.id);
+  let r = await p.evaluate(([sid, z]) => { const s = matOf(sid); return { same: s.z.length === z.length && s.z.every((v, i) => v === z[i]), zu: s.zunit, xu: s.xunit }; }, [sid, want.m.z]);
+  check("the NV scan read from qudi's classic file: every count rate as SciPy's reference has it, in µm and c/s", r.same && r.zu === "c/s" && r.xu === "µm", JSON.stringify(r));
+  // Analyze › Image › Spots…: the shot noise of a count rate, the pixel time from the header, the prominence from the scatter
+  await p.click(".mb[data-menu=analyze]"); await p.waitForTimeout(150); await p.hover(".menu [role=menuitem]:has-text('Image')"); await p.waitForTimeout(250);
+  await p.locator(".menu [role=menuitem]:has-text('Spots…')").last().click(); await p.waitForSelector("#aSPp", { timeout: 4000 });
+  r = await p.evaluate(() => ({ mat: $("#aSPm").value, n: $("#aSPn").value, t: parseNum($("#aSPt").value), th: $("#aSPth").textContent + " | " + $("#aSPth").title, prom: parseNum($("#aSPp").value), want: spxStart(matFront()).prom, msg: $("#aSPmsg").textContent, ok: $("#formOk").disabled }));
+  check("Analyze › Image › Spots…: shot noise of a count rate, the pixel time 0.01 s from the header's clock, five times the scatter as the prominence, the seeds counted", r.n === "rate" && r.t === 0.01 && /^header: 100 Hz \| Clock frequency of scanner \(Hz\)/.test(r.th) && r.prom === r.want && /^\d+ maxima as seeds$/.test(r.msg) && !r.ok, JSON.stringify(r));
+  await p.fill("#aSPt", ""); await p.waitForTimeout(100); r = await p.evaluate(() => ({ msg: $("#aSPmsg").textContent, ok: $("#formOk").disabled }));
+  check("…the pixel time taken away: refused in words, Work it out not offered", /needs its pixel time/.test(r.msg) && r.ok, JSON.stringify(r));
+  await p.fill("#aSPt", "0.01"); await p.fill("#aSPp", "7500"); await p.waitForTimeout(100);
+  await p.click("#formOk"); await p.waitForFunction(() => { const a = anaList().find((x) => x.kind === "spots"); return a && a.res && (a.res.report || a.res.err); }, null, { timeout: 30000 });
+  const cmpS = () => p.evaluate(() => { const a = anaList().filter((x) => x.kind === "spots").slice(-1)[0], s = matOf(a.p.mat), r = spotFit({ nx: s.nx, ny: s.ny, xs: matAxis(s.x, s.nx), ys: matAxis(s.y, s.ny), z: s.z }, a.p), ok = r.spots.filter((q) => q.x != null);
+    const col = (k) => (P().cols.find((c) => c.ana === a.id && c.ak === k) || {}), keys = ["x", "sx", "y", "sy", "w", "sw", "A", "sA", "B", "sB", "I", "sI"];
+    const same = keys.every((k) => { const d = col(k).data || []; return d.length === ok.length && ok.every((q, i) => d[i] === q[k] || (d[i] == null && q[k] == null)); });
+    return { id: a.id, err: a.res.err, n: ok.length, same, spots: ok.map((q) => [q.x, q.sx, q.y, q.sy]), names: ["x", "sx", "y", "w", "A", "I"].map((k) => col(k).name), roles: [col("x").role, col("y").role, col("sy").role, col("sx").role, col("sx").ax], method: a.res.report && a.res.report.method, sn: (col("sn").data || [])[0] }; });
+  r = await cmpS(); const sxid = r.id;
+  check("…the result sheet: a row a spot, each value and error spotFit's, X and Y with their errors as error bars both ways", !r.err && r.same && r.n === r.sn && r.names.join("|") === "X (µm)|SE of X (µm)|Y (µm)|FWHM (µm)|Peak (c/s)|Volume (c/s·µm²)" && r.roles.join() === "x,y,e,e,x", JSON.stringify([r.err, r.same, r.n, r.names, r.roles]));
+  let worst = 0; const used = new Set();
+  for (const q of tr) { let bi = -1, bd = Infinity; r.spots.forEach((s, i) => { const d = Math.hypot(s[0] - q.x, s[2] - q.y); if (d < bd && !used.has(i)) { bd = d; bi = i; } }); if (bi < 0) { worst = Infinity; continue; } used.add(bi); const s = r.spots[bi]; worst = Math.max(worst, Math.abs(s[0] - q.x) / s[1], Math.abs(s[2] - q.y) / s[3]); }
+  check(`…the scan's 13 emitters, the pair 0.30 µm apart among them, each within ${worst.toFixed(1)} of its errors of the truth`, r.n === 13 && worst < 5, JSON.stringify({ n: r.n, worst }));
+  check("…the method names the seeds' ImageJ command and Poisson's maximum likelihood", /run\("Find Maxima\.\.\.", "prominence=7500 output=List"\)/.test(r.method) && /Poisson's maximum likelihood/.test(r.method), r.method);
+  // the report: the spots ringed on the map, once however often asked; their positions plotted with their error bars
+  await p.evaluate((id) => anaReport(id), sxid); await p.waitForTimeout(500); await p.click(`#w-res button[data-anaact="show"]`); await p.waitForTimeout(700);
+  const rings = () => p.evaluate(([sid, id]) => { const g = P().graphs.find((g) => g.plot && g.plot.mat === sid), an = (P().annos || []).filter((a) => a.spt === id); return { g: !!g, n: an.length, ell: an.every((a) => a.t === "ellipse" && a.g === g.id) }; }, [sid, sxid]);
+  r = await rings(); await p.evaluate((id) => anaReport(id), sxid); await p.waitForTimeout(400); await p.click(`#w-res button[data-anaact="show"]`); await p.waitForTimeout(600); const again = await rings();
+  check("Show the spots on its map: a ring at each spot's FWHM on the matrix's map, once however often asked", r.g && r.n === 13 && r.ell && again.n === 13, JSON.stringify([r, again]));
+  await p.evaluate((id) => anaReport(id), sxid); await p.waitForTimeout(400); await p.click(`#w-res button[data-anaact="plot"]`); await p.waitForTimeout(700);
+  r = await p.evaluate(() => { const g = P().graphs.slice(-1)[0], c = colById(g.cols[0]); return { ak: c && c.ak, errs: Object.keys(errColsOf(c.id)), drawn: !!document.querySelector("#plot path") }; });
+  check("Plot the positions: Y against X with both errors as error bars", r.ak === "y" && r.errs.length === 2, JSON.stringify(r));
+  // elliptical, its residuals as a matrix of the analysis's own, from the matrix window's menu
+  await p.evaluate((sid) => matOpen(matBookOf(sid).id), sid); await p.waitForTimeout(400);
+  await p.click(".mxwin [data-mxmenu]"); await p.waitForTimeout(150); await p.locator(".menu [role=menuitem]:has-text('Spots…')").last().click(); await p.waitForSelector("#aSPs");
+  await p.selectOption("#aSPs", "ellip"); await p.fill("#aSPp", "7500"); await p.selectOption("#aSPo", "resid"); await p.waitForTimeout(100); await p.click("#formOk");
+  await p.waitForFunction(() => anaList().filter((x) => x.kind === "spots").length === 2 && anaList().filter((x) => x.kind === "spots")[1].res, null, { timeout: 30000 });
+  r = await p.evaluate(() => { const a = anaList().filter((x) => x.kind === "spots")[1], ms = a.out && a.out.mat && matBooks().find((b) => b.id === a.out.mat), s = ms && ms.sheets[0], col = (k) => (P().cols.find((c) => c.ana === a.id && c.ak === k) || {}).data || [];
+    return { err: a.res.err, n: col("x").length, th: col("th").length, mat: !!s, zname: s && s.zname, some: s && s.z.some((v) => v != null), empty: s && s.z.some((v) => v == null) }; });
+  check("Matrix › Spots…, elliptical, a matrix of the residuals: angles in the sheet, the residuals in the windows and nothing outside", !r.err && r.n === 13 && r.th === 13 && r.mat && r.zname === "Residual" && r.some && r.empty, JSON.stringify(r));
+  // followed: a cell of the scan changed, both worked out again
+  const before = await p.evaluate((id) => (P().cols.find((c) => c.ana === id && c.ak === "x") || {}).data.length, sxid);
+  // a spot of the PSF's size typed where the scan is emptiest (the cell farthest from every emitter, five cells in from the edges)
+  await p.evaluate(([sid, tr]) => { matPut(sid, (s) => { const X = matAxis(s.x, s.nx), Y = matAxis(s.y, s.ny), z = s.z.slice(); let bc = 0, br = 0, bd = -1;
+      for (let r = 5; r < s.ny - 5; r++) for (let c = 5; c < s.nx - 5; c++) { const d = Math.min(...tr.map((q) => Math.hypot(X[c] - q.x, Y[r] - q.y))); if (d > bd) { bd = d; bc = c; br = r; } }
+      for (let r = 0; r < s.ny; r++) for (let c = 0; c < s.nx; c++) z[r * s.nx + c] += 30000 * Math.exp(-4 * Math.LN2 * ((X[c] - X[bc]) ** 2 + (Y[r] - Y[br]) ** 2) / 0.1225);
+      return Object.assign({}, s, { z }); }, { undo: "a test spot", log: "typed a test spot" }); }, [sid, tr]); await p.waitForTimeout(2500);
+  r = await p.evaluate((id) => ({ n: (P().cols.find((c) => c.ana === id && c.ak === "x") || {}).data.length, stale: anaList().filter((a) => a.kind === "spots").some((a) => anaStale(a)) }), sxid);
+  check("a bright spot typed into the scan: the spots worked out again, one more", r.n === before + 1 && !r.stale, JSON.stringify([before, r]));
+  await p.reload(); await ready(p); await p.waitForTimeout(1500);
+  r = await p.evaluate(() => anaList().filter((x) => x.kind === "spots").map((a) => !!(a.res && a.res.report) && !anaStale(a)));
+  check("a reload: both analyses there, up to date", r.length === 2 && r.every(Boolean), JSON.stringify(r));
+}, { name: "Q.5" });
+
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

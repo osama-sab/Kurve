@@ -388,6 +388,26 @@ if (fixtures.imagej) {
   if (fixtures.imagej.meas) console.log(`  ImageJ's own raw sums against exact arithmetic (said, not judged): SD ${ijw.sd.toExponential(1)}, skewness ${ijw.skew.toExponential(1)}, kurtosis ${ijw.kurt.toExponential(1)}`);
 }
 
+/* ---- Spots (QUDI_SPEC Q.5): SciPy's least_squares on Kurve's spot model, the seeds from ImageJ's port, every definition
+   (windows, groups, Poisson's maximum likelihood, splitting) worked out again in tools/ref/spot_fixtures.py ---- */
+if (fixtures.spots) {
+  const SF = get("spotFit"), MA = get("matAxis");
+  for (const c of fixtures.spots.cases) {
+    const m = c.m, w = c.want, r = SF({ nx: m.nx, ny: m.ny, xs: MA(m.x, m.nx), ys: MA(m.y, m.ny), z: m.z }, c.o);
+    if (r.fail) { refBad.push(`spotFit ${c.name}: ${r.fail}`); continue; }
+    const same = r.seeds === w.seeds && r.spots.length === w.spots.length && r.groups.map((g) => g.split).join() === w.groups.map((g) => g.split).join() && Math.abs(r.R - w.R) <= 1e-12 * w.R;
+    note("spotFit.count", same ? 0 : 1, `${c.name}: ${r.seeds} seeds, ${r.spots.length} spots, splits ${r.groups.map((g) => g.split).join("")} against ${w.seeds}, ${w.spots.length}, ${w.groups.map((g) => g.split).join("")}`);
+    if (!same) continue;
+    let ev = 0, ee = 0, at = "", ae = "";
+    r.spots.forEach((s, i) => { const q = w.spots[i];
+      // against the value's standard error; a noise-free case (its errors at the rounding) against the value, and its truth
+      for (const k of ["x", "y", "w", "A", "B", "I", "w1", "w2", "th"]) { if (q[k] == null) continue; const d = Math.abs(s[k] - q[k]) / (c.exact ? Math.abs(q[k]) + 1 : (q["s" + k] || 0) + 1e-12 * (Math.abs(q[k]) + 1)); if (!(d <= ev)) { ev = d; at = `spot ${i + 1} ${k}`; } }
+      if (c.exact) { const [x0, y0, A0, w0] = c.exact[i]; note("spotFit.truth", Math.max(Math.abs(s.x - x0), Math.abs(s.y - y0), Math.abs(s.w - w0) / w0, Math.abs(s.A - A0) / A0, Math.abs(s.B - 100) / 100), `${c.name}, spot ${i + 1}`); }
+      for (const k of ["sx", "sy", "sw", "sA", "sB", "sI", "sw1", "sw2", "sth"]) { if (q[k] == null || c.exact) continue; const d = s[k] == null ? Infinity : Math.abs(s[k] - q[k]) / Math.max(q[k], 1e-300); if (!(d <= ee)) { ee = d; ae = `spot ${i + 1} ${k}`; } } });
+    note("spotFit.values", ev, `${c.name}, ${at} (against its standard error)`); note("spotFit.errors", ee, `${c.name}, ${ae}`);
+  }
+}
+
 /* ---- NIST's Norris: certified values read from the file itself ---- */
 {
   const txt = readFileSync(join(here, "ref", "nist", "Norris.dat"), "utf8").split(/\r?\n/);

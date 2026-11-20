@@ -10252,6 +10252,38 @@ ANA_KINDS.ijprofile={label:"Profile (ImageJ)", base:"Profile", typed:true, typed
     const gap=rows.filter(q=>q.v==null).length; if(gap) notes.push(`${gap} sample${gap===1?"":"s"} next to an empty cell, empty.`);
     const method=`ImageJ 1.54f's Analyze › Plot Profile of ${mq.name} along the line from (${fmt(+p.x0,6)}, ${fmt(+p.y0,6)}) to (${fmt(+p.x1,6)}, ${fmt(+p.y1,6)}): ${r.n} samples ${fmt(r.step,6)}${du?" "+du:""} apart, each bilinear between the four cells about it (ImageJ's getLine and getInterpolatedValue), on the values ${p.single?"rounded to single precision, as ImageJ's 32-bit image holds them":"as they are"}. In ImageJ, on the TIFF Kurve writes for this matrix: ${r.macro} run("Plot Profile");`;
     return {tables:[{cols}],report:{sections:secs,method,ijp:{mat:p.mat||null,x0:+p.x0,y0:+p.y0,x1:+p.x1,y1:+p.y1}},notes}; }};
+// Spots (QUDI_SPEC Q.5): spotFit's spots, a row each, and the summary; optionally the model or the residuals as a matrix.
+ANA_KINDS.spots={label:"Spots (Kurve)", base:"Spots", typed:true, typedWhat:"a matrix",
+  help:"Spots on a matrix fitted as Kurve does and ImageJ does not: each a two-dimensional Gaussian on its background, its position to a fraction of a cell, its FWHM, peak, background and volume each with a standard error, spots closer than their size fitted together, weighted by their shot noise when the pixel time is known",
+  heavy(p,ins){ const q=ins.find(q=>q.mat); return !!q&&q.mat.z.length>40000; },
+  run(ins,p){ p=p||{}; const mq=ins.find(q=>q.mat); if(!mq) return {fail:"Its matrix has been deleted."};
+    const M=mq.mat, prom=+p.prom; if(!(prom>=0)) return {fail:"The prominence is a number, 0 or more."};
+    const o={prom,shape:p.shape==="ellip"?"ellip":"round",R:+p.R>0?+p.R:null,noise:p.noise||"scatter",t:+p.t,split:p.split!==false,single:!!p.single};
+    const r=spotFit({nx:M.nx,ny:M.ny,xs:M.xs,ys:M.ys,z:M.z},o); if(r.fail) return {fail:r.fail};
+    const xu=M.xunit||"", yu=M.yunit||"", zu=M.zunit||"", U=(n,u)=>u?`${n} (${u})`:n, du=xu&&xu===yu?xu:"", el=o.shape==="ellip";
+    const vu=zu&&du?`${zu}·${du}²`:"", cols=[], secs=[], notes=r.notes.slice(), ok=r.spots.filter(s=>s.x!=null);
+    const med=a=>{ const s=a.filter(Number.isFinite).sort((x,y)=>x-y); return s.length?quantileSorted(s,0.5):null; }, iqr=a=>{ const s=a.filter(Number.isFinite).sort((x,y)=>x-y); return s.length>1?quantileSorted(s,0.75)-quantileSorted(s,0.25):null; };
+    const W=ok.map(s=>s.w), Bs=r.groups.filter(g=>g.B!=null).map(g=>g.B), added=ok.filter(s=>s.add).length;
+    anaTab("Spots",[["n","Spots"],["seeds","Maxima as seeds"],["add","Added by splitting"],["grp","Groups"],["R",U("Window's radius",du)],["wmed",U("FWHM, median",du)],["wiqr",U("FWHM, interquartile range",du)],
+      ["bmed",U("Background, median",zu)],["dens",du?`Spots per ${du}²`:"Spots per unit area"]],
+      [{n:ok.length,seeds:r.seeds,add:added,grp:r.groups.length,R:r.R,wmed:med(W),wiqr:iqr(W),bmed:med(Bs),dens:r.area>0?ok.length/r.area:null}],cols,secs,"s");
+    const spec=[["x",U("X",xu)],["sx",U("SE of X",xu)],["y",U("Y",yu)],["sy",U("SE of Y",yu)]].concat(el?[["w",U("FWHM, mean",du)],["sw",U("SE of FWHM",du)],["w1",U("FWHM, long axis",du)],["sw1",U("SE of long axis",du)],["w2",U("FWHM, short axis",du)],["sw2",U("SE of short axis",du)],["th","Angle (°)"],["sth","SE of angle (°)"]]:[["w",U("FWHM",du)],["sw",U("SE of FWHM",du)]],
+      [["A",U("Peak",zu)],["sA",U("SE of peak",zu)],["B",U("Background",zu)],["sB",U("SE of background",zu)],["I",U("Volume",vu)],["sI",U("SE of volume",vu)],["tA","Peak's t"],["nn",U("Nearest spot",du)],
+       ["g","Group"],["gk","Spots in group"],["chi2r","Reduced χ²"],["conv","Settled"],["add","Added by splitting"],["edge","Window at the edge"]]);
+    anaTab("",spec,ok,cols,[]);
+    cols.forEach(c=>{ if(c.k==="x") c.role="x"; if(c.k==="y") c.role="y"; if(c.k==="sy"){ c.role="e"; c.of="y"; } if(c.k==="sx"){ c.role="e"; c.of="y"; c.ax="x"; } });
+    const failed=r.spots.length-ok.length; if(failed) notes.push(`${failed} spot${failed===1?"":"s"} could not be fitted (${[...new Set(r.spots.filter(s=>s.x==null).map(s=>s.fail))].join("; ")}).`);
+    if(r.auto) notes.push(r.wn?`The window's radius is 1.5 times the median FWHM at ${r.wn} of the seeds, ${fmt(r.w0,4)}${du?" "+du:""}.`:`The window's radius is 4.5 cells.`);
+    if(r.groups.some(g=>!g.conv)) notes.push(`${r.groups.filter(g=>!g.conv).length} group${r.groups.filter(g=>!g.conv).length===1?"":"s"} did not settle within the iterations.`);
+    const nz=o.noise==="rate"?`each cell's shot noise, √N over the pixel time ${fmt(o.t,6)} s (N the count in it), by Poisson's maximum likelihood (the weights from the model until they settle)`:o.noise==="counts"?`each cell's shot noise, √N (its value a count), by Poisson's maximum likelihood`:`no weights, the errors from the scatter (the covariance scaled by the reduced χ²)`;
+    const method=`Kurve's spots on ${mq.name} (${M.ny} × ${M.nx}): the maxima ImageJ 1.54f's Find Maxima gives at a prominence of ${fmt(prom,6)}${zu?" "+zu:""} (run("Find Maxima...", "prominence=${prom} output=List")) as seeds; each spot a two-dimensional Gaussian ${el?"(elliptical, turned)":"(round)"} on a flat background over the cells within ${fmt(r.R,4)}${du?" "+du:""} of it, spots closer than twice that fitted together with one background, by Levenberg–Marquardt weighted by ${nz}${o.split?"; a spot added at the largest residual of a group and kept when "+(o.noise==="scatter"?"the F test":"the likelihood ratio test")+" of the two fits gives p below 0.001 (at most three a group)":""}. Standard errors from the covariance; a parameter at its limit has none. The volume is A·π·w₁·w₂/(4 ln 2).`;
+    let mat=null; if(p.out==="model"||p.out==="resid"){ const z=new Array(M.nx*M.ny).fill(null);
+      r.groups.forEach(g=>{ if(!g.params) return; const K=el?6:4, P=g.params; g.cellIdx.forEach(k=>{ const x=M.xs[k%M.nx], y=M.ys[Math.floor(k/M.nx)]; let v=P[0];
+        for(let b=1;b<P.length;b+=K){ const ex=x-P[b+1], ey=y-P[b+2]; if(K===4) v+=P[b]*Math.exp(-SPOT_L16*(ex*ex+ey*ey)/(P[b+3]*P[b+3]));
+          else { const a=P[b+5]*Math.PI/180, c=Math.cos(a), sn=Math.sin(a), u=ex*c+ey*sn, w=-ex*sn+ey*c; v+=P[b]*Math.exp(-SPOT_L16*(u*u/(P[b+3]*P[b+3])+w*w/(P[b+4]*P[b+4]))); } }
+        z[k]=p.out==="model"?v:M.z[k]-v; }); });
+      mat={nx:M.nx,ny:M.ny,x:matAxisOf(M.xs),y:matAxisOf(M.ys),z,xname:M.xname||"X",xunit:xu,yname:M.yname||"Y",yunit:yu,zname:p.out==="model"?"Model":"Residual",zunit:zu}; }
+    return {tables:[{cols}],report:{sections:secs,method,spt:{mat:p.mat||null,el,spots:ok.slice(0,2000).map(s=>[s.x,s.y,el?s.w1:s.w,el?s.w2:s.w,el?s.th:0])}},notes,mat}; }};
 /* ==ANA:END== */
 /* ==MAT:START== Matrices (ux/spec/SHEET_SPEC.md, slice 3.6), pure: a grid of Z with its X and Y.
    A matrix is {nx, ny, x, y, z}: `z` row major (z[r*nx + c], a row a Y, a column an X), null for a
@@ -10609,6 +10641,130 @@ function ijProfile(M,o){ o=o||{}; const I=ijImage(M,!!o.single); if(I.fail) retu
   const D=new Float64Array(n), X=new Float64Array(n), Y=new Float64Array(n), V=new Float64Array(n); let rx=lx0, ry=ly0;
   for(let i=0;i<n;i++){ V[i]=at(rx,ry); X[i]=(rx+0.5-G.xo)*G.pw; Y[i]=(G.yo-ry-0.5)*G.ph; D[i]=i*step; rx+=xinc; ry+=yinc; }
   return {d:D,x:X,y:Y,v:V,n,step,line:[lx0,ly0,lx1,ly1],macro:`makeLine(${lx0}, ${ly0}, ${lx1}, ${ly1});`,geom:G}; }
+/* Spots (QUDI_SPEC Q.5, beyond ImageJ): ImageJ's Find Maxima (ijMaxima) gives the seeds; each spot is fitted by a
+   two-dimensional Gaussian, round (A, x0, y0, w) or elliptical and turned (A, x0, y0, w1, w2, θ in degrees; w1 along the
+   turned axis, as gauss2d), on a flat background B, over the cells within R of its seed (R in X's unit: 1.5 times the median
+   FWHM at the seeds unless typed); seeds closer than 2R share cells and are fitted together, one background a group. Each
+   cell weighted by its shot noise (decision 9: "rate", a count rate over the pixel time t, σ = √max(v·t, 1)/t; "counts",
+   σ = √max(v, 1); "scatter", none, the covariance scaled by the reduced χ²). FWHM w: A·exp(−4 ln 2·r²/w²). */
+const SPOT_SHAPES=[["round","Round"],["ellip","Elliptical, turned"]], SPOT_NOISE=[["rate","Shot noise, a rate"],["counts","Shot noise, counts"],["scatter","From the scatter"]];
+const SPOT_GMAX=30, SPOT_L16=4*Math.LN2;
+// The median FWHM at the seeds: along each seed's row and column, where the values fall to half way between the seed's and the
+// matrix's median (straight lines between cells); a seed's width the geometric mean of the two, when both sides of both are found.
+function spotW0(z,nx,ny,X,Y,seeds){ const vals=[]; for(let i=0;i<z.length;i++) if(z[i]!=null&&Number.isFinite(z[i])) vals.push(z[i]);
+  vals.sort((a,b)=>a-b); const bg=quantileSorted(vals,0.5), ws=[];
+  const cross=(get,n,i0,P,dir,half)=>{ for(let i=i0+dir;i>=0&&i<n;i+=dir){ const v=get(i), u=get(i-dir); if(v==null||u==null) return null;
+      if(v<=half) return P[i]+(half-v)/(u-v)*(P[i-dir]-P[i]); } return null; };
+  for(const s of seeds){ const v0=z[s.r*nx+s.c]; if(!(v0>bg)) continue; const half=bg+(v0-bg)/2;
+    const gr=i=>z[s.r*nx+i], gc=i=>z[i*nx+s.c];
+    const l=cross(gr,nx,s.c,X,-1,half), rr=cross(gr,nx,s.c,X,1,half), d=cross(gc,ny,s.r,Y,-1,half), u=cross(gc,ny,s.r,Y,1,half);
+    if(l!=null&&rr!=null&&d!=null&&u!=null){ const w=Math.sqrt(Math.abs(rr-l)*Math.abs(u-d)); if(w>0) ws.push(w); } }
+  ws.sort((a,b)=>a-b); return {w0:ws.length?quantileSorted(ws,0.5):null, n:ws.length, bg}; }
+function spotSigma(v,o){ return o.noise==="rate"?Math.sqrt(Math.max(v*o.t,1))/o.t:o.noise==="counts"?Math.sqrt(Math.max(v,1)):1; }
+// spotFit(M, {prom, shape, R, noise, t, single}) → {spots:[{x, sx, y, sy, w, sw, w1, sw1, w2, sw2, th, sth, A, sA, B, sB, I, sI,
+// tA, g, gk, chi2r, conv, edge, n, c, r, v}], groups:[{seeds, cells, chi2r, conv, iter, n, dof, R}], R, w0, auto, seeds, pix,
+// area, noise, notes} or {fail} in words.
+function spotFit(M,o){ o=o||{}; const nx=M.nx, ny=M.ny, z=M.z, X=M.xs||matAxis(M.x,nx), Y=M.ys||matAxis(M.y,ny);
+  if(!(nx>=3&&ny>=3)) return {fail:"A spot needs a matrix of three cells by three at least."};
+  const shape=o.shape==="ellip"?"ellip":"round", noise=["rate","counts","scatter"].includes(o.noise)?o.noise:"scatter", t=+o.t;
+  if(noise==="rate"&&!(t>0)) return {fail:"The shot noise of a count rate needs the pixel time, above 0 s."};
+  if(noise!=="scatter"){ for(let i=0;i<z.length;i++) if(z[i]!=null&&z[i]<0) return {fail:"A count is below zero, so its shot noise means nothing: take the noise from the scatter."}; }
+  const mx=ijMaxima({nx,ny,xs:X,ys:Y,z},{prom:o.prom,single:!!o.single}); if(mx.fail) return {fail:mx.fail};
+  const seeds=mx.pts.map(q=>({c:q.c,r:q.r,x:X[q.c],y:Y[q.r],v:z[q.r*nx+q.c]}));
+  const dx=(X[nx-1]-X[0])/(nx-1), dy=(Y[ny-1]-Y[0])/(ny-1), pix=Math.min(Math.abs(dx),Math.abs(dy)), notes=[];
+  if(!seeds.length) return {spots:[],groups:[],R:+o.R>0?+o.R:null,w0:null,auto:!(+o.R>0),seeds:0,pix,noise,notes:["No maximum stands out by more than the prominence."]};
+  const W0=spotW0(z,nx,ny,X,Y,seeds), auto=!(+o.R>0); let w0=W0.w0;
+  if(w0==null){ w0=3*pix; if(auto) notes.push("No seed's half height was found on both sides, so the window's radius is 4.5 cells."); }
+  const R=auto?1.5*w0:+o.R, R2=R*R*(1+1e-12);
+  if(R<pix) return {fail:`The radius, ${R}, is below a cell's size, ${pix}: no spot could be fitted.`};
+  const winOf=s=>{ const out=[]; const cs=R/Math.abs(dx), rs=R/Math.abs(dy), c0=(s.x-X[0])/dx, r0=(s.y-Y[0])/dy;
+    for(let r=Math.max(0,Math.floor(r0-rs)-1);r<=Math.min(ny-1,Math.ceil(r0+rs)+1);r++) for(let c=Math.max(0,Math.floor(c0-cs)-1);c<=Math.min(nx-1,Math.ceil(c0+cs)+1);c++){
+      const v=z[r*nx+c]; if(v==null||!Number.isFinite(v)) continue; const ex=X[c]-s.x, ey=Y[r]-s.y; if(ex*ex+ey*ey<=R2) out.push(r*nx+c); } return out; };
+  // groups: seeds closer than 2R, by union–find, numbered by their first seed in ImageJ's order
+  const par=seeds.map((_,i)=>i), find=i=>{ while(par[i]!==i){ par[i]=par[par[i]]; i=par[i]; } return i; };
+  for(let i=0;i<seeds.length;i++) for(let j=i+1;j<seeds.length;j++){ const ex=seeds[i].x-seeds[j].x, ey=seeds[i].y-seeds[j].y; if(ex*ex+ey*ey<4*R*R){ const a=find(i), b=find(j); if(a!==b) par[Math.max(a,b)]=Math.min(a,b); } }
+  let gl=[]; const gm=new Map(); seeds.forEach((s,i)=>{ const k=find(i); if(!gm.has(k)){ gm.set(k,gl.length); gl.push([]); } gl[gm.get(k)].push(i); });
+  if(gl.some(g=>g.length>SPOT_GMAX)){ notes.push(`A group of more than ${SPOT_GMAX} spots whose windows overlap was fitted one spot at a time.`); gl=gl.flatMap(g=>g.length>SPOT_GMAX?g.map(i=>[i]):[g]); }
+  const K=shape==="ellip"?6:4, xlo=Math.min(X[0],X[nx-1]), xhi=Math.max(X[0],X[nx-1]), ylo=Math.min(Y[0],Y[ny-1]), yhi=Math.max(Y[0],Y[ny-1]);
+  const split=o.split!==false, spots=[], groups=[];
+  gl.forEach((g,gi)=>{ const set=new Set(); g.forEach(i=>winOf(seeds[i]).forEach(k=>set.add(k))); const cells=[...set].sort((a,b)=>a-b);
+    const CX=cells.map(k=>X[k%nx]), CY=cells.map(k=>Y[Math.floor(k/nx)]), Z=cells.map(k=>z[k]), n=cells.length;
+    const Ws=Z.map(v=>1/spotSigma(v,{noise,t})), zs=Z.slice().sort((a,b)=>a-b), B0=quantileSorted(zs,0.1), I=cells.map((_,i)=>i);
+    const f4=(i,p)=>{ let v=p[0]; const x=CX[i], y=CY[i]; for(let b=1;b<p.length;b+=4){ const ex=x-p[b+1], ey=y-p[b+2], w=p[b+3]; v+=p[b]*Math.exp(-SPOT_L16*(ex*ex+ey*ey)/(w*w)); } return v; };
+    const f6=(i,p)=>{ let v=p[0]; const x=CX[i], y=CY[i]; for(let b=1;b<p.length;b+=6){ const ex=x-p[b+1], ey=y-p[b+2], a=p[b+5]*Math.PI/180, c=Math.cos(a), sn=Math.sin(a), u=ex*c+ey*sn, w=-ex*sn+ey*c;
+          v+=p[b]*Math.exp(-SPOT_L16*(u*u/(p[b+3]*p[b+3])+w*w/(p[b+4]*p[b+4]))); } return v; };
+    const f=K===4?f4:f6;
+    // an elliptical start: the angle and elongation of the light above B0 within w0 of the centre (its second moments), w1 = w0·√e and
+    // w2 = w0/√e with e the axes' ratio held between 1.05 and 2, so θ can move (a round start has no slope in θ)
+    const mom=(x,y)=>{ let sw=0, sxx=0, syy=0, sxy=0; for(let i=0;i<n;i++){ const ex=CX[i]-x, ey=CY[i]-y; if(ex*ex+ey*ey>w0*w0) continue; const q=Math.max(Z[i]-B0,0); sw+=q; sxx+=q*ex*ex; syy+=q*ey*ey; sxy+=q*ex*ey; }
+      if(!(sw>0)) return {w1:w0*Math.sqrt(1.05),w2:w0/Math.sqrt(1.05),th:0}; const a=sxx/sw, c=syy/sw, b=sxy/sw, tr=a+c, dt=Math.sqrt(Math.max((a-c)*(a-c)/4+b*b,0)), l1=tr/2+dt, l2=Math.max(tr/2-dt,1e-300);
+      const e=Math.min(2,Math.max(1.05,Math.sqrt(l1/l2))); return {w1:w0*Math.sqrt(e),w2:w0/Math.sqrt(e),th:0.5*Math.atan2(2*b,a-c)*180/Math.PI}; };
+    // a spot's start (its seed, the amplitude above B0) and box: centre within R of where it started
+    const sp=(x,y,A)=>({x,y,A:Math.max(A,(zs[n-1]-zs[0])*1e-3,1e-300)});
+    const run=(st,B,Kr)=>{ Kr=Kr||K; const fr=Kr===4?f4:f6, p0=[B], lo=[-Infinity], hi=[Infinity], ps=[Math.max(Math.abs(B0),1e-300)];
+      st.forEach(q=>{ p0.push(q.A,q.x,q.y,q.w1||w0); lo.push(0,q.x0-R,q.y0-R,0.01*pix); hi.push(Infinity,q.x0+R,q.y0+R,4*R); ps.push(Math.max(q.A,1e-300),pix,pix,w0);
+        if(Kr===6){ p0.push(q.w2||w0,q.th||0); lo.push(0.01*pix,-Infinity); hi.push(4*R,Infinity); ps.push(w0,90); } });
+      ps[0]=Math.max(ps[0],ps[1]||1);
+      if(n<=p0.length) return {error:`${n} cells for ${p0.length} parameters`};
+      const opt={lo,hi,pscale:ps,maxIter:o.maxIter||400,tol:1e-15,scale:noise==="scatter"};
+      let r=lmFit(fr,I,Z,Ws,p0,p0.map(()=>false),opt), W=Ws, rounds=0;
+      // shot noise: the weights again from the model until they settle, which is Poisson's maximum likelihood (its score equation is
+      // the fixed point's), the covariance the inverse of Fisher's information; weights from the data alone bias a background low
+      if(noise!=="scatter") for(;rounds<30&&!r.error;rounds++){ const P=r.params, W2=I.map(i=>1/spotSigma(Math.max(fr(i,P),0),{noise,t}));
+        const r2=lmFit(fr,I,Z,W2,P,P.map(()=>false),opt); if(r2.error) break;
+        const moved=r2.params.some((v,k)=>Math.abs(v-P[k])>1e-10*ps[k]); r=r2; W=W2; if(!moved) break; }
+      if(r.error) return r;
+      const m=I.map(i=>Math.max(fr(i,r.params),0)), kc=noise==="rate"?t:1;
+      let dev=0; if(noise!=="scatter") for(let i=0;i<n;i++){ const N=Math.max(Z[i],0)*kc, mu=Math.max(m[i]*kc,1e-300); dev+=2*((N>0?N*Math.log(N/mu):0)-(N-mu)); }
+      // Akaike's criterion: the deviance (or n·ln(χ²/n) from the scatter) and twice the parameters
+      const aic=(noise==="scatter"?n*Math.log(r.stats.chi2/n):dev)+2*p0.length;
+      return Object.assign(r,{p0,W,rounds,dev,aic}); };
+    let st=g.map(i=>{ const s=seeds[i]; return Object.assign(sp(s.x,s.y,s.v-B0),{x0:s.x,y0:s.y,seed:i},K===6?mom(s.x,s.y):{}); });
+    let res=run(st,B0), adds=0;
+    const G={seeds:g.slice(),cells:n,R,chi2r:null,conv:false,iter:0,dof:null,fail:null,split:0};
+    // a spot the maxima did not separate (QUDI_SPEC Q.5): a spot added where the weighted residual is largest, kept when the
+    // F test of the two nested fits gives p below 0.001, the fit settled and the new spot's amplitude is not at zero; at most three a group
+    while(split&&!res.error&&adds<3&&st.length<SPOT_GMAX){ const P=res.params; let bi=-1, be=0;
+      for(let i=0;i<n;i++){ const e=(Z[i]-f(i,P))*res.W[i]; if(e>be){ be=e; bi=i; } } if(bi<0) break;
+      // the spots kept where they are, their widths from the median FWHM again, so an inflated one does not hold its neighbour's light
+      const st2=st.map((q,j)=>{ const b=1+j*K; return Object.assign({},q,{A:P[b],x:P[b+1],y:P[b+2],w1:w0,w2:K===6?w0:null,th:K===6?P[b+5]:null},K===6?mom(P[b+1],P[b+2]):{}); });
+      st2.push(Object.assign(sp(CX[bi],CY[bi],Z[bi]-f(bi,P)),{x0:CX[bi],y0:CY[bi],seed:-1},K===6?mom(CX[bi],CY[bi]):{}));
+      const r2=run(st2,P[0]); if(r2.error) break; const m2=r2.p0.length, d2=n-m2; if(!(d2>0)) break;
+      // the two nested fits compared: Poisson's likelihood ratio (the deviances' difference, χ² with K degrees of freedom), or F from the scatter
+      const pS=noise==="scatter"?fPvalue(((res.stats.chi2-r2.stats.chi2)/K)/(r2.stats.chi2/d2),K,d2):(res.dev-r2.dev>0?DIST.chi2.sf(res.dev-r2.dev,K):1), bN=1+(st2.length-1)*K;
+      if(o.trace) o.trace.push({g:gi+1,k:st2.length,pS,conv:r2.stats.converged,A:r2.params[bN],at:!!(r2.atBound&&r2.atBound[bN]),chi:[res.stats.chi2,r2.stats.chi2],aic:r2.aic});
+      // and it must look like another emitter: its FWHM within a factor of two of the median's, half that FWHM from every other spot
+      const P2=r2.params, wN=K===4?P2[bN+3]:Math.sqrt(P2[bN+3]*P2[bN+4]), apart=st2.every((q,j)=>j===st2.length-1||Math.hypot(P2[1+j*K+1]-P2[bN+1],P2[1+j*K+2]-P2[bN+2])>=0.5*w0);
+      if(!(pS<1e-3&&r2.stats.converged&&!(r2.atBound&&r2.atBound[bN])&&r2.params[bN]>0&&wN>=0.5*w0&&wN<=2*w0&&apart)) break;
+      // round spots: two kept only when they beat the same spots elliptical by Akaike's criterion, by more than 10 (strong evidence:
+      // a spot merely elliptical is not two)
+      if(K===4){ const re=run(st.map((q,j)=>{ const b=1+j*K; return Object.assign({},q,{A:P[b],x:P[b+1],y:P[b+2]},mom(P[b+1],P[b+2])); }),P[0],6); if(o.trace) o.trace[o.trace.length-1].aicE=re.aic; if(!re.error&&!(r2.aic+10<re.aic)) break; }
+      st=st2; res=r2; adds++; }
+    G.split=adds;
+    const lab=(q,j)=>q.seed>=0?seeds[q.seed]:{c:null,r:null,v:null,x:st[j].x0,y:st[j].y0};
+    if(res.error){ G.fail=res.error; groups.push(G); st.forEach((q,j)=>{ const s=lab(q,j); spots.push({g:gi+1,gk:st.length,fail:res.error,c:s.c,r:s.r,v:s.v,add:q.seed<0?1:0}); }); return; }
+    const P=res.params, E=res.errors.map((e,i)=>res.atBound&&res.atBound[i]?null:(Number.isFinite(e)?e:null)), C=res.cov;
+    Object.assign(G,{chi2r:res.stats.redChi2,chi2:res.stats.chi2,dev:noise==="scatter"?null:res.dev,rounds:res.rounds,conv:!!res.stats.converged,iter:res.stats.iter,dof:n-res.p0.length,B:P[0],sB:E[0],p0:res.p0,params:P.slice(),cellIdx:cells}); groups.push(G);
+    const cv=(a,b)=>C&&C[a]&&Number.isFinite(C[a][b])?C[a][b]:NaN;
+    st.forEach((q,j)=>{ const b=1+j*K, s=lab(q,j);
+      let w1=P[b+3], w2=K===6?P[b+4]:P[b+3], th=K===6?P[b+5]:null, e1=E[b+3], e2=K===6?E[b+4]:E[b+3], i1=b+3, i2=K===6?b+4:b+3;
+      if(K===6){ if(w2>w1){ [w1,w2]=[w2,w1]; [e1,e2]=[e2,e1]; [i1,i2]=[i2,i1]; th+=90; } th=((th+90)%180+180)%180-90; }
+      // the volume A·π·w1·w2/(4 ln 2), its error by the delta method over A and the widths
+      const k=Math.PI/SPOT_L16, Iv=P[b]*k*w1*w2; let vI=0;
+      if(K===4){ const gA=k*w1*w1, gw=2*P[b]*k*w1; vI=gA*gA*cv(b,b)+2*gA*gw*cv(b,b+3)+gw*gw*cv(b+3,b+3); }
+      else { const ids=[b,i1,i2], gs=[k*w1*w2,P[b]*k*w2,P[b]*k*w1]; ids.forEach((a,x)=>ids.forEach((c,y)=>{ vI+=gs[x]*gs[y]*cv(a,c); })); }
+      const anyB=[b,b+1,b+2,b+3].concat(K===6?[b+4]:[]).some(i=>res.atBound&&res.atBound[i]);
+      const o2={x:P[b+1],sx:E[b+1],y:P[b+2],sy:E[b+2],w:K===4?w1:Math.sqrt(w1*w2),sw:K===4?e1:null,w1:K===6?w1:null,sw1:K===6?e1:null,w2:K===6?w2:null,sw2:K===6?e2:null,
+        th:K===6?th:null,sth:K===6?E[b+5]:null,A:P[b],sA:E[b],B:P[0],sB:E[0],I:Iv,sI:anyB||!(vI>=0)?null:Math.sqrt(vI),tA:E[b]>0?P[b]/E[b]:null,
+        g:gi+1,gk:st.length,chi2r:res.stats.redChi2,conv:res.stats.converged?1:0,add:q.seed<0?1:0,
+        edge:(P[b+1]-R<xlo||P[b+1]+R>xhi||P[b+2]-R<ylo||P[b+2]+R>yhi)?1:0,n,c:s.c,r:s.r,v:s.v};
+      if(K===6&&o2.w>0&&e1!=null&&e2!=null){ const h1=0.5*Math.sqrt(w2/w1), h2=0.5*Math.sqrt(w1/w2), v=h1*h1*cv(i1,i1)+2*h1*h2*cv(i1,i2)+h2*h2*cv(i2,i2); o2.sw=v>=0?Math.sqrt(v):null; }
+      spots.push(o2); }); });
+  // the nearest other spot fitted
+  const ok=spots.map((s,i)=>s&&s.x!=null?i:-1).filter(i=>i>=0);
+  ok.forEach(i=>{ let d=Infinity; ok.forEach(j=>{ if(j!==i){ const ex=spots[i].x-spots[j].x, ey=spots[i].y-spots[j].y, q=Math.hypot(ex,ey); if(q<d) d=q; } }); spots[i].nn=Number.isFinite(d)?d:null; });
+  return {spots,groups,R,w0,auto,wn:W0.n,seeds:seeds.length,pix,noise,t:noise==="rate"?t:null,shape,area:(xhi-xlo)*(yhi-ylo),bg:W0.bg,notes};
+}
 /* ==MAT:END== */
 /* ==SIG:START== Signal processing and mathematics (ux/spec/SIGNAL_SPEC.md, wave 5), pure: the transform of any
    length, windows and spectra (5.1); the later slices' filters, correlation, envelopes, wavelets, interpolation and
@@ -21990,7 +22146,7 @@ function anaDone(id,j,r,notes){ const p=P(); if(!p||S.pid!==j.pid) return; const
 // The table into the result sheet: a column per key, kept by id across recalculations.
 function anaWrite(a,p,t){ const sid=a.out.sheet, have=new Map(p.cols.filter(c=>c.ana===a.id).map(c=>[c.ak,c])), keep=new Set();
   t.cols.forEach(o=>{ let c=have.get(o.k); if(!c){ c=Object.assign(makeCol(o.role||"ignore",o.name,o.unit||""),{sheet:sid,ana:a.id,ak:o.k}); p.cols.push(c); }
-    keep.add(c); c.name=o.name; c.comm=a.name; c.role=o.role||(c.role==="y"?"y":"ignore"); /* a column plotted stays a curve */ const text=o.vals.some(v=>typeof v==="string");
+    keep.add(c); c.name=o.name; c.comm=a.name; c.role=o.role||(c.role==="y"?"y":"ignore"); /* a column plotted stays a curve */ if(o.ax) c.ax=o.ax; else if(o.of) delete c.ax; const text=o.vals.some(v=>typeof v==="string");
     // A reshaped column keeps its cells as they were: numbers as numbers, text as text (SHEET_SPEC 3.5).
     if(o.cells){ const T={}; c.data=o.vals.map((v,i)=>{ if(typeof v==="string"){ if(v!=="") T[i]=v; return null; } return typeof v==="number"&&Number.isFinite(v)?v:null; }); trimTail(c.data);
       delete c.fmt; if(Object.keys(T).length){ c.txt=T; TXT_OK.add(T); if(!o.vals.some(v=>typeof v==="number")) c.fmt="text"; } else delete c.txt; if(o.unit!=null) c.unit=o.unit; }
@@ -22363,6 +22519,31 @@ const ANA_FORMS={
       const x=ijProfile(s,o); return x.fail||""; },
     valid(r){ return !ANA_FORMS.ijprofile.why(r); },
     inp(p,inp){ if(p.mat) inp.mat=p.mat; else delete inp.mat; }},
+  spots:{noGroup:true,
+    html(p){ const M=matAll(), sid=p.mat&&matOf(p.mat)?p.mat:(matFront()||(M[0]&&M[0].s.id)), v=x=>x==null?"":esc(String(x)), s=matOf(sid)||{}, u=s.xunit?` (${esc(s.xunit)})`:"";
+      return `<div class="grid2 spdlg"><label for="aSPm">Matrix</label><select id="aSPm">${M.map(q=>`<option value="${q.s.id}"${q.s.id===sid?" selected":""}>${esc(matName(q.s.id))}</option>`).join("")}</select>
+        <label for="aSPp" class="tipd" title="The seeds: ImageJ's Find Maxima at this prominence, in the matrix's values; to begin with five times the scatter of the values about their median">Prominence &gt;</label><input id="aSPp" type="text" class="num" value="${v(p.prom)}">
+        <label for="aSPs">Shape</label><select id="aSPs">${SPOT_SHAPES.map(([k,t])=>`<option value="${k}"${k===(p.shape||"round")?" selected":""}>${t}</option>`).join("")}</select>
+        <label for="aSPr" class="tipd" title="The cells within this distance of a spot are fitted; empty for 1.5 times the median FWHM at the seeds">Window's radius${u}</label><input id="aSPr" type="text" class="num" placeholder="Automatic" value="${v(p.R)}">
+        <label for="aSPn" class="tipd" title="How much each cell is trusted: by its shot noise, √N, when its value is a count or a count rate whose pixel time is known; else from the scatter about the fit">Noise</label><select id="aSPn">${SPOT_NOISE.map(([k,t])=>`<option value="${k}"${k===(p.noise||"scatter")?" selected":""}>${t}</option>`).join("")}</select>
+        <label for="aSPt" class="tipd" title="How long each cell counted, in seconds: from the scan's header when it says (qudi's clock or pixel frequency)">Pixel time (s)</label><span class="anarows"><input id="aSPt" type="text" class="num" value="${v(p.t)}"><span class="muted" id="aSPth"></span></span>
+        <span></span><label class="chk tipd" title="A spot the maxima did not tell apart: one added where the residual is largest and kept when the test of the two fits gives p below 0.001"><input type="checkbox" id="aSPx"${p.split!==false?" checked":""}> Split spots that overlap</label>
+        <label for="aSPo">A matrix of</label><select id="aSPo"><option value="none">Nothing</option><option value="model"${p.out==="model"?" selected":""}>The model</option><option value="resid"${p.out==="resid"?" selected":""}>The residuals</option></select></div>
+        <p class="note" id="aSPmsg" aria-live="polite"></p>`; },
+    wire(box){ const F=ANA_FORMS.spots, vals=()=>{ const r={}; box.querySelectorAll("input,select").forEach(el=>{ if(el.id) r[el.id]=el.type==="checkbox"?el.checked:el.value; }); return r; };
+      const msg=()=>{ const r=vals(), w=F.why(r), el=$("#aSPmsg"); $("#aSPt").closest(".anarows").hidden=r.aSPn!=="rate";
+        const s=matOf(r.aSPm), hd=s&&spotDwell(s); $("#aSPth").textContent=hd?`header: ${fmt(1/hd.t,6)} Hz`:""; $("#aSPth").title=hd?`${hd.k}: ${hd.f}`:"";
+        if(w){ el.textContent=w; return; } const o=F.read(r), mx=ijMaxima({nx:s.nx,ny:s.ny,xs:matAxis(s.x,s.nx),ys:matAxis(s.y,s.ny),z:s.z},{prom:o.prom});
+        el.textContent=mx.fail?mx.fail:`${mx.n} ${mx.n===1?"maximum":"maxima"} as seeds`; };
+      box.addEventListener("input",msg); box.addEventListener("change",msg); msg(); },
+    read(v){ const n=t=>{ const x=parseNum(String(t==null?"":t).trim()); return Number.isFinite(x)?x:null; };
+      return {mat:v.aSPm||null,prom:n(v.aSPp),shape:v.aSPs==="ellip"?"ellip":"round",R:n(v.aSPr),noise:v.aSPn||"scatter",t:n(v.aSPt),split:!!v.aSPx,out:v.aSPo||"none"}; },
+    why(r){ const o=ANA_FORMS.spots.read(r), s=o.mat&&matOf(o.mat); if(!s) return "Choose a matrix."; if(o.prom==null||o.prom<0) return "The prominence is a number, 0 or more.";
+      if(String(r.aSPr||"").trim()&&!(o.R>0)) return "The window's radius is a number above 0, or empty for an automatic one.";
+      if(o.noise==="rate"&&!(o.t>0)) return "The shot noise of a count rate needs its pixel time, above 0 s.";
+      const G=ijGeom(s.x,s.y,s.nx,s.ny); return G.fail||""; },
+    valid(r){ return !ANA_FORMS.spots.why(r); },
+    inp(p,inp){ if(p.mat) inp.mat=p.mat; else delete inp.mat; }},
   fft:{noGroup:true, html(p){ return `<div class="grid2">${sigWinHtml(p,"boxcar")}
       <label for="aFd" class="tipd" title="Taken off before the window: a mean or a slope otherwise puts its own large values near frequency 0">Take off</label><select id="aFd">${SIG_DETREND.map(([k,t])=>`<option value="${k}"${k===(p.detrend||"none")?" selected":""}>${t}</option>`).join("")}</select>
       <label for="aFp" class="tipd" title="Zeros added at the end: a finer frequency step to read, no new information">Padding</label><span class="anarows"><select id="aFp"><option value="none">None</option><option value="pow2"${p.pad==="pow2"?" selected":""}>To the next power of 2</option><option value="n"${Number.isFinite(+p.pad)&&+p.pad>0?" selected":""}>To a length…</option></select><input type="text" id="aFpn" inputmode="numeric" aria-label="Length to pad to" value="${Number.isFinite(+p.pad)&&+p.pad>0?Math.round(+p.pad):""}" placeholder="points"></span>
@@ -22713,6 +22894,8 @@ function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&
   if(a.kind==="power") return [{key:"curve",label:"Power curve",title:"Power against size, on a graph",enabled:!ro,run:()=>anaPowerPlot(a.id)}];
   if(a.kind==="lm") return [{key:"partial",label:"Partial residual plots",title:"For each column of numbers, the residuals plus its terms' share against it, with the line of those terms, a graph each, in a figure",enabled:!ro&&(a.res.report.nums||0)>0,run:()=>anaPartial(a.id)}];
   if(a.kind==="subsets") return [{key:"fit",label:"Fit one of them…",title:"A linear model of the response by the columns of a subset listed",enabled:!ro&&!!(rep.subsets&&rep.subsets.length),run:()=>anaSubsetFit(a.id)}];
+  if(a.kind==="spots") return [{key:"show",label:"Show the spots on its map",title:"The matrix's map with each spot ringed at its FWHM",enabled:!ro&&!!(rep.spt&&matOf(rep.spt.mat)&&rep.spt.spots.length),run:()=>spxShow(a.id)},
+    {key:"plot",label:"Plot the positions",title:"Each spot's Y against its X, with their standard errors as error bars",enabled:!ro,run:()=>spxPlot(a.id)}];
   if(a.kind==="ijmaxima") return [{key:"show",label:"Show the maxima on its map",title:"The matrix's map with a ring at each maximum",enabled:!ro&&!!(rep.ijx&&matOf(rep.ijx.mat)&&rep.ijx.pts.length),run:()=>ijxShow(a.id)}];
   if(a.kind==="ijprofile") return [{key:"plot",label:"Plot the profile",title:"The values against the distance along the line, on a graph",enabled:!ro,run:()=>ijpPlot(a.id)},
     {key:"show",label:"Show the line on its map",title:"The matrix's map with the line drawn over it",enabled:!ro&&!!(rep.ijp&&matOf(rep.ijp.mat)),run:()=>ijpShow(a.id)}];
@@ -24315,6 +24498,7 @@ function matMenuItems(sid){ const s=matOf(sid), ro=S.readOnly, on=!!s&&!ro;
     {label:"Crop…",enabled:on,run:()=>matCropDlg(sid)},{label:"Resample…",enabled:on,run:()=>matResampleDlg(sid)},{label:"Arithmetic…",enabled:on,run:()=>matArithDlg(sid)},"-",
     {label:"To columns",enabled:on,sub:()=>[{label:"X, Y and Z columns",run:()=>matToSheet(sid,"xyz")},{label:"Z as a block, a column for each X",run:()=>matToSheet(sid,"block")}]},
     {label:"Plot",enabled:on,sub:()=>MAT_KINDS.map(([k,l])=>({label:l,run:()=>plotMatrix(sid,k)}))},
+    {label:"Spots…",enabled:on,title:ANA_KINDS.spots.help,run:()=>anaDlg("spots",{p:spxStart(sid)})},
     {label:"ImageJ",title:"ImageJ's measurements of this matrix, and the matrix as a TIFF ImageJ opens with its calibration",sub:()=>[
       {label:"Measure…",enabled:on,title:"ImageJ's Measure over the matrix, a rectangle (the cells selected, to begin with), an oval or a polygon",run:()=>anaDlg("ijmeasure",{p:ijmStart(sid)})},
       {label:"Find maxima…",enabled:on,title:ANA_KINDS.ijmaxima.help,run:()=>anaDlg("ijmaxima",{p:ijxStart(sid)})},
@@ -24375,6 +24559,28 @@ function ijpPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; c
 function ijpShow(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const q=a.res&&a.res.report&&a.res.report.ijp; if(!q||!matOf(q.mat)){ toast("Its matrix has gone."); return; }
   if(!ijMapOf(q.mat)) return; addAnno({t:"arrow",x:q.x0,y:q.y0,x2:q.x1,y2:q.y1,head:"end",lw:1.5},`drew the line of ${a.name} on the map of ${matName(q.mat)}`);
   toast(`The line of ${a.name} is drawn on the map of ${matName(q.mat)}.`,{action:"Undo",run:undo}); }
+// A scan's pixel time from its header (QUDI_SPEC decision 9): qudi's classic "Clock frequency of scanner (Hz)" or the new format's
+// "pixel frequency", the time one over it.
+function spotDwell(s){ const m=s&&s.meta; if(!m) return null; for(const k of Object.keys(m)){ if(/^clock frequency of scanner/i.test(k)||/^pixel frequency$/i.test(k)){ const f=parseFloat(m[k]); if(f>0) return {k,f:m[k],t:1/f}; } } return null; }
+const SPOT_RATE=/^(c\/s|cps|counts\/s|counts per second|hz|1\/s|s⁻¹|s\^-1)$/i, SPOT_COUNTS=/^(counts?|cts|photons?)$/i;
+// Spots' start: the matrix in front; five times the values' scatter about their median (1.4826 times the median distance) as the
+// prominence; the shot noise of a count rate when the header gives the pixel time and Z is a rate, of counts when Z is counts.
+function spxStart(sid){ sid=sid||matFront(); const s=matOf(sid); if(!s) return {}; const v=s.z.filter(x=>x!=null&&Number.isFinite(x)).sort((a,b)=>a-b);
+  const md=quantileSorted(v,0.5), dv=v.map(x=>Math.abs(x-md)).sort((a,b)=>a-b), sc=1.4826*quantileSorted(dv,0.5), d=spotDwell(s), zu=(s.zunit||"").trim();
+  const noise=d&&SPOT_RATE.test(zu)?"rate":SPOT_COUNTS.test(zu)?"counts":"scatter";
+  return {mat:sid,prom:sc>0?+(5*sc).toPrecision(2):0,noise,t:d?+d.t.toPrecision(12):null,shape:"round",split:true,out:"none"}; }
+// The report's Show the spots on its map: a ring at each spot's FWHM (an ellipse, or a turned one as a polygon), one undo step.
+function spxShow(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const q=a.res&&a.res.report&&a.res.report.spt; if(!q||!matOf(q.mat)){ toast("Its matrix has gone."); return; }
+  if(!q.spots.length){ toast("There are no spots to show."); return; } const g=ijMapOf(q.mat); if(!g) return; const s=matOf(q.mat), n7=v=>+(+v).toPrecision(12);
+  const add=q.spots.slice(0,400).map(([x,y,w1,w2,th])=>{ const base={id:annoId(),lw:1.5,g,spt:id,xu:s.xunit||"",yu:s.yunit||""};
+    if(!q.el||!th) return Object.assign(base,{t:"ellipse",x:n7(x-w1/2),y:n7(y-w2/2),x2:n7(x+w1/2),y2:n7(y+w2/2)});
+    const a=th*Math.PI/180, c=Math.cos(a), sn=Math.sin(a), pts=[]; for(let k=0;k<36;k++){ const u=Math.cos(k*Math.PI/18)*w1/2, v=Math.sin(k*Math.PI/18)*w2/2; pts.push([n7(x+u*c-v*sn),n7(y+u*sn+v*c)]); }
+    return Object.assign(base,{t:"poly",pts,closed:true}); });
+  pushUndo("showing the spots"); save({annos:(P().annos||[]).filter(an=>an.spt!==id).concat(add)},`drew the ${q.spots.length} spots of ${a.name} on the map of ${matName(q.mat)}`);
+  toast(`The spots of ${a.name} are ringed at their FWHM on the map of ${matName(q.mat)}${q.spots.length>400?" (the first 400)":""}.`,{action:"Undo",run:undo}); }
+// The report's Plot the positions: Y against X as symbols, with their standard errors as error bars both ways.
+function spxPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const y=p.cols.find(c=>c.ana===id&&c.ak==="y"); if(!y){ toast("There are no spots: Recalculate first."); return; }
+  plotCols([y.id],{type:"scatter",undo:"plotting the spots' positions",say:`the spots of ${a.name}`}); }
 // Data › Matrix.
 function matDataItems(){ const ro=S.readOnly||!P(), sid=matFront(), s=matOf(sid), books=matBooks();
   const out=[{label:"New matrix…",enabled:!ro,run:matNewDlg},{label:"From columns…",enabled:!ro,title:"The block selected in the worksheet: its columns the matrix's columns, its rows the rows",run:matFromColsDlg},{label:"From a picture…",enabled:!ro,title:"A PNG or JPEG: its grey values, or one channel, 0 to 255",run:matFromPicture},{label:"From scattered X, Y, Z…",enabled:!ro,title:ANA_KINDS.grid.help,run:()=>anaDlg("grid")}];
@@ -29881,7 +30087,8 @@ function analyzeMenu(){
     {label:"Image", sub:()=>{ const ok=!S.readOnly&&!!P()&&matAll().length>0, need="A matrix is needed: Data › Matrix makes one, and a qudi scan is read as one";
       return [{label:"Measure…", title:ok?ANA_KINDS.ijmeasure.help:need, run:()=>anaDlg("ijmeasure",{p:ijmStart()}), enabled:ok},
         {label:"Find maxima…", title:ok?ANA_KINDS.ijmaxima.help:need, run:()=>anaDlg("ijmaxima",{p:ijxStart()}), enabled:ok},
-        {label:"Profile…", title:ok?ANA_KINDS.ijprofile.help:need, run:()=>anaDlg("ijprofile",{p:ijpStart()}), enabled:ok}]; }},
+        {label:"Profile…", title:ok?ANA_KINDS.ijprofile.help:need, run:()=>anaDlg("ijprofile",{p:ijpStart()}), enabled:ok},"-",
+        {label:"Spots…", title:ok?ANA_KINDS.spots.help:need, run:()=>anaDlg("spots",{p:spxStart()}), enabled:ok}]; }},
     {label:"Statistics", sub:()=>[{label:"Quick statistics…", title:"The Statistics window: each column's numbers at a glance, the integral of the range in view, the noise and the signal to noise, with no sheet made", run:go("desc"), enabled:has},
       {label:"Descriptive", sub:()=>[{label:"Statistics on columns…", title:ANA_KINDS.desc.help, run:()=>anaDlg("desc"), enabled:!S.readOnly&&!!P()},
         {label:"Frequency counts…", title:ANA_KINDS.freq.help, run:()=>anaDlg("freq"), enabled:!S.readOnly&&!!P()},
@@ -32225,7 +32432,7 @@ ${DL([["Numbers","equals, does not equal, is less than, is at most, is greater t
 ${DL([["Stack columns","The columns ticked one under another in a column of values, with a column naming where each came from; columns ticked under <em>Kept beside</em> are repeated by each value (wide to long). Empty cells are left out unless you say otherwise."],["Unstack","A column of values into a column per level of a group column (long to wide): by their order within each level, or matched by an identifier column (then an identifier seen twice in a level keeps its first value, said)."],["Split by groups","The rows of each level of a group column, or every n rows, as a block of the columns ticked, side by side."],["Pivot table","The levels of one column down and another's across, each cell the count, sum, mean, SD, minimum, maximum, median or first of a column of values (or the number of rows), with totals."],["Reduce rows","Every nth row kept, every n rows merged (by their mean or another aggregate; X by its mean), or rows put into bins of X a width wide, X then each bin's centre."],["Duplicate rows","Rows whose key columns repeat: the first or the last of each kept, all averaged into one, or only the duplicates kept; numbers within a tolerance count as one."],["A sorted copy","The rows sorted by up to three columns, each up or down: numbers, then text, then empty cells; rows that tie keep their order. The only way rows are really reordered, and it is a copy."],["Transpose","Rows turned into columns, the first column ticked naming them when asked."],["Join two sheets","This sheet's rows beside another sheet's whose key matches: only rows matched in both, every row of this sheet, or every row of both. A row matching several gives one each."],["Append sheets","Other sheets' rows under this one's, columns matched by name or by position, with a column naming each row's sheet."]])}
 <h2>How they behave</h2>
 <p>Each is an ${DA("analyses","analysis")} under ${MP("Data › Reshape")}: it reads the cells as the worksheet holds them (numbers and text, not processed), writes a result sheet that is worked out again when they change, and can be changed, recalculated, cut from its data (the cells kept on an ordinary sheet) or deleted, each one step to undo. Its rows can be limited, and on a filtered sheet it offers the filter's rows as its own. The report says how many rows it read and made, and what it left out.</p>`},
-{id:"matrices", g:"Data", t:"Matrices", kw:"matrix matrices matrix book matrix sheet grid image z values surface 2d two-dimensional measure region roi oval polygon find maxima maximum minima peaks spots prominence noise tolerance strict exclude edges light background profile line profile plot profile makeline area intden integrated density centroid centre of mass center of mass histogram imagej fiji tif tiff 32-bit float calibration pixel size qudi confocal scan nv apd counter channel positions depth scan back scan header transpose flip turn rotate rot90 crop resample interpolate bilinear arithmetic set values formula picture png jpeg grey gray channel from columns to columns xyz block heat map contour",
+{id:"matrices", g:"Data", t:"Matrices", kw:"matrix matrices matrix book matrix sheet grid image z values surface 2d two-dimensional measure region roi oval polygon spots spot fit gaussian localisation localization sub-pixel subpixel psf point spread function resolution fwhm emitter nv centre center photon shot noise poisson maximum likelihood split overlap crowded find maxima maximum minima peaks spots prominence noise tolerance strict exclude edges light background profile line profile plot profile makeline area intden integrated density centroid centre of mass center of mass histogram imagej fiji tif tiff 32-bit float calibration pixel size qudi confocal scan nv apd counter channel positions depth scan back scan header transpose flip turn rotate rot90 crop resample interpolate bilinear arithmetic set values formula picture png jpeg grey gray channel from columns to columns xyz block heat map contour",
  lead:"A grid of values Z with its X along the top and its Y down the side, as Origin's matrix: kept in a book of its own, drawn by a graph as a map.",
  body:`<h2>Making one</h2>
 <p>${MP("Data › Matrix")} has three ways in. <em>New matrix…</em> asks for the rows and columns, X and Y from first to last (evenly spaced), and the values: empty, one number in every cell, or a formula. <em>From columns…</em> reads the block selected in the worksheet: its columns become the matrix's columns and its rows the rows; when its first row and first column are numbers running one way and the corner is empty, they are X and Y. <em>From a picture…</em> reads a PNG or JPEG: its grey values (0 to 255, weighted as ITU-R BT.601), or its red, green, blue or opacity; X counts the pixels from the left and Y from the bottom, so the picture is upright on a graph.</p>
@@ -32242,6 +32449,10 @@ ${DL([["Transpose","Rows become columns, and X becomes Y."],["Flip","Left to rig
 <p>${MP("Publish › Matrix for ImageJ (.tif)")} (or the window's Matrix › ImageJ › Save as a TIFF) writes the matrix in front as ImageJ keeps an image: a 32-bit TIFF, its values in single precision (about seven digits; a missing cell is NaN, which ImageJ leaves out of its measurements), with ImageJ's calibration. Opened in ImageJ, each pixel's centre is the cell's X and Y, in the matrix's units (µm stays µm), Y rising up the image as it does on Kurve's map, and the values' unit is Z's, so Analyze › Measure, a line's profile or the cursor's readout give positions as Kurve and qudi do. ImageJ's calibration is one pixel size per axis, so a matrix whose X or Y is not evenly spaced is refused (Resample… first); the pixel size is written as the fraction ImageJ reads back exactly where one exists.</p>
 <h2 id="measure">Measuring it as ImageJ does</h2>
 <p>${MP("Analyze › Image › Measure…")} (or the window's Matrix › ImageJ › Measure…) gives ImageJ's Analyze › Measure over the whole matrix, a rectangle or an oval given by its edges in X and Y (the cells selected in the window, to begin with), or a polygon whose corners are typed in X and Y, one a line. The cells are the ones ImageJ would take with the same selection on the TIFF Kurve writes for the matrix: a rectangle the cells whose X and Y lie within its edges, an oval ImageJ's ellipse inscribed in their rectangle, a polygon the cells whose centres are inside it by ImageJ's own rule for a centre on an edge; the dialog says how many and the selection to make in ImageJ to get the same. The result sheet has ImageJ's columns under ImageJ's names, in the matrix's units: Area, Mean, StdDev, Mode (the middle of the fullest of ImageJ's 256 bins), Min, Max, the centroid X and Y, the centre of mass XM and YM, the bounding rectangle BX, BY (its left and upper edges), Width and Height, IntDen, RawIntDen, Median, Skew and Kurt, and the region's histogram in the same 256 bins. Empty cells are left out, as ImageJ leaves out NaN. The numbers are worked out in doubles on the values as they are; <em>Values as ImageJ holds them</em> rounds them to single precision first, as ImageJ's 32-bit image does, so the numbers are ImageJ's to the last digit. One difference is meant: ImageJ works out StdDev, Skew and Kurt from running sums of the values' powers, which lose digits when the values sit on a large offset (its kurtosis can then be meaningless); Kurve works them out from the deviations, so they keep their digits. The analysis follows its matrix: a changed cell measures it again. Its report can draw the region on the matrix's map and plot the histogram.</p>
+<h2 id="spots">Spots, beyond ImageJ</h2>
+<p>${MP("Analyze › Image › Spots…")} (or the window's Matrix › Spots…) measures each spot of a scan as ImageJ cannot: where it is to a small fraction of a cell, how wide, how bright above its background, and how sure each number is. The seeds are the maxima ImageJ's Find Maxima gives at the prominence (five times the values' scatter, to begin with). Each spot is fitted with a two-dimensional Gaussian, round or elliptical and turned, on a flat background, over the cells within the <em>window's radius</em> of it (1.5 times the median FWHM measured at the seeds, unless typed). Spots closer than twice that are fitted together, sharing their background, so a neighbour's light is not taken for one's own.</p>
+<p>When the scan's header says how long each cell counted (qudi's scanner clock, or the new format's pixel frequency), each cell is a count with its shot noise, √N: the fit is Poisson's maximum likelihood, the standard errors are those the counts allow, and the reduced χ² near 1 says Poisson's noise is all there is (above 1, the model is missing something: an elliptical spot fitted round, a second spot). Without the pixel time the errors come from the scatter about the fit. <em>Split spots that overlap</em> finds spots that make one maximum together: a spot is added where the residual is largest and kept when the likelihood ratio test of the two fits gives p below 0.001, the new spot is the size of the others and half a FWHM from them, and, for round spots, two round spots explain it better than one elliptical spot by a clear margin (Akaike's criterion, by more than 10). Two spots closer than their FWHM are found that way; for such pairs, choose round spots: two elliptical ones can share the light in several ways.</p>
+<p>A row a spot: X and Y with their standard errors (drawn as error bars when the positions are plotted), the FWHM (or both axes and the angle), the peak above the background, the background, the volume A·π·w₁·w₂/(4 ln 2), each with its error; the peak's t; the nearest other spot; its group; the reduced χ²; whether it settled, was added by splitting, or had its window cut by the edge. The summary gives the spots, the median FWHM and its spread (the point-spread function, the resolution), the median background and the density. The report rings each spot at its FWHM on the matrix's map and plots the positions; the model or the residuals can be written as a matrix. The analysis follows its matrix.</p>
 <h2 id="maxima">Maxima and profiles as ImageJ finds them</h2>
 <p>${MP("Analyze › Image › Find maxima…")} (or the window's Matrix › ImageJ › Find maxima…) gives ImageJ's Process › Find Maxima: every local maximum that stands out by more than the <em>prominence</em> from what joins it to a higher one (a tenth of the values' range, to begin with; the dialog counts them as it is set), as ImageJ finds them: from the highest down, a flat top at the point nearest its middle, <em>Strict</em> and <em>Exclude edge maxima</em> as ImageJ's own, and <em>Light background</em> for the minima, dark spots on a light background. A row a maximum in ImageJ's order, with its X and Y (the cell's position), its value and its pixel in ImageJ's image; the method gives the command that finds the same in ImageJ. Empty cells are never maxima (ImageJ lists a NaN pixel as one). Its report rings each maximum on the matrix's map.</p>
 <p>${MP("Analyze › Image › Profile…")} (or the window's Matrix › ImageJ › Profile…) gives ImageJ's Analyze › Plot Profile of a straight line whose ends are given in X and Y (the cells selected in the window, corner to corner, or the middle row, to begin with): the values a pixel apart along it, each bilinear between the four cells about it, as ImageJ's own, against the distance in the matrix's units; along a row or a column of cells the samples are the cells' values. The dialog says how many samples, and the <code>makeLine</code> that draws the same line in ImageJ. Its report plots the profile and draws the line on the matrix's map. Both follow their matrix, and both have <em>Values as ImageJ holds them</em>, single precision as ImageJ's image.</p>

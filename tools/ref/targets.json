@@ -57,6 +57,18 @@
  "ijProfile": {
   "tol": 0
  },
+ "spotFit.count": {
+  "tol": 0
+ },
+ "spotFit.values": {
+  "tol": 1e-6
+ },
+ "spotFit.errors": {
+  "tol": 1e-6
+ },
+ "spotFit.truth": {
+  "tol": 1e-12
+ },
  "reshape": {
   "tol": 1e-13
  },

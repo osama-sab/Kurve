@@ -1185,6 +1185,40 @@ graph first, with the taskbar kept at the bottom of the screen.
   ProfilePlot (float arithmetic where ImageJ's is float); `fixtures/imagej.json`'s `peaks` (6 images: spots with a flat top and an
   edge maximum, whole-number ties, empty cells, a range under the prominence, one value, pixels not square on descending axes, each
   with several settings and lines); ref-test's `ijMaxima.list` and `ijProfile` (exact).
+  **Spots, beyond ImageJ** (QUDI_SPEC Q.5, decisions 9 and 10): in MAT `SPOT_SHAPES`, `SPOT_NOISE` (`rate`, `counts`, `scatter`),
+  `SPOT_GMAX` (30), `SPOT_L16` (4 ln 2), `spotW0(z, nx, ny, X, Y, seeds)` (the median FWHM at the seeds: along each seed's row and
+  column where the values fall half way to the matrix's median, straight lines between cells, the geometric mean; `{w0, n, bg}`),
+  `spotSigma(v, o)` (a cell's shot noise: `rate` √max(v·t, 1)/t, `counts` √max(v, 1), else 1), `spotFit(M, {prom, shape, R, noise, t,
+  split, single, maxIter, trace})`: seeds `ijMaxima` at the prominence; R typed or 1.5·w0 (4.5 cells when no seed's half height is
+  found); a window the cells within R; seeds closer than 2R one group (union–find, numbered by their first seed; past `SPOT_GMAX` one
+  by one); B + Σ A·exp(−4 ln 2·r²/w²) (`f4`) or turned by θ in degrees with w1, w2 (`f6`) over the group's cells, by `lmFit` (tol
+  1e-15; A ≥ 0, a centre within R of where it started, a width 0.01 cell to 4R; starts B0 the cells' 10 % quantile, A the seed above
+  it, w0, an elliptical start's angle and axes from the second moments of the light above B0 within w0, `mom`, its axes' ratio held
+  to 1.05…2 so θ has a slope); shot noise weights from the data, then from the model until they settle (Poisson's maximum
+  likelihood, its covariance the inverse Fisher information; `opt.scale` false), the scatter's scaled by the reduced χ²; `run(st, B,
+  K)` gives `dev` (Poisson's deviance) and `aic`. Splitting: a spot added at the group's largest weighted residual (the others' widths
+  w0 again), kept when the likelihood ratio (`DIST.chi2.sf` of the deviances' difference) or, from the scatter, F gives p below
+  0.001, the fit settled, the amplitude above 0, its FWHM within a factor of two of w0, half w0 from every other spot, and, round,
+  when it beats the same spots elliptical by Akaike's criterion by more than 10; at most three a group; `o.trace` gets each
+  decision. `{spots:[{x, sx, y, sy, w, sw, w1, sw1, w2, sw2, th, sth (θ within ±90°, w1 the longer), A, sA, B, sB, I (A·π·w1·w2/(4
+  ln 2)), sI (delta method), tA, nn, g, gk, chi2r, conv, add, edge, n, c, r, v} or {fail}], groups:[{seeds, cells, chi2r, chi2, dev,
+  rounds, conv, iter, dof, B, sB, p0, params, cellIdx, split}], R, w0, auto, wn, seeds, pix, noise, t, shape, area, bg, notes}` or
+  `{fail}` in words (a matrix under 3 × 3, shot noise without a pixel time or with a count below zero, a radius below a cell); an
+  error at its limit null. In ANA kind `spots` (`typed`, `typedWhat` "a matrix", `heavy` past 40 000 cells; `p.mat`, `prom`, `shape`,
+  `R`, `noise`, `t`, `split`, `out` "none"|"model"|"resid"; the section `sn`, `sseeds`, `sadd`, `sgrp`, `sR`, `swmed`, `swiqr`,
+  `sbmed`, `sdens`; a row a spot: `x` (an X), `sx` (an X error of `y`), `y` (a Y), `sy` (its error), `w`, `sw` (or `w`, `sw`, `w1`,
+  `sw1`, `w2`, `sw2`, `th`, `sth`), `A`, `sA`, `B`, `sB`, `I`, `sI`, `tA`, `nn`, `g`, `gk`, `chi2r`, `conv`, `add`, `edge`; `report.spt
+  {mat, el, spots [[x, y, w1, w2, θ]] (2000)}`; `mat` the model or the residuals in the windows). `anaWrite` takes a column's `ax`
+  (an X error of a result's Y). The page: `ANA_FORMS.spots` (`#aSPm`, `#aSPp`, `#aSPs`, `#aSPr`, `#aSPn`, `#aSPt` with `#aSPth` the
+  header's clock, `#aSPx` split, `#aSPo`, `#aSPmsg` the seeds), `spotDwell(s)` (the pixel time from a matrix's header: qudi's
+  *Clock frequency of scanner (Hz)* or *pixel frequency*), `SPOT_RATE`, `SPOT_COUNTS` (Z's units), `spxStart(sid)` (the prominence five
+  times 1.4826 × the median distance from the median, the noise by Z's unit and the header), the report's `spxShow(id)` (a ring at
+  each spot's FWHM, an ellipse, or a 36-corner polygon turned; marked `spt`, replaced when asked again; one undo step) and
+  `spxPlot(id)` (Y against X with both errors). Analyze › Image › Spots…; the matrix window's Matrix › Spots…. References:
+  `tools/ref/spot_fixtures.py` writes the NV scan (`tools/ref/qudi/nv/`, qudi's classic format: 64 × 64 over 8 µm, a 100 Hz clock, 13
+  emitters, a pair 0.30 µm apart) and `fixtures/spots.json` (six cases worked out again with SciPy's least_squares from the same
+  definitions); ref-test's `spotFit.count` (exact), `.values` (against their errors, 1e-6), `.errors` (1e-6) and `.truth` (a
+  noise-free case, 1e-12); `tools/img-test.mjs` the properties.
   `tools/ref/qudi_fixtures.py` writes `tools/ref/qudi/` as qudi-core 1.5.0 and the classic `save_logic` do (their
   code reproduced, not run) and `fixtures/qudi.json`; `tools/parser-test.mjs` reads them, `tools/qudi-drive.mjs` imports them.
   `batchFile` reads one-column
@@ -3874,7 +3908,14 @@ dialog, a changed cell followed, a reload); Q.4, Find maxima and Profile from th
 prominence and count, minima, a refusal, each row against ijMaxima, ImageJ's command, the maxima ringed once however often asked,
 two spots of a test matrix at their centres with edges left out, a profile along the middle row giving that row's values, against
 ijProfile, plotted and drawn on the map, a diagonal, a changed cell followed by both, a reload). Run it after touching the import or
-the matrices.
+the matrices. Q.5, Spots (the NV scan read from qudi's classic file as the reference has it, the dialog's shot noise, pixel time and
+prominence from the header and the scatter, a refusal, each row against spotFit, the 13 emitters within their errors of the truth,
+the method, the rings once however often asked, the positions plotted with both errors, elliptical spots and their residuals as a
+matrix from the matrix window's menu, a spot typed into the scan found when it is worked out again, a reload).
+`node tools/img-test.mjs [path]` checks the image analyses' properties (QUDI_SPEC Q.5 to Q.8): a spot's position, FWHM, peak and
+background each with an error equal to its spread over 300 Poisson repeats and no bias, the reduced χ² near 1, a lone spot split
+in at most 1 %, an elliptical spot fitted round not split, two spots 0.8 FWHM apart found as two and biased when fitted as one, the
+axes' origin and units, the NV scan against its truth and its time, refusals. Run it after touching the MAT block's image analyses.
 `node tools/sheet-drive.mjs [path]` (Playwright; `ONLY=3.1` runs one section) checks the worksheet as a table
 (`ux/spec/SHEET_SPEC.md`, wave 3): 3.1, formulas typed into the F(x)= row (an aggregate, rows of other rows, a running
 sum, text compared, `=` as equality, another sheet by a name with its spaces left out, that sheet renamed and a column
@@ -5630,7 +5671,11 @@ names; its cells, order statistics, mode and histogram exactly ImageJ's arithmet
 ImageJ's Find Maxima (prominence, strict, edges, light background) and Plot Profile of a straight line on a matrix, each a result
 sheet that follows its matrix, the maxima ringed and the line drawn on its map; every maximum and every sample exactly the arithmetic
 of ImageJ 1.54f's MaximumFinder and ProfilePlot as written out from its source; the matrix window's ImageJ submenu. QUDI_SPEC's four
-slices are done.
+slices are done. Then, 20.11, the user's request: the suite run, and analysis better than ImageJ; QUDI_SPEC grew decisions 9 (the
+pixel time known, every number with its shot-noise error) and 10 (beyond ImageJ, beside it) and slices Q.5 to Q.8. Slice Q.5 done
+20.11: spots fitted as two-dimensional Gaussians by Poisson's maximum likelihood, each position, FWHM, peak, background and volume
+with an honest error (pulls of SD 1 over 300 repeats), spots that make one maximum split by the likelihood ratio, the NV scan's 13
+emitters found within their errors; SciPy agreeing to 1e-7 of the errors.
 
 ## Known gaps
 
@@ -6067,7 +6112,10 @@ slices are done.
   or the count alone) and Plot Profile of a straight line (no segmented or freehand line, no line wider than a pixel, no column
   average of a rectangle) on a matrix, not Analyze Particles, thresholds or filters; checked against ImageJ 1.54f's arithmetic
   written out from its source and Pillow's reading, as ImageJ itself (its jar) was not run here (`tools/ref/ij/IJRef.java` is
-  ready for it)
+  ready for it). Spots: a Gaussian on a flat background (no Airy pattern, no measured PSF, no sloping background in a window), seeds
+  from ImageJ's maxima only (a spot too faint to make one is not looked for, but one hidden in another's maximum is split off), at
+  most three added a group; elliptical spots closer than their FWHM share their light ambiguously (round spots then); a scan's pixel
+  time from qudi's headers (typed otherwise), count rates in c/s, counts/s or Hz, not kc/s
 - Excel: `.xlsx` and `.xlsm` only (not `.xls`, `.ods`, nor one protected by a password or a zip64
   file); a formula's value as Excel last worked it out (a formula is never carried over or written);
   styles, charts, pictures, comments in cells and defined names are not read; a header is frozen

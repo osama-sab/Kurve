@@ -135,10 +135,76 @@ image. Nothing measures a matrix as ImageJ does, and nothing writes one for Imag
 8. **Numbers, not verdicts** (STATS_SPEC decision 9). No "a spot", "the background": counts, positions
    and values.
 
+9. **Counts known, errors given** (20.11, the user's request: "analysis better than ImageJ"). Both of
+   qudi's formats say how long each pixel counted (the classic header's *Clock frequency of scanner*,
+   the new format's *pixel frequency*): a count-rate cell is N/t, N Poisson, so its standard error is
+   √(max(N, 1))/t. Kurve's own image analyses (Q.5 to Q.8) use it: every number they give has a
+   standard error, and their fits are weighted by it, the reduced χ² saying whether Poisson's noise is
+   all there is. Without the pixel time (a channel in volts, a time typed as none), the errors come from
+   the scatter (covariance scaled by the reduced χ²), and the method says which.
+10. **Beyond ImageJ, beside it.** The ImageJ kinds stay ImageJ's, value for value. The analyses that
+   go further are Kurve's own, named so, each saying in its method what it adds: sub-pixel positions
+   and sizes with their errors, spots that overlap fitted together, a profile across a width with its
+   errors and a fit, intensities with their shot noise and a background taken off, and the shift
+   between two scans. Where ImageJ would give a number they give it too, so the two can be compared.
+
+## Beyond ImageJ (Q.5 to Q.8)
+
+What ImageJ's core cannot say about a confocal scan, and a person measuring emitters needs: where a
+spot is to better than a pixel and how sure that is; how wide the point-spread function is (the
+resolution); how bright a spot is above its background, with the shot noise that limits it; whether
+two spots that touch are two; and how far a scan has drifted from the last.
+
+**Q.5 Spots.** Analyze › Image › Spots…: seeds from ImageJ's Find Maxima (Q.4) above a prominence;
+each spot fitted by a two-dimensional Gaussian (round, or elliptical and turned) on a flat
+background over the cells within a radius of it (in µm; by default 1.5 times the median FWHM measured
+at the seeds), spots whose windows overlap fitted together as one group (their background shared),
+by Levenberg–Marquardt weighted by decision 9. A row a spot: X ± and Y ± in µm, the FWHM (or both and
+the angle) ±, the peak above the background ±, the background ±, the integrated intensity (the
+Gaussian's volume, Z·µm²) ±, the peak's t (A/σ_A), the nearest other spot, the group and its size,
+the reduced χ², whether it settled, whether its window reached the edge; a summary (spots, density
+per µm², the median FWHM and its spread, the median background). The report rings each spot at its
+FWHM on the matrix's map and puts the model or the residuals in a matrix. **Checks**: SciPy's
+least_squares on the same windows and model (parameters and covariance, `fixtures/spots.json`);
+simulation: Poisson scans of known spots, each error against the spread of its value over 300 repeats
+(pulls with SD 1), no bias in position at a quarter pixel, two spots closer than their FWHM recovered
+together and biased apart alone; NIST-like exactness on noise-free spots.
+
+**Done 20.11.** `spotFit` in the MAT block, the kind `spots`, its dialog (the pixel time from the header, the prominence from the
+scatter), Show the spots on its map and Plot the positions. Three findings shaped it: weights from the counts seen (Neyman's χ²) put
+the background a standard error low, so shot noise is fitted by Poisson's maximum likelihood (weights from the model until they
+settle); an elliptical start at w1 = w2 has no slope in θ, so it starts from the light's second moments; and splitting by the
+likelihood ratio alone split elliptical spots fitted round and made spikes of bright spots fitted unweighted, so an added spot must
+look like another emitter (its FWHM within a factor of two of the median's, half of it from the others) and, round, beat one
+elliptical spot by Akaike's criterion by more than 10. SciPy (`tools/ref/spot_fixtures.py`, six cases, the NV scan among them)
+agrees on the seeds, groups and splits, every value within 1e-7 of its error; over 300 Poisson repeats the pulls' SD is 0.96 to 1.01.
+
+**Q.6 Profile across a width, fitted.** Profile… grows a width (µm): each sample the mean of the
+values a pixel apart across the line (bilinear, as the samples along it), with its standard error
+(decision 9, or the spread across); and a fit of the profile (a Gaussian peak: FWHM ±; an
+error-function edge: the 10–90 % width ±; or none), the curve beside the samples. **Checks**: the
+samples against NumPy's same sums; the fit against SciPy's curve_fit with the same σ; a width of
+one pixel gives ImageJ's profile back.
+
+**Q.7 Intensities with their noise.** Measure… grows Kurve's own columns beside ImageJ's: the sum
+and the mean with their shot-noise errors (decision 9) or the scatter's, and, given a background
+region (an annulus about the region, or a region typed), the background per cell ±, the integrated
+intensity less it ±, and the signal to noise. **Checks**: exact sums; the errors against the spread
+over 2000 Poisson repeats.
+
+**Q.8 The shift between two scans.** Analyze › Image › Shift between scans…: two matrices on the same
+grid (two scans, a forward and a back scan), their shift by the peak of their cross-correlation,
+refined to a fraction of a pixel by an upsampled DFT about it (Guizar-Sicairos, Thurman and Fienup,
+2008), in µm with an error (the spread of the shift between halves of the data), and the second
+matrix shifted onto the first (bilinear). **Checks**: NumPy's FFT-based reference written from the
+paper; known shifts recovered to a hundredth of a pixel; noise.
+
 ## The order
 
 Q.1 reading qudi's files → Q.2 the TIFF for ImageJ (which the checks of Q.3 and Q.4 go through) →
-Q.3 Measure → Q.4 Find Maxima and Plot Profile. Each slice committed and pushed when its checks pass.
+Q.3 Measure → Q.4 Find Maxima and Plot Profile → Q.5 Spots → Q.6 a profile's width and fit → Q.7
+intensities with their noise → Q.8 the shift between two scans. Each slice committed and pushed when
+its checks pass.
 
 ## Q.1 Reading qudi's files
 

@@ -127,6 +127,7 @@ Data
       Z as a block, a column for each X
     Plot  ## ↓
       (the kinds: Image, Filled contours, Contour lines, Image with lines)
+    Spots…  ## ↓; new (QUDI_SPEC Q.5): Kurve's own, each spot fitted with its errors
     ImageJ  ## ↓; new (QUDI_SPEC Q.2 to Q.4): ImageJ's measurements of this matrix, and the matrix as a TIFF
       Measure…  ## Q.3: the cells selected as its rectangle to begin with
       Find maxima…  ## Q.4: a tenth of the values' range as the prominence to begin with
@@ -274,6 +275,7 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
     Measure…  ## ImageJ's Analyze › Measure over the matrix, a rectangle, an oval or a polygon, into a result sheet
     Find maxima…  ## ImageJ's Process › Find Maxima, a row a maximum
     Profile…  ## ImageJ's Analyze › Plot Profile of a straight line
+    Spots…  ## new (QUDI_SPEC Q.5): beyond ImageJ, each spot a fitted Gaussian with its errors
   Statistics  ## ← the Statistics menu (DS2)
     Quick statistics…  ## ~ "Descriptive statistics…" (STATS_SPEC 2.1: the name went to the analyses); + "Integrate the visible range", "Noise and signal to noise": sections of the one window
     Descriptive  ## + (STATS_SPEC 2.1): the analyses that make result sheets, as Origin's Descriptive Statistics

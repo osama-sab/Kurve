@@ -74,7 +74,10 @@ ImageJ's Measure written out from its source (its FloatStatistics' raw sums, Ova
 the same definitions in exact rationals, which ref-test judges Kurve's `ijMeasure` against. And it finds maxima and profiles
 (QUDI_SPEC Q.4): `jobs.json` names each image's Find Maxima settings and lines, run through MaximumFinder and ProfilePlot written
 out from ImageJ's source with its float arithmetic where it is float; ref-test judges `ijMaxima` and `ijProfile` against them,
-exactly:
+exactly. `tools/ref/spot_fixtures.py` (QUDI_SPEC Q.5) writes a realistic NV scan in qudi's classic format into `tools/ref/qudi/nv/`
+and `fixtures/spots.json`: six cases of Kurve's spot model worked out again from its definitions (seeds from ImageJ's port, windows,
+groups, Poisson's maximum likelihood, splitting) with SciPy's least_squares; ref-test's `spotFit.*` judge `spotFit` against them.
+ImageJ's own readout, where its jar may be run:
 
 ```sh
 javac -cp ij.jar -d /tmp/ijref tools/ref/ij/IJRef.java

@@ -898,6 +898,20 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-20: Spots, beyond ImageJ (QUDI_SPEC Q.5)
+
+- **Every number with its error.** The user asked for analysis better than ImageJ's. ImageJ gives a spot's position to a pixel and
+  nothing about how sure it is. Kurve fits each spot and gives its position, width, peak, background and volume each with a standard
+  error, and the errors are honest: over 300 Poisson repeats each value's spread is its error (pulls of SD 1), which the test keeps.
+- **Counts are counts.** A confocal scan's cells are photon counts over the pixel time, which qudi's header states. The fit is
+  Poisson's maximum likelihood (the weights from the model until they settle), not least squares weighted by the counts seen, which
+  put the background a standard error low; the reduced χ² then says whether Poisson's noise is all there is.
+- **Two spots in one maximum are two.** ImageJ's maxima are the seeds; a spot is added where the residual is largest and kept only
+  when the likelihood ratio says so, it looks like another emitter (its size, half a FWHM away), and, round, it beats one elliptical
+  spot clearly. A spot merely elliptical is not split (0 of 100), a pair 0.8 FWHM apart is (98 of 100).
+- **The dialog starts from the scan.** The pixel time from the header, the prominence from the values' scatter, the radius from the
+  spots' own width: Work it out at once gives a sensible answer, and each setting says where it came from in its tooltip.
+
 ### 2026-11-20: ImageJ's Find Maxima and Plot Profile (QUDI_SPEC Q.4)
 
 - **ImageJ's algorithm, not one like it.** Find Maxima's answer depends on its order (from the highest down), its prominence

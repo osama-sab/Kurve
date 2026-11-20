@@ -1,0 +1,83 @@
+/* Kurve's image analyses beyond ImageJ (ux/spec/QUDI_SPEC.md, Q.5 to Q.8): the properties no single reference shows.
+   Spots: Poisson scans of known spots, each error against the spread of its value over 300 repeats (pulls with SD 1, no bias,
+   a quarter of a cell off the centres), the reduced χ² near 1, a lone spot rarely split, an elliptical one fitted round not
+   split, a pair closer than its FWHM found as two and biased when fitted as one, the axes' origin and units changing nothing
+   but the numbers' units, the NV scan of tools/ref/qudi/nv against its truth, refusals in words, and its time.
+   Usage: node tools/img-test.mjs [kurve.html] */
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { loadKurve } from "./ref/run.mjs";
+const here = dirname(fileURLToPath(import.meta.url));
+const get = loadKurve(process.argv[2] || join(here, "..", "kurve.html"));
+const spotFit = get("spotFit"), mul = get("mulberry32"), pois = get("poissonRand"), matAxis = get("matAxis");
+let pass = 0, fail = 0;
+const check = (name, cond, detail) => { if (cond) { pass++; console.log("  ok   " + name); } else { fail++; console.log("  FAIL " + name + (detail == null ? "" : "  — " + String(detail).slice(0, 400))); } };
+const L16 = 4 * Math.LN2;
+const grid = (n, a, step) => [...Array(n)].map((_, i) => a + i * step);
+// a scan: μ = bg + Σ A·exp(−4 ln 2·(u²/w1² + v²/w2²)) turned by θ, as a count rate over t (Poisson counts / t), or noise-free
+function scan(X, Y, bg, spots, t, rnd) { const z = [];
+  for (const y of Y) for (const x of X) { let m = bg;
+    for (const s of spots) { const a = (s.th || 0) * Math.PI / 180, ex = x - s.x, ey = y - s.y, u = ex * Math.cos(a) + ey * Math.sin(a), v = -ex * Math.sin(a) + ey * Math.cos(a);
+      m += s.A * Math.exp(-L16 * (u * u / (s.w1 || s.w) ** 2 + v * v / (s.w2 || s.w) ** 2)); }
+    z.push(rnd ? pois(m * t, rnd) / t : m); }
+  return z; }
+const stat = (a) => { const m = a.reduce((s, v) => s + v, 0) / a.length; return { m, sd: Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / (a.length - 1)) }; };
+const fit = (X, Y, z, o) => spotFit({ nx: X.length, ny: Y.length, xs: X, ys: Y, z }, o);
+
+console.log("Spots: honest errors");
+{ const X = grid(24, 0, 0.1), Y = grid(24, 0, 0.1), t = 0.01, s0 = { x: 1.125, y: 1.175, A: 20000, w: 0.35 }, rnd = mul(101), pl = { x: [], y: [], w: [], A: [], B: [] }, chi = [], bias = [];
+  let n = 0, extra = 0;
+  for (let k = 0; k < 300; k++) { const r = fit(X, Y, scan(X, Y, 2000, [s0], t, rnd), { prom: 8000, noise: "rate", t, R: 0.5 }); const ok = r.spots.filter((q) => q.x != null);
+    if (ok.length !== 1) { extra++; continue; } const q = ok[0]; n++;
+    pl.x.push((q.x - s0.x) / q.sx); pl.y.push((q.y - s0.y) / q.sy); pl.w.push((q.w - s0.w) / q.sw); pl.A.push((q.A - s0.A) / q.sA); pl.B.push((q.B - 2000) / q.sB); chi.push(q.chi2r); bias.push((q.x - s0.x) / 0.1); }
+  for (const k of ["x", "y", "w", "A", "B"]) { const s = stat(pl[k]); check(`a spot's ${k === "w" ? "FWHM" : k === "A" ? "peak" : k === "B" ? "background" : k} over ${n} Poisson repeats: its error the spread of its value (pull SD ${s.sd.toFixed(3)}) and no bias (pull mean ${s.m.toFixed(3)})`, s.sd > 0.9 && s.sd < 1.1 && Math.abs(s.m) < 0.2, JSON.stringify(s)); }
+  const c = stat(chi), b = stat(bias);
+  check(`the reduced χ² of shot noise near 1 (mean ${c.m.toFixed(3)})`, Math.abs(c.m - 1) < 0.05, JSON.stringify(c));
+  check(`a quarter of a cell off the centres, the position unbiased to a hundredth of a cell (${b.m.toExponential(1)} cells)`, Math.abs(b.m) < 0.01, JSON.stringify(b));
+  check(`a lone spot split or lost in at most 1 % of the repeats (${extra} of 300)`, extra <= 3, extra); }
+
+console.log("Spots: splitting");
+{ const X = grid(32, 0, 0.1), Y = grid(32, 0, 0.1), t = 0.01, rnd = mul(202);
+  let el = 0; for (let k = 0; k < 100; k++) { const r = fit(X, Y, scan(X, Y, 1500, [{ x: 1.55, y: 1.6, A: 30000, w1: 0.38, w2: 0.33, th: 30 }], t, rnd), { prom: 8000, noise: "rate", t, shape: "round" }); if (r.spots.filter((q) => q.x != null).length > 1) el++; }
+  check(`an elliptical spot (axes 1.15 : 1) fitted round is not split, beaten by one elliptical spot (split in ${el} of 100)`, el <= 5, el);
+  const pair = [{ x: 1.4, y: 1.6, A: 25000, w: 0.35 }, { x: 1.68, y: 1.6, A: 20000, w: 0.35 }];   // 0.28 apart, 0.8 of the FWHM
+  let two = 0, near = 0, far = 0; const n = 100;
+  for (let k = 0; k < n; k++) { const z = scan(X, Y, 1500, pair, t, rnd), r = fit(X, Y, z, { prom: 8000, noise: "rate", t }), ok = r.spots.filter((q) => q.x != null);
+    if (ok.length === 2) { two++; const [a, b] = ok.slice().sort((p, q) => p.x - q.x); if (Math.abs(a.x - 1.4) < 4 * a.sx + 0.01 && Math.abs(b.x - 1.68) < 4 * b.sx + 0.01) near++; }
+    const r1 = fit(X, Y, z, { prom: 8000, noise: "rate", t, split: false }), one = r1.spots.filter((q) => q.x != null);
+    if (one.length === 1 && Math.abs(one[0].x - 1.4) > 5 * one[0].sx && Math.abs(one[0].x - 1.68) > 5 * one[0].sx) far++; }
+  check(`two spots 0.8 of their FWHM apart, one maximum: found as two in ${two} of ${n}, each within 4 errors of its truth in ${near}`, two >= 90 && near >= 0.9 * two, JSON.stringify({ two, near }));
+  check(`fitted as one spot they are a spot between them, more than 5 errors from either (in ${far} of ${n})`, far >= 95, far); }
+
+console.log("Spots: the axes");
+{ const X = grid(30, 0, 0.1), Y = grid(30, 0, 0.1), t = 0.01, z = scan(X, Y, 1500, [{ x: 1.03, y: 1.57, A: 30000, w: 0.36 }, { x: 2.2, y: 0.8, A: 20000, w: 0.36 }], t, mul(303)), o = { prom: 8000, noise: "rate", t };
+  const r0 = fit(X, Y, z, o), r1 = fit(X.map((v) => v + 1000), Y.map((v) => v - 250), z, o), r2 = fit(X.map((v) => v * 1000), Y.map((v) => v * 1000), z, o);
+  let e1 = 0, e2 = 0;
+  r0.spots.forEach((s, i) => { const a = r1.spots[i], b = r2.spots[i];
+    e1 = Math.max(e1, Math.abs(a.x - 1000 - s.x) / s.sx, Math.abs(a.y + 250 - s.y) / s.sy, Math.abs(a.w - s.w) / s.sw, Math.abs(a.A - s.A) / s.sA, Math.abs(a.sx - s.sx) / s.sx);
+    e2 = Math.max(e2, Math.abs(b.x / 1000 - s.x) / s.sx, Math.abs(b.w / 1000 - s.w) / s.sw, Math.abs(b.A - s.A) / s.sA, Math.abs(b.I / 1e6 - s.I) / s.sI, Math.abs(b.sx / 1000 - s.sx) / s.sx); });
+  check(`the axes moved by 1000 and −250: every position moved by as much, the rest the same (within ${e1.toExponential(1)} of the errors)`, r1.spots.length === r0.spots.length && e1 < 1e-5, e1);
+  check(`the axes in nm, not µm: positions and widths a thousand times, the volume a million, the peak the same (within ${e2.toExponential(1)})`, r2.spots.length === r0.spots.length && e2 < 1e-5, e2); }
+
+console.log("Spots: the NV scan");
+{ const F = JSON.parse(readFileSync(join(here, "ref", "fixtures", "spots.json"), "utf8")), m = F.scan, tr = m.truth;
+  const s0 = F.cases[0].m, X = matAxis(s0.x, s0.nx), Y = matAxis(s0.y, s0.ny);
+  let T = performance.now(); const r = fit(X, Y, s0.z, { prom: 7500, noise: "rate", t: F.scan.t }); T = performance.now() - T;
+  const ok = r.spots.filter((q) => q.x != null); let worst = 0;
+  const used = new Set(); for (const q of tr) { let best = null, bd = Infinity; ok.forEach((s, i) => { const d = Math.hypot(s.x - q.x, s.y - q.y); if (d < bd && !used.has(i)) { bd = d; best = i; } });
+    if (best == null) { worst = Infinity; continue; } used.add(best); const s = ok[best]; worst = Math.max(worst, Math.abs(s.x - q.x) / s.sx, Math.abs(s.y - q.y) / s.sy); }
+  check(`the NV scan's 13 emitters (a pair 0.30 µm apart among them) found, ${ok.length} spots, each within ${worst.toFixed(1)} errors of its truth`, ok.length === tr.length && worst < 5, JSON.stringify({ n: ok.length, worst }));
+  check(`…in ${T.toFixed(0)} ms (under 4 s)`, T < 4000, T); }
+
+console.log("Spots: refusals");
+{ const X = grid(10, 0, 0.1), z = scan(X, X, 100, [{ x: 0.5, y: 0.5, A: 1000, w: 0.3 }], 1, null), ms = (o, zz, XX) => fit(XX || X, XX || X, zz || z, o).fail || "";
+  check("the shot noise of a count rate with no pixel time: refused in words", /needs the pixel time/.test(ms({ prom: 10, noise: "rate" })));
+  check("shot noise of counts below zero: refused, the scatter said instead", /below zero/.test(ms({ prom: 10, noise: "counts" }, z.map((v, i) => i === 3 ? -5 : v))));
+  check("a matrix of two cells by two: refused", /three cells by three/.test(ms({ prom: 10 }, [1, 2, 3, 4], [0, 1])));
+  check("a window's radius below a cell: refused", /below a cell's size/.test(ms({ prom: 10, R: 0.05 })));
+  const none = fit(X, X, X.flatMap(() => X.map(() => 100)), { prom: 10 });
+  check("a flat matrix: no spot, said", none.spots.length === 0 && /No maximum stands out/.test(none.notes.join(" ")), JSON.stringify(none.notes)); }
+
+console.log(`\n${pass} passed, ${fail} failed`);
+process.exit(fail ? 1 : 0);

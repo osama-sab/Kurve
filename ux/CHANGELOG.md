@@ -1024,6 +1024,30 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## qudi's confocal scans, slice Q.5: Spots, beyond ImageJ (2026-11-20)
+
+The user's request: "Run tests on it, check that it works properly, I want analysis better than imagej". The suite ran (every part
+passed but timings under load, a cut cell's double click and one fuzz case of clustering, each looked at alone); QUDI_SPEC grew
+decisions 9 and 10 and slices Q.5 to Q.8.
+
+- **Analyze › Image › Spots…**, and the matrix window's **Matrix › Spots…**: each spot a two-dimensional Gaussian (round, or
+  elliptical and turned) on its background, fitted over the cells about it, spots closer than their windows fitted together. A row a
+  spot: X and Y to a fraction of a cell, the FWHM (or both axes and the angle), the peak, the background, the volume, each with its
+  standard error; the nearest spot, the group, the reduced χ², whether it settled. The summary: spots, the median FWHM and its spread
+  (the resolution), the median background, the density.
+- **Shot noise**: with qudi's pixel time (from the header's clock or pixel frequency) each cell is a count, and the fit is Poisson's
+  maximum likelihood; the errors are what the counts allow. Without it, from the scatter.
+- **Split spots that overlap**: two spots that make one maximum found by the likelihood ratio test, an elliptical spot not split.
+- The report rings each spot at its FWHM on the matrix's map and plots the positions with both errors; the model or the residuals
+  can be written as a matrix.
+
+Checked: `tools/ref/spot_fixtures.py` writes a realistic NV scan in qudi's classic format (13 emitters, a pair 0.30 µm apart, Poisson
+counts at 100 Hz) and fits six cases with SciPy's least_squares from the same definitions: the same seeds, groups and splits, every
+value within 1e-7 of its error, every error within 2e-8 (ref-test, 4 new targets); `tools/img-test.mjs` (20: pulls of SD 0.96 to 1.01
+over 300 repeats, no bias, splitting, the axes, the scan's emitters within 2.4 errors of the truth in half a second, refusals);
+qudi-drive (12 new). Found on the way, and kept out: least squares weighted by the counts seen puts a background a standard error low;
+a round start gives an elliptical fit no slope in its angle; an unweighted fit splits a bright spot into a spike.
+
 ## qudi's confocal scans, slice Q.4: ImageJ's Find Maxima and Plot Profile (2026-11-20)
 
 - **Analyze › Image › Find maxima…**, and the matrix window's **Matrix › ImageJ › Find maxima…**: ImageJ's Process › Find Maxima
