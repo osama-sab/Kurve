@@ -98,5 +98,40 @@ console.log("Intensities with their noise");
   check("no ring and no shot noise: the sums and no errors, said by how", none.ssum == null && none.net == null && none.how === "none" && Math.abs(none.sum - K0.sum) < 1e-9 * K0.sum, JSON.stringify({ ssum: none.ssum, how: none.how }));
   check("a ring too narrow to hold a cell: refused in words", /holds no cell/.test(kMeasure({ nx: 24, ny: 24, xs: X, ys: Y, x: { a: 0, b: 2.3 }, y: { a: 0, b: 2.3 }, z: mu }, { kind: "all" }, { ring: 0.05 }).fail || "")); }
 
+console.log("Profiles across a width, fitted");
+{ const kProfile = get("kProfile"), ijProfile = get("ijProfile"), lmFit = get("lmFit"), X = grid(40, 0, 0.1), Y = grid(40, 0, 0.1), t = 0.01, M = (z) => ({ nx: 40, ny: 40, xs: X, ys: Y, x: { a: 0, b: 3.9 }, y: { a: 0, b: 3.9 }, z });
+  // the estimator's own target: the same fit of the scan's expected values (each sample is linear in the cells, so its mean is the
+  // sample of the mean scan), each repeat's value against it over its error
+  const pulls = (mk, o, reps, seed) => { const z0 = mk(null), T = kProfile(M(z0), Object.assign({}, o, { noise: "scatter" })).fit.p, rnd = mul(seed), pl = { d0: [], A: [], B: [], w: [] }, naive = [];
+    let bad = 0; for (let k = 0; k < reps; k++) { const r = kProfile(M(mk(rnd)), o); if (!r.fit || !r.fit.conv) { bad++; continue; }
+      for (const q of ["d0", "A", "B", "w"]) pl[q].push((r.fit.p[q] - T[q]) / r.fit.e[q]);
+      // the same fit with each sample's error alone, as if the samples did not share cells
+      const K = [...r.kv.keys()].filter((i) => Number.isFinite(r.kv[i]) && r.ksv[i] > 0), f = o.fit === "peak" ? (x, p) => p[2] + p[1] * Math.exp(-L16 * (x - p[0]) ** 2 / (p[3] * p[3])) : null;
+      if (f) { const nf = lmFit(f, K.map((i) => r.d[i]), K.map((i) => r.kv[i]), K.map((i) => 1 / r.ksv[i]), [r.fit.p.d0, r.fit.p.A, r.fit.p.B, r.fit.p.w], [false, false, false, false], { scale: false, tol: 1e-15 }); if (!nf.error) naive.push((nf.params[3] - T.w) / nf.errors[3]); } }
+    return { T, pl, bad, naive }; };
+  const spot = (rnd) => scan(X, Y, 2000, [{ x: 2.03, y: 1.96, A: 20000, w: 0.4 }], t, rnd);
+  { const P = pulls(spot, { x0: 1.1, y0: 1.0, x1: 2.9, y1: 3.0, w: 0.3, noise: "rate", t, fit: "peak" }, 300, 61);
+    for (const k of ["d0", "A", "B", "w"]) { const s = stat(P.pl[k]); check(`a peak across a diagonal 0.3 wide, its ${k === "w" ? "FWHM" : k === "d0" ? "centre" : k === "A" ? "height" : "background"} over ${P.pl[k].length} Poisson repeats: the spread of its value its error (pull SD ${s.sd.toFixed(3)}), no bias (mean ${s.m.toFixed(3)})`, s.sd > 0.9 && s.sd < 1.1 && Math.abs(s.m) < 0.2, JSON.stringify(s)); }
+    const nv = stat(P.naive); console.log(`       (fitted as if the samples shared no cells, the FWHM's pull SD would be ${nv.sd.toFixed(2)}: its error ${((1 - 1 / nv.sd) * 100).toFixed(0)} % too small)`);
+    check("every repeat's fit settled", P.bad === 0, P.bad); }
+  { const E = (rnd) => { const z = []; for (const y of Y) for (const x of X) { const u = (x - 2 - 0.2 * (y - 2)) / 0.12, m = 50 + 400 * 0.5 * get("erfcFn")(-u * Math.SQRT1_2); z.push(rnd ? pois(m, rnd) : m); } return z; };
+    const P = pulls(E, { x0: 0.8, y0: 1.3, x1: 3.2, y1: 2.6, w: 0.5, noise: "counts", fit: "edge" }, 300, 62);
+    for (const k of ["d0", "A", "B", "w"]) { const s = stat(P.pl[k]); check(`an edge in counts across an oblique line 0.5 wide, its ${k === "w" ? "10–90 % width" : k === "d0" ? "centre" : k === "A" ? "step" : "level before"} over ${P.pl[k].length} repeats: pull SD ${s.sd.toFixed(3)}, mean ${s.m.toFixed(3)}`, s.sd > 0.9 && s.sd < 1.1 && Math.abs(s.m) < 0.2, JSON.stringify(s)); } }
+  { const rnd0 = mul(63), G = (rnd) => scan(X, Y, 2000, [{ x: 1.97, y: 2.02, A: 20000, w: 0.4 }], 1, null).map((v) => rnd ? v + 400 * Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd()) : v);
+    const P = pulls(G, { x0: 1.0, y0: 2.9, x1: 3.0, y1: 1.1, w: 0.4, noise: "scatter", fit: "peak" }, 300, 64);
+    for (const k of ["d0", "w"]) { const s = stat(P.pl[k]); check(`from the scatter (Gaussian noise added), its ${k === "w" ? "FWHM" : "centre"} over ${P.pl[k].length} repeats: pull SD ${s.sd.toFixed(3)} (a t of about 20 degrees of freedom), mean ${s.m.toFixed(3)}`, s.sd > 0.9 && s.sd < 1.15 && Math.abs(s.m) < 0.2, JSON.stringify(s)); } }
+  { const z = spot(mul(65)), a = ijProfile(M(z), { x0: 1.1, y0: 1.0, x1: 2.9, y1: 3.0 }), b = kProfile(M(z), { x0: 1.1, y0: 1.0, x1: 2.9, y1: 3.0, noise: "rate", t });
+    check("a width of a pixel: ImageJ's samples themselves", b.m === 1 && a.v.every((v, i) => v === b.kv[i]));
+    const c = kProfile(M(z), { x0: 0.0, y0: 2.0, x1: 3.9, y1: 2.0, noise: "rate", t }), i0 = 20;
+    check("along a row of cells' centres, a pixel wide: each sample one cell, its error √(v t)/t", Math.abs(c.ksv[i0] - Math.sqrt(c.kv[i0] * t) / t) < 1e-12 * c.ksv[i0]); }
+  { const z = spot(mul(66)), o = { x0: 1.1, y0: 1.0, x1: 2.9, y1: 3.0 };
+    check("a width of 0 refused in words", /width is a distance above 0/.test(kProfile(M(z), Object.assign({ w: 0 }, o)).fail || ""));
+    check("a rate without its pixel time refused", /pixel time/.test(kProfile(M(z), Object.assign({ noise: "rate" }, o)).fail || ""));
+    check("a count below zero with shot noise refused", /below zero/.test(kProfile(M(z.map((v, i) => i === 5 ? -1 : v)), Object.assign({ noise: "counts" }, o)).fail || ""));
+    check("a fit of fewer than six samples refused in words", /six samples/.test(kProfile(M(z), { x0: 1.0, y0: 1.0, x1: 1.4, y1: 1.0, noise: "rate", t, fit: "peak" }).fitFail || ""));
+    check("a band past the matrix's edge: those samples empty, said", (() => { const r = kProfile(M(z), { x0: 0.0, y0: 0.05, x1: 3.9, y1: 0.05, w: 0.5, noise: "rate", t }); return r.notes.some((n) => /past the matrix/.test(n)) && r.kv.every((v) => Number.isNaN(v)); })());
+    const t0 = performance.now(); for (let k = 0; k < 50; k++) kProfile(M(z), Object.assign({ w: 0.5, noise: "rate", t, fit: "peak" }, o)); const ms = (performance.now() - t0) / 50;
+    check(`a fit of a profile 0.5 wide in ${ms.toFixed(1)} ms (under 50)`, ms < 50, ms); } }
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

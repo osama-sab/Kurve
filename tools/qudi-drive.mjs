@@ -91,7 +91,7 @@ console.log("Q.2 A matrix for ImageJ");
 const ijRead = (bytes) => { const d = mkdtempSync(join(tmpdir(), "kurve-ijd-")); writeFileSync(join(d, "m.tif"), bytes);
   try { return JSON.parse(execFileSync("python3.13", ["-I", join(here, "ref", "ij_read.py"), d], { encoding: "utf8" }))["m.tif"]; } finally { rmSync(d, { recursive: true, force: true }); } };
 // the matrix window's Matrix › ImageJ › an item (the last menu open is the submenu)
-const mxIJ = async (p, label) => { await p.click(".mxwin [data-mxmenu]"); await p.waitForTimeout(150);
+const mxIJ = async (p, label, win) => { await p.click((win ? `#w-${win} ` : ".mxwin ") + "[data-mxmenu]"); await p.waitForTimeout(150);
   await p.hover(".menu [role=menuitem]:has-text('ImageJ')"); await p.waitForTimeout(300);
   return p.locator(`.menu [role=menuitem]:has-text('${label}')`).last().click(); };
 await page(async p => {
@@ -334,6 +334,58 @@ await page(async p => {
   check("a reload: both analyses there, up to date", r.length === 2 && r.every(Boolean), JSON.stringify(r));
 }, { name: "Q.5" });
 
+console.log("Q.6 A profile across a width, fitted");
+await page(async p => {
+  const SP = JSON.parse(readFileSync(join(here, "ref", "fixtures", "spots.json"), "utf8")), T = SP.scan.truth[5];
+  await p.setInputFiles("#fileIn", join(here, "ref", SP.scan.file)); await p.waitForFunction(() => matAll().length >= 1, null, { timeout: 8000 }); await p.waitForTimeout(400);
+  await p.click(".mb[data-menu=analyze]"); await p.waitForTimeout(150); await p.hover(".menu [role=menuitem]:has-text('Image')"); await p.waitForTimeout(250);
+  await p.locator(".menu [role=menuitem]:has-text('Profile…')").last().click(); await p.waitForSelector("#aPLn", { timeout: 4000 });
+  let r = await p.evaluate(() => ({ n: $("#aPLn").value, t: parseNum($("#aPLt").value), tshown: !$("#aPLt").closest(".anarows").hidden, w: $("#aPLw").value, f: $("#aPLf").value }));
+  check("Profile…'s Beyond ImageJ: the shot noise of a count rate and the pixel time from the header, a pixel wide, no fit to begin with", r.n === "rate" && r.t === 0.01 && r.tshown && r.w === "" && r.f === "none", JSON.stringify(r));
+  const L = { x0: T.x - 0.8, y0: T.y - 0.7, x1: T.x + 0.9, y1: T.y + 0.8 };
+  for (const [k, v] of Object.entries(L)) await p.fill(`#aPL${k}`, String(+v.toFixed(4)));
+  await p.fill("#aPLw", "-0.2"); await p.waitForTimeout(80); r = await p.evaluate(() => ({ msg: $("#aPLmsg").textContent, ok: $("#formOk").disabled }));
+  check("…a width below zero: refused in words", /width is a distance above 0/.test(r.msg) && r.ok, JSON.stringify(r));
+  await p.fill("#aPLw", "0.4"); await p.selectOption("#aPLf", "peak"); await p.waitForTimeout(80); await p.click("#formOk");
+  await p.waitForFunction(() => { const a = anaList().filter((x) => x.kind === "ijprofile").slice(-1)[0]; return a && a.res && (a.res.report || a.res.err); }, null, { timeout: 15000 });
+  const cmp = () => p.evaluate(() => { const a = anaList().filter((x) => x.kind === "ijprofile").slice(-1)[0], s = matOf(a.p.mat), K = kProfile({ nx: s.nx, ny: s.ny, xs: matAxis(s.x, s.nx), ys: matAxis(s.y, s.ny), z: s.z }, a.p);
+    const col = (k) => P().cols.find((c) => c.ana === a.id && c.ak === k) || {}, eq = (k, arr) => { const d = col(k).data || []; return d.length === arr.length && d.every((v, i) => v === (Number.isFinite(arr[i]) ? arr[i] : null)); };
+    const F = K.fit, one = (k) => (col(k).data || [])[0];
+    return { id: a.id, err: a.res.err, m: K.m, same: eq("kv", K.kv) && eq("ksv", K.ksv) && eq("kfit", K.kfit) && eq("kres", K.kres) && eq("v", K.v), ksv: [col("ksv").role, col("ksv").of === col("kv").id],
+      names: ["kv", "ksv", "kfit", "fw", "fsw"].map((k) => col(k).name), fit: F && { w: F.p.w, sw: F.e.w, d0: F.p.d0, xc: F.xc, yc: F.yc, red: F.red, kind: F.kind },
+      sec: F && one("fw") === F.p.w && one("fsw") === F.e.w && one("fxc") === F.xc && one("fred") === F.red, method: a.res.report.method }; });
+  r = await cmp();
+  check("…the samples' mean across, its error, the fit and its residuals beside ImageJ's values, each kProfile's; the error column the mean's error bars", !r.err && r.m === 3 && r.same && r.ksv[0] === "e" && r.ksv[1], JSON.stringify([r.err, r.m, r.same, r.ksv]));
+  check("…the fit's section: the FWHM, its error, the centre's X and the reduced χ², kProfile's", r.sec && r.names.join("|") === "Mean across (c/s)|SE of mean across (c/s)|Fit (c/s)|FWHM (µm)|SE of FWHM (µm)", JSON.stringify(r.names));
+  check(`…a spot of FWHM ${T.w1.toFixed(3)} µm crossed: ${r.fit.w.toFixed(4)} ± ${r.fit.sw.toFixed(4)} µm (the interpolation's own breadth with it), its centre at (${r.fit.xc.toFixed(3)}, ${r.fit.yc.toFixed(3)}), χ²/ν ${r.fit.red.toFixed(2)}`, Math.abs(r.fit.w - T.w1) < 0.06 && Math.hypot(r.fit.xc - T.x, r.fit.yc - T.y) < 0.15 && r.fit.red < 3, JSON.stringify(r.fit));
+  check("…the method says what goes beyond ImageJ and how the fit took the samples' shared cells", /Beyond ImageJ \(Kurve's own\): each sample the mean of 3 values a pixel apart across the line/.test(r.method) && /generalised least squares/.test(r.method) && /C_ij = Σ_c a_ic a_jc σ_c²/.test(r.method), r.method);
+  const pid = r.id;
+  await p.evaluate((id) => anaReport(id), pid); await p.waitForTimeout(500); await p.click(`#w-res button[data-anaact="plot"]`); await p.waitForTimeout(700);
+  r = await p.evaluate(() => { const g = P().graphs.slice(-1)[0], ser = g.plot.series || {}; return g.cols.map((id) => [colById(id).ak, ser[id] && ser[id].type, hasErrCols(id)]); });
+  check("Plot the profile: the samples as symbols with their error bars, the fit as a line", JSON.stringify(r.map((q) => [q[0], q[1]])) === JSON.stringify([["kv", "scatter"], ["kfit", "line"]]) && r[0][2] === true, JSON.stringify(r));
+  // an edge: a tilted step in counts made in the page, its 10–90 % width
+  const eid = await p.evaluate(() => { const nx = 50, ny = 40, z = []; let k = 7; const rnd = () => (k = (k * 16807) % 2147483647) / 2147483647;
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) { const x = i * 0.1, y = j * 0.1, u = (x - 2.4 - 0.15 * (y - 2)) / 0.12, m = 50 + 400 * 0.5 * erfcFn(-u * Math.SQRT1_2); z.push(poissonRand(m, rnd)); }
+    const s = matSheetNew({ nx, ny, x: { a: 0, b: 4.9 }, y: { a: 0, b: 3.9 }, z }, "Edge", { xunit: "µm", yunit: "µm", zunit: "counts" }); matSaveNew([matBookNew(s, "Edge")], { undo: "a test edge", log: "made a test edge" }); matOpen(matBookOf(s.id).id); return s.id; });
+  await p.waitForTimeout(400); await mxIJ(p, "Profile…", await p.evaluate((sid) => "mx-" + matBookOf(sid).id, eid)); await p.waitForSelector("#aPLn");
+  r = await p.evaluate(() => $("#aPLn").value); check("…on a matrix of counts: the shot noise of counts to begin with", r === "counts", r);
+  for (const [k, v] of Object.entries({ x0: 1.0, y0: 1.2, x1: 3.8, y1: 2.6 })) await p.fill(`#aPL${k}`, String(v));
+  await p.fill("#aPLw", "0.5"); await p.selectOption("#aPLf", "edge"); await p.waitForTimeout(80); await p.click("#formOk");
+  await p.waitForFunction((n) => anaList().filter((x) => x.kind === "ijprofile").length === n && anaList().slice(-1)[0].res, 2, { timeout: 15000 }); await p.waitForTimeout(300);
+  r = await cmp(); const ed = await p.evaluate(() => { const a = anaList().filter((x) => x.kind === "ijprofile").slice(-1)[0], col = (k) => P().cols.find((c) => c.ana === a.id && c.ak === k) || {};
+    return ["fw", "ffwhm", "fA"].map((k) => [col(k).name, (col(k).data || [])[0]]); });
+  check(`…an edge: its 10–90 % width ${ed[0][1].toFixed(3)} ± ${r.fit.sw.toFixed(3)} µm and the line spread's FWHM beside it, kProfile's`, r.same && r.fit.kind === "edge" && ed[0][0] === "Width, 10–90 % (µm)" && ed[1][0] === "FWHM of the line spread (µm)" && Math.abs(ed[1][1] - 0.9187 * ed[0][1]) < 1e-3 * ed[0][1] && ed[2][1] > 300, JSON.stringify(ed));
+  // followed: a cell under the first line changed, its fit worked out again
+  const before = await p.evaluate((id) => (P().cols.find((c) => c.ana === id && c.ak === "fw") || {}).data[0], pid);
+  await p.evaluate(([id]) => { const a = anaOf(id); matPut(a.p.mat, (s) => { const z = s.z.slice(), X = matAxis(s.x, s.nx), Y = matAxis(s.y, s.ny); let bi = 0, bd = Infinity;
+      for (let r = 0; r < s.ny; r++) for (let c = 0; c < s.nx; c++) { const dd = Math.hypot(X[c] - (a.p.x0 + a.p.x1) / 2 - 0.25, Y[r] - (a.p.y0 + a.p.y1) / 2 - 0.25); if (dd < bd) { bd = dd; bi = r * s.nx + c; } }
+      z[bi] = z[bi] * 3; return Object.assign({}, s, { z }); }, { undo: "a test value", log: "typed a test value" }); }, [pid]); await p.waitForTimeout(900);
+  r = await p.evaluate((id) => { const a = anaOf(id); return { w: (P().cols.find((c) => c.ana === id && c.ak === "fw") || {}).data[0], stale: anaStale(a) }; }, pid);
+  check("a cell under the line changed: the fit worked out again", r.w !== before && !r.stale, JSON.stringify([before, r]));
+  await p.reload(); await ready(p); await p.waitForTimeout(800);
+  r = await p.evaluate(() => anaList().filter((x) => x.kind === "ijprofile").map((a) => !!(a.res && a.res.report) && !anaStale(a) && !!(P().cols.find((c) => c.ana === a.id && c.ak === "kfit"))));
+  check("a reload: both profiles there with their fits, up to date", r.length === 2 && r.every(Boolean), JSON.stringify(r));
+}, { name: "Q.6" });
 console.log("Q.7 Intensities with their noise");
 await page(async p => {
   const SP = JSON.parse(readFileSync(join(here, "ref", "fixtures", "spots.json"), "utf8")), T = SP.scan.truth[5];

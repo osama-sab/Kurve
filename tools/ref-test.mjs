@@ -418,6 +418,27 @@ if (fixtures.spots) {
   }
 }
 
+/* ---- A profile across a width, fitted (QUDI_SPEC Q.6): each sample's mean across and its error, and the fit by SciPy's curve_fit
+   with the samples' covariance, worked out again in tools/ref/profile_fixtures.py ---- */
+if (fixtures.profile) {
+  const KP = get("kProfile"), MA = get("matAxis");
+  for (const c of fixtures.profile.cases) {
+    const m = c.m, w = c.want, r = KP({ nx: m.nx, ny: m.ny, x: m.x, y: m.y, xs: MA(m.x, m.nx), ys: MA(m.y, m.ny), z: m.z }, c.o);
+    if (r.fail || r.fitFail) { refBad.push(`kProfile ${c.name}: ${r.fail || r.fitFail}`); continue; }
+    if (r.n !== w.n || r.m !== w.m) { note("kProfile.samples", 1, `${c.name}: ${r.n} samples, ${r.m} across, against ${w.n}, ${w.m}`); continue; }
+    const sc = Math.max(1, ...w.kv.filter((v) => v != null).map(Math.abs)); let e = 0, at = "";
+    for (let i = 0; i < w.n; i++) for (const [a, b, k] of [[r.kv[i], w.kv[i], "value"], [r.ksv[i], w.ksv[i], "error"]]) {
+      const d = b == null ? (Number.isNaN(a) ? 0 : Infinity) : Number.isNaN(a) ? Infinity : Math.abs(a - b) / (k === "value" ? sc : Math.max(b, 1e-300)); if (!(d <= e)) { e = d; at = `sample ${i + 1}'s ${k}`; } }
+    note("kProfile.samples", e, `${c.name}, ${at}`);
+    if (!w.fit) continue;
+    const F = r.fit, keys = ["d0", "A", "B", "w"]; let ev = 0, ee = 0, av = "", ae = "";
+    keys.forEach((k, j) => { const dv = Math.abs(F.p[k] - w.fit.p[j]) / (c.exact ? Math.abs(w.fit.p[j]) + 1 : w.fit.e[j] + 1e-12 * (Math.abs(w.fit.p[j]) + 1)); if (!(dv <= ev)) { ev = dv; av = k; }
+      if (!c.exact) { const de = Math.abs(F.e[k] - w.fit.e[j]) / w.fit.e[j]; if (!(de <= ee)) { ee = de; ae = k; } } });
+    note("kProfile.values", ev, `${c.name}, ${av} (against its standard error)`); if (!c.exact) note("kProfile.errors", ee, `${c.name}, ${ae}`);
+    if (c.exact) note("kProfile.truth", Math.max(...keys.map((k, j) => Math.abs(F.p[k] - c.exact[j]) / Math.abs(c.exact[j]))), `${c.name}`);
+  }
+}
+
 /* ---- NIST's Norris: certified values read from the file itself ---- */
 {
   const txt = readFileSync(join(here, "ref", "nist", "Norris.dat"), "utf8").split(/\r?\n/);

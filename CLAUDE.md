@@ -1219,6 +1219,19 @@ graph first, with the taskbar kept at the bottom of the screen.
   emitters, a pair 0.30 µm apart) and `fixtures/spots.json` (six cases worked out again with SciPy's least_squares from the same
   definitions); ref-test's `spotFit.count` (exact), `.values` (against their errors, 1e-6), `.errors` (1e-6) and `.truth` (a
   noise-free case, 1e-12); `tools/img-test.mjs` the properties.
+  **A profile across a width, fitted** (QUDI_SPEC Q.6): in MAT `ijAtFn(v, W, H)` (ImageJ's getInterpolatedValue, now ijProfile's too,
+  which returns each sample's line coordinates `rx`, `ry` and `xinc`, `yinc`) and `ijAtW` (the same value's weights on the pixels),
+  `PROF_FITS`, `PROF_Z90`, `kProfile(M, {x0, y0, x1, y1, w, noise, t, fit, single})` (ijProfile's samples, each the mean of m = round(w /
+  the across step) values a pixel apart along the unit normal in ImageJ's pixel coordinates, m = 1 ImageJ's sample itself; a band past
+  the matrix or by an empty cell empty; each sample's error √(Σ a_c² σ_c²) with shot noise, the spread across over √m from the scatter;
+  the fit, a Gaussian peak (`w` its FWHM) or an error-function edge (`w` its 10–90 % width, the line spread's FWHM 0.9187 w), by `lmFit` on
+  the residuals whitened by the banded Cholesky factor of C_ij = Σ_c a_ic a_jc σ_c², with shot noise each cell's σ² from the fitted values
+  until it settles; `{kv, ksv, m, w, kfit, kres, fit {kind, p, e, cov, chi2, dof, red, iter, conv, rounds, xc, yc, sxc, syc, w1090?, fwhm},
+  fitFail?, notes, …}` or `{fail}`). The kind `ijprofile` takes `p.w`, `noise`, `t`, `fit` and then adds `kv` (a Y), `ksv` (its error),
+  `kfit` (a Y), `kres`, the section *Beyond ImageJ* (`km`, `kw`, `knoise`) and *Fit* (`f` + kind, d0, sd0, xc, sxc, yc, syc, A, sA, B, sB,
+  w, sw, fwhm, sfwhm, red, dof, conv); its form `#aPLw`, `#aPLn`, `#aPLt`, `#aPLf`; `ijpStart` merges `noiseStart`; `ijpPlot` the samples
+  with their errors and the fit (a pixel wide and no fit, ImageJ's line). `tools/ref/profile_fixtures.py` (SciPy's curve_fit with the
+  samples' covariance) → `fixtures/profile.json`; ref-test's `kProfile.samples` (1e-12), `.values`, `.errors` (1e-6), `.truth` (1e-12).
   **Intensities with their noise** (QUDI_SPEC Q.7): in MAT `kMeasure(M, reg, {noise, t, ring})` (over `ijRegion`'s cells: the sum and
   mean, Neumaier's sums; the ring the cells outside within `ring` of a region cell, by X and Y; the background their mean; errors from
   each cell's shot noise (`rate`, `counts`), or the ring's SD for every cell (`scatter` with a ring), or none; the net sum's error
@@ -3919,12 +3932,16 @@ ijProfile, plotted and drawn on the map, a diagonal, a changed cell followed by 
 the matrices. Q.5, Spots (the NV scan read from qudi's classic file as the reference has it, the dialog's shot noise, pixel time and
 prominence from the header and the scatter, a refusal, each row against spotFit, the 13 emitters within their errors of the truth,
 the method, the rings once however often asked, the positions plotted with both errors, elliptical spots and their residuals as a
-matrix from the matrix window's menu, a spot typed into the scan found when it is worked out again, a reload); Q.7, Measure's Beyond
+matrix from the matrix window's menu, a spot typed into the scan found when it is worked out again, a reload); Q.6, Profile's Beyond
+ImageJ (the noise and pixel time from the header, a width refused below zero, each column and the fit kProfile's, the NV spot's FWHM,
+the method, the samples plotted with their errors and the fit, an edge's 10–90 % width in counts, followed, a reload); Q.7, Measure's Beyond
 ImageJ (the noise and pixel time from the header, a ring refused below zero, each column kMeasure's, a spot's light 61 times its error).
 `node tools/img-test.mjs [path]` checks the image analyses' properties (QUDI_SPEC Q.5 to Q.8): a spot's position, FWHM, peak and
 background each with an error equal to its spread over 300 Poisson repeats and no bias, the reduced χ² near 1, a lone spot split
 in at most 1 %, an elliptical spot fitted round not split, two spots 0.8 FWHM apart found as two and biased when fitted as one, the
-axes' origin and units, the NV scan against its truth and its time, refusals. Run it after touching the MAT block's image analyses.
+axes' origin and units, the NV scan against its truth and its time, refusals; a profile's peak across a diagonal 0.3 µm wide and an
+edge in counts, each parameter's pull over 300 repeats, Gaussian noise from the scatter, a width of a pixel ImageJ's samples, refusals,
+its time. Run it after touching the MAT block's image analyses.
 `node tools/sheet-drive.mjs [path]` (Playwright; `ONLY=3.1` runs one section) checks the worksheet as a table
 (`ux/spec/SHEET_SPEC.md`, wave 3): 3.1, formulas typed into the F(x)= row (an aggregate, rows of other rows, a running
 sum, text compared, `=` as equality, another sheet by a name with its spaces left out, that sheet renamed and a column
@@ -5690,7 +5707,9 @@ pixel time known, every number with its shot-noise error) and 10 (beyond ImageJ,
 with an honest error (pulls of SD 1 over 300 repeats), spots that make one maximum split by the likelihood ratio, the NV scan's 13
 emitters found within their errors; SciPy agreeing to 1e-7 of the errors. Slice Q.7 done 20.11: Measure's sums with their shot-noise
 errors, a background from a ring about the region, the sum less it and the signal to noise; exact against fractions, the errors the
-spread over 2000 Poisson repeats.
+spread over 2000 Poisson repeats. Slice Q.6 done 20.11: Profile's samples across a width with their errors, and a Gaussian peak's FWHM or
+an error-function edge's 10–90 % width fitted with the samples' correlation (they share cells); SciPy's curve_fit agreeing to 6e-8 of the
+errors, pulls of SD 0.95 to 1.06 over 300 repeats, where a fit ignoring the correlation would make the FWHM's error a fifth too small.
 
 ## Known gaps
 

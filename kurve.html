@@ -10250,15 +10250,35 @@ ANA_KINDS.ijmaxima={label:"Find maxima (ImageJ)", base:"Maxima", typed:true, typ
 ANA_KINDS.ijprofile={label:"Profile (ImageJ)", base:"Profile", typed:true, typedWhat:"a matrix",
   help:"ImageJ's Analyze › Plot Profile of a straight line on a matrix, its ends given in X and Y: the values a pixel apart along it, interpolated between the cells about each, against the distance",
   run(ins,p){ p=p||{}; const mq=ins.find(q=>q.mat); if(!mq) return {fail:"Its matrix has been deleted."};
-    const M=mq.mat, r=ijProfile({nx:M.nx,ny:M.ny,xs:M.xs,ys:M.ys,z:M.z},{x0:p.x0,y0:p.y0,x1:p.x1,y1:p.y1,single:!!p.single}); if(r.fail) return {fail:r.fail};
-    const xu=M.xunit||"", yu=M.yunit||"", zu=M.zunit||"", U=(n,u)=>u?`${n} (${u})`:n, cols=[], secs=[], notes=[], du=xu&&xu===yu?xu:"";
+    // Beyond ImageJ (QUDI_SPEC Q.6): a width, each sample's error and a fit, in columns of Kurve's own beside ImageJ's
+    const kb=!!(p.noise||(p.w!=null&&p.w!=="")||(p.fit&&p.fit!=="none")), fk=p.fit==="peak"||p.fit==="edge"?p.fit:"none";
+    const M=mq.mat, mm={nx:M.nx,ny:M.ny,xs:M.xs,ys:M.ys,z:M.z}, po={x0:p.x0,y0:p.y0,x1:p.x1,y1:p.y1,single:!!p.single};
+    const r=kb?kProfile(mm,Object.assign(po,{w:p.w,noise:p.noise,t:p.t,fit:fk})):ijProfile(mm,po); if(r.fail) return {fail:r.fail};
+    const xu=M.xunit||"", yu=M.yunit||"", zu=M.zunit||"", U=(n,u)=>u?`${n} (${u})`:n, cols=[], secs=[], notes=[], du=xu&&xu===yu?xu:"", nn=v=>Number.isFinite(v)?v:null;
     const rows=Array.from(r.d,(d,i)=>({d,v:Number.isNaN(r.v[i])?null:r.v[i],x:r.x[i],y:r.y[i]}));
-    anaTab("",[["d",U("Distance",du)],["v",U("Value",zu)],["x",U("X",xu)],["y",U("Y",yu)]],rows,cols,[]);
-    { const c=cols.find(c=>c.k==="d"); if(c) c.role="x"; }
+    const spec=[["d",U("Distance",du)],["v",U("Value",zu)],["x",U("X",xu)],["y",U("Y",yu)]];
+    if(kb){ rows.forEach((q,i)=>{ q.kv=nn(r.kv[i]); q.ksv=nn(r.ksv[i]); if(r.kfit){ q.kfit=nn(r.kfit[i]); q.kres=nn(r.kres[i]); } });
+      spec.push(["kv",U(r.m>1?"Mean across":"Sample",zu)],["ksv",U(r.m>1?"SE of mean across":"SE of sample",zu)]); if(r.kfit) spec.push(["kfit",U("Fit",zu)],["kres",U("Residual",zu)]); }
+    anaTab("",spec,rows,cols,[]);
+    cols.forEach(c=>{ if(c.k==="d") c.role="x"; if(c.k==="kv"||c.k==="kfit") c.role="y"; if(c.k==="ksv"){ c.role="e"; c.of="kv"; } });
     anaTab("Profile",[["n","Samples"],["step",U("Step",du)],["len",U("Length",du)]],[{n:r.n,step:r.step,len:r.d[r.n-1]}],cols,secs,"s");
-    const gap=rows.filter(q=>q.v==null).length; if(gap) notes.push(`${gap} sample${gap===1?"":"s"} next to an empty cell, empty.`);
-    const method=`ImageJ 1.54f's Analyze › Plot Profile of ${mq.name} along the line from (${fmt(+p.x0,6)}, ${fmt(+p.y0,6)}) to (${fmt(+p.x1,6)}, ${fmt(+p.y1,6)}): ${r.n} samples ${fmt(r.step,6)}${du?" "+du:""} apart, each bilinear between the four cells about it (ImageJ's getLine and getInterpolatedValue), on the values ${p.single?"rounded to single precision, as ImageJ's 32-bit image holds them":"as they are"}. In ImageJ, on the TIFF Kurve writes for this matrix: ${r.macro} run("Plot Profile");`;
-    return {tables:[{cols}],report:{sections:secs,method,ijp:{mat:p.mat||null,x0:+p.x0,y0:+p.y0,x1:+p.x1,y1:+p.y1}},notes}; }};
+    if(!kb){ const gap=rows.filter(q=>q.v==null).length; if(gap) notes.push(`${gap} sample${gap===1?"":"s"} next to an empty cell, empty.`); }
+    let method=`ImageJ 1.54f's Analyze › Plot Profile of ${mq.name} along the line from (${fmt(+p.x0,6)}, ${fmt(+p.y0,6)}) to (${fmt(+p.x1,6)}, ${fmt(+p.y1,6)}): ${r.n} samples ${fmt(r.step,6)}${du?" "+du:""} apart, each bilinear between the four cells about it (ImageJ's getLine and getInterpolatedValue), on the values ${p.single?"rounded to single precision, as ImageJ's 32-bit image holds them":"as they are"}. In ImageJ, on the TIFF Kurve writes for this matrix: ${r.macro} run("Plot Profile");`;
+    if(kb){ r.notes.forEach(t=>notes.push(t)); const nz=r.noise==="rate"?`each cell's shot noise, √N over the pixel time ${fmt(r.t,6)} s`:r.noise==="counts"?"each cell's shot noise, √N (its value a count)":"";
+      anaTab("Beyond ImageJ",[["m","Values across"],["w",U("Width",du)],["noise","Errors from"]],[{m:r.m,w:r.w,noise:r.noise==="scatter"?(r.m>1?"the spread across":"none"):"shot noise"}],cols,secs,"k");
+      method+=` Beyond ImageJ (Kurve's own): ${r.m>1?`each sample the mean of ${r.m} values a pixel apart across the line (${fmt(r.w,4)}${du?" "+du:""} wide), each interpolated as ImageJ does`:"each of ImageJ's samples"}, its standard error ${nz?`from ${nz}, through the interpolation's weights (the variance of Σ a_c v_c is Σ a_c² σ_c²)`:r.m>1?"the spread across over √"+r.m:"not known (one value, no shot noise)"}.`;
+      if(fk!=="none"){ const F=r.fit;
+        if(!F) notes.push(`No fit: ${String(r.fitFail||"it could not be made.").replace(/\.$/,"")}.`);
+        else { const e=v=>v==null?null:v, rowF={kind:fk==="peak"?"A Gaussian peak":"An error-function edge",d0:F.p.d0,sd0:e(F.e.d0),xc:F.xc,sxc:F.sxc,yc:F.yc,syc:F.syc,A:F.p.A,sA:e(F.e.A),B:F.p.B,sB:e(F.e.B),w:F.p.w,sw:e(F.e.w),fwhm:F.fwhm,sfwhm:F.sfwhm,red:F.red,dof:F.dof,conv:F.conv?"Yes":"No"};
+          const sp=[["kind","Model"],["d0",U("Centre, distance",du)],["sd0",U("SE of centre",du)],["xc",U("Centre X",xu)],["sxc",U("SE of centre X",xu)],["yc",U("Centre Y",yu)],["syc",U("SE of centre Y",yu)],
+            ["A",U(fk==="peak"?"Height":"Step",zu)],["sA",U(fk==="peak"?"SE of height":"SE of step",zu)],["B",U(fk==="peak"?"Background":"Level before",zu)],["sB",U(fk==="peak"?"SE of background":"SE of level before",zu)],
+            ["w",U(fk==="peak"?"FWHM":"Width, 10–90 %",du)],["sw",U(fk==="peak"?"SE of FWHM":"SE of width, 10–90 %",du)]].concat(fk==="edge"?[["fwhm",U("FWHM of the line spread",du)],["sfwhm",U("SE of that FWHM",du)]]:[],
+            [["red","Reduced χ²"],["dof","Degrees of freedom"],["conv","Settled"]]);
+          anaTab("Fit",sp,[rowF],cols,secs,"f");
+          if(F.atBound&&F.atBound.some(Boolean)) notes.push("A parameter of the fit stopped at its limit, so its error is not known.");
+          const nzf=r.noise==="scatter"?"no weights but the samples' correlation (each sample's weights on the cells, σ the same for every cell), the covariance scaled by the reduced χ²":`each sample's error and their correlation (the samples share cells: C_ij = Σ_c a_ic a_jc σ_c²), each cell's σ from the fitted values until the fit settles (${F.rounds} round${F.rounds===1?"":"s"})`;
+          method+=` Fitted by ${fk==="peak"?"a Gaussian peak, B + A·exp(−4 ln 2 (d − d₀)²/w²), w its FWHM":"an error-function edge, B + A·Φ(2·1.2816 (d − d₀)/w), w its 10–90 % width, the line spread's FWHM 0.9187 w"}, by Levenberg–Marquardt in generalised least squares, with ${nzf}.`; } } }
+    return {tables:[{cols}],report:{sections:secs,method,ijp:{mat:p.mat||null,x0:+p.x0,y0:+p.y0,x1:+p.x1,y1:+p.y1,w:kb?r.w:null}},notes}; }};
 // Spots (QUDI_SPEC Q.5): spotFit's spots, a row each, and the summary; optionally the model or the residuals as a matrix.
 ANA_KINDS.spots={label:"Spots (Kurve)", base:"Spots", typed:true, typedWhat:"a matrix",
   help:"Spots on a matrix fitted as Kurve does and ImageJ does not: each a two-dimensional Gaussian on its background, its position to a fraction of a cell, its FWHM, peak, background and volume each with a standard error, spots closer than their size fitted together, weighted by their shot noise when the pixel time is known",
@@ -10638,16 +10658,99 @@ function ijProfile(M,o){ o=o||{}; const I=ijImage(M,!!o.single); if(I.fail) retu
   if(!(n>=1)) return {fail:"The line is shorter than a pixel."};
   if(n>1e6) return {fail:"The line is longer than a million pixels."};
   const xinc=dx/n, yinc=dy/n; if(!((xinc===0&&n===H)||(yinc===0&&n===W))) n++;
-  const px=(x,y)=>v[y*W+x], edge=(x,y)=>{ if(x<=0) x=0; if(x>=W) x=W-1; if(y<=0) y=0; if(y>=H) y=H-1; return px(x,y); };
-  const at=(x,y)=>{ if(x<0||x>=W-1||y<0||y>=H-1){ if(x<-1||x>=W||y<-1||y>=H) return 0;
+  const at=ijAtFn(v,W,H);
+  let step=G.pw; if(G.pw!==G.ph){ const cx=G.pw*dx, cy=G.ph*dy; step=Math.sqrt(cx*cx+cy*cy)*1/len; }
+  const D=new Float64Array(n), X=new Float64Array(n), Y=new Float64Array(n), V=new Float64Array(n), RX=new Float64Array(n), RY=new Float64Array(n); let rx=lx0, ry=ly0;
+  for(let i=0;i<n;i++){ RX[i]=rx; RY[i]=ry; V[i]=at(rx,ry); X[i]=(rx+0.5-G.xo)*G.pw; Y[i]=(G.yo-ry-0.5)*G.ph; D[i]=i*step; rx+=xinc; ry+=yinc; }
+  return {d:D,x:X,y:Y,v:V,n,step,rx:RX,ry:RY,xinc,yinc,line:[lx0,ly0,lx1,ly1],macro:`makeLine(${lx0}, ${ly0}, ${lx1}, ${ly1});`,geom:G}; }
+// ImageJ's getInterpolatedValue on an image (v top row first, W by H): bilinear between the four pixels about (x, y), the edge pixels
+// repeated within a pixel of the edge, 0 further out. ijAtW gives the same value's weights, [[pixel, weight]…] (null for 0 outside).
+function ijAtFn(v,W,H){ const px=(x,y)=>v[y*W+x], edge=(x,y)=>{ if(x<=0) x=0; if(x>=W) x=W-1; if(y<=0) y=0; if(y>=H) y=H-1; return px(x,y); };
+  return (x,y)=>{ if(x<0||x>=W-1||y<0||y>=H-1){ if(x<-1||x>=W||y<-1||y>=H) return 0;
       const xb=Math.trunc(x), yb=Math.trunc(y); let xf=x-xb, yf=y-yb; if(xf<0) xf=0; if(yf<0) yf=0;
       const ll=edge(xb,yb), lr=edge(xb+1,yb), ur=edge(xb+1,yb+1), ul=edge(xb,yb+1), ua=ul+xf*(ur-ul), la=ll+xf*(lr-ll); return la+yf*(ua-la); }
     const xb=Math.trunc(x), yb=Math.trunc(y); let xf=x-xb, yf=y-yb; if(xf<0) xf=0; if(yf<0) yf=0;
-    const ll=px(xb,yb), lr=px(xb+1,yb), ur=px(xb+1,yb+1), ul=px(xb,yb+1), ua=ul+xf*(ur-ul), la=ll+xf*(lr-ll); return la+yf*(ua-la); };
-  let step=G.pw; if(G.pw!==G.ph){ const cx=G.pw*dx, cy=G.ph*dy; step=Math.sqrt(cx*cx+cy*cy)*1/len; }
-  const D=new Float64Array(n), X=new Float64Array(n), Y=new Float64Array(n), V=new Float64Array(n); let rx=lx0, ry=ly0;
-  for(let i=0;i<n;i++){ V[i]=at(rx,ry); X[i]=(rx+0.5-G.xo)*G.pw; Y[i]=(G.yo-ry-0.5)*G.ph; D[i]=i*step; rx+=xinc; ry+=yinc; }
-  return {d:D,x:X,y:Y,v:V,n,step,line:[lx0,ly0,lx1,ly1],macro:`makeLine(${lx0}, ${ly0}, ${lx1}, ${ly1});`,geom:G}; }
+    const ll=px(xb,yb), lr=px(xb+1,yb), ur=px(xb+1,yb+1), ul=px(xb,yb+1), ua=ul+xf*(ur-ul), la=ll+xf*(lr-ll); return la+yf*(ua-la); }; }
+function ijAtW(W,H,x,y){ if(x<-1||x>=W||y<-1||y>=H) return null; const out=(x<0||x>=W-1||y<0||y>=H-1);
+  const cl=(a,n)=>a<=0?0:a>=n?n-1:a, xb=Math.trunc(x), yb=Math.trunc(y); let xf=x-xb, yf=y-yb; if(xf<0) xf=0; if(yf<0) yf=0;
+  const at=(a,b)=>out?cl(b,H)*W+cl(a,W):b*W+a, m=new Map(), add=(k,w)=>{ if(w) m.set(k,(m.get(k)||0)+w); };
+  add(at(xb,yb),(1-xf)*(1-yf)); add(at(xb+1,yb),xf*(1-yf)); add(at(xb,yb+1),(1-xf)*yf); add(at(xb+1,yb+1),xf*yf); return [...m]; }
+/* A profile across a width, fitted (QUDI_SPEC Q.6, beyond ImageJ). Each of ImageJ's samples along the line (ijProfile) becomes the
+   mean of m values a pixel apart across it, in ImageJ's pixel coordinates (the unit normal, offsets k − (m − 1)/2), each bilinear as
+   ImageJ interpolates; m = 1 is ImageJ's sample itself. Its standard error: with shot noise (decision 9), the mean is a sum of cells
+   Σ a_c v_c, so its variance is Σ a_c² σ_c² exactly; from the scatter, the spread across over √m. A fit of the samples (a Gaussian
+   peak B + A·exp(−4 ln 2 (d − d0)²/w²), w its FWHM; or an error-function edge B + A·Φ(2 z₉₀ (d − d0)/w), w its 10–90 % width) by
+   generalised least squares: neighbouring samples share cells, so their errors are correlated, C_ij = Σ_c a_ic a_jc σ_c² (banded),
+   and the residuals are whitened by its Cholesky factor; with shot noise each cell's σ_c² from the model (the mean of the fitted
+   values of the samples that read it, weighted as they read it) until the fit settles, as Q.5's spots; from the scatter C with σ = 1
+   and the covariance scaled by the reduced χ². → {d, kv, ksv, m, w, wPix, kfit, kres, fit {kind, p: {d0, A, B, w}, e, cov, chi2,
+   dof, red, iter, conv, rounds, xc, yc, sxc, syc, w1090?, fwhm?}, notes, …ijProfile's} or {fail}. */
+const PROF_FITS=[["none","None"],["peak","A peak (Gaussian)"],["edge","An edge (error function)"]], PROF_Z90=1.2815515655446004;
+function kProfile(M,o){ o=o||{}; const r=ijProfile(M,o); if(r.fail) return r; const I=ijImage(M,!!o.single), {G,W,H,v}=I, at=ijAtFn(v,W,H);
+  const noise=["rate","counts","scatter"].includes(o.noise)?o.noise:"scatter", t=+o.t, kind=o.fit==="peak"||o.fit==="edge"?o.fit:"none";
+  if(noise==="rate"&&!(t>0)) return {fail:"The shot noise of a count rate needs the pixel time, above 0 s."};
+  if(noise!=="scatter"){ for(let i=0;i<v.length;i++) if(v[i]<0) return {fail:"A count is below zero, so its shot noise means nothing: take the noise from the scatter."}; }
+  const [lx0,ly0,lx1,ly1]=r.line, ddx=lx1-lx0, ddy=ly1-ly0, L=Math.sqrt(ddx*ddx+ddy*ddy), ux=-ddy/L, uy=ddx/L, pa=Math.hypot(G.pw*ux,G.ph*uy);
+  let m=1; if(o.w!=null&&o.w!==""){ const w=+o.w; if(!(w>0)) return {fail:"The width is a distance above 0, or empty for a pixel."}; m=Math.max(1,Math.round(w/pa)); }
+  if(m>1001) return {fail:"The width is more than 1001 pixels across."};
+  const n=r.n, kv=new Float64Array(n), ksv=new Float64Array(n), rows=new Array(n), var1=c=>noise==="rate"?Math.max(c*t,1)/(t*t):Math.max(c,1);
+  let out=0, gap=0;
+  for(let i=0;i<n;i++){ kv[i]=NaN; ksv[i]=NaN; rows[i]=null;
+    if(m===1){ const q=r.v[i]; if(q!==q){ gap++; continue; } const wt=ijAtW(W,H,r.rx[i],r.ry[i]); if(!wt){ out++; continue; } kv[i]=q; rows[i]=wt; }
+    else { const vals=new Float64Array(m), acc=new Map(); let bad=0;
+      for(let k=0;k<m;k++){ const off=k-(m-1)/2, x=r.rx[i]+off*ux, y=r.ry[i]+off*uy;
+        if(x<-1e-9||x>W-1+1e-9||y<-1e-9||y>H-1+1e-9){ bad=1; break; } const q=at(x,y); if(q!==q){ bad=2; break; }
+        vals[k]=q; for(const [c,w] of ijAtW(W,H,x,y)) acc.set(c,(acc.get(c)||0)+w/m); }
+      if(bad){ if(bad===1) out++; else gap++; continue; }
+      let s=0; for(let k=0;k<m;k++) s+=vals[k]; kv[i]=s/m; rows[i]=[...acc];
+      if(noise==="scatter"){ let d2=0; for(let k=0;k<m;k++){ const e=vals[k]-kv[i]; d2+=e*e; } ksv[i]=Math.sqrt(d2/(m-1)/m); } }
+    if(noise!=="scatter"){ let s2=0; for(const [c,a] of rows[i]) s2+=a*a*var1(v[c]); ksv[i]=Math.sqrt(s2); } }
+  const notes=[]; if(out) notes.push(`${out} sample${out===1?"":"s"} whose band reaches past the matrix, empty.`); if(gap) notes.push(`${gap} sample${gap===1?"":"s"} next to an empty cell, empty.`);
+  const res=Object.assign({},r,{kv,ksv,m,wPix:m,w:m*pa,noise,t:noise==="rate"?t:null,kfit:null,kres:null,fit:null,notes});
+  if(kind==="none") return res;
+  // the samples fitted: those with a value and cells
+  const K=[]; for(let i=0;i<n;i++) if(rows[i]&&rows[i].length&&Number.isFinite(kv[i])) K.push(i);
+  if(K.length<6) return Object.assign(res,{fitFail:"A fit needs six samples with values at least."});
+  const nk=K.length, d=K.map(i=>r.d[i]), y=K.map(i=>kv[i]), span=d[nk-1]-d[0];
+  const SQ=Math.SQRT1_2, L16=4*Math.LN2, Phi=u=>0.5*erfcFn(-u*SQ);
+  const f=kind==="peak"?(x,p)=>p[2]+p[1]*Math.exp(-L16*(x-p[0])*(x-p[0])/(p[3]*p[3])):(x,p)=>p[2]+p[1]*Phi(2*PROF_Z90*(x-p[0])/p[3]);
+  // starting values from the samples
+  const sy=y.slice().sort((a,b)=>a-b), q=pq=>quantileSorted(sy,pq); let p0;
+  const cross=(lev,from,dir)=>{ for(let j=from+dir;j>=0&&j<nk;j+=dir){ const a=y[j-dir]-lev, b=y[j]-lev; if(a===0) return d[j-dir]; if(a*b<=0) return d[j-dir]+a/(a-b)*(d[j]-d[j-dir]); } return null; };
+  if(kind==="peak"){ const B=q(0.1); let im=0; for(let j=1;j<nk;j++) if(y[j]>y[im]) im=j; const A=y[im]-B, h=B+A/2, l=cross(h,im,-1), rr=cross(h,im,1);
+    p0=[d[im],A,B,l!=null&&rr!=null&&rr>l?rr-l:l!=null?2*(d[im]-l):rr!=null?2*(rr-d[im]):span/4]; }
+  else { const k=Math.max(2,Math.round(nk/10)); let a=0,b=0; for(let j=0;j<k;j++){ a+=y[j]; b+=y[nk-1-j]; } a/=k; b/=k; const A=b-a;
+    const at2=fr=>cross(a+fr*A,0,1), c=at2(0.5), w1=at2(0.1), w2=at2(0.9); p0=[c!=null?c:d[0]+span/2,A,a,w1!=null&&w2!=null&&w2>w1?w2-w1:span/5]; }
+  if(!(p0[3]>0)) p0[3]=span/4||r.step;
+  // the samples' covariance (band), from each cell's variance
+  const cellOf=new Map(); K.forEach((i,j)=>{ for(const [c,a] of rows[i]){ let l=cellOf.get(c); if(!l) cellOf.set(c,l=[]); l.push([j,a]); } });
+  let b=0; for(const l of cellOf.values()) for(const [j1] of l) for(const [j2] of l) if(Math.abs(j1-j2)>b) b=Math.abs(j1-j2);
+  const B1=b+1, chol=varc=>{ const C=new Float64Array(nk*B1);
+      for(const [c,l] of cellOf){ const s2=varc(c); for(const [j1,a1] of l) for(const [j2,a2] of l) if(j2<=j1) C[j1*B1+(j1-j2)]+=a1*a2*s2; }
+      const Lc=new Float64Array(nk*B1);
+      for(let i=0;i<nk;i++) for(let j=Math.max(0,i-b);j<=i;j++){ let s=C[i*B1+(i-j)]; for(let k2=Math.max(0,i-b);k2<j;k2++) s-=Lc[i*B1+(i-k2)]*Lc[j*B1+(j-k2)];
+        if(i===j){ if(!(s>1e-14*C[i*B1])) return null; Lc[i*B1]=Math.sqrt(s); } else Lc[i*B1+(i-j)]=s/Lc[j*B1]; }
+      return Lc; };
+  const solve=(Lc,z)=>{ const o2=new Float64Array(nk); for(let i=0;i<nk;i++){ let s=z[i]; for(let k2=Math.max(0,i-b);k2<i;k2++) s-=Lc[i*B1+(i-k2)]*o2[k2]; o2[i]=s/Lc[i*B1]; } return o2; };
+  const idx=K.map((_,j)=>j), ps=[Math.max(span,r.step),Math.max(Math.abs(p0[1]),1e-300),Math.max(Math.abs(p0[2]),Math.abs(p0[1]),1e-300),Math.max(p0[3],r.step)];
+  const lo=[d[0]-span,-Infinity,-Infinity,0.01*r.step], hi=[d[nk-1]+span,Infinity,Infinity,10*Math.max(span,r.step)];
+  const fitOnce=(Lc,P)=>{ const Yw=solve(Lc,y), memo=[];
+      const g=(j,p)=>{ let e=memo.find(q2=>q2.p.every((v2,k2)=>v2===p[k2])); if(!e){ const vec=new Float64Array(nk); for(let i=0;i<nk;i++) vec[i]=f(d[i],p); e={p:p.slice(),w:solve(Lc,vec)}; memo.unshift(e); if(memo.length>2) memo.pop(); } return e.w[j]; };
+      return lmFit(g,idx,Array.from(Yw),idx.map(()=>1),P,[false,false,false,false],{lo,hi,pscale:ps,maxIter:400,tol:1e-15,scale:noise==="scatter"}); };
+  let Lc=chol(c=>noise==="scatter"?1:var1(v[c])); if(!Lc) return Object.assign(res,{fitFail:"The samples' errors are not independent enough to fit: their covariance is singular."});
+  let fr=fitOnce(Lc,p0), rounds=0;
+  if(noise!=="scatter") for(;rounds<30&&!fr.error;rounds++){ const P=fr.params, gi=d.map(x=>f(x,P)), mu=new Map();
+      for(const [c,l] of cellOf){ let sw=0, sa=0; for(const [j,a] of l){ sw+=a*gi[j]; sa+=a; } mu.set(c,Math.max(sw/sa,0)); }
+      const L2=chol(c=>var1(mu.get(c))); if(!L2) break; const f2=fitOnce(L2,P); if(f2.error) break;
+      const moved=f2.params.some((v2,k2)=>Math.abs(v2-P[k2])>1e-10*ps[k2]); fr=f2; Lc=L2; if(!moved) break; }
+  if(fr.error) return Object.assign(res,{fitFail:fr.error});
+  const P=fr.params, E=fr.errors, kfit=new Float64Array(n), kres=new Float64Array(n); kfit.fill(NaN); kres.fill(NaN);
+  for(let i=0;i<n;i++){ kfit[i]=f(r.d[i],P); if(Number.isFinite(kv[i])) kres[i]=kv[i]-kfit[i]; }
+  const ex=r.xinc*G.pw/r.step, ey=-r.yinc*G.ph/r.step, k1=2*Math.sqrt(2*Math.LN2)/(2*PROF_Z90);
+  const fit={kind,p:{d0:P[0],A:P[1],B:P[2],w:P[3]},e:{d0:E[0],A:E[1],B:E[2],w:E[3]},cov:fr.cov,chi2:fr.stats.chi2,dof:fr.stats.dof,red:fr.stats.redChi2,iter:fr.stats.iter,conv:fr.stats.converged,rounds,
+    xc:r.x[0]+P[0]*ex, yc:r.y[0]+P[0]*ey, sxc:E[0]==null?null:Math.abs(E[0]*ex), syc:E[0]==null?null:Math.abs(E[0]*ey), atBound:fr.atBound};
+  if(kind==="edge"){ fit.w1090=P[3]; fit.sw1090=E[3]; fit.fwhm=P[3]*k1; fit.sfwhm=E[3]==null?null:E[3]*k1; } else { fit.fwhm=P[3]; fit.sfwhm=E[3]; }
+  return Object.assign(res,{kfit,kres,fit}); }
 /* Spots (QUDI_SPEC Q.5, beyond ImageJ): ImageJ's Find Maxima (ijMaxima) gives the seeds; each spot is fitted by a
    two-dimensional Gaussian, round (A, x0, y0, w) or elliptical and turned (A, x0, y0, w1, w2, θ in degrees; w1 along the
    turned axis, as gauss2d), on a flat background B, over the cells within R of its seed (R in X's unit: 1.5 times the median
@@ -22556,14 +22659,23 @@ const ANA_FORMS={
       return `<div class="grid2 ijpdlg"><label for="aPLm">Matrix</label><select id="aPLm">${M.map(q=>`<option value="${q.s.id}"${q.s.id===sid?" selected":""}>${esc(matName(q.s.id))}</option>`).join("")}</select>
         <label for="aPLx0" class="tipd" title="The line's first end, in the matrix's X and Y">From X, Y</label><span class="anarows"><input id="aPLx0" type="text" class="num" value="${v(p.x0)}">, <input id="aPLy0" type="text" class="num" aria-label="From Y" value="${v(p.y0)}"></span>
         <label for="aPLx1" class="tipd" title="The line's other end, in the matrix's X and Y">To X, Y</label><span class="anarows"><input id="aPLx1" type="text" class="num" value="${v(p.x1)}">, <input id="aPLy1" type="text" class="num" aria-label="To Y" value="${v(p.y1)}"></span>
-        <span></span><label class="chk tipd" title="Every value rounded to single precision first, as ImageJ's 32-bit image holds them"><input type="checkbox" id="aPLs"${p.single?" checked":""}> Values as ImageJ holds them</label></div>
+        <span></span><label class="chk tipd" title="Every value rounded to single precision first, as ImageJ's 32-bit image holds them"><input type="checkbox" id="aPLs"${p.single?" checked":""}> Values as ImageJ holds them</label>
+        <span class="lab" style="grid-column:1/-1">Beyond ImageJ</span>
+        <label for="aPLw" class="tipd" title="Each sample the mean of the values a pixel apart across the line over this width; empty for one pixel, ImageJ's own samples">Width${(()=>{ const s=matOf(sid); return s&&s.xunit?` (${esc(s.xunit)})`:""; })()}</label><input id="aPLw" type="text" class="num" placeholder="A pixel" value="${v(p.w)}">
+        <label for="aPLn" class="tipd" title="Each sample's error: from the cells' shot noise, √N, when the values are counts or count rates whose pixel time is known; else the spread across the line">Noise</label><select id="aPLn">${SPOT_NOISE.map(([k,t])=>`<option value="${k}"${k===(p.noise||"scatter")?" selected":""}>${t==="From the scatter"?"From the spread across":t}</option>`).join("")}</select>
+        <label for="aPLt" class="tipd" title="How long each cell counted, in seconds: from the scan's header when it says">Pixel time (s)</label><span class="anarows"><input id="aPLt" type="text" class="num" value="${v(p.t)}"></span>
+        <label for="aPLf" class="tipd" title="A Gaussian peak gives its FWHM, an error-function edge its 10–90 % width, each with its standard error">Fit</label><select id="aPLf">${PROF_FITS.map(([k,t])=>`<option value="${k}"${k===(p.fit||"none")?" selected":""}>${t}</option>`).join("")}</select></div>
         <p class="note" id="aPLmsg" aria-live="polite"></p>`; },
     wire(box){ const F=ANA_FORMS.ijprofile, vals=()=>{ const r={}; box.querySelectorAll("input,select").forEach(el=>{ if(el.id) r[el.id]=el.type==="checkbox"?el.checked:el.value; }); return r; };
+      const show=()=>{ const h=$("#aPLn").value!=="rate", e=box.querySelector("#aPLt"), l=box.querySelector('label[for="aPLt"]'); if(e) e.closest(".anarows").hidden=h; if(l) l.hidden=h; };
       const msg=()=>{ const r=vals(), w=F.why(r), el=$("#aPLmsg"); if(w){ el.textContent=w; return; } const o=F.read(r), x=ijProfile(matOf(o.mat),o);
         el.textContent=x.fail?x.fail:`${x.n} samples: in ImageJ, ${x.macro}`; };
-      box.addEventListener("input",msg); box.addEventListener("change",msg); msg(); },
-    read(v){ const n=t=>{ const x=parseNum(String(t==null?"":t).trim()); return Number.isFinite(x)?x:null; }; return {mat:v.aPLm||null,x0:n(v.aPLx0),y0:n(v.aPLy0),x1:n(v.aPLx1),y1:n(v.aPLy1),single:!!v.aPLs}; },
+      box.addEventListener("input",msg); box.addEventListener("change",e=>{ if(e.target.id==="aPLn") show(); msg(); }); show(); msg(); },
+    read(v){ const n=t=>{ const x=parseNum(String(t==null?"":t).trim()); return Number.isFinite(x)?x:null; };
+      return {mat:v.aPLm||null,x0:n(v.aPLx0),y0:n(v.aPLy0),x1:n(v.aPLx1),y1:n(v.aPLy1),single:!!v.aPLs,w:n(v.aPLw),noise:["rate","counts"].includes(v.aPLn)?v.aPLn:"scatter",t:n(v.aPLt),fit:PROF_FITS.some(e=>e[0]===v.aPLf)?v.aPLf:"none"}; },
     why(r){ const o=ANA_FORMS.ijprofile.read(r), s=o.mat&&matOf(o.mat); if(!s) return "Choose a matrix."; if([o.x0,o.y0,o.x1,o.y1].some(v=>v==null)) return "Give the line's two ends in X and Y.";
+      if(String(r.aPLw||"").trim()&&!(o.w>0)) return "The width is a distance above 0, or empty for a pixel.";
+      if(o.noise==="rate"&&!(o.t>0)) return "The shot noise of a count rate needs its pixel time, above 0 s.";
       const x=ijProfile(s,o); return x.fail||""; },
     valid(r){ return !ANA_FORMS.ijprofile.why(r); },
     inp(p,inp){ if(p.mat) inp.mat=p.mat; else delete inp.mat; }},
@@ -24590,8 +24702,9 @@ function ijmHist(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; c
 function ijxStart(sid){ sid=sid||matFront(); const s=matOf(sid); if(!s) return {}; const {lo,hi,n}=matRange(s.z); return {mat:sid,prom:n&&hi>lo?+((hi-lo)/10).toPrecision(2):0}; }
 // Profile's start: the window's selection corner to corner when it is more than one cell, else across the middle row.
 function ijpStart(sid){ sid=sid||matFront(); const s=matOf(sid); if(!s) return {}; const X=matAxis(s.x,s.nx), Y=matAxis(s.y,s.ny), st=mxStFor(sid), n7=v=>+(+v).toPrecision(12);
-  if(st&&(st.r!==st.er||st.c!==st.ec)) return {mat:sid,x0:n7(X[st.c]),y0:n7(Y[st.r]),x1:n7(X[st.ec]),y1:n7(Y[st.er])};
-  const r=Math.floor((s.ny-1)/2); return {mat:sid,x0:n7(X[0]),y0:n7(Y[r]),x1:n7(X[s.nx-1]),y1:n7(Y[r])}; }
+  const ns=Object.assign({fit:"none"},noiseStart(s));
+  if(st&&(st.r!==st.er||st.c!==st.ec)) return Object.assign({mat:sid,x0:n7(X[st.c]),y0:n7(Y[st.r]),x1:n7(X[st.ec]),y1:n7(Y[st.er])},ns);
+  const r=Math.floor((s.ny-1)/2); return Object.assign({mat:sid,x0:n7(X[0]),y0:n7(Y[r]),x1:n7(X[s.nx-1]),y1:n7(Y[r])},ns); }
 // The matrix's map in front (made when there is none, or the one shown kept), for drawing a result over it.
 function ijMapOf(sid){ const p=P(); const g=(p.graphs||[]).find(g=>g.plot&&g.plot.mat===sid&&!g.plot.shut&&!figOf(g.id));
   if(g) activateGraph(g.id); else plotMatrix(sid,"image"); return GID()&&matGraph(GID())?GID():null; }
@@ -24603,7 +24716,11 @@ function ijxShow(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; c
   toast(`The maxima of ${a.name} are ringed on the map of ${matName(q.mat)}${q.pts.length>400?" (the first 400)":""}.`,{action:"Undo",run:undo}); }
 // The report's Plot the profile, and Show the line on its map.
 function ijpPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const v=p.cols.find(c=>c.ana===id&&c.ak==="v"); if(!v){ toast("There is no profile: Recalculate first."); return; }
-  plotCols([v.id],{type:"line",undo:"plotting the profile",say:`the profile of ${a.name}`}); }
+  // Beyond ImageJ's: the samples (the mean across) with their errors as symbols, and the fit as a line
+  const kv=p.cols.find(c=>c.ana===id&&c.ak==="kv"), kf=p.cols.find(c=>c.ana===id&&c.ak==="kfit");
+  if(kv&&kf){ plotCols([kv.id,kf.id],{type:"scatter",series:{[kf.id]:{type:"line"}},undo:"plotting the profile and its fit",say:`the profile of ${a.name} and its fit`}); return; }
+  const wide=kv&&a.p&&+a.p.w>0;   // a pixel wide and no fit: ImageJ's profile, as ImageJ draws it
+  plotCols([(wide?kv:v).id],{type:wide?"linesym":"line",undo:"plotting the profile",say:`the profile of ${a.name}`}); }
 function ijpShow(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const q=a.res&&a.res.report&&a.res.report.ijp; if(!q||!matOf(q.mat)){ toast("Its matrix has gone."); return; }
   if(!ijMapOf(q.mat)) return; addAnno({t:"arrow",x:q.x0,y:q.y0,x2:q.x1,y2:q.y1,head:"end",lw:1.5},`drew the line of ${a.name} on the map of ${matName(q.mat)}`);
   toast(`The line of ${a.name} is drawn on the map of ${matName(q.mat)}.`,{action:"Undo",run:undo}); }
@@ -32482,7 +32599,7 @@ ${DL([["Numbers","equals, does not equal, is less than, is at most, is greater t
 ${DL([["Stack columns","The columns ticked one under another in a column of values, with a column naming where each came from; columns ticked under <em>Kept beside</em> are repeated by each value (wide to long). Empty cells are left out unless you say otherwise."],["Unstack","A column of values into a column per level of a group column (long to wide): by their order within each level, or matched by an identifier column (then an identifier seen twice in a level keeps its first value, said)."],["Split by groups","The rows of each level of a group column, or every n rows, as a block of the columns ticked, side by side."],["Pivot table","The levels of one column down and another's across, each cell the count, sum, mean, SD, minimum, maximum, median or first of a column of values (or the number of rows), with totals."],["Reduce rows","Every nth row kept, every n rows merged (by their mean or another aggregate; X by its mean), or rows put into bins of X a width wide, X then each bin's centre."],["Duplicate rows","Rows whose key columns repeat: the first or the last of each kept, all averaged into one, or only the duplicates kept; numbers within a tolerance count as one."],["A sorted copy","The rows sorted by up to three columns, each up or down: numbers, then text, then empty cells; rows that tie keep their order. The only way rows are really reordered, and it is a copy."],["Transpose","Rows turned into columns, the first column ticked naming them when asked."],["Join two sheets","This sheet's rows beside another sheet's whose key matches: only rows matched in both, every row of this sheet, or every row of both. A row matching several gives one each."],["Append sheets","Other sheets' rows under this one's, columns matched by name or by position, with a column naming each row's sheet."]])}
 <h2>How they behave</h2>
 <p>Each is an ${DA("analyses","analysis")} under ${MP("Data › Reshape")}: it reads the cells as the worksheet holds them (numbers and text, not processed), writes a result sheet that is worked out again when they change, and can be changed, recalculated, cut from its data (the cells kept on an ordinary sheet) or deleted, each one step to undo. Its rows can be limited, and on a filtered sheet it offers the filter's rows as its own. The report says how many rows it read and made, and what it left out.</p>`},
-{id:"matrices", g:"Data", t:"Matrices", kw:"matrix matrices matrix book matrix sheet grid image z values surface 2d two-dimensional measure region roi oval polygon spots spot fit gaussian localisation localization sub-pixel subpixel psf point spread function resolution fwhm emitter nv centre center photon shot noise poisson maximum likelihood split overlap crowded find maxima maximum minima peaks spots prominence noise tolerance strict exclude edges light background profile line profile plot profile makeline area intden integrated density centroid centre of mass center of mass histogram imagej fiji tif tiff 32-bit float calibration pixel size qudi confocal scan nv apd counter channel positions depth scan back scan header transpose flip turn rotate rot90 crop resample interpolate bilinear arithmetic set values formula picture png jpeg grey gray channel from columns to columns xyz block heat map contour",
+{id:"matrices", g:"Data", t:"Matrices", kw:"matrix matrices matrix book matrix sheet grid image z values surface 2d two-dimensional measure region roi oval polygon spots spot fit gaussian localisation localization sub-pixel subpixel psf point spread function resolution fwhm emitter nv centre center photon shot noise poisson maximum likelihood split overlap crowded find maxima maximum minima peaks spots prominence noise tolerance strict exclude edges light background profile line profile plot profile makeline line width wide line band edge width 10-90 knife edge line spread error function erf area intden integrated density centroid centre of mass center of mass histogram imagej fiji tif tiff 32-bit float calibration pixel size qudi confocal scan nv apd counter channel positions depth scan back scan header transpose flip turn rotate rot90 crop resample interpolate bilinear arithmetic set values formula picture png jpeg grey gray channel from columns to columns xyz block heat map contour",
  lead:"A grid of values Z with its X along the top and its Y down the side, as Origin's matrix: kept in a book of its own, drawn by a graph as a map.",
  body:`<h2>Making one</h2>
 <p>${MP("Data › Matrix")} has three ways in. <em>New matrix…</em> asks for the rows and columns, X and Y from first to last (evenly spaced), and the values: empty, one number in every cell, or a formula. <em>From columns…</em> reads the block selected in the worksheet: its columns become the matrix's columns and its rows the rows; when its first row and first column are numbers running one way and the corner is empty, they are X and Y. <em>From a picture…</em> reads a PNG or JPEG: its grey values (0 to 255, weighted as ITU-R BT.601), or its red, green, blue or opacity; X counts the pixels from the left and Y from the bottom, so the picture is upright on a graph.</p>
@@ -32508,6 +32625,8 @@ ${DL([["Transpose","Rows become columns, and X becomes Y."],["Flip","Left to rig
 <h2 id="maxima">Maxima and profiles as ImageJ finds them</h2>
 <p>${MP("Analyze › Image › Find maxima…")} (or the window's Matrix › ImageJ › Find maxima…) gives ImageJ's Process › Find Maxima: every local maximum that stands out by more than the <em>prominence</em> from what joins it to a higher one (a tenth of the values' range, to begin with; the dialog counts them as it is set), as ImageJ finds them: from the highest down, a flat top at the point nearest its middle, <em>Strict</em> and <em>Exclude edge maxima</em> as ImageJ's own, and <em>Light background</em> for the minima, dark spots on a light background. A row a maximum in ImageJ's order, with its X and Y (the cell's position), its value and its pixel in ImageJ's image; the method gives the command that finds the same in ImageJ. Empty cells are never maxima (ImageJ lists a NaN pixel as one). Its report rings each maximum on the matrix's map.</p>
 <p>${MP("Analyze › Image › Profile…")} (or the window's Matrix › ImageJ › Profile…) gives ImageJ's Analyze › Plot Profile of a straight line whose ends are given in X and Y (the cells selected in the window, corner to corner, or the middle row, to begin with): the values a pixel apart along it, each bilinear between the four cells about it, as ImageJ's own, against the distance in the matrix's units; along a row or a column of cells the samples are the cells' values. The dialog says how many samples, and the <code>makeLine</code> that draws the same line in ImageJ. Its report plots the profile and draws the line on the matrix's map. Both follow their matrix, and both have <em>Values as ImageJ holds them</em>, single precision as ImageJ's image.</p>
+<h2 id="profwidth">A profile across a width, fitted</h2>
+<p>Profile… has a part <em>Beyond ImageJ</em>, in columns beside ImageJ's values. A <em>width</em> makes each sample the mean of the values a pixel apart across the line, each interpolated as ImageJ does (empty, ImageJ's own samples). Each sample has a standard error: from the cells' shot noise, √N, when the scan's header gives the pixel time (or the values are counts), carried through the interpolation, since a sample is a sum of cells; else the spread across the line. A <em>fit</em> of the samples gives a Gaussian peak's FWHM, or an error-function edge's 10–90 % width (and the FWHM of the line spread it implies), each with its error, the centre's X and Y, and the reduced χ². Neighbouring samples read some of the same cells, so their errors go together; the fit takes that into account (left out, a FWHM's error would come out about a fifth too small). Its report plots the samples with their error bars and the fit. A sample between cells is interpolated, which widens a narrow peak a little (about a sixth of a pixel squared in variance): along a row or a column of cells there is no interpolation, and Spots… fits the cells themselves.</p>
 <h2>Plotting one</h2>
 <p>${MP("Plot › Plot a matrix")} (or the window's Plot) makes a graph of its own: an image (each cell its colour, with no smoothing), filled contours, contour lines with their values along them, or the image with lines. The colour bar is titled by Z; the Map menu on the graph sets the levels and the colour map and opens the matrix again. Pointing at the map, the status bar gives the cell's X, Y, value, row and column. It zooms and pans as any graph, and is exported, copied and reported as any graph.</p>`},
 {id:"condfmt", g:"Data", t:"Conditional formatting", kw:"conditional formatting colour color scale heat map highlight cells fill rule rules duplicates unique top bottom greater less between text manage order",

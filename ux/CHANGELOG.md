@@ -1024,6 +1024,17 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## qudi's confocal scans, slice Q.6: a profile across a width, fitted (2026-11-20)
+
+- **Profile…**'s part *Beyond ImageJ*: a width (each sample the mean across the line), each sample's standard error (the cells' shot
+  noise carried through the interpolation, or the spread across), and a fit: a Gaussian peak's FWHM or an error-function edge's 10–90 %
+  width, each with its error, the centre's X and Y, the reduced χ². The report plots the samples with their error bars and the fit.
+
+Checked: SciPy's curve_fit with the samples' covariance on six cases (the NV scan, an edge in counts, a noise-free spot), within 6e-8 of
+the errors, the samples to 5e-14 (ref-test); over 300 Poisson repeats each parameter's pull SD 0.95 to 1.06 (img-test, 20 new); the
+drive (12 new). Found: neighbouring samples read the same cells, so a fit that ignored it would make the FWHM's error 19 % too small;
+and interpolation widens a narrow peak, which Help says.
+
 ## qudi's confocal scans, slice Q.7: intensities with their noise (2026-11-20)
 
 - **Measure…**'s part *Beyond ImageJ*: the region's sum and mean with their standard errors (each cell's shot noise from the pixel

@@ -186,6 +186,11 @@ error-function edge: the 10–90 % width ±; or none), the curve beside the samp
 samples against NumPy's same sums; the fit against SciPy's curve_fit with the same σ; a width of
 one pixel gives ImageJ's profile back.
 
+**Done 20.11.** `kProfile` in MAT, Profile's *Beyond ImageJ* in columns beside ImageJ's. One finding shaped it: samples a pixel apart
+along an oblique line share cells, so their errors are correlated, and a fit weighted by each sample's error alone underestimated the
+FWHM's error by a fifth; the fit is generalised least squares with C_ij = Σ_c a_ic a_jc σ_c² (banded), with shot noise each cell's σ²
+from the fitted values until it settles. SciPy's curve_fit with that covariance agrees to 6e-8 of the errors; pulls of SD 0.95 to 1.06.
+
 **Q.7 Intensities with their noise.** Measure… grows Kurve's own columns beside ImageJ's: the sum
 and the mean with their shot-noise errors (decision 9) or the scatter's, and, given a background
 region (an annulus about the region, or a region typed), the background per cell ±, the integrated

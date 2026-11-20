@@ -898,6 +898,13 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-20: A profile across a width, fitted (QUDI_SPEC Q.6)
+
+- **ImageJ's column kept, Kurve's beside it.** The profile's *Value* stays ImageJ's sample; the mean across, its error, the fit and the
+  residuals are columns of their own, so a pixel-wide profile still reads value for value against ImageJ's.
+- **A plot that shows the errors.** With a fit, *Plot the profile* draws the samples as symbols with their error bars and the fit as a
+  line; a pixel-wide profile with no fit is drawn as ImageJ draws it, a line.
+
 ### 2026-11-20: Intensities with their noise (QUDI_SPEC Q.7)
 
 - **Beside ImageJ's columns, not instead.** Measure stays ImageJ's, value for value; Kurve's own numbers come after, under

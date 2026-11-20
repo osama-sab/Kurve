@@ -77,6 +77,9 @@ out from ImageJ's source with its float arithmetic where it is float; ref-test j
 exactly. `tools/ref/spot_fixtures.py` (QUDI_SPEC Q.5) writes a realistic NV scan in qudi's classic format into `tools/ref/qudi/nv/`
 and `fixtures/spots.json`: six cases of Kurve's spot model worked out again from its definitions (seeds from ImageJ's port, windows,
 groups, Poisson's maximum likelihood, splitting) with SciPy's least_squares; ref-test's `spotFit.*` judge `spotFit` against them.
+`tools/ref/profile_fixtures.py` (QUDI_SPEC Q.6) works out a profile across a width again (ImageJ's samples, the mean across, each
+sample's error through the interpolation's weights) and fits it with SciPy's curve_fit given the samples' covariance, on the NV scan,
+an edge in counts and a noise-free spot: `fixtures/profile.json`, judged by ref-test's `kProfile.*`.
 ImageJ's own readout, where its jar may be run:
 
 ```sh
