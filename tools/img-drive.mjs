@@ -341,7 +341,7 @@ await page(async p => {
   const last = () => p.evaluate(() => { const a = anaList().filter(x => x.kind === "ijproc").pop(), s = a && anaMatSheet(a); return a && { aid: a.id, name: a.name, sid: s && s.id, sname: s && s.name, z: s && s.z, ana: s && s.ana, disp: s && s.disp, zname: s && s.zname, zunit: s && s.zunit, front: frontWinId(), win: s && mxWinId(a.out.mat), err: a.res && a.res.err }; });
   await p.evaluate(sid => matDispSet(sid, { lut: "ij:fire" }), sid); await p.waitForTimeout(100);
   const items = await p.evaluate(() => ijProcItems(matFront()).filter(x => x && x !== "-").map(x => x.label));
-  check(`the image's bar has Process, ImageJ's menu (${items.join(", ")})`, await p.isVisible(`${W} [data-mxproc]`) && items.join("|") === "Smooth|Sharpen|Find edges|Gaussian blur…|Unsharp mask…|Subtract background…|Filters|Math", JSON.stringify(items));
+  check(`the image's bar has Process, ImageJ's menu (${items.join(", ")})`, await p.isVisible(`${W} [data-mxproc]`) && items.join("|") === "Smooth|Sharpen|Find edges|Gaussian blur…|Unsharp mask…|Binary|Subtract background…|Filters|Math", JSON.stringify(items));
   // Smooth: at once, a new matrix in its window, ImageJ's values, the source's lookup table, one undo step
   const u0 = await p.evaluate(() => undoStack.length); await pick(`${W} [data-mxproc]`, "Smooth"); await p.waitForTimeout(400); let r = await last();
   let w = await want(sid, { op: "smooth" });
@@ -402,12 +402,66 @@ await page(async p => {
   // Analyze › Image › Process; undo; the report's Open the matrix; a reload
   const az = await p.evaluate(() => { const im = menuItems("analyze").find(i => i && i.label === "Image"), sub = im && im.sub(); const pr = sub && sub.find(i => i && i.label === "Process"); return pr ? pr.sub().filter(x => x && x !== "-").map(x => x.label) : null; });
   const nb0 = await p.evaluate(() => matBooks().length); await p.evaluate(() => undo()); await p.waitForTimeout(300); const nb1 = await p.evaluate(() => matBooks().length);
-  check(`Analyze › Image › Process has the same menu (${az && az.length} items); undo takes the last processed matrix away (${nb0} → ${nb1} books)`, az && az.length === 8 && nb1 === nb0 - 1, JSON.stringify(az));
+  check(`Analyze › Image › Process has the same menu (${az && az.length} items); undo takes the last processed matrix away (${nb0} → ${nb1} books)`, az && az.length === 9 && nb1 === nb0 - 1, JSON.stringify(az));
   const acts = await p.evaluate(aid => anaActs(anaOf(aid)).map(a => a.label), smooth.aid);
   await p.evaluate(() => flushEdits()); await p.waitForTimeout(800); await p.reload(); await ready(p); await p.waitForTimeout(600);
   const rl = await p.evaluate(aid => { const a = anaOf(aid), s = a && anaMatSheet(a); return s && { n: s.z.length, lut: s.disp && s.disp.lut, ok: anaSig(a) === a.sig }; }, smooth.aid);
   check(`its report opens the matrix or draws its map (${acts.join(", ")}); kept across a reload with its lookup table, up to date`, acts.includes("Open the matrix") && rl && rl.n === 4096 && rl.lut === "ij:fire" && rl.ok, JSON.stringify([acts, rl]));
 }, { name: "I.5" });
+
+console.log("I.6 Threshold");
+await page(async p => {
+  const sid = await nv(p); await p.evaluate(() => { const id = matWinIds()[0], st = winState(id); st.g = [0.03, 0.03, 0.8, 0.9]; st.max = false; applyWins(); }); await p.waitForTimeout(300);
+  const id = await p.evaluate(() => matWinIds()[0]), W = `#w-${id}`;
+  const want = (o) => p.evaluate(([o, sid]) => { const r = ijThreshold(ijOfSheet(matOf(sid)), o); return { lo: r.lower, hi: r.upper, t: r.t }; }, [o, sid]);
+  const thr = () => p.evaluate(sid => matOf(sid).thr || null, sid);
+  const red = () => p.evaluate(sid => { const id = matWinIds()[0], box = $("#w-" + id + " .mximg"), g = box._g, s = matOf(sid), t = s.thr, ctx = box.querySelector("canvas").getContext("2d"), { X, Y } = matXYOf(s);
+    let inR = 0, inN = 0, outR = 0, outN = 0;
+    for (let r = 2; r < s.ny; r += 5) for (let c = 2; c < s.nx; c += 5) { const v = s.z[r * s.nx + c], q = mxCellRect(g, r, c); if (q.x < 1 || q.y < 1 || q.x + q.w > g.W - 1 || q.y + q.h > g.H - 1) continue;
+      const d = ctx.getImageData(Math.floor((q.x + q.w / 2) * g.dpr), Math.floor((q.y + q.h / 2) * g.dpr), 1, 1).data, isRed = d[0] > 240 && d[1] < 20 && d[2] < 20, inside = t && Math.fround(v) >= t.lo && Math.fround(v) <= t.hi;
+      if (inside) { inN++; if (isRed) inR++; } else { outN++; if (isRed) outR++; } } return { inR, inN, outR, outN }; }, sid);
+  const u0 = await p.evaluate(() => undoStack.length);
+  await p.click(`${W} [data-mxth]`); await p.waitForTimeout(400); let t = await thr(), w = await want({ method: "Default" }), rd = await red();
+  check(`Threshold opens ImageJ's panel and thresholds by Default, as ImageJ's window does (${t && t.lo} to ${t && t.hi}), one undo step; the cells in range drawn in red (${rd.inR} of ${rd.inN} sampled, ${rd.outR} of ${rd.outN} outside)`,
+    t && t.method === "Default" && t.lo === w.lo && t.hi === w.hi && await p.evaluate(() => undoStack.length) === u0 + 1 && rd.inN > 0 && rd.inR === rd.inN && rd.outR === 0, JSON.stringify([t, w, rd]));
+  // every method, light and dark
+  let bad = [];
+  for (const m of ["Default", "Huang", "Intermodes", "IsoData", "Li", "MaxEntropy", "Mean", "MinError", "Minimum", "Moments", "Otsu", "Percentile", "RenyiEntropy", "Shanbhag", "Triangle", "Yen"]) {
+    await p.selectOption(`${W} [data-thm]`, m); await p.waitForTimeout(60);
+    for (const dark of [true, false]) { if (await p.isChecked(`${W} [data-thd]`) !== dark) { await p.click(`${W} [data-thd]`); await p.waitForTimeout(60); }
+      t = await thr(); w = await want({ method: m, dark }); if (!(t.method === m && !!t.dark === dark && t.lo === w.lo && t.hi === w.hi)) bad.push([m, dark, t, w]); } }
+  check("each of ImageJ's sixteen methods, dark background or not, chosen in the panel gives setAutoThreshold's range", !bad.length, JSON.stringify(bad.slice(0, 3)));
+  await p.selectOption(`${W} [data-thm]`, "Otsu"); await p.waitForTimeout(60); if (!await p.isChecked(`${W} [data-thd]`)) await p.click(`${W} [data-thd]`); await p.waitForTimeout(150);
+  t = await thr(); const note = await p.textContent(`${W} .thn`), n = await p.evaluate(sid => { const s = matOf(sid), t = s.thr; return s.z.filter(v => v != null && Math.fround(v) >= t.lo && Math.fround(v) <= t.hi).length; }, sid);
+  check(`Otsu, dark background: the note counts the cells (${note.trim()})`, note.includes(`${n} of 4,096 cells`) && note.includes(`level ${(await want({ method: "Otsu", dark: true })).t} of 255`), note);
+  // by hand, then shown or not
+  await p.fill(`${W} [data-thl]`, "20000"); await p.fill(`${W} [data-thh]`, ""); await p.press(`${W} [data-thh]`, "Tab"); await p.waitForTimeout(200); t = await thr();
+  check(`a range typed is a threshold by hand (from 20 000, no upper end: ${t.hi})`, t.method === "manual" && t.lo === 20000 && t.hi === 1e30, JSON.stringify(t));
+  await p.click(`${W} [data-ths]`); await p.waitForTimeout(150); rd = await red(); await p.click(`${W} [data-ths]`); await p.waitForTimeout(150); const rd2 = await red();
+  check("Show in red off draws no red; on again draws it", rd.inR === 0 && rd2.inR === rd2.inN && rd2.inN > 0, JSON.stringify([rd, rd2]));
+  // Mask and NaN background from the panel; Convert to mask… from Process › Binary
+  await p.click(`${W} [data-tha="mask"]`); await p.waitForTimeout(500);
+  let mk = await p.evaluate(() => { const a = anaList().filter(x => x.kind === "ijproc").pop(), m = anaMatSheet(a), s = matOf(a.in.mat); return { ok: m.z.every((v, i) => v === (s.z[i] != null && Math.fround(s.z[i]) >= 20000 ? 255 : 0)), name: m.zname, meth: a.res.report.method.slice(-90) }; });
+  check(`Mask: a new matrix of 255 in the range and 0 elsewhere (${mk.name}), its method ImageJ's commands`, mk.ok && /setThreshold\(20000, 1e\+30\); setOption\("BlackBackground", true\); run\("Convert to Mask"\);/.test(mk.meth), JSON.stringify(mk));
+  await p.evaluate(() => focusWin(matWinIds()[0])); await p.waitForTimeout(150);
+  await p.click(`${W} [data-mxproc]`); await p.waitForTimeout(120); await p.locator(".menu .mi").filter({ hasText: /^Binary/ }).last().click(); await p.waitForTimeout(150); await p.locator(".menu .mi").filter({ hasText: /^Convert to mask/ }).last().click(); await p.waitForTimeout(250);
+  const dm = await p.inputValue("#aIPtm"); await p.selectOption("#aIPtm", "Triangle"); await p.check("#aIPdk"); await p.waitForTimeout(80); const dmsg = await p.textContent("#aIPmsg"); await p.click("#formOk"); await p.waitForTimeout(500);
+  w = await want({ method: "Triangle", dark: true });
+  mk = await p.evaluate((w) => { const a = anaList().filter(x => x.kind === "ijproc").pop(), m = anaMatSheet(a), s = matOf(a.in.mat); return m.z.every((v, i) => v === (s.z[i] != null && Math.fround(s.z[i]) >= w.lo && Math.fround(s.z[i]) <= w.hi ? 255 : 0)); }, w);
+  check(`Process › Binary › Convert to mask… starts from the threshold set (${dm}); Triangle, dark: ImageJ's level said ("${dmsg}") and the mask its range`, dm === "manual" && mk && new RegExp(`level ${w.t} of 255`).test(dmsg), JSON.stringify([dm, dmsg]));
+  // undo, Reset, a reload, junk
+  await p.evaluate(() => focusWin(matWinIds()[0])); await p.waitForTimeout(150);
+  const t1 = await thr(); await p.click(`${W} [data-tha="reset"]`); await p.waitForTimeout(200); const t2 = await thr(); await p.evaluate(() => undo()); await p.waitForTimeout(250); const t3 = await thr();
+  check("Reset takes the threshold off; undo puts it back", t1 && !t2 && t3 && t3.lo === t1.lo, JSON.stringify([t1, t2, t3]));
+  // empty cells: counted in the lowest bin as ImageJ, or left out
+  await p.evaluate(() => { const st = mxSt(matBooks()[0].id), cells = []; for (let r = 0; r < 20; r++) for (let c = 0; c < 64; c++) cells.push([r, c, null]); mxWrite(st.sid, cells, "cleared rows"); }); await p.waitForTimeout(400);
+  await p.selectOption(`${W} [data-thm]`, "Li"); await p.waitForTimeout(150); const ta = await thr(), na = await p.textContent(`${W} .thn`); await p.click(`${W} [data-thk]`); await p.waitForTimeout(150); const tb = await thr();
+  const wa = await want({ method: "Li", dark: true }), wb = await want({ method: "Li", dark: true, skip: true });
+  check(`with 1 280 empty cells, Li counts them in the lowest bin as ImageJ does (said: "${na.trim()}"), Leave the empty cells out does not (${ta.lo} → ${tb.lo})`, ta.lo === wa.lo && tb.lo === wb.lo && tb.skip && ta.lo !== tb.lo && /1280 empty counted/.test(na), JSON.stringify([ta, tb, wa, wb]));
+  await p.evaluate(() => flushEdits()); await p.waitForTimeout(800); await p.reload(); await ready(p); await p.waitForTimeout(600);
+  const rl = await thr(); const jk = await p.evaluate(() => { const p0 = cloneProj(P()); const ss = p0.mats[0].sheets; ss[0].thr = { method: "Otsu", lo: 5, hi: 1 }; ss.push(Object.assign({}, ss[0], { id: "q1", name: "Q1", thr: { method: "Bogus", lo: 1, hi: 2 } }), Object.assign({}, ss[0], { id: "q2", name: "Q2", thr: { method: "manual", lo: 1, hi: "x" } })); matClean(p0); return p0.mats[0].sheets.map(s => s.thr || null); });
+  check(`the threshold is kept with the matrix across a reload (${rl && rl.method}), and broken ones from storage dropped`, rl && rl.method === "Li" && rl.skip && jk.every(x => x === null), JSON.stringify([rl, jk]));
+}, { name: "I.6" });
 
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);

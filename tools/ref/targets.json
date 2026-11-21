@@ -132,6 +132,12 @@
  "ijProcess.bg": {
   "tol": 0
  },
+ "ijThreshold.methods": {
+  "tol": 0
+ },
+ "ijThreshold.levels": {
+  "tol": 0
+ },
  "reshape": {
   "tol": 1e-13
  },

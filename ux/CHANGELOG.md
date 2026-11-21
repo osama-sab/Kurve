@@ -1024,6 +1024,18 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Images, slice I.6, first half: Threshold (2026-11-21)
+
+- **ImageJ's Threshold** beside the image (the window's *Threshold* button, Matrix › Threshold, Analyze › Image › Threshold): the cells in a
+  range drawn in red, the range by one of ImageJ's sixteen methods (Dark background or not) or typed, the count of cells and the level said.
+- Each method's range is ImageJ's `setAutoThreshold` to the last digit; *Leave the empty cells out* (ImageJ counts empty cells in its lowest
+  bin).
+- The threshold is kept with the matrix and undone with it. **Mask** (Process › Binary › Convert to mask…, 255 and 0) and **NaN background**
+  make new matrices that follow the scan.
+
+Checked: a NumPy transcription of ImageJ 1.54f's AutoThresholder and setAutoThreshold, 672 cases equal (two new bench entries);
+`tools/img-drive.mjs` (11 new, 99).
+
 ## Images, slice I.5: Process (2026-11-21)
 
 - **ImageJ's Process menu** for a matrix, from the image's *Process* button, Matrix › Process or Analyze › Image › Process: Smooth,

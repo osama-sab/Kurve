@@ -898,6 +898,15 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-21: A threshold as ImageJ's (IMAGE_SPEC I.6)
+
+- **The panel beside the image, as Brightness and contrast is.** A threshold is looked at while it is set: the red cells follow the
+  method and the range as they change, each change one undo step.
+- **The macro's arithmetic.** ImageJ's Threshold window and its `setAutoThreshold` can disagree on a 32-bit image; Kurve gives the
+  command's (made 8-bit, the level turned back into values), which a script can repeat, and says the level beside the count.
+- **A threshold is part of the matrix's view.** Kept with it and undone with it, it stays as numbers when the values change, as
+  ImageJ's does; a mask made from it is a result that follows, with the method rather than the numbers when a method set it.
+
 ### 2026-11-21: Processing as ImageJ processes (IMAGE_SPEC I.5)
 
 - **A new image, never the scan changed.** ImageJ filters an image in place and keeps one undo; Kurve keeps the scan as recorded and

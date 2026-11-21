@@ -602,6 +602,17 @@ body.dwin-page{margin:0;height:100vh;overflow:hidden;background:var(--panel);col
 .mximg:not([data-tool="hand"]){cursor:crosshair}
 .mximg[data-tool="hand"]{cursor:grab}
 .mxbc>*{flex:0 0 auto}
+.mxth{display:flex;flex-direction:column;gap:var(--sp-2);padding:var(--sp-3);border-bottom:1px solid var(--rule-2)}
+.mxth>*{flex:0 0 auto}
+.mxth .bch{display:flex;align-items:center;justify-content:space-between;font-size:var(--fs-body)}
+.mxth .bchist{width:100%;height:80px;display:block;background:var(--panel-2);border:1px solid var(--rule-2);border-radius:var(--r-s)}
+.mxth .bcbars{fill:var(--ink-2)}
+.mxth .thband{fill:#ff0000;fill-opacity:.35}
+.mxth .bcends{display:flex;justify-content:space-between;font-family:var(--mono);color:var(--ink)}
+.mxth .throw{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap}
+.mxth .throw input.num{width:6.5em}
+.mxth .bcbtns{display:flex;flex-wrap:wrap;gap:var(--sp-1)}
+.mxth .thn{margin:0}
 .mxbc .bch,.mxroi .bch{display:flex;align-items:center;justify-content:space-between;font-size:var(--fs-body)}
 .mxbc .bchist{width:100%;height:96px;display:block;background:var(--panel-2);border:1px solid var(--rule-2);border-radius:var(--r-s)}
 .mxbc .bcbars{fill:var(--ink-2)}
@@ -10419,9 +10430,9 @@ ANA_KINDS.shift={label:"Shift between scans (Kurve)", base:"Shift", typed:true, 
 /* ImageJ's Process menu (IMAGE_SPEC I.5): a filter or a piece of arithmetic on a matrix, worked out as ImageJ works it on its 32-bit
    image (ijProcess), into a matrix of the analysis's own that follows its input; its sheet a line of what was done, its method the
    command that does the same in ImageJ. */
-const IJ_PROC_CMD={smooth:"Smooth",sharpen:"Sharpen",edges:"Find Edges",gauss:"Gaussian Blur...",unsharp:"Unsharp Mask...",bg:"Subtract Background...",mean:"Mean...",median:"Median...",min:"Minimum...",max:"Maximum...",var:"Variance..."};
+const IJ_PROC_CMD={smooth:"Smooth",sharpen:"Sharpen",edges:"Find Edges",gauss:"Gaussian Blur...",unsharp:"Unsharp Mask...",bg:"Subtract Background...",mask:"Convert to Mask",mean:"Mean...",median:"Median...",min:"Minimum...",max:"Maximum...",var:"Variance..."};
 const IJ_MATH_CMD={add:"Add...",sub:"Subtract...",mul:"Multiply...",div:"Divide...",min:"Min...",max:"Max...",gamma:"Gamma...",log:"Log",exp:"Exp",sqr:"Square",sqrt:"Square Root",abs:"Abs",recip:"Reciprocal",nan:"NaN Background"};
-const IJ_PROC_SN={smooth:"smooth",sharpen:"sharp",edges:"edges",gauss:"blur",unsharp:"unsharp",bg:"bg",mean:"mean",median:"median",min:"min",max:"max",var:"var",
+const IJ_PROC_SN={smooth:"smooth",sharpen:"sharp",edges:"edges",gauss:"blur",unsharp:"unsharp",bg:"bg",mask:"mask",mean:"mean",median:"median",min:"min",max:"max",var:"var",
   add:"add",sub:"sub",mul:"mul",div:"div",gamma:"gamma",log:"log",exp:"exp",sqr:"sqr",sqrt:"sqrt",abs:"abs",recip:"recip",nan:"nan"};
 // What a setting of it is called: the operation's name, Math's by its own.
 function ijProcLabel(p){ p=p||{}; if(p.op==="math"){ const m=IJ_MATH.find(e=>e[0]===p.mop); return m?m[1]:"Math"; } const e=IJ_PROCS.find(e=>e[0]===p.op); return e?e[1]:"Processed"; }
@@ -10437,11 +10448,16 @@ ANA_KINDS.ijproc={label:"Process (ImageJ)", base:"Processed", baseOf:ijProcLabel
     const xu=M.xunit||"", yu=M.yunit||"", zu=M.zunit||"", zn=M.zname||"Z", f6=v=>fmt(v,6);
     const skip=!!p.skip&&["gauss","unsharp","mean","var"].includes(op), pp={op,mop:p.mop,value:p.value,lo:p.lo,hi:p.hi,weight:p.weight,radius:p.radius,skip,light:!!p.light,create:!!p.create,parab:!!p.parab,smooth:p.smooth!==false}; let sx=+p.sigma, sy=sx;
     if(op==="gauss"&&p.scaled){ sx=+p.sigma/G.pw; sy=+p.sigma/G.ph; } pp.sigma=sx; pp.sy=sy;
+    if(op==="mask") Object.assign(pp,{method:p.method,dark:!!p.dark,skip:!!p.skip});
     const r=ijProcess({nx:M.nx,ny:M.ny,xs:M.xs,ys:M.ys,z:M.z},pp); if(r.fail) return {fail:r.fail};
     const mop=op==="math"?p.mop:null, lab=ijProcLabel(p), rows=[["Operation",lab],["Of",mq.name],["Cells",`${M.ny} × ${M.nx}`]];
     let set="", cmd=op==="math"?IJ_MATH_CMD[mop]:IJ_PROC_CMD[op], macro="", zname=zn, zunit=zu;
     if(op==="gauss"){ set=p.scaled?`sigma=${+p.sigma} scaled`:`sigma=${+p.sigma}`; rows.push(["Sigma",p.scaled?`${f6(+p.sigma)}${xu?" "+xu:""} (${f6(sx)} × ${f6(sy)} cells)`:`${f6(sx)} cells`]); }
     else if(op==="unsharp"){ set=`radius=${+p.sigma} mask=${(+p.weight).toFixed(2)}`; rows.push(["Sigma",`${f6(+p.sigma)} cells`],["Mask weight",+p.weight]); }
+    else if(op==="mask"){ let lo=+p.lo, hi=+p.hi, T=null; if(p.method!=="manual"){ T=ijThreshold({nx:M.nx,ny:M.ny,xs:M.xs,ys:M.ys,z:M.z},{method:p.method,dark:!!p.dark,skip:!!p.skip}); lo=T.lower; hi=T.upper; }
+      const u=zu?" "+zu:"", e=v=>v<=-1e30?"the least":v>=1e30?"the greatest":fmt(v,6)+u;
+      rows.push(["Threshold",p.method==="manual"?"by hand":`${p.method}${p.dark?", dark background":""}${p.skip?", the empty cells left out":""}`],["Range",`${e(lo)} to ${e(hi)}`]); if(T) rows.push(["Level",`${T.t} of 255`]);
+      macro=(p.method==="manual"?`setThreshold(${lo}, ${hi}); `:`setAutoThreshold("${p.method}${p.dark?" dark":""}"); `)+`setOption("BlackBackground", true); `; }
     else if(op==="bg"){ set=[`rolling=${+p.radius}`].concat(p.light?["light"]:[],p.create?["create"]:[],p.parab?["sliding"]:[],p.smooth===false?["disable"]:[]).join(" ");
       rows.push([p.parab?"Paraboloid's radius":"Ball's radius",`${f6(+p.radius)} cells`],["Background",p.light?"light":"dark"],["Smoothed first",p.smooth===false?"no":"yes"],["Result",p.create?"the background":"less the background"]);
       if(!p.parab){ const b=ijBall(+p.radius); if(b.sf>1) rows.push(["Shrunk by",`${b.sf} first, as ImageJ does`]); } }
@@ -10449,7 +10465,8 @@ ANA_KINDS.ijproc={label:"Process (ImageJ)", base:"Processed", baseOf:ijProcLabel
     else if(op==="math"){ const me=IJ_MATH.find(e=>e[0]===mop);
       if(me[2]==="value"){ set=`value=${+p.value}`; rows.push(["Value",+p.value]); }
       if(mop==="nan"){ macro=`setThreshold(${+p.lo}, ${+p.hi}); `; rows.push(["Kept",`${f6(+p.lo)} to ${f6(+p.hi)}`]); } }
-    if(op==="edges"){ zname=`Gradient of ${zn}`; } else if(op==="bg"){ zname=p.create?`Background of ${zn}`:`${zn} less its background`; }
+    if(op==="mask"){ zname=`Mask of ${zn}`; zunit=""; }
+    else if(op==="edges"){ zname=`Gradient of ${zn}`; } else if(op==="bg"){ zname=p.create?`Background of ${zn}`:`${zn} less its background`; }
     else if(op==="var"){ zname=`Variance of ${zn}`; zunit=sigSq(zu); }
     else if(mop==="log"){ zname=`ln ${zn}`; zunit=""; } else if(mop==="exp"){ zname=`exp ${zn}`; zunit=""; } else if(mop==="gamma"){ zname=`${zn} to the power ${+p.value}`; zunit=""; }
     else if(mop==="sqr"){ zname=`${zn} squared`; zunit=sigSq(zu); } else if(mop==="sqrt"){ zname=`√${zn}`; zunit=zu?`√${/^[^\s/·*²³⁻¹]+$/.test(zu)?zu:"("+zu+")"}`:""; }
@@ -10463,11 +10480,12 @@ ANA_KINDS.ijproc={label:"Process (ImageJ)", base:"Processed", baseOf:ijProcLabel
       unsharp:"the image less the mask weight times its Gaussian blur (accuracy 0.01), over one less the weight",
       mean:"the mean over ImageJ's circular kernel",median:"the median over ImageJ's circular kernel (empty cells left out; an empty cell stays empty)",min:"the least value over ImageJ's circular kernel",max:"the largest value over ImageJ's circular kernel",var:"the variance (over n) over ImageJ's circular kernel",
       bg:`${p.parab?"a paraboloid of rotation of that radius slid under the image in four directions, its corners corrected":`a ball of that radius rolled under the image${ijBall(+p.radius).sf>1?`, the image shrunk by ${ijBall(+p.radius).sf} for it (each block's least) and the background grown again by ImageJ's interpolation`:""}`}${p.smooth===false?"":", the image smoothed by ImageJ's 3 × 3 mean first"}${p.light?", for a light background (the values turned over)":""}, ${p.create?"the background given":"the background taken from each value"}`,
+      mask:"255 where the value is in the threshold's range and 0 elsewhere (an empty cell 0), as ImageJ's mask with a black background",
       math:"each value on its own"}[op];
     if(op==="bg"&&!p.parab&&r.z.some((q,i)=>q==null&&M.z[i]!=null)) r.notes.push("Some cells came out empty: a ball's whole footprint was empty there.");
     const method=`ImageJ 1.54f's ${op==="math"?"Process › Math › ":IJ_RANK.includes(op)?"Process › Filters › ":op==="gauss"||op==="unsharp"?"Process › Filters › ":"Process › "}${cmd.replace(/\.\.\.$/,"")} of ${mq.name} (${M.ny} × ${M.nx}): ${how}, in Java's single-precision arithmetic step by step on ImageJ's image of the matrix, its values rounded to single precision as ImageJ's 32-bit image holds them${["smooth","sharpen","edges","gauss","unsharp"].includes(op)||IJ_RANK.includes(op)?", the cells past the edge the edge's own, as ImageJ takes them":""}. ${skip?` Beyond ImageJ, the empty cells left out: ${op==="gauss"||op==="unsharp"?"the Gaussian of the values (an empty cell 0) over the Gaussian of where there are values, both ImageJ's":"each circle's cells with a value alone"}, a cell empty before left empty; ImageJ itself lets an empty cell spread.`:""} In ImageJ, on the TIFF Kurve writes for this matrix: ${macro}`;
     return {tables:[{cols}],report:{sections:[{title:lab,tables:[{head:["","Value"],rows}]}],method},notes:r.notes,
-      mat:{nx:M.nx,ny:M.ny,x:matAxisOf(M.xs),y:matAxisOf(M.ys),z:r.z,xname:M.xname||"X",xunit:xu,yname:M.yname||"Y",yunit:yu,zname,zunit,sname:`${mq.name}_${IJ_PROC_SN[mop||op]}`,disp:M.disp||null}}; }};
+      mat:{nx:M.nx,ny:M.ny,x:matAxisOf(M.xs),y:matAxisOf(M.ys),z:r.z,xname:M.xname||"X",xunit:xu,yname:M.yname||"Y",yunit:yu,zname,zunit,sname:`${mq.name}_${IJ_PROC_SN[mop||op]}`,disp:op==="mask"?{lut:"ij:grays"}:M.disp||null}}; }};
 /* ==ANA:END== */
 /* ==MAT:START== Matrices (ux/spec/SHEET_SPEC.md, slice 3.6), pure: a grid of Z with its X and Y.
    A matrix is {nx, ny, x, y, z}: `z` row major (z[r*nx + c], a row a Y, a column an X), null for a
@@ -11390,16 +11408,21 @@ function ijBgWhy(W,H,radius,parab,empty){ if(!(radius>0.0001)) return "The radiu
 function ijBackground(v,W,H,o){ const f=Math.fround, px=Float32Array.from(v);
   if(o.parab) ijParaboloid(px,W,H,o.radius,!!o.light,o.smooth!==false,true); else ijRollingBg(px,W,H,o.radius,!!o.light,o.smooth!==false);
   if(o.create) return px; const out=new Float32Array(W*H); for(let i=0;i<W*H;i++) out[i]=f(v[i]-px[i]); return out; }
-const IJ_PROCS=[["smooth","Smooth"],["sharpen","Sharpen"],["edges","Find edges"],["gauss","Gaussian blur"],["unsharp","Unsharp mask"],["bg","Subtract background"],["mean","Mean"],["median","Median"],["min","Minimum"],["max","Maximum"],["var","Variance"],["math","Math"]];
+const IJ_PROCS=[["smooth","Smooth"],["sharpen","Sharpen"],["edges","Find edges"],["gauss","Gaussian blur"],["unsharp","Unsharp mask"],["bg","Subtract background"],["mask","Convert to mask"],["mean","Mean"],["median","Median"],["min","Minimum"],["max","Maximum"],["var","Variance"],["math","Math"]];
 /* One of them on a matrix: ImageJ's image of it in single precision, the operation, and the result in the matrix's own order (an empty
    cell where ImageJ's is NaN or infinite; a Minimum's or Maximum's ±3.4e38, ImageJ's for a neighbourhood with no value, empty too).
-   p: {op, sigma (cells), sy, radius, weight, mop, value, lo, hi, light, create, parab, smooth (Subtract background's), skip (Gaussian, Unsharp mask, Mean, Variance: the empty cells left
+   p: {op, sigma (cells), sy, radius, weight, mop, value, lo, hi, light, create, parab, smooth (Subtract background's), method, dark
+   (Convert to mask's: one of IJ_TH_METHODS through ijThreshold, or "manual" with lo, hi; 255 in the range, 0 elsewhere and for an
+   empty cell, as ImageJ's mask with a black background), skip (Gaussian, Unsharp mask, Mean, Variance: the empty cells left
    out, ijGaussSkip, ijRankSkip)}. {z, notes} or {fail}. */
 function ijProcess(M,p){ const I=ijImage(M,true); if(I.fail) return I; const {G,W,H,v}=I, op=p.op, notes=[]; let r;
   if(op==="smooth"||op==="sharpen"||op==="edges") r=ijF3(v,W,H,op);
   else if(op==="gauss"){ const sx=+p.sigma, sy=p.sy!=null?+p.sy:sx; if(!(sx>=0&&sy>=0)||sx===0&&sy===0) return {fail:"Sigma is a number above 0."}; r=p.skip?ijGaussSkip(v,W,H,sx,sy,0.0002):ijGauss(v,W,H,sx,sy,0.0002); }
   else if(op==="unsharp"){ const sg=+p.sigma, w=+p.weight; if(!(sg>0)) return {fail:"Sigma is a number above 0."}; if(!(w>=0&&w<=0.99)) return {fail:"The mask weight is from 0 to 0.99."}; r=ijUnsharp(v,W,H,sg,w,!!p.skip); }
   else if(["mean","median","min","max","var"].includes(op)){ const rd=+p.radius; if(!(rd>=0.5&&rd<=1000)) return {fail:"The radius is from 0.5 to 1000 cells."}; r=p.skip&&(op==="mean"||op==="var")?ijRankSkip(v,W,H,rd,op):ijRank(v,W,H,rd,op); }
+  else if(op==="mask"){ let lo=+p.lo, hi=+p.hi;
+    if(p.method!=="manual"){ const T=ijThreshold(M,{method:p.method,dark:!!p.dark,skip:!!p.skip}); if(T.fail) return T; lo=T.lower; hi=T.upper; }
+    if(!(lo<=hi)) return {fail:"The range is two numbers, the lower first."}; r=new Float32Array(W*H); for(let i=0;i<W*H;i++) r[i]=v[i]>=lo&&v[i]<=hi?255:0; }
   else if(op==="bg"){ const why=ijBgWhy(W,H,+p.radius,!!p.parab,v.some(x=>!Number.isFinite(x))); if(why) return {fail:why};
     r=ijBackground(v,W,H,{radius:+p.radius,light:!!p.light,create:!!p.create,parab:!!p.parab,smooth:p.smooth!==false}); }
   else if(op==="math"){ const mo=IJ_MATH.find(e=>e[0]===p.mop); if(!mo) return {fail:"Choose an operation."}; const c=+p.value;
@@ -11412,6 +11435,126 @@ function ijProcess(M,p){ const I=ijImage(M,true); if(I.fail) return I; const {G,
   if(nan) notes.push(`${nan} cell${nan===1?"":"s"} with a value came out NaN or infinite, as ImageJ's do, and ${nan===1?"is":"are"} left empty${["gauss","unsharp","mean","var"].includes(op)&&!p.skip?" (an empty cell spreads through the filter; Leave the empty cells out keeps them)":""}.`);
   if(sent) notes.push(`${sent} cell${sent===1?"":"s"} with no value in their neighbourhood left empty (ImageJ writes ±3.4e38 there).`);
   return {z,notes}; }
+/* ImageJ's AutoThresholder (IMAGE_SPEC I.6; ij.process.AutoThresholder of 1.54f) on a 256-bin histogram of whole numbers: its
+   sixteen methods as written, Java's int arithmetic kept where it has it (IsoData's sums and its integer division, MinError's
+   i·i·count, both wrapping past 2³¹ as Java's do), bilevel first, −1 read as 0. The histogram is not changed. */
+const IJ_TH_METHODS=["Default","Huang","Intermodes","IsoData","Li","MaxEntropy","Mean","MinError","Minimum","Moments","Otsu","Percentile","RenyiEntropy","Shanbhag","Triangle","Yen"];
+const ijThBimodal=y=>{ let modes=0; for(let k=1;k<y.length-1;k++) if(y[k-1]<y[k]&&y[k+1]<y[k]){ modes++; if(modes>2) return false; } return modes===2; };
+const IJTH={
+  Huang(d){ let first=0, last=255; for(let i=0;i<256;i++) if(d[i]!==0){ first=i; break; } for(let i=255;i>=first;i--) if(d[i]!==0){ last=i; break; }
+    const term=1/(last-first), mu0=new Float64Array(256), mu1=new Float64Array(256); let s=0, n=0;
+    for(let i=first;i<256;i++){ s+=i*d[i]; n+=d[i]; mu0[i]=s/n; } s=0; n=0;
+    for(let i=last;i>0;i--){ s+=i*d[i]; n+=d[i]; mu1[i-1]=s/n; }
+    let th=-1, minE=Number.MAX_VALUE;
+    for(let it=0;it<256;it++){ let ent=0;
+      for(let i=0;i<=it;i++){ const mx=1/(1+term*Math.abs(i-mu0[it])); if(!(mx<1e-06||mx>0.999999)) ent+=d[i]*(-mx*Math.log(mx)-(1-mx)*Math.log(1-mx)); }
+      for(let i=it+1;i<256;i++){ const mx=1/(1+term*Math.abs(i-mu1[it])); if(!(mx<1e-06||mx>0.999999)) ent+=d[i]*(-mx*Math.log(mx)-(1-mx)*Math.log(1-mx)); }
+      if(ent<minE){ minE=ent; th=it; } }
+    return th; },
+  Intermodes(d){ let minb=-1, maxb=-1; for(let i=0;i<256;i++) if(d[i]>0) maxb=i; for(let i=255;i>=0;i--) if(d[i]>0) minb=i;
+    const L=maxb-minb+1, h=new Float64Array(L); for(let i=minb;i<=maxb;i++) h[i-minb]=d[i]; let it=0;
+    while(!ijThBimodal(h)){ let prev=0, cur=0, nx=h[0]; for(let i=0;i<L-1;i++){ prev=cur; cur=nx; nx=h[i+1]; h[i]=(prev+cur+nx)/3; } h[L-1]=(cur+nx)/3; if(++it>10000) return -1; }
+    let tt=0; for(let i=1;i<L-1;i++) if(h[i-1]<h[i]&&h[i+1]<h[i]) tt+=i; return Math.floor(tt/2)+minb; },
+  IsoData(d){ let g=0; for(let i=1;i<256;i++) if(d[i]>0){ g=i+1; break; }
+    for(;;){ let l=0, totl=0; for(let i=0;i<g;i++){ totl=(totl+d[i])|0; l=(l+Math.imul(d[i],i))|0; }
+      let h=0, toth=0; for(let i=g+1;i<256;i++){ toth+=d[i]; h+=d[i]*i; }
+      if(totl>0&&toth>0){ l=(l/totl)|0; h/=toth; if(g===Math.round((l+h)/2)) break; }
+      g++; if(g>254) return -1; }
+    return g; },
+  Default(d){ const d2=Int32Array.from(d); let mode=0, mc=0; for(let i=0;i<256;i++) if(d2[i]>mc){ mc=d2[i]; mode=i; }
+    let mc2=0; for(let i=0;i<256;i++) if(d2[i]>mc2&&i!==mode) mc2=d2[i];
+    if(mc>mc2*2&&mc2!==0) d2[mode]=ijJint(mc2*1.5); return ijIJIsoData(d2); },
+  Li(d){ let np=0; for(let i=0;i<256;i++) np+=d[i]; let mean=0; for(let i=1;i<256;i++) mean+=i*d[i]; mean/=np;
+    let nt=mean, ot, th;
+    do{ ot=nt; th=ijJint(ot+0.5); let sb=0, nb=0; for(let i=0;i<=th;i++){ sb+=i*d[i]; nb+=d[i]; } const mb=nb===0?0:sb/nb;
+      let so=0, no=0; for(let i=th+1;i<256;i++){ so+=i*d[i]; no+=d[i]; } const mo=no===0?0:so/no;
+      const t=(mb-mo)/(Math.log(mb)-Math.log(mo)); nt=t< -2.220446049250313E-16?ijJint(t-0.5):ijJint(t+0.5); }
+    while(Math.abs(nt-ot)>0.5); return th; },
+  MaxEntropy(d){ const {nh,P1,P2,first,last}=ijThNorm(d); let th=-1, maxE=Number.MIN_VALUE;
+    for(let it=first;it<=last;it++){ let eb=0; for(let i=0;i<=it;i++) if(d[i]!==0) eb-=(nh[i]/P1[it])*Math.log(nh[i]/P1[it]);
+      let eo=0; for(let i=it+1;i<256;i++) if(d[i]!==0) eo-=(nh[i]/P2[it])*Math.log(nh[i]/P2[it]);
+      const te=eb+eo; if(maxE<te){ maxE=te; th=it; } }
+    return th; },
+  Mean(d){ let tot=0, s=0; for(let i=0;i<256;i++){ tot+=d[i]; s+=i*d[i]; } return ijJint(Math.floor(s/tot)); },
+  MinError(d){ const J=j=>j>=256?255:j, A=j=>{ j=J(j); let x=0; for(let i=0;i<=j;i++) x+=d[i]; return x; }, B=j=>{ j=J(j); let x=0; for(let i=0;i<=j;i++) x+=Math.imul(i,d[i]); return x; }, C=j=>{ j=J(j); let x=0; for(let i=0;i<=j;i++) x+=Math.imul(i*i,d[i]); return x; };
+    let th=IJTH.Mean(d), tp=-2;
+    while(th!==tp){ const Aa=A(th), An=A(255), Ba=B(th), Bn=B(255), Ca=C(th), Cn=C(255);
+      const mu=Ba/Aa, nu=(Bn-Ba)/(An-Aa), p=Aa/An, q=(An-Aa)/An, s2=Ca/Aa-mu*mu, t2=(Cn-Ca)/(An-Aa)-nu*nu;
+      const w0=1/s2-1/t2, w1=mu/s2-nu/t2, w2=(mu*mu)/s2-(nu*nu)/t2+Math.log10((s2*(q*q))/(t2*(p*p))), sq=w1*w1-w0*w2;
+      if(sq<0) return th; tp=th; const t=(w1+Math.sqrt(sq))/w0; th=Number.isNaN(t)?tp:ijJint(Math.floor(t)); }
+    return th; },
+  Minimum(d){ let ih=Float64Array.from(d); const th0=new Float64Array(256); let it=0;
+    while(!ijThBimodal(ih)){ for(let i=1;i<255;i++) th0[i]=(ih[i-1]+ih[i]+ih[i+1])/3; th0[0]=(ih[0]+ih[1])/3; th0[255]=(ih[254]+ih[255])/3; ih=Float64Array.from(th0); if(++it>10000) return -1; }
+    for(let i=1;i<255;i++) if(ih[i-1]>ih[i]&&ih[i+1]>=ih[i]) return i; return -1; },
+  Moments(d){ let tot=0; for(let i=0;i<256;i++) tot+=d[i]; const h=new Float64Array(256); for(let i=0;i<256;i++) h[i]=d[i]/tot;
+    let m0=1, m1=0, m2=0, m3=0; for(let i=0;i<256;i++){ m1+=i*h[i]; m2+=i*i*h[i]; m3+=i*i*i*h[i]; }
+    const cd=m0*m2-m1*m1, c0=(-m2*m2+m1*m3)/cd, c1=(m0*-m3+m2*m1)/cd, z0=0.5*(-c1-Math.sqrt(c1*c1-4*c0)), z1=0.5*(-c1+Math.sqrt(c1*c1-4*c0)), p0=(z1-m1)/(z1-z0);
+    let s=0; for(let i=0;i<256;i++){ s+=h[i]; if(s>p0) return i; } return -1; },
+  Otsu(d){ let S=0, N=0; for(let k=0;k<256;k++){ S+=k*d[k]; N+=d[k]; } let Sk=0, N1=d[0], bmax=0, ks=0;
+    for(let k=1;k<255;k++){ Sk+=k*d[k]; N1+=d[k]; const den=N1*(N-N1); let bcv=0; if(den!==0){ const num=(N1/N)*S-Sk; bcv=(num*num)/den; } if(bcv>=bmax){ bmax=bcv; ks=k; } }
+    return ks; },
+  Percentile(d){ const ps=j=>{ let x=0; for(let i=0;i<=j;i++) x+=d[i]; return x; }, tot=ps(255); let th=-1, t=1;
+    for(let i=0;i<256;i++){ const a=Math.abs(ps(i)/tot-0.5); if(a<t){ t=a; th=i; } } return th; },
+  RenyiEntropy(d){ const {nh,P1,P2,first,last}=ijThNorm(d);
+    let th=0, maxE=0; for(let it=first;it<=last;it++){ let eb=0; for(let i=0;i<=it;i++) if(d[i]!==0) eb-=(nh[i]/P1[it])*Math.log(nh[i]/P1[it]);
+      let eo=0; for(let i=it+1;i<256;i++) if(d[i]!==0) eo-=(nh[i]/P2[it])*Math.log(nh[i]/P2[it]); const te=eb+eo; if(maxE<te){ maxE=te; th=it; } }
+    let t2=th; th=0; maxE=0; let term=1/(1-0.5);
+    for(let it=first;it<=last;it++){ let eb=0; for(let i=0;i<=it;i++) eb+=Math.sqrt(nh[i]/P1[it]); let eo=0; for(let i=it+1;i<256;i++) eo+=Math.sqrt(nh[i]/P2[it]);
+      const te=term*(eb*eo>0?Math.log(eb*eo):0); if(te>maxE){ maxE=te; th=it; } }
+    let t1=th; th=0; maxE=0; term=1/(1-2);
+    for(let it=first;it<=last;it++){ let eb=0; for(let i=0;i<=it;i++) eb+=(nh[i]*nh[i])/(P1[it]*P1[it]); let eo=0; for(let i=it+1;i<256;i++) eo+=(nh[i]*nh[i])/(P2[it]*P2[it]);
+      const te=term*(eb*eo>0?Math.log(eb*eo):0); if(te>maxE){ maxE=te; th=it; } }
+    let t3=th, tmp;
+    if(t2<t1){ tmp=t1; t1=t2; t2=tmp; } if(t3<t2){ tmp=t2; t2=t3; t3=tmp; } if(t2<t1){ tmp=t1; t1=t2; t2=tmp; }
+    let b1, b2, b3; if(Math.abs(t1-t2)<=5){ if(Math.abs(t2-t3)<=5){ b1=1; b2=2; b3=1; } else { b1=0; b2=1; b3=3; } } else { if(Math.abs(t2-t3)<=5){ b1=3; b2=1; b3=0; } else { b1=1; b2=2; b3=1; } }
+    const om=P1[t3]-P1[t1]; return ijJint(t1*(P1[t1]+0.25*om*b1)+0.25*t2*om*b2+t3*(P2[t3]+0.25*om*b3)); },
+  Shanbhag(d){ const {nh,P1,P2,first,last}=ijThNorm(d); let th=-1, minE=Number.MAX_VALUE;
+    for(let it=first;it<=last;it++){ let eb=0, term=0.5/P1[it]; for(let i=1;i<=it;i++) eb-=nh[i]*Math.log(1-term*P1[i-1]); eb*=term;
+      let eo=0; term=0.5/P2[it]; for(let i=it+1;i<256;i++) eo-=nh[i]*Math.log(1-term*P2[i]); eo*=term;
+      const te=Math.abs(eb-eo); if(te<minE){ minE=te; th=it; } }
+    return th; },
+  Triangle(d0){ const d=Int32Array.from(d0); let min=0, dmax=0, max=0, min2=0;
+    for(let i=0;i<256;i++) if(d[i]>0){ min=i; break; } if(min>0) min--;
+    for(let i=255;i>0;i--) if(d[i]>0){ min2=i; break; } if(min2<255) min2++;
+    for(let i=0;i<256;i++) if(d[i]>dmax){ max=i; dmax=d[i]; }
+    let inv=false; if(max-min<min2-max){ inv=true; d.reverse(); min=255-min2; max=255-max; }
+    if(min===max) return min;
+    let nx=d[max], ny=min-max, dd=Math.sqrt(nx*nx+ny*ny); nx/=dd; ny/=dd; dd=nx*min+ny*d[min];
+    let split=min, sd=0; for(let i=min+1;i<=max;i++){ const nd=nx*i+ny*d[i]-dd; if(nd>sd){ split=i; sd=nd; } }
+    split--; return inv?255-split:split; },
+  Yen(d){ let tot=0; for(let i=0;i<256;i++) tot+=d[i]; const nh=new Float64Array(256), P1=new Float64Array(256), Q1=new Float64Array(256), Q2=new Float64Array(256);
+    for(let i=0;i<256;i++) nh[i]=d[i]/tot; P1[0]=nh[0]; for(let i=1;i<256;i++) P1[i]=P1[i-1]+nh[i];
+    Q1[0]=nh[0]*nh[0]; for(let i=1;i<256;i++) Q1[i]=Q1[i-1]+nh[i]*nh[i]; Q2[255]=0; for(let i=254;i>=0;i--) Q2[i]=Q2[i+1]+nh[i+1]*nh[i+1];
+    let th=-1, mc=Number.MIN_VALUE; for(let it=0;it<256;it++){ const c=-1*(Q1[it]*Q2[it]>0?Math.log(Q1[it]*Q2[it]):0)+2*(P1[it]*(1-P1[it])>0?Math.log(P1[it]*(1-P1[it])):0); if(c>mc){ mc=c; th=it; } }
+    return th; }};
+// The normalised histogram and its cumulative sums, the first and last bins with any, as MaxEntropy, RenyiEntropy and Shanbhag make them.
+function ijThNorm(d){ let tot=0; for(let i=0;i<256;i++) tot+=d[i]; const nh=new Float64Array(256), P1=new Float64Array(256), P2=new Float64Array(256);
+  for(let i=0;i<256;i++) nh[i]=d[i]/tot; P1[0]=nh[0]; P2[0]=1-P1[0]; for(let i=1;i<256;i++){ P1[i]=P1[i-1]+nh[i]; P2[i]=1-P1[i]; }
+  let first=0, last=255; for(let i=0;i<256;i++) if(!(Math.abs(P1[i])<2.220446049250313E-16)){ first=i; break; }
+  for(let i=255;i>=first;i--) if(!(Math.abs(P2[i])<2.220446049250313E-16)){ last=i; break; }
+  return {nh,P1,P2,first,last}; }
+// IJ_IsoData, the iterative intermeans of ImageJ's older Default (the ends' counts set aside while it searches).
+function ijIJIsoData(d0){ const d=Int32Array.from(d0), mv=255; d[0]=0; d[mv]=0; let min=0; while(d[min]===0&&min<mv) min++; let max=mv; while(d[max]===0&&max>0) max--;
+  if(min>=max) return 128; let mi=min, res;
+  do{ let s1=0, s2=0, s3=0, s4=0; for(let i=min;i<=mi;i++){ s1+=i*d[i]; s2+=d[i]; } for(let i=mi+1;i<=max;i++){ s3+=i*d[i]; s4+=d[i]; } res=(s1/s2+s3/s4)/2; mi++; }
+  while(mi+1<=res&&mi<max-1);
+  return Math.round(res); }
+function ijAutoThreshold(hist,method){ let nz=0, b1=-1, b2=-1; for(let i=0;i<256;i++) if(hist[i]>0){ nz++; if(nz>2) break; if(b1<0) b1=i; else b2=i; }
+  if(nz===2) return b2-1; const f=IJTH[method]; if(!f) return 0; const t=f(hist); return t===-1?0:t; }
+/* setAutoThreshold("<method>[ dark]") of a 32-bit image (ImageProcessor.setAutoThreshold): the range reset to the values' least and
+   greatest, the image made 8-bit (create8BitImage, an empty cell in bin 0 as ImageJ's NaN), its 256-bin histogram thresholded, and the
+   level scaled back as scaleAndSetThreshold does: dark, from min + (t + 1)/255·(max − min) up; else from below to min + t/255·(max − min).
+   `skip` (beyond ImageJ) leaves the empty cells out of the histogram. {t, lower, upper, min, max, hist, empty, n (cells with a value),
+   inside (those in range)} or {fail}. */
+function ijThreshold(M,o){ o=o||{}; const I=ijImage(M,true); if(I.fail) return I; const v=I.v; let min=Infinity, max=-Infinity, empty=0;
+  for(const x of v){ if(Number.isFinite(x)){ if(x<min) min=x; if(x>max) max=x; } else if(!(x===Infinity||x===-Infinity)) empty++; }
+  if(min===Infinity) return {fail:"The matrix has no values."};
+  const hist=new Int32Array(256); for(const x of v){ if(o.skip&&!Number.isFinite(x)) continue; hist[max>min?ij8(x,min,max):0]++; }
+  const method=IJ_TH_METHODS.includes(o.method)?o.method:"Default", t=ijAutoThreshold(hist,method); let lower, upper;
+  if(o.dark){ lower=t+1; upper=255; } else { lower=0; upper=t; } if(lower>255) lower=255;
+  if(max>min){ lower=lower===0?Math.min(min,-1e30):min+(lower/255)*(max-min); upper=upper===255?Math.max(max,1e30):min+(upper/255)*(max-min); } else lower=upper=min;
+  let n=0, inside=0; for(const x of v) if(Number.isFinite(x)){ n++; if(x>=lower&&x<=upper) inside++; }
+  return {t,lower,upper,min,max,hist,empty,n,inside,method,dark:!!o.dark}; }
 /* ==MAT:END== */
 /* ==SIG:START== Signal processing and mathematics (ux/spec/SIGNAL_SPEC.md, wave 5), pure: the transform of any
    length, windows and spectra (5.1); the later slices' filters, correlation, envelopes, wavelets, interpolation and
@@ -23281,17 +23424,20 @@ const ANA_FORMS={
         <label for="aIPb" class="tipd" data-ipr="b" title="The rolling ball's radius in cells, as ImageJ's: at least the radius of the largest object that is not background (ImageJ's 50 to begin with)">Radius</label><span class="anarows" data-ipr="b"><input id="aIPb" type="text" class="num" value="${v(op==="bg"&&p.radius!=null?p.radius:50)}"> cells</span>
         <span data-ipr="b"></span><span class="anarows" data-ipr="b"><label class="chk tipd" title="Dark objects on a light background: the background is taken from above"><input type="checkbox" id="aIPlt"${p.light?" checked":""}> Light background</label><label class="chk tipd" title="ImageJ's sliding paraboloid: a paraboloid of the same curvature slid under the image, no shrinking; better for a background that curves"><input type="checkbox" id="aIPpb"${p.parab?" checked":""}> Sliding paraboloid</label></span>
         <span data-ipr="b"></span><span class="anarows" data-ipr="b"><label class="chk tipd" title="ImageJ's 3 × 3 mean before the background is found, so noise does not pull it down (ImageJ's Disable smoothing when off)"><input type="checkbox" id="aIPsm"${p.smooth===false?"":" checked"}> Smooth first</label><label class="chk tipd" title="The background itself, not the image less it (ImageJ's Create background)"><input type="checkbox" id="aIPcr"${p.create?" checked":""}> The background itself</label></span>
+        <label for="aIPtm" class="tipd" data-ipr="t" title="One of ImageJ's sixteen automatic methods (setAutoThreshold), or a range typed">Threshold</label><select id="aIPtm" data-ipr="t">${IJ_TH_METHODS.map(m=>`<option${m===(p.method||"Default")?" selected":""}>${m}</option>`).join("")}<option value="manual"${p.method==="manual"?" selected":""}>By hand</option></select>
+        <span data-ipr="t"></span><span class="anarows" data-ipr="t"><label class="chk tipd" title="Bright objects on a dark background: the cells above the level"><input type="checkbox" id="aIPdk"${p.dark?" checked":""}> Dark background</label><label class="chk tipd" title="Beyond ImageJ: the empty cells left out of the histogram the method reads"><input type="checkbox" id="aIPsk"${p.skip?" checked":""}> Leave the empty cells out</label></span>
         <label for="aIPq" data-ipr="q">Math</label><select id="aIPq" data-ipr="q">${IJ_MATH.map(([k,t])=>`<option value="${k}"${k===(p.mop||"add")?" selected":""}>${t}</option>`).join("")}</select>
         <label for="aIPv" class="tipd" data-ipr="v" title="The number each value is combined with (Gamma: from 0.05 to 5, as ImageJ's)">Value</label><span class="anarows" data-ipr="v"><input id="aIPv" type="text" class="num" value="${v(p.value==null?25:p.value)}"></span>
         <label for="aIPl" class="tipd" data-ipr="n" title="The values kept; every other value is made empty, as ImageJ's NaN Background makes the cells outside its threshold NaN">Keep from</label><span class="anarows" data-ipr="n"><input id="aIPl" type="text" class="num" value="${v(p.lo)}" aria-label="Keep from"><span class="muted">to</span><input id="aIPh" type="text" class="num" value="${v(p.hi)}" aria-label="Keep to"></span></div>
         <p class="note" id="aIPmsg" aria-live="polite"></p>`; },
     wire(box){ const F=ANA_FORMS.ijproc, vals=()=>{ const r={}; box.querySelectorAll("input,select").forEach(el=>{ if(el.id) r[el.id]=el.type==="checkbox"?el.checked:el.value; }); return r; };
-      const show=r=>{ const op=r.aIPo, me=IJ_MATH.find(e=>e[0]===r.aIPq), on={s:op==="gauss"||op==="unsharp",u:op==="gauss",w:op==="unsharp",b:op==="bg",r:IJ_RANK.includes(op),k:["gauss","unsharp","mean","var"].includes(op),q:op==="math",v:op==="math"&&me&&me[2]==="value",n:op==="math"&&r.aIPq==="nan"};
+      const show=r=>{ const op=r.aIPo, me=IJ_MATH.find(e=>e[0]===r.aIPq), on={s:op==="gauss"||op==="unsharp",u:op==="gauss",w:op==="unsharp",b:op==="bg",r:IJ_RANK.includes(op),k:["gauss","unsharp","mean","var"].includes(op),q:op==="math",v:op==="math"&&me&&me[2]==="value",n:op==="math"&&r.aIPq==="nan"||op==="mask"&&r.aIPtm==="manual",t:op==="mask"};
         box.querySelectorAll("[data-ipr]").forEach(el=>{ el.hidden=!on[el.dataset.ipr]; }); };
       const msg=()=>{ const r=vals(); show(r); const w=F.why(r), el=$("#aIPmsg"); if(w){ el.textContent=w; return; } const o=F.read(r), s=matOf(o.mat), G=ijGeom(s.x,s.y,s.nx,s.ny), u=s.xunit?" "+s.xunit:"";
         let t=`A new matrix of ${s.ny} × ${s.nx} that follows ${matName(o.mat)}`;
         if(o.op==="gauss"&&o.scaled) t+=`: sigma ${fmt(o.sigma/G.pw,4)} cells along X, ${fmt(o.sigma/G.ph,4)} along Y`;
         else if(IJ_RANK.includes(o.op)){ const L=ijLineRadii(o.radius); t+=`: a circle of ${L[L.length-2]} cells, ${2*L[L.length-1]+1} wide`; }
+        else if(o.op==="mask"&&o.method!=="manual"){ const T=ijThreshold(ijOfSheet(s),{method:o.method,dark:!!o.dark,skip:!!o.skip}); if(!T.fail){ let k=0; for(const x of s.z) if(x!=null&&Math.fround(x)>=T.lower&&Math.fround(x)<=T.upper) k++; t+=`: level ${T.t} of 255, ${k} of ${T.n} cells in the mask`; } }
         else if(o.op==="bg"&&!o.parab){ const b=ijBall(o.radius); t+=b.sf>1?`: the image shrunk by ${b.sf} for a ball ${b.width} cells across, as ImageJ does`:`: a ball ${b.width} cells across`; }
         el.textContent=t+"."; };
       // Scaled units ticked or not: the sigma typed turned into the other unit, so the blur stays the same
@@ -23301,6 +23447,7 @@ const ANA_FORMS={
     read(v){ const n=t=>{ const x=parseNum(String(t==null?"":t).trim()); return Number.isFinite(x)?x:null; }, op=IJ_PROCS.some(e=>e[0]===v.aIPo)?v.aIPo:"gauss", o={mat:v.aIPm||null,op};
       if(op==="gauss"){ o.sigma=n(v.aIPs); if(v.aIPu) o.scaled=true; } else if(op==="unsharp"){ o.sigma=n(v.aIPs); o.weight=n(v.aIPw); }
       else if(IJ_RANK.includes(op)) o.radius=n(v.aIPr);
+      else if(op==="mask"){ o.method=v.aIPtm==="manual"||IJ_TH_METHODS.includes(v.aIPtm)?v.aIPtm:"Default"; if(o.method==="manual"){ o.lo=n(v.aIPl); o.hi=n(v.aIPh); } else { if(v.aIPdk) o.dark=true; if(v.aIPsk) o.skip=true; } }
       else if(op==="bg"){ o.radius=n(v.aIPb); if(v.aIPlt) o.light=true; if(v.aIPpb) o.parab=true; if(!v.aIPsm) o.smooth=false; if(v.aIPcr) o.create=true; }
       if(v.aIPk&&["gauss","unsharp","mean","var"].includes(op)) o.skip=true;
       else if(op==="math"){ o.mop=IJ_MATH.some(e=>e[0]===v.aIPq)?v.aIPq:"add"; const me=IJ_MATH.find(e=>e[0]===o.mop); if(me[2]==="value") o.value=n(v.aIPv); if(o.mop==="nan"){ o.lo=n(v.aIPl); o.hi=n(v.aIPh); } }
@@ -23310,6 +23457,7 @@ const ANA_FORMS={
       if(o.op==="gauss"&&o.scaled&&Math.max(o.sigma/G.pw,o.sigma/G.ph)>Math.max(s.nx,s.ny)*10) return "Sigma is more than ten times the matrix: every cell would come out alike.";
       if(o.op==="unsharp"&&!(o.weight>=0&&o.weight<=0.99)) return "The mask weight is from 0 to 0.99.";
       if(IJ_RANK.includes(o.op)&&!(o.radius>=0.5&&o.radius<=100)) return "The radius is from 0.5 to 100 cells.";
+      if(o.op==="mask"&&o.method==="manual"&&!(o.lo!=null&&o.hi!=null&&o.lo<=o.hi)) return "The range kept is two numbers, the lower first.";
       if(o.op==="bg"){ const w=ijBgWhy(s.nx,s.ny,o.radius,!!o.parab,s.z.some(x=>x==null||!Number.isFinite(x))); if(w) return w; }
       if(o.op==="math"){ const me=IJ_MATH.find(e=>e[0]===o.mop); if(me[2]==="value"&&o.value==null) return "The value is a number.";
         if(o.mop==="gamma"&&!(o.value>=0.05&&o.value<=5)) return "Gamma is from 0.05 to 5, as ImageJ's.";
@@ -24791,6 +24939,7 @@ function matClean(p){ if(p.mats==null) return; if(!Array.isArray(p.mats)){ delet
       ["xname","xunit","yname","yunit","zname","zunit"].forEach(k=>{ if(typeof s[k]==="string"&&s[k]) o[k]=str(s[k]); });
       if(typeof s.ana==="string"&&s.ana) o.ana=s.ana;
       if(s.disp&&typeof s.disp==="object"){ const d=dispClean(s.disp); if(d) o.disp=d; }   /* how it is shown (IMAGE_SPEC I.3) */
+      if(s.thr&&typeof s.thr==="object"){ const t=thrClean(s.thr); if(t) o.thr=t; }   /* its threshold (I.6) */
       if(s.meta&&typeof s.meta==="object"&&!Array.isArray(s.meta)){ const m={}; Object.keys(s.meta).slice(0,200).forEach(k=>{ const v=s.meta[k]; if(typeof v==="string"||typeof v==="number") m[String(k).slice(0,200)]=String(v).slice(0,400); }); if(Object.keys(m).length) o.meta=m; }   /* the file's header fields (QUDI_SPEC decision 4) */
       if(s.fx&&typeof s.fx==="object"&&typeof s.fx.src==="string"&&s.fx.refs&&typeof s.fx.refs==="object"){ o.fx={src:s.fx.src.slice(0,4000),refs:Object.assign(Object.create(null),...Object.entries(s.fx.refs).filter(([k,v])=>typeof v==="string").map(([k,v])=>({[k]:v})))}; if(typeof s.fx.err==="string") o.fx.err=s.fx.err; }
       if(s.raw&&typeof s.raw==="object"&&Array.isArray(s.raw.hist)) o.raw={fp:typeof s.raw.fp==="string"?s.raw.fp:"",hist:s.raw.hist.filter(e=>e&&typeof e==="object"&&typeof e.text==="string").slice(-60)};
@@ -25157,7 +25306,7 @@ function mxBcDraw(id){ const el=$("#w-"+id), box=el&&el.querySelector(".mxbc"); 
     <div class="bclt"><label for="bcL_${id}">Table</label><select id="bcL_${id}" data-bclut${ro?" disabled":""}>${CMAP_LIST.map(([k,l])=>`<option value="${k}"${k===d.lut?" selected":""}>${esc(l)}</option>`).join("")}</select><label class="chk"><input type="checkbox" data-bcinv${d.inv?" checked":""}${ro?" disabled":""}> Inverted</label></div>`;
   if(keep){ const q=box.querySelector(`[data-bck="${keep}"]`); if(q) q.focus({preventScroll:true}); }
   box.querySelectorAll('input[type="range"]').forEach(paintRange); }
-function mxBcWire(el,id){ const box=el.querySelector(".mxbc"), sid=()=>mxSt(mxBid(id)).sid;
+function mxBcWire(el,id){ mxThWire(el,id); const box=el.querySelector(".mxbc"), sid=()=>mxSt(mxBid(id)).sid;
   const at=(k,v)=>{ const s=matOf(sid()); if(!s) return null; const d=matDispOf(s), H=d.H, dmin=H.min, dmax=H.n&&H.max>H.min?H.max:H.min+1, sr=ijBCRange(dmin,dmax,d.lo,d.hi); return ijBCSet(k,v,dmin,dmax,d.lo,d.hi,sr); };
   box.addEventListener("input",e=>{ const k=e.target.dataset.bck; if(!k) return; const r=at(k,+e.target.value), s=matOf(sid()); if(!r||!s) return;
     S.dispPv={sid:s.id,d:Object.assign({},s.disp||{},{lo:r.min,hi:r.max})}; const st=mxSt(mxBid(id)); paintRange(e.target);
@@ -25214,9 +25363,9 @@ function syncMatWins(){ const books=matBooks(), want=new Set(books.map(b=>mxWinI
     if(!WINS[id]){ WINS[id]={title:b.name,icon:"grid",def:[0.06+(i%6)*0.03,0.05+(i%6)*0.04,0.52,0.62],open:false,mx:b.id};
       const prev=[...document.querySelectorAll(".win.mxwin,.win.wswin")].pop()||$("#w-sheet");
       prev.insertAdjacentHTML("afterend",`<section class="win mxwin" id="w-${id}" data-win="${id}" aria-label="${esc(b.name)}"><header class="win-h">${ICON("grid","sm")}<h2 class="win-t">${esc(b.name)}</h2><span class="win-sub"></span><span class="sp"></span></header><div class="win-b mx-b">
-        <div class="mxbar"><div class="seg mini mxview-sw" role="group" aria-label="View"><button data-mxv="img" aria-pressed="true" title="The matrix as an image, each cell a pixel at its true shape">Image</button><button data-mxv="cells" aria-pressed="false" title="The matrix as cells, to read and type values">Cells</button></div><span class="mxzoom"><button class="btn icon sm" data-mxz="out" title="Zoom out (−)" aria-label="Zoom out"><b aria-hidden="true">−</b></button><button class="btn sm mxmag" data-mxz="menu" aria-haspopup="menu" title="The magnification: ImageJ's levels, Fit and 100 %"></button><button class="btn icon sm" data-mxz="in" title="Zoom in (+)" aria-label="Zoom in">${ICON("plus","sm")}</button><button class="btn sm" data-mxz="fit" title="The whole image, as large as the window allows (0, or a double-click)">Fit</button><button class="btn sm mxlutb" data-mxlut aria-haspopup="menu" title="The lookup table: the colours the values are shown in"><span class="lsw" aria-hidden="true"></span><span class="lnm"></span>${ICON("chev","sm")}</button><button class="btn sm" data-mxbc aria-pressed="false" title="Brightness and contrast: the range of values the table spans (C)">Contrast</button><span class="seg mini mxtools" role="radiogroup" aria-label="Selection tool">${MX_TOOLS.map(([k,ic,t])=>`<button type="button" role="radio" data-mxt="${k}" aria-checked="${k==="rect"}" title="${t}" aria-label="${t}">${ICON(ic,"sm")}</button>`).join("")}</span><button class="btn sm" data-mxrm aria-pressed="false" title="The ROI Manager: the selections kept with this book, measured together (T keeps the selection, M measures it)">Selections</button></span><span class="mxaddr" title="The cell: its row and column"></span><input class="mxval" type="text" spellcheck="false" aria-label="The cell's value" title="The cell's value: type a number and press Enter"><span class="sp"></span><button class="btn sm" data-mxproc aria-haspopup="menu" title="ImageJ's Process menu: filters and arithmetic, each a new matrix that follows this one">Process ${ICON("chev","sm")}</button><button class="btn sm" data-mxmenu aria-haspopup="menu" title="What can be done to this matrix">Matrix ${ICON("chev","sm")}</button><button class="btn sm" data-mxplot aria-haspopup="menu" title="Plot this matrix on a graph of its own">${ICON("chart","sm")}Plot</button></div>
+        <div class="mxbar"><div class="seg mini mxview-sw" role="group" aria-label="View"><button data-mxv="img" aria-pressed="true" title="The matrix as an image, each cell a pixel at its true shape">Image</button><button data-mxv="cells" aria-pressed="false" title="The matrix as cells, to read and type values">Cells</button></div><span class="mxzoom"><button class="btn icon sm" data-mxz="out" title="Zoom out (−)" aria-label="Zoom out"><b aria-hidden="true">−</b></button><button class="btn sm mxmag" data-mxz="menu" aria-haspopup="menu" title="The magnification: ImageJ's levels, Fit and 100 %"></button><button class="btn icon sm" data-mxz="in" title="Zoom in (+)" aria-label="Zoom in">${ICON("plus","sm")}</button><button class="btn sm" data-mxz="fit" title="The whole image, as large as the window allows (0, or a double-click)">Fit</button><button class="btn sm mxlutb" data-mxlut aria-haspopup="menu" title="The lookup table: the colours the values are shown in"><span class="lsw" aria-hidden="true"></span><span class="lnm"></span>${ICON("chev","sm")}</button><button class="btn sm" data-mxbc aria-pressed="false" title="Brightness and contrast: the range of values the table spans (C)">Contrast</button><button class="btn sm" data-mxth aria-pressed="false" title="ImageJ's Threshold: the cells in a range of values shown in red, set by one of ImageJ's sixteen methods or by hand">Threshold</button><span class="seg mini mxtools" role="radiogroup" aria-label="Selection tool">${MX_TOOLS.map(([k,ic,t])=>`<button type="button" role="radio" data-mxt="${k}" aria-checked="${k==="rect"}" title="${t}" aria-label="${t}">${ICON(ic,"sm")}</button>`).join("")}</span><button class="btn sm" data-mxrm aria-pressed="false" title="The ROI Manager: the selections kept with this book, measured together (T keeps the selection, M measures it)">Selections</button></span><span class="mxaddr" title="The cell: its row and column"></span><input class="mxval" type="text" spellcheck="false" aria-label="The cell's value" title="The cell's value: type a number and press Enter"><span class="sp"></span><button class="btn sm" data-mxproc aria-haspopup="menu" title="ImageJ's Process menu: filters and arithmetic, each a new matrix that follows this one">Process ${ICON("chev","sm")}</button><button class="btn sm" data-mxmenu aria-haspopup="menu" title="What can be done to this matrix">Matrix ${ICON("chev","sm")}</button><button class="btn sm" data-mxplot aria-haspopup="menu" title="Plot this matrix on a graph of its own">${ICON("chart","sm")}Plot</button></div>
         <div class="mxinfo" hidden><span class="mxdim"></span><span class="mxdsp"></span><span class="mxread" aria-live="off"></span></div>
-        <div class="mxiw" hidden><div class="mximg" tabindex="0" role="img"><canvas></canvas></div><div class="mxside" hidden><section class="mxbc" hidden aria-label="Brightness and contrast"></section><section class="mxroi" hidden aria-label="Selections"></section></div></div>
+        <div class="mxiw" hidden><div class="mximg" tabindex="0" role="img"><canvas></canvas></div><div class="mxside" hidden><section class="mxbc" hidden aria-label="Brightness and contrast"></section><section class="mxroi" hidden aria-label="Selections"></section><section class="mxth" hidden aria-label="Threshold"></section></div></div>
         <div class="mxgrid" tabindex="0" role="grid" aria-label="The matrix's values"><div class="mxview"></div><div class="mxsp"></div></div>
         <div class="wstabs mxtabs" role="tablist" aria-label="Matrix sheets"></div>
         <div class="mxfoot"><span class="mxsize"></span><span class="mxstate"></span><span class="mxsel"></span></div></div></section>`);
@@ -25231,11 +25380,12 @@ function renderMatWin(id){ const el=$("#w-"+id), bid=mxBid(id), b=matBooks().fin
   if(!st.view) st.view=matRangeOf(s.z).n?"img":"cells";   // an image, unless there is nothing yet to see
   const img=st.view==="img", ib=el.querySelector(".mximg"), gr=el.querySelector(".mxgrid");
   ib.closest(".mxiw").hidden=!img; el.querySelector(".mxinfo").hidden=!img; gr.hidden=img; el.classList.toggle("mximgv",img);
-  const bc=el.querySelector(".mxbc"), rm=el.querySelector(".mxroi"); bc.hidden=!(img&&st.bc); rm.hidden=!(img&&st.rm); el.querySelector(".mxside").hidden=bc.hidden&&rm.hidden;
+  const bc=el.querySelector(".mxbc"), rm=el.querySelector(".mxroi"), th=el.querySelector(".mxth"); bc.hidden=!(img&&st.bc); rm.hidden=!(img&&st.rm); th.hidden=!(img&&st.th); el.querySelector(".mxside").hidden=bc.hidden&&rm.hidden&&th.hidden;
+  el.querySelector("[data-mxth]").setAttribute("aria-pressed",String(!!st.th));
   el.querySelectorAll("[data-mxt]").forEach(b=>{ const on=b.dataset.mxt===st.tool; b.setAttribute("aria-checked",String(on)); b.tabIndex=on?0:-1; }); el.querySelector("[data-mxrm]").setAttribute("aria-pressed",String(!!st.rm));
   el.querySelectorAll("[data-mxv]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mxv===st.view)));
   ib.dataset.tool=st.tool;
-  if(img){ mxImgDraw(id); mxImgBar(id); mxBcDraw(id); mxRoiDraw(id); } else { mxDraw(id); mxBar(id); } mxFoot(id); }
+  if(img){ mxImgDraw(id); mxImgBar(id); mxBcDraw(id); mxRoiDraw(id); mxThDraw(id); } else { mxDraw(id); mxBar(id); } mxFoot(id); }
 function mxDraw(id){ const el=$("#w-"+id), grid=el&&el.querySelector(".mxgrid"); if(!grid) return; const st=mxSt(mxBid(id)), s=matOf(st.sid); const view=grid.querySelector(".mxview"), sp=grid.querySelector(".mxsp");
   if(!s){ view.innerHTML=""; return; }
   sp.style.width=(MX_SW+s.nx*MX_CW)+"px"; sp.style.height=(MX_RH*(s.ny+2))+"px";
@@ -25297,7 +25447,73 @@ function matDispSet(sid,d,o){ o=o||{}; const s=matOf(sid); if(!s||S.readOnly) re
 function dispText(d,s){ const r=matDispOf(Object.assign({},s,{disp:d}));
   return `in ${lutName(r.lut)}${r.inv?" inverted":""}, ${r.auto?"over its values' range":`from ${fmt(r.lo,6)} to ${fmt(r.hi,6)}${s.zunit?" "+s.zunit:""}`}`; }
 // The image (and the panel, the info line) drawn again for a preview, without saving.
-function mxDispRedraw(sid){ matWinIds().forEach(id=>{ if(mxSt(mxBid(id)).sid===sid&&winOpen(id)){ mxImgDraw(id); mxImgBar(id); mxBcDraw(id); } }); }
+function mxDispRedraw(sid){ matWinIds().forEach(id=>{ if(mxSt(mxBid(id)).sid===sid&&winOpen(id)){ mxImgDraw(id); mxImgBar(id); mxBcDraw(id); mxThDraw(id); } }); }
+/* ---- A threshold (IMAGE_SPEC I.6): the sheet's `thr` {method (one of IJ_TH_METHODS, or "manual"), dark, skip, lo, hi}, kept with the
+   matrix as its display is (undone with it, never in its record), its cells drawn in ImageJ's red on the image; the Threshold panel
+   beside the image sets it by a method or by hand. As in ImageJ, the range stays as numbers when the values change; Auto works it out
+   again. ---- */
+function thrClean(t){ if(!t||typeof t!=="object") return null; const m=t.method==="manual"||IJ_TH_METHODS.includes(t.method)?t.method:null;
+  if(!m||!(Number.isFinite(t.lo)&&Number.isFinite(t.hi)&&t.lo<=t.hi)) return null; const o={method:m,lo:t.lo,hi:t.hi}; if(t.dark===true) o.dark=true; if(t.skip===true) o.skip=true; return o; }
+const matThrOf=s=>s&&s.thr?thrClean(s.thr):null;
+const ijOfSheet=s=>{ const {X,Y}=matXYOf(s); return {nx:s.nx,ny:s.ny,xs:Array.from(X),ys:Array.from(Y),z:s.z}; };
+// The range a method gives, as setAutoThreshold sets it.
+function matThrBy(s,method,dark,skip){ const r=ijThreshold(ijOfSheet(s),{method,dark,skip}); return r.fail?null:{method,dark,skip,lo:r.lower,hi:r.upper}; }
+function matThrSet(sid,t,o){ o=o||{}; const s=matOf(sid); if(!s||S.readOnly) return false; const nt=t?thrClean(t):null, was=matThrOf(s);
+  if(JSON.stringify(nt)===JSON.stringify(was)){ mxDispRedraw(sid); return false; }
+  const label=`thresholding ${s.name}`; if(o.burst) kbBurst("thr:"+sid,label); else pushUndo(label);
+  save({mats:matsWith(sid,q=>{ const c=Object.assign({},q); if(nt) c.thr=nt; else delete c.thr; return c; })},o.log||(nt?`thresholded the matrix ${s.name} ${thrText(nt,s)}`:`took the threshold off the matrix ${s.name}`)); return true; }
+// "by Otsu, dark background: 1 230 c/s and above"
+function thrText(t,s){ const u=s.zunit?" "+s.zunit:"", lo=t.lo<=-1e30, hi=t.hi>=1e30;
+  const r=lo&&hi?"every value":lo?`up to ${fmt(t.hi,6)}${u}`:hi?`${fmt(t.lo,6)}${u} and above`:`from ${fmt(t.lo,6)} to ${fmt(t.hi,6)}${u}`;
+  return `${t.method==="manual"?"by hand":`by ${t.method}${t.dark?", dark background":""}${t.skip?", the empty cells left out":""}`}: ${r}`; }
+// The thresholded cells as a canvas the size of the matrix, in ImageJ's red, oriented as mxImage draws the values.
+const MXTHR=new WeakMap();
+function mxThrImage(s,t){ const k=[s.nx,s.ny,JSON.stringify([s.x,s.y]),t.lo,t.hi].join("|"); let o=MXTHR.get(s.z); if(o&&o.k===k) return o;
+  const {X,Y}=matXYOf(s), fx=s.nx>1&&X[0]>X[s.nx-1], fy=s.ny>1&&Y[0]<Y[s.ny-1], cv=document.createElement("canvas"); cv.width=s.nx; cv.height=s.ny;
+  const ctx=cv.getContext("2d"), im=ctx.createImageData(s.nx,s.ny), px=im.data, z=s.z; let n=0;
+  for(let j=0;j<s.ny;j++){ const r=(fy?s.ny-1-j:j)*s.nx; for(let i=0;i<s.nx;i++){ const v=z[r+(fx?s.nx-1-i:i)]; if(v==null) continue; const f=Math.fround(v); if(f>=t.lo&&f<=t.hi){ const q=4*(j*s.nx+i); px[q]=255; px[q+3]=255; n++; } } }
+  ctx.putImageData(im,0,0); o={k,cv,n}; MXTHR.set(s.z,o); return o; }
+function mxThToggle(id,on){ const st=mxSt(mxBid(id)), s=matOf(st.sid); st.th=on==null?!st.th:!!on;
+  // as ImageJ's Threshold window, opening it thresholds the image by Default when it has no threshold yet
+  if(st.th&&s&&!matThrOf(s)&&!S.readOnly){ const t=matThrBy(s,"Default",false,false); if(t) matThrSet(s.id,t); }
+  renderMatWin(id); if(st.th){ const f=$(`#w-${id} .mxth [data-thm]`); if(f&&!f.disabled) f.focus({preventScroll:true}); } else { const f=mxFocusEl(id); if(f) f.focus({preventScroll:true}); } }
+function mxThOpen(sid){ const b=matBookOf(sid); if(!b) return; matOpen(b.id,sid); const id=mxWinId(b.id); if(mxSt(b.id).view!=="img") mxSetView(id,"img"); mxThToggle(id,true); }
+function mxThDraw(id){ const el=$("#w-"+id), box=el&&el.querySelector(".mxth"); if(!box||box.hidden) return; const st=mxSt(mxBid(id)), s=matOf(st.sid); if(!s) return;
+  const t=matThrOf(s), ro=S.readOnly, R=ijThreshold(ijOfSheet(s),{method:t&&t.method!=="manual"?t.method:"Default",dark:!!(t&&t.dark),skip:!!(t&&t.skip)});
+  const sig=[s.id,objId(s.z),JSON.stringify(t),ro,st.thShow!==false].join("|"); if(box._sig===sig) return; const keep=box.contains(document.activeElement)?document.activeElement.id:null; box._sig=sig;
+  if(R.fail){ box.innerHTML=`<div class="bch"><b>Threshold</b><button class="btn icon sm" data-thx title="Close" aria-label="Close">${ICON("x","sm")}</button></div><p class="note">${esc(R.fail)}</p>`; return; }
+  const W=240, Hh=80, C=R.hist; let m1=0, m2=0; for(let i=0;i<256;i++){ const c=C[i]; if(c>m1){ m2=m1; m1=c; } else if(c>m2) m2=c; } const top=m1>1.5*m2&&m2>0?1.5*m2:m1||1;
+  let bars=""; for(let i=0;i<256;i++){ const h=Math.min(Hh,C[i]/top*Hh); if(h>0) bars+=`M${(i*W/256).toFixed(2)},${Hh}v${(-h).toFixed(2)}h${(W/256).toFixed(2)}v${h.toFixed(2)}z`; }
+  const span=R.max>R.min?R.max-R.min:1, xs=v=>Math.max(0,Math.min(W,(v-R.min)/span*W)), lo=t?t.lo:R.lower, hi=t?t.hi:R.upper, x0=xs(lo), x1=xs(hi);
+  const svg=`<svg class="bchist thhist" viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none" aria-hidden="true"><rect x="${x0.toFixed(2)}" y="0" width="${Math.max(0.6,x1-x0).toFixed(2)}" height="${Hh}" class="thband"/><path d="${bars}" class="bcbars"/></svg>`;
+  const inN=t?mxThrImage(s,t).n:0, nv=R.n, u=s.zunit?` ${s.zunit}`:"", v6=v=>fmt(v,6), shown=(v,end)=>v<=-1e30||v>=1e30?"":v6(v);
+  box.innerHTML=`<div class="bch"><b>Threshold</b><button class="btn icon sm" data-thx title="Close" aria-label="Close">${ICON("x","sm")}</button></div>
+    ${svg}<div class="bcends"><span title="The least value">${esc(v6(R.min))}</span><span title="The greatest value">${esc(v6(R.max))}</span></div>
+    <div class="throw"><label for="thM_${id}">Method</label><select id="thM_${id}" data-thm${ro?" disabled":""}>${IJ_TH_METHODS.map(m=>`<option${t&&t.method===m?" selected":""}>${m}</option>`).join("")}<option value="manual"${t&&t.method==="manual"?" selected":""}>By hand</option></select></div>
+    <label class="chk tipd" title="Bright objects on a dark background: the cells above the level are thresholded (ImageJ's Dark background)"><input type="checkbox" id="thD_${id}" data-thd${t&&t.dark?" checked":""}${ro?" disabled":""}> Dark background</label>
+    <label class="chk tipd" title="Beyond ImageJ: the empty cells left out of the histogram the method reads (ImageJ counts them in its lowest bin)"><input type="checkbox" id="thK_${id}" data-thk${t&&t.skip?" checked":""}${ro?" disabled":""}> Leave the empty cells out</label>
+    <div class="throw"><label for="thL_${id}">From</label><input type="text" class="num" id="thL_${id}" data-thl value="${esc(t?shown(t.lo):"")}" placeholder="the least" aria-label="From"${ro?" disabled":""}><span class="muted">to</span><input type="text" class="num" id="thH_${id}" data-thh value="${esc(t?shown(t.hi):"")}" placeholder="the greatest" aria-label="To"${ro?" disabled":""}></div>
+    <p class="note thn" aria-live="polite">${t?`${inN.toLocaleString("en")} of ${nv.toLocaleString("en")} cells (${fmt(100*inN/Math.max(1,nv),3)} %)${t.method!=="manual"?` · level ${R.t} of 255`:""}${R.empty&&!t.skip?` · ${R.empty} empty counted in the lowest bin, as ImageJ`:""}`:"No threshold."}</p>
+    <label class="chk"><input type="checkbox" data-ths${st.thShow!==false?" checked":""}> Show in red</label>
+    <div class="bcbtns"><button class="btn sm" data-tha="auto" title="The method worked out again on the values as they are now"${ro?" disabled":""}>Auto</button><button class="btn sm" data-tha="reset" title="No threshold"${ro||!t?" disabled":""}>Reset</button><button class="btn sm" data-tha="mask" title="Process › Binary › Convert to Mask: a new matrix of 255 in the range and 0 elsewhere, which follows this one"${ro||!t?" disabled":""}>Mask</button><button class="btn sm" data-tha="nan" title="Process › Math › NaN Background: a new matrix with every value outside the range empty"${ro||!t?" disabled":""}>NaN background</button></div>`;
+  if(keep){ const q=document.getElementById(keep); if(q) q.focus({preventScroll:true}); } }
+function mxThWire(el,id){ const box=el.querySelector(".mxth"), sid=()=>mxSt(mxBid(id)).sid;
+  const by=()=>{ const s=matOf(sid()); if(!s) return; const m=box.querySelector("[data-thm]").value, d=box.querySelector("[data-thd]").checked, k=box.querySelector("[data-thk]").checked;
+    if(m==="manual"){ const t=matThrOf(s)||matThrBy(s,"Default",d,k); if(t) matThrSet(s.id,Object.assign({},t,{method:"manual"}),{burst:true}); return; }
+    const t=matThrBy(s,m,d,k); if(t) matThrSet(s.id,t,{burst:true}); };
+  box.addEventListener("change",e=>{ const s=matOf(sid()); if(!s) return; const tg=e.target;
+    if(tg.matches("[data-ths]")){ mxSt(mxBid(id)).thShow=tg.checked; box._sig=null; mxImgDraw(id); mxThDraw(id); return; }
+    if(tg.matches("[data-thm],[data-thd],[data-thk]")){ by(); return; }
+    if(tg.matches("[data-thl],[data-thh]")){ const n=x=>{ const t=String(x).trim(); if(!t) return null; const v=parseNum(t); return Number.isFinite(v)?v:NaN; };
+      const a=n(box.querySelector("[data-thl]").value), b=n(box.querySelector("[data-thh]").value), t0=matThrOf(s)||{};
+      const lo=a==null?-1e30:a, hi=b==null?1e30:b; if(Number.isNaN(lo)||Number.isNaN(hi)||lo>hi){ toast("The range is two numbers, the lower first (empty for no end)."); box._sig=null; mxThDraw(id); return; }
+      matThrSet(s.id,{method:"manual",dark:!!t0.dark,skip:!!t0.skip,lo,hi},{burst:true}); } });
+  box.addEventListener("click",e=>{ const b=e.target.closest("[data-tha],[data-thx]"); if(!b) return; if(b.dataset.thx!=null){ mxThToggle(id,false); return; }
+    const s=matOf(sid()); if(!s) return; const t=matThrOf(s), a=b.dataset.tha;
+    if(a==="auto"){ const m=t&&t.method!=="manual"?t.method:"Default", r=matThrBy(s,m,!!(t&&t.dark),!!(t&&t.skip)); if(r) matThrSet(s.id,r); }
+    else if(a==="reset") matThrSet(s.id,null);
+    else if(a==="mask"&&t) ijProcRun(s.id,t.method==="manual"?{op:"mask",method:"manual",lo:t.lo,hi:t.hi}:{op:"mask",method:t.method,dark:!!t.dark,skip:!!t.skip});
+    else if(a==="nan"&&t) ijProcRun(s.id,{op:"math",mop:"nan",lo:t.lo,hi:t.hi}); }); }
 // The 256 entries of a table, r, g, b each: ImageJ's own (ijLut), else Kurve's map at 256 places; reversed when inverted.
 const MXLUT={};
 function mxLut(k,inv){ const key=k+(inv?"~":""); if(MXLUT[key]) return MXLUT[key]; let L=/^ij:/.test(k)?ijLut(k.slice(3)):null;
@@ -25324,7 +25540,7 @@ function mxImgDraw(id){ const el=$("#w-"+id), box=el&&el.querySelector(".mximg")
   mxClamp(st,s,W,H);
   const mx=st.mag, my=st.mag*ry, tx=Math.round((W/2-st.cx*mx)*dpr)/dpr, ty=Math.round((H/2-st.cy*my)*dpr)/dpr, im=mxImage(s,mxDisp(s)), ctx=cv.getContext("2d");
   ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cw,ch); ctx.imageSmoothingEnabled=false;
-  ctx.setTransform(dpr*mx,0,0,dpr*my,dpr*tx,dpr*ty); ctx.drawImage(im.cv,0,0); ctx.setTransform(1,0,0,1,0,0);
+  ctx.setTransform(dpr*mx,0,0,dpr*my,dpr*tx,dpr*ty); ctx.drawImage(im.cv,0,0); { const t=matThrOf(s); if(t&&st.thShow!==false) ctx.drawImage(mxThrImage(s,t).cv,0,0); } ctx.setTransform(1,0,0,1,0,0);
   const g={tx,ty,mx,my,W,H,fx:im.fx,fy:im.fy,nx:s.nx,ny:s.ny,dpr}; box._g=g;
   g.e=matExtent(s); mxOverlay(ctx,g,s,st);
   const q=mxSel(st), roi=st.roi;
@@ -25506,6 +25722,7 @@ function wireMxImg(el,id){ const box=el.querySelector(".mximg"), bid=()=>mxBid(i
   el.querySelector("[data-mxrm]").addEventListener("click",e=>{ e.stopPropagation(); const st=mxSt(bid()); st.rm=!st.rm; renderMatWin(id); });
   el.querySelector("[data-mxlut]").addEventListener("click",e=>{ e.stopPropagation(); toggleMenu(e.currentTarget,()=>mxLutItems(mxSt(bid()).sid),{label:"Lookup table",focus:"checked"}); });
   el.querySelector("[data-mxbc]").addEventListener("click",e=>{ e.stopPropagation(); mxBcToggle(id); });
+  el.querySelector("[data-mxth]").addEventListener("click",e=>{ e.stopPropagation(); mxThToggle(id); });
   el.querySelector(".mxzoom").addEventListener("click",e=>{ const b=e.target.closest("[data-mxz]"); if(!b) return; const k=b.dataset.mxz;
     if(k==="menu") toggleMenu(b,()=>mxMagItems(id),{label:"Magnification",focus:"checked"}); else if(k==="fit") mxZoomFit(id); else mxZoomStep(id,k==="in"); });
   box.addEventListener("wheel",e=>{ e.preventDefault(); const st=mxSt(bid()); if(st.mag==null) return; const p=at(e);
@@ -25700,6 +25917,7 @@ function matMenuItems(sid){ const s=matOf(sid), ro=S.readOnly, on=!!s&&!ro;
     {label:"Lookup table",enabled:!!s,title:"The colours its image is shown in: ImageJ's tables and Kurve's",sub:()=>mxLutItems(sid)},
     {label:"Brightness and contrast",enabled:!!s,title:"The range of values the table spans, beside its image (C in the image)",run:()=>mxBcOpen(sid)},
     {label:"Enhance contrast…",enabled:on,title:"ImageJ's Process › Enhance Contrast: a share of the values saturated",run:()=>mxBcAct(null,"enh",sid)},
+    {label:"Threshold",enabled:!!s,title:"ImageJ's Image › Adjust › Threshold: the cells in a range shown in red, by one of its sixteen methods or by hand, beside the image",run:()=>mxThOpen(sid)},
     {label:"Save the image as PNG",enabled:!!s,title:"The image as shown, each cell a block of pixels, with its calibration bar",run:()=>mxSavePng(sid)},
     {label:"Process",enabled:!!s,title:"ImageJ's Process menu: filters and arithmetic, each a new matrix that follows this one",sub:()=>ijProcItems(sid)},
     {label:"Spots…",enabled:on,title:ANA_KINDS.spots.help,run:()=>anaDlg("spots",{p:spxStart(sid)})},
@@ -25722,6 +25940,7 @@ function ijProcRun(sid,kp){ sid=sid||matFront(); if(!matOf(sid)){ toast("No matr
   const aid=anaMakeTyped("ijproc",Object.assign({mat:sid},kp)); if(!aid) return; const a=anaOf(aid);
   if(a&&a.res&&a.res.report||a&&a.res&&a.res.err) ijProcOpen(aid,true); else { S.anaOpen=aid; toast(`${a?a.name:"It"} is being worked out; its window opens when it is done.`); } }
 function ijProcDlg(sid,op,mop){ sid=sid||matFront(); const s=matOf(sid); if(!s){ toast("No matrix is open."); return; } const p={mat:sid,op}; if(mop) p.mop=mop;
+  if(op==="mask"){ const t=matThrOf(s); if(t) Object.assign(p,t.method==="manual"?{method:"manual",lo:t.lo,hi:t.hi}:{method:t.method,dark:!!t.dark,skip:!!t.skip}); }
   if(mop==="nan"){ const {lo,hi}=matRange(s.z); p.lo=lo; p.hi=hi; } anaDlg("ijproc",{p}); }
 function ijProcItems(sid){ const on=!S.readOnly&&!!matOf(sid), run=(op,mop)=>()=>ijProcRun(sid,mop?{op,mop}:{op}), dlg=(op,mop)=>()=>ijProcDlg(sid,op,mop);
   return [{label:"Smooth",enabled:on,title:"Each cell the mean of itself and its eight neighbours (ImageJ's Process › Smooth)",run:run("smooth")},
@@ -25729,6 +25948,7 @@ function ijProcItems(sid){ const on=!S.readOnly&&!!matOf(sid), run=(op,mop)=>()=
     {label:"Find edges",enabled:on,title:"Sobel's gradient: where the values change fastest (Process › Find Edges)",run:run("edges")},"-",
     {label:"Gaussian blur…",enabled:on,title:"A Gaussian of a sigma in cells or in X and Y's unit, ImageJ's kernel and edges (Process › Filters › Gaussian Blur)",run:dlg("gauss")},
     {label:"Unsharp mask…",enabled:on,title:"The image less a share of its blur, so details stand out (Process › Filters › Unsharp Mask)",run:dlg("unsharp")},
+    {label:"Binary",enabled:on,title:"ImageJ's Process › Binary",sub:()=>[{label:"Convert to mask…",title:"255 in a threshold's range and 0 elsewhere, the threshold by one of ImageJ's methods or typed",run:dlg("mask")}]},
     {label:"Subtract background…",enabled:on,title:"A smooth background under the image, by ImageJ's rolling ball or sliding paraboloid, taken away (Process › Subtract Background)",run:dlg("bg")},
     {label:"Filters",enabled:on,title:"ImageJ's rank filters over a circle of a radius in cells (Process › Filters)",sub:()=>[
       {label:"Mean…",run:dlg("mean")},{label:"Median…",title:"Takes out spikes and keeps edges",run:dlg("median")},{label:"Minimum…",run:dlg("min")},{label:"Maximum…",run:dlg("max")},{label:"Variance…",title:"How much the values vary about each cell",run:dlg("var")}]},
@@ -31340,7 +31560,8 @@ function analyzeMenu(){
       {label:"Area between two curves…", title:yCols().length>1?ANA_KINDS.between.help:"Two columns are needed: the area is between two", run:()=>anaDlg("between",{two:true}), enabled:!S.readOnly&&!!P()&&yCols().length>1},
       {label:"Interpolate…", title:ANA_KINDS.interp.help, run:()=>anaDlg("interp"), enabled:!S.readOnly&&!!P()}]},
     {label:"Image", sub:()=>{ const ok=!S.readOnly&&!!P()&&matAll().length>0, need="A matrix is needed: Data › Matrix makes one, and a qudi scan is read as one";
-      return [{label:"Process", title:ok?ANA_KINDS.ijproc.help:need, sub:()=>ijProcItems(matFront()||(matAll()[0]&&matAll()[0].s.id)), enabled:ok},"-",
+      return [{label:"Process", title:ok?ANA_KINDS.ijproc.help:need, sub:()=>ijProcItems(matFront()||(matAll()[0]&&matAll()[0].s.id)), enabled:ok},
+        {label:"Threshold", title:ok?"ImageJ's Threshold on the matrix in front: the cells in a range shown in red, by one of its sixteen methods or by hand":need, run:()=>mxThOpen(matFront()||matAll()[0].s.id), enabled:ok},"-",
         {label:"Measure…", title:ok?ANA_KINDS.ijmeasure.help:need, run:()=>anaDlg("ijmeasure",{p:ijmStart()}), enabled:ok},
         {label:"Find maxima…", title:ok?ANA_KINDS.ijmaxima.help:need, run:()=>anaDlg("ijmaxima",{p:ijxStart()}), enabled:ok},
         {label:"Profile…", title:ok?ANA_KINDS.ijprofile.help:need, run:()=>anaDlg("ijprofile",{p:ijpStart()}), enabled:ok},"-",
@@ -33700,6 +33921,7 @@ ${DL([["Stack columns","The columns ticked one under another in a column of valu
 <p>The image is shown as ImageJ shows a 32-bit image: each value scaled into 256 steps between the range shown (below it the table's first colour, above it its last) and coloured by a <b>lookup table</b>, the button beside Fit: ImageJ's own (Grays, Fire, Ice, Spectrum, 3-3-2 RGB, Red, Green, Blue, Cyan, Magenta, Yellow, Red/Green, HiLo, which marks the lowest step blue and the highest red) or Kurve's maps, and <em>Inverted</em> for its colours in the other order. <b>Contrast</b> (or ${K("C")}) opens ImageJ's Brightness and Contrast beside the image: the values' histogram with the range shown drawn over it, the table under it with the range's ends, and Minimum, Maximum, Brightness and Contrast as ImageJ's sliders (the image follows as one moves; letting go is one undo step). <em>Auto</em> is ImageJ's: each press leaves more of the brightest and darkest values out of the range, and after a few presses starts again; <em>Reset</em> the values' whole range; <em>Set…</em> two numbers (for every sheet of the book, if asked); <em>Enhance…</em> ImageJ's Enhance Contrast, the share of the values shown in the end colours (0.35 % to begin with). The table and range are kept with the matrix and undone with it, but are no change of its values (nothing in its record): a graph of the matrix uses them unless it has a colour map of its own, a TIFF saved for ImageJ carries the range as its display range, and Matrix › Save the image as PNG writes the image as shown, each cell a block of pixels, with a calibration bar beside it.</p>
 <p><b>Selections</b> are made as in ImageJ, with the tools on the image's bar: the Hand (to move the image; Space+drag or the middle button with any tool), Rectangle (ImageJ's first, chosen to begin with), Oval, Polygon (a click at each corner, a double click, ${K("Enter")} or a click on the first corner to finish, ${K("Backspace")} for the last corner), Straight line and Points (a click each). The selection is drawn in ImageJ's yellow with its handles: drag a handle to resize it (a rectangle's and an oval's edges go to the cells' boundaries), drag inside it to move it, and the arrows move it a cell; ${K("Esc")} lets go of it, ${K("Ctrl+A")} selects every cell. ImageJ's keys: ${K("M")} measures the selection, ${K("K")} plots a line's profile at once, ${K("T")} keeps it. Measure…, Profile… and the rest start from it.</p>
 <p>The <b>ROI Manager</b> (<em>Selections</em> on the bar) keeps selections with the book, as ImageJ's: a click on one shows it on the image, a double click renames it; Add, Update, Delete, Delete all; <em>Show all</em> draws every one numbered in cyan. <em>Measure</em> (or ${K("M")}) puts a row a selection into the book's <em>Results</em> sheet, ImageJ's columns over a rectangle's, an oval's or a polygon's cells, a line's length, angle and its profile's statistics, each point's value; the Results follow the matrix as any analysis does. What the analyses of a matrix found is drawn over its image in cyan (Find maxima's maxima, Spots' FWHM ellipses, a profile's line, Measure's region); the image's right-click has <em>Results on the image</em> to hide them.</p>
+<p><b>Threshold</b> (the window's Threshold button, its Matrix menu, or ${MP("Analyze › Image › Threshold")}) is ImageJ's Image › Adjust › Threshold: the cells in a range of values drawn in red on the image, the range set by one of ImageJ's sixteen methods (Default, Huang, Intermodes, IsoData, Li, MaxEntropy, Mean, MinError, Minimum, Moments, Otsu, Percentile, RenyiEntropy, Shanbhag, Triangle, Yen), with <em>Dark background</em> for bright objects, or typed. As ImageJ's <code>setAutoThreshold</code> does for a 32-bit image, the values are made 8-bit over their range, the method reads that histogram, and its level is turned back into values, so the range is ImageJ's to the last digit; an empty cell is counted in the lowest bin, as ImageJ counts NaN, unless <em>Leave the empty cells out</em>. The threshold is kept with the matrix (undone with it, never in its record) and stays as numbers when the values change; <em>Auto</em> works it out again. <em>Mask</em> makes a new matrix of 255 in the range and 0 elsewhere (Process › Binary › Convert to mask…, as ImageJ's with a black background), <em>NaN background</em> one with every other value empty; both follow the scan.</p>
 <p><b>Process</b> (the window's Process button, its Matrix menu, or ${MP("Analyze › Image › Process")}) is ImageJ's Process menu: <em>Smooth</em>, <em>Sharpen</em> and <em>Find edges</em> (its 3 × 3 filters), <em>Gaussian blur</em> (a sigma in cells or, with <em>Scaled units</em>, in X and Y's unit; ticking it turns the sigma typed into the other unit), <em>Unsharp mask</em>, <em>Subtract background</em> (ImageJ's rolling ball of a radius in cells, the image shrunk first for a large one as ImageJ does, or its <em>sliding paraboloid</em>; a light background, smoothing first, or the background itself, as ImageJ's own checkboxes; the paraboloid refuses a matrix with empty cells, on which ImageJ's never finishes), <em>Filters</em> (Mean, Median, Minimum, Maximum and Variance over ImageJ's circle of a radius in cells) and <em>Math</em> (add, subtract, multiply, divide, min, max, gamma, log, exp, square, square root, abs, reciprocal, and NaN background, every value outside a range made empty). Each makes a new matrix, worked out as ImageJ works its 32-bit image to the last bit (its values in single precision, the cells past the edge the edge's own), in a window of its own with the source's lookup table; it follows its source as any analysis does, so a value typed into the scan, or a change of the settings (its result sheet's <em>Change settings…</em>), works it out again, and one processed matrix can be processed again. ImageJ lets an empty cell spread through a blur or a mean (an unfinished scan's last rows empty half the image); <em>Leave the empty cells out</em> works each cell out from the cells with a value about it instead, and keeps the empty ones empty. The method gives the command that does the same in ImageJ.</p>
 <p>The Cells view is the grid with X along the top, Y down the side and row 1 at the top, a tab for each matrix of the book (+ adds one, a double click renames, a right-click has the rest), the cell and its value above, and below the size, whether its values are original data or computed, and the N, mean, minimum and maximum of the cells selected. It is used as the worksheet is: click, drag, Shift and the arrows select; typing, F2 or a double click edits; Delete clears; Ctrl+C and Ctrl+V copy and paste tab-separated blocks. Only what is in view is drawn, so a million cells scroll as easily as a hundred.</p>
 <h2>Original data or computed</h2>

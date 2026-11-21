@@ -138,6 +138,8 @@ Data
       Find edges  ## at once, Sobel's gradient
       Gaussian blur…  ## sigma in cells or (Scaled units) in X and Y's unit
       Unsharp mask…
+      Binary  ## ImageJ's Process › Binary
+        Convert to mask…  ## 255 in a threshold's range, 0 elsewhere
       Subtract background…  ## the rolling ball or the sliding paraboloid
       Filters  ## ImageJ's rank filters over a circle
         Mean…
@@ -160,6 +162,7 @@ Data
         Abs
         Reciprocal
         NaN background…  ## the values kept, the rest empty
+    Threshold  ## ↓; new (IMAGE_SPEC I.6): ImageJ's Threshold panel beside the image (also the window's Threshold button)
     Spots…  ## ↓; new (QUDI_SPEC Q.5): Kurve's own, each spot fitted with its errors
     Shift between scans…  ## ↓; new (QUDI_SPEC Q.8): two scans of one size registered to a hundredth of a cell, with an error
     ImageJ  ## ↓; new (QUDI_SPEC Q.2 to Q.4): ImageJ's measurements of this matrix, and the matrix as a TIFF
@@ -312,6 +315,8 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
       Find edges  ## at once, Sobel's gradient
       Gaussian blur…  ## sigma in cells or (Scaled units) in X and Y's unit
       Unsharp mask…
+      Binary  ## ImageJ's Process › Binary
+        Convert to mask…  ## 255 in a threshold's range, 0 elsewhere
       Subtract background…  ## the rolling ball or the sliding paraboloid
       Filters  ## ImageJ's rank filters over a circle
         Mean…
@@ -334,6 +339,7 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
         Abs
         Reciprocal
         NaN background…  ## the values kept, the rest empty
+    Threshold  ## new (IMAGE_SPEC I.6): the matrix in front's Threshold panel
     Measure…  ## ImageJ's Analyze › Measure over the matrix, a rectangle, an oval or a polygon, into a result sheet
     Find maxima…  ## ImageJ's Process › Find Maxima, a row a maximum
     Profile…  ## ImageJ's Analyze › Plot Profile of a straight line

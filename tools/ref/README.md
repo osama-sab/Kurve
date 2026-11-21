@@ -95,6 +95,10 @@ cache, Mean and Variance from its double sums kept as it keeps them, Minimum, Ma
 BackgroundSubtracter (the rolling ball, shrunk and enlarged, and the sliding paraboloid with its corners), Math, and Kurve's own empty
 cells left out, on eight images and 122 operations; `fixtures/ij-process.json`. ref-test's `ijProcess.*` (filter3x3, gauss, unsharp,
 rank, bg, math, skip) count the cells that differ and must be 0.
+`tools/ref/ij_threshold.py` (IMAGE_SPEC I.6) is ImageJ 1.54f's AutoThresholder (its sixteen methods and bilevel; Java's int arithmetic
+where it has it, numpy's float64 for its doubles so a log of 0 is −∞) and setAutoThreshold of a 32-bit image (resetMinAndMax,
+create8BitImage, the byte histogram, scaleAndSetThreshold), written again from the source, on 32 histograms and four images;
+`fixtures/ij-threshold.json`. ref-test's `ijThreshold.methods` and `.levels` count the cases that differ and must be 0.
 
 ImageJ's own readout, where its jar may be run:
 

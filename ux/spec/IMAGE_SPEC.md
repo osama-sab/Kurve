@@ -143,6 +143,15 @@ shown on the image in red, dark or light background; Analyze Particles (size and
 included) into a result sheet (area, mean, centroid, perimeter, circularity, Feret…) with the outlines on the image and a
 mask matrix. **Checks**: each method's level and every particle's numbers against the ports.
 
+**Threshold done 21.11.** AutoThresholder's sixteen methods (`ijAutoThreshold`, Java's int arithmetic where it has it) and
+setAutoThreshold of a 32-bit image (`ijThreshold`: made 8-bit over the values' range, the level scaled back), kept with the matrix as
+its `thr`, drawn in red, set in a Threshold panel beside the image (by a method, dark background or not, or typed; opening it
+thresholds by Default as ImageJ's window does); Convert to mask (255 and 0) and NaN background as Process results that follow the scan.
+Beyond ImageJ: *Leave the empty cells out* of the histogram (ImageJ counts NaN in its lowest bin). **Checks**: `tools/ref/ij_threshold.py`
+(AutoThresholder and setAutoThreshold written again from the source, numpy's float64 for Java's doubles) on 32 histograms (huge counts
+that wrap Java's ints, bilevel, one bin, the ends) × 16 methods and four images × 16 methods, light and dark (and the empty cells left
+out): 672 cases equal (`ijThreshold.methods`, `.levels`); `tools/img-drive.mjs` I.6 (11). Analyze Particles next.
+
 **I.7 Scale bar, channels, histogram.** ImageJ's Scale Bar on the image and its picture (width, height, place, colour,
 text); a composite of the book's channels (each its table, added), Analyze › Histogram as a quick look with ImageJ's
 numbers. **Checks**: the bar's length in pixels against its width; the composite's colours.

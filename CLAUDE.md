@@ -1798,7 +1798,19 @@ graph first, with the taskbar kept at the bottom of the screen.
   circle's), `ijProcItems(sid)` (the window's Process button `[data-mxproc]`, Matrix › Process, Analyze › Image › Process),
   `ijProcRun(sid, kp)` (what needs no setting, through `anaMakeTyped`), `ijProcDlg(sid, op, mop)`, `ijProcOpen(aid, say)` (its window
   brought forward; a kind with `opensMat` opens its matrix after `anaDlg`, and `anaDone` after the worker when `S.anaOpen` names it);
-  `mxFoot` says *Results of …* for an analysis's matrix);
+  `mxFoot` says *Results of …* for an analysis's matrix); **Threshold** (I.6: in MAT `IJ_TH_METHODS` (Default, Huang, Intermodes, IsoData,
+  Li, MaxEntropy, Mean, MinError, Minimum, Moments, Otsu, Percentile, RenyiEntropy, Shanbhag, Triangle, Yen), `IJTH` (AutoThresholder's
+  methods as written, Java's int arithmetic where it has it: IsoData's sums and integer division, MinError's i·count and i·i·count,
+  wrapping by `Math.imul`), `ijThBimodal`, `ijThNorm`, `ijIJIsoData`, `ijAutoThreshold(hist, method)` (bilevel first, −1 as 0) and
+  `ijThreshold(M, {method, dark, skip})` (setAutoThreshold of a 32-bit image: `ij8` over the values' least and greatest, an empty cell
+  in bin 0 unless `skip`, scaleAndSetThreshold's ±1e30 ends; `{t, lower, upper, min, max, hist, empty, n, inside}`); the sheet's
+  `thr` {method or "manual", dark, skip, lo, hi} (`thrClean` in `matClean`, `matThrOf`, `matThrBy(s, method, dark, skip)`,
+  `matThrSet(sid, t, {burst, log})` one undo step, `thrText`, `ijOfSheet(s)`), drawn in red over the image (`mxThrImage`, `MXTHR`,
+  `st.thShow`); the panel `.mxth` in `.mxside` (`[data-mxth]` on the bar, `st.th`, `mxThToggle` (opening it thresholds by Default, as
+  ImageJ's window), `mxThOpen(sid)`, `mxThDraw`, `mxThWire`: `[data-thm]` the method or By hand, `[data-thd]` dark, `[data-thk]` the
+  empty cells left out, `[data-thl]`/`[data-thh]` a range typed, `.thn` the count and level, `[data-ths]` Show in red, `[data-tha]` auto,
+  reset, mask, nan); Process's `mask` op (Convert to mask: 255 in the range, 0 elsewhere; `#aIPtm`, `#aIPdk`, `#aIPsk`, a range by
+  hand in `#aIPl`/`#aIPh`; Process › Binary › Convert to mask…), Matrix › Threshold, Analyze › Image › Threshold);
   `matDataItems` (Data › Matrix: New, From columns, From a picture, Open, then the matrix in front's, `matFront`),
   `matPlotItems` (Plot › Plot a matrix). The graph: `plotCfg` forces the heat layout while `plot.mat` names a matrix;
   `buildPlot` draws it with no column (`MAT`: `ps` from its names, no points, `matViewOf` the zoom in its X units or

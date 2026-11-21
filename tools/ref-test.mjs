@@ -485,6 +485,17 @@ if (fixtures["ij-process"]) {
     note("ijProcess." + grp(p), bad, `${c.name}, ${JSON.stringify(p)}${at ? ", " + at : ""}`); });
 }
 
+/* ---- ImageJ's AutoThresholder and setAutoThreshold of a 32-bit image (IMAGE_SPEC I.6): each method's level on 32 histograms,
+   each image's level, range and count against tools/ref/ij_threshold.py's port of ImageJ 1.54f (the count that differ) ---- */
+if (fixtures["ij-threshold"]) {
+  const AT = get("ijAutoThreshold"), TH = get("ijThreshold"), FX = fixtures["ij-threshold"];
+  FX.hists.forEach((c, k) => { for (const [m, w] of Object.entries(c.want)) { const t = AT(Int32Array.from(c.h), m); note("ijThreshold.methods", t === w ? 0 : 1, `histogram ${k}, ${m}: ${t} against ${w}`); } });
+  for (const im of FX.images) { const M = { nx: im.nx, ny: im.ny, xs: [...Array(im.nx).keys()], ys: [...Array(im.ny).keys()], z: im.z };
+    for (const w of im.want) { const r = TH(M, { method: w.method, dark: w.dark, skip: w.skip });
+      const ok = !r.fail && r.t === w.t && r.lower === w.lower && r.upper === w.upper && r.inside === w.inside;
+      note("ijThreshold.levels", ok ? 0 : 1, `${im.name}, ${w.method}${w.dark ? " dark" : ""}${w.skip ? " skip" : ""}: ${r.fail || [r.t, r.lower, r.upper, r.inside]} against ${[w.t, w.lower, w.upper, w.inside]}`); } }
+}
+
 /* ---- NIST's Norris: certified values read from the file itself ---- */
 {
   const txt = readFileSync(join(here, "ref", "nist", "Norris.dat"), "utf8").split(/\r?\n/);
