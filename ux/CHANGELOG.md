@@ -1027,7 +1027,8 @@ people type (`CMDK_SYN`).
 ## Images, slice I.5: Process (2026-11-21)
 
 - **ImageJ's Process menu** for a matrix, from the image's *Process* button, Matrix › Process or Analyze › Image › Process: Smooth,
-  Sharpen, Find edges, Gaussian blur (sigma in cells or in the scan's unit), Unsharp mask, Filters (Mean, Median, Minimum, Maximum,
+  Sharpen, Find edges, Gaussian blur (sigma in cells or in the scan's unit), Unsharp mask, Subtract background (the rolling ball or the
+  sliding paraboloid, a light background, smoothing first, the background itself), Filters (Mean, Median, Minimum, Maximum,
   Variance over ImageJ's circle), Math (Add, Subtract, Multiply, Divide, Min, Max, Gamma, Log, Exp, Square, Square root, Abs,
   Reciprocal, NaN background).
 - Each makes a **new matrix** in its own window, with the source's lookup table, that **follows** the scan (a value typed, the settings
@@ -1037,8 +1038,8 @@ people type (`CMDK_SYN`).
   image, as they do in ImageJ.
 - An analysis's matrix says *Results of …* in its window's foot.
 
-Checked: a NumPy transcription of ImageJ 1.54f's filter3x3, GaussianBlur, RankFilters, UnsharpMask and ImageMath, every cell equal on 96
-operations over seven images (six new bench entries); `tools/img-drive.mjs` (13 new, 85).
+Checked: a NumPy transcription of ImageJ 1.54f's filter3x3, GaussianBlur, RankFilters, UnsharpMask, BackgroundSubtracter and ImageMath,
+every cell equal on 122 operations over eight images (seven new bench entries); `tools/img-drive.mjs` (16 new, 88).
 
 ## Images, slice I.4: selections and the ROI Manager (2026-11-20)
 

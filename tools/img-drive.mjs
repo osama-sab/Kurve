@@ -341,7 +341,7 @@ await page(async p => {
   const last = () => p.evaluate(() => { const a = anaList().filter(x => x.kind === "ijproc").pop(), s = a && anaMatSheet(a); return a && { aid: a.id, name: a.name, sid: s && s.id, sname: s && s.name, z: s && s.z, ana: s && s.ana, disp: s && s.disp, zname: s && s.zname, zunit: s && s.zunit, front: frontWinId(), win: s && mxWinId(a.out.mat), err: a.res && a.res.err }; });
   await p.evaluate(sid => matDispSet(sid, { lut: "ij:fire" }), sid); await p.waitForTimeout(100);
   const items = await p.evaluate(() => ijProcItems(matFront()).filter(x => x && x !== "-").map(x => x.label));
-  check(`the image's bar has Process, ImageJ's menu (${items.join(", ")})`, await p.isVisible(`${W} [data-mxproc]`) && items.join("|") === "Smooth|Sharpen|Find edges|Gaussian blur…|Unsharp mask…|Filters|Math", JSON.stringify(items));
+  check(`the image's bar has Process, ImageJ's menu (${items.join(", ")})`, await p.isVisible(`${W} [data-mxproc]`) && items.join("|") === "Smooth|Sharpen|Find edges|Gaussian blur…|Unsharp mask…|Subtract background…|Filters|Math", JSON.stringify(items));
   // Smooth: at once, a new matrix in its window, ImageJ's values, the source's lookup table, one undo step
   const u0 = await p.evaluate(() => undoStack.length); await pick(`${W} [data-mxproc]`, "Smooth"); await p.waitForTimeout(400); let r = await last();
   let w = await want(sid, { op: "smooth" });
@@ -373,6 +373,16 @@ await page(async p => {
   await p.fill("#aIPl", "20000"); await p.fill("#aIPh", "1e9"); await p.click("#formOk"); await p.waitForTimeout(500); r = await last(); w = await want(sid, { op: "math", mop: "nan", lo: 20000, hi: 1e9 });
   const kept = r.z.filter(v => v != null).length;
   check(`Math › NaN background starts with the values' range, and keeps only the cells from 20 000 up (${kept} of 4096)`, nb[0] && nb[1] && same(r.z, w) && kept > 20 && kept < 2000, JSON.stringify([nb, kept]));
+  // Subtract background… as ImageJ's: the rolling ball, the sliding paraboloid
+  await p.evaluate(() => focusWin(matWinIds()[0])); await p.waitForTimeout(150);
+  await pick(`${W} [data-mxproc]`, "Subtract background"); await p.waitForTimeout(200);
+  const b0 = await p.evaluate(() => ({ r: $("#aIPb").value, sm: $("#aIPsm").checked, msg: $("#aIPmsg").textContent, title: $("#formTitle").textContent }));
+  await p.fill("#aIPb", "0"); await p.waitForTimeout(80); const b1 = [await p.isDisabled("#formOk"), await p.textContent("#aIPmsg")];
+  await p.fill("#aIPb", "6"); await p.waitForTimeout(80); await p.click("#formOk"); await p.waitForTimeout(600); r = await last(); w = await want(sid, { op: "bg", radius: 6 });
+  const bm = await p.evaluate(aid => anaOf(aid).res.report.method, r.aid);
+  check(`Subtract background… (${b0.title}): ImageJ's radius 50 and smoothing to begin with ("${b0.msg}"), 0 refused; a ball of 6 cells gives ImageJ's values (${r.zname}) and its command`, b0.r === "50" && b0.sm && /shrunk by 4/.test(b0.msg) && b1[0] && same(r.z, w) && /less its background/.test(r.zname) && /run\("Subtract Background\.\.\.", "rolling=6"\)/.test(bm), JSON.stringify([b0, b1, bm.slice(-80)]));
+  await p.evaluate(sid => ijProcRun(sid, { op: "bg", radius: 8, parab: true, light: true, create: true }), sid); await p.waitForTimeout(500); r = await last(); w = await want(sid, { op: "bg", radius: 8, parab: true, light: true, create: true });
+  check(`the sliding paraboloid, a light background, the background itself (${r.zname}): ImageJ's every cell`, same(r.z, w) && /^Background of/.test(r.zname), r.zname);
   // processed images follow their input; a chain of them; a matrix made from one is never its input
   await p.evaluate(() => { const st = mxSt(matBooks()[0].id); mxWrite(st.sid, [[30, 30, 500000]], "typed into a cell"); }); await p.waitForTimeout(600);
   const fol = await p.evaluate(aid => { const a = anaOf(aid); return anaMatSheet(a).z; }, smooth.aid); w = await want(sid, { op: "smooth" });
@@ -380,16 +390,19 @@ await page(async p => {
   await p.evaluate(sm => ijProcRun(sm, { op: "edges" }), smooth.sid); await p.waitForTimeout(500); r = await last(); w = await want(smooth.sid, { op: "edges" });
   const offered = await p.evaluate(aid => { anaDlg("ijproc", { id: aid }); return [...document.querySelectorAll("#aIPm option")].map(o => o.textContent); }, smooth.aid); await p.waitForTimeout(150);
   await p.click("#formCancel").catch(() => p.keyboard.press("Escape")); await p.waitForTimeout(150);
-  check(`Find edges of the smoothed matrix follows it in turn (${r.zname}); Smooth's own settings never offer its result or what is made from it (${offered.length} matrices)`, same(r.z, w) && /^Gradient of/.test(r.zname) && !offered.some(t => t === smooth.sname || t === r.sname) && offered.length === 5, JSON.stringify(offered));
+  check(`Find edges of the smoothed matrix follows it in turn (${r.zname}); Smooth's own settings never offer its result or what is made from it (${offered.length} matrices)`, same(r.z, w) && /^Gradient of/.test(r.zname) && !offered.some(t => t === smooth.sname || t === r.sname) && offered.length === 7, JSON.stringify(offered));
   // the empty cells: ImageJ lets them spread, Kurve leaves them out when asked
   await p.evaluate(() => { const st = mxSt(matBooks()[0].id), cells = []; for (let r = 58; r < 64; r++) for (let c = 0; c < 64; c++) cells.push([r, c, null]); mxWrite(st.sid, cells, "cleared the unfinished rows"); }); await p.waitForTimeout(500);
   const sp = await p.evaluate(sid => { const a = anaMakeTyped("ijproc", { mat: sid, op: "gauss", sigma: 1.5 }), b = anaMakeTyped("ijproc", { mat: sid, op: "gauss", sigma: 1.5, skip: true });
     const n = id => anaMatSheet(anaOf(id)).z.filter(v => v == null).length; return { ij: n(a), kv: n(b), note: anaOf(a).res.notes.join(" ") }; }, sid);
   check(`six empty rows (384 cells): ImageJ's Gaussian spreads them (${sp.ij} empty, said in a note), Leave the empty cells out keeps 384`, sp.ij > 384 && sp.kv === 384 && /Leave the empty cells out/.test(sp.note), JSON.stringify(sp));
+  const pb = await p.evaluate(sid => { const a = anaMakeTyped("ijproc", { mat: sid, op: "bg", radius: 8, parab: true }), b = anaMakeTyped("ijproc", { mat: sid, op: "bg", radius: 8 });
+    return { err: anaOf(a).res.err, empty: anaMatSheet(anaOf(b)).z.filter(v => v == null).length }; }, sid);
+  check(`with empty cells the sliding paraboloid is refused in words ("${pb.err}"), the rolling ball leaves only them empty (${pb.empty})`, /sliding paraboloid cannot pass an empty cell/.test(pb.err || "") && pb.empty === 384, JSON.stringify(pb));
   // Analyze › Image › Process; undo; the report's Open the matrix; a reload
   const az = await p.evaluate(() => { const im = menuItems("analyze").find(i => i && i.label === "Image"), sub = im && im.sub(); const pr = sub && sub.find(i => i && i.label === "Process"); return pr ? pr.sub().filter(x => x && x !== "-").map(x => x.label) : null; });
   const nb0 = await p.evaluate(() => matBooks().length); await p.evaluate(() => undo()); await p.waitForTimeout(300); const nb1 = await p.evaluate(() => matBooks().length);
-  check(`Analyze › Image › Process has the same menu (${az && az.length} items); undo takes the last processed matrix away (${nb0} → ${nb1} books)`, az && az.length === 7 && nb1 === nb0 - 1, JSON.stringify(az));
+  check(`Analyze › Image › Process has the same menu (${az && az.length} items); undo takes the last processed matrix away (${nb0} → ${nb1} books)`, az && az.length === 8 && nb1 === nb0 - 1, JSON.stringify(az));
   const acts = await p.evaluate(aid => anaActs(anaOf(aid)).map(a => a.label), smooth.aid);
   await p.evaluate(() => flushEdits()); await p.waitForTimeout(800); await p.reload(); await ready(p); await p.waitForTimeout(600);
   const rl = await p.evaluate(aid => { const a = anaOf(aid), s = a && anaMatSheet(a); return s && { n: s.z.length, lut: s.disp && s.disp.lut, ok: anaSig(a) === a.sig }; }, smooth.aid);

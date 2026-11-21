@@ -10419,9 +10419,9 @@ ANA_KINDS.shift={label:"Shift between scans (Kurve)", base:"Shift", typed:true, 
 /* ImageJ's Process menu (IMAGE_SPEC I.5): a filter or a piece of arithmetic on a matrix, worked out as ImageJ works it on its 32-bit
    image (ijProcess), into a matrix of the analysis's own that follows its input; its sheet a line of what was done, its method the
    command that does the same in ImageJ. */
-const IJ_PROC_CMD={smooth:"Smooth",sharpen:"Sharpen",edges:"Find Edges",gauss:"Gaussian Blur...",unsharp:"Unsharp Mask...",mean:"Mean...",median:"Median...",min:"Minimum...",max:"Maximum...",var:"Variance..."};
+const IJ_PROC_CMD={smooth:"Smooth",sharpen:"Sharpen",edges:"Find Edges",gauss:"Gaussian Blur...",unsharp:"Unsharp Mask...",bg:"Subtract Background...",mean:"Mean...",median:"Median...",min:"Minimum...",max:"Maximum...",var:"Variance..."};
 const IJ_MATH_CMD={add:"Add...",sub:"Subtract...",mul:"Multiply...",div:"Divide...",min:"Min...",max:"Max...",gamma:"Gamma...",log:"Log",exp:"Exp",sqr:"Square",sqrt:"Square Root",abs:"Abs",recip:"Reciprocal",nan:"NaN Background"};
-const IJ_PROC_SN={smooth:"smooth",sharpen:"sharp",edges:"edges",gauss:"blur",unsharp:"unsharp",mean:"mean",median:"median",min:"min",max:"max",var:"var",
+const IJ_PROC_SN={smooth:"smooth",sharpen:"sharp",edges:"edges",gauss:"blur",unsharp:"unsharp",bg:"bg",mean:"mean",median:"median",min:"min",max:"max",var:"var",
   add:"add",sub:"sub",mul:"mul",div:"div",gamma:"gamma",log:"log",exp:"exp",sqr:"sqr",sqrt:"sqrt",abs:"abs",recip:"recip",nan:"nan"};
 // What a setting of it is called: the operation's name, Math's by its own.
 function ijProcLabel(p){ p=p||{}; if(p.op==="math"){ const m=IJ_MATH.find(e=>e[0]===p.mop); return m?m[1]:"Math"; } const e=IJ_PROCS.find(e=>e[0]===p.op); return e?e[1]:"Processed"; }
@@ -10429,23 +10429,27 @@ const IJ_RANK=["mean","median","min","max","var"];
 ANA_KINDS.ijproc={label:"Process (ImageJ)", base:"Processed", baseOf:ijProcLabel, titleOf:p=>`${ijProcLabel(p)} (ImageJ)`, typed:true, typedWhat:"a matrix", mat:true, opensMat:true,
   help:"ImageJ's Process menu on a matrix: Smooth, Sharpen, Find edges, Gaussian blur, Unsharp mask, the filters Mean, Median, Minimum, Maximum and Variance, and Math, worked out as ImageJ works them on its 32-bit image, into a new matrix that follows its input",
   heavy(p,ins){ const q=ins.find(q=>q.mat); if(!q) return false; const n=q.mat.z.length, r=+p.radius||1;
+    if(p.op==="bg"){ if(p.parab) return n>1e6; const b=ijBall(+p.radius||50), w=b.width, s=Math.sqrt(n)/b.sf; return (s+w)*(s+w)*w*w>2e7; }
     return IJ_RANK.includes(p.op)?n*(Math.PI*r*r+1)*(p.op==="median"?4:1)>4e7:p.op==="gauss"||p.op==="unsharp"?n>2e6:n>4e6; },
   run(ins,p){ p=p||{}; const mq=ins.find(q=>q.mat); if(!mq) return {fail:"Its matrix has been deleted."};
     const M=mq.mat, op=IJ_PROCS.some(e=>e[0]===p.op)?p.op:null; if(!op) return {fail:"Choose an operation."};
     const G=ijGeom({v:M.xs},{v:M.ys},M.nx,M.ny); if(G.fail) return {fail:G.fail};
     const xu=M.xunit||"", yu=M.yunit||"", zu=M.zunit||"", zn=M.zname||"Z", f6=v=>fmt(v,6);
-    const skip=!!p.skip&&["gauss","unsharp","mean","var"].includes(op), pp={op,mop:p.mop,value:p.value,lo:p.lo,hi:p.hi,weight:p.weight,radius:p.radius,skip}; let sx=+p.sigma, sy=sx;
+    const skip=!!p.skip&&["gauss","unsharp","mean","var"].includes(op), pp={op,mop:p.mop,value:p.value,lo:p.lo,hi:p.hi,weight:p.weight,radius:p.radius,skip,light:!!p.light,create:!!p.create,parab:!!p.parab,smooth:p.smooth!==false}; let sx=+p.sigma, sy=sx;
     if(op==="gauss"&&p.scaled){ sx=+p.sigma/G.pw; sy=+p.sigma/G.ph; } pp.sigma=sx; pp.sy=sy;
     const r=ijProcess({nx:M.nx,ny:M.ny,xs:M.xs,ys:M.ys,z:M.z},pp); if(r.fail) return {fail:r.fail};
     const mop=op==="math"?p.mop:null, lab=ijProcLabel(p), rows=[["Operation",lab],["Of",mq.name],["Cells",`${M.ny} × ${M.nx}`]];
     let set="", cmd=op==="math"?IJ_MATH_CMD[mop]:IJ_PROC_CMD[op], macro="", zname=zn, zunit=zu;
     if(op==="gauss"){ set=p.scaled?`sigma=${+p.sigma} scaled`:`sigma=${+p.sigma}`; rows.push(["Sigma",p.scaled?`${f6(+p.sigma)}${xu?" "+xu:""} (${f6(sx)} × ${f6(sy)} cells)`:`${f6(sx)} cells`]); }
     else if(op==="unsharp"){ set=`radius=${+p.sigma} mask=${(+p.weight).toFixed(2)}`; rows.push(["Sigma",`${f6(+p.sigma)} cells`],["Mask weight",+p.weight]); }
+    else if(op==="bg"){ set=[`rolling=${+p.radius}`].concat(p.light?["light"]:[],p.create?["create"]:[],p.parab?["sliding"]:[],p.smooth===false?["disable"]:[]).join(" ");
+      rows.push([p.parab?"Paraboloid's radius":"Ball's radius",`${f6(+p.radius)} cells`],["Background",p.light?"light":"dark"],["Smoothed first",p.smooth===false?"no":"yes"],["Result",p.create?"the background":"less the background"]);
+      if(!p.parab){ const b=ijBall(+p.radius); if(b.sf>1) rows.push(["Shrunk by",`${b.sf} first, as ImageJ does`]); } }
     else if(IJ_RANK.includes(op)){ const L=ijLineRadii(+p.radius); set=`radius=${+p.radius}`; rows.push(["Radius",`${f6(+p.radius)} cells`],["Kernel",`${L[L.length-2]} cells in a circle ${2*L[L.length-1]+1} wide`]); }
     else if(op==="math"){ const me=IJ_MATH.find(e=>e[0]===mop);
       if(me[2]==="value"){ set=`value=${+p.value}`; rows.push(["Value",+p.value]); }
       if(mop==="nan"){ macro=`setThreshold(${+p.lo}, ${+p.hi}); `; rows.push(["Kept",`${f6(+p.lo)} to ${f6(+p.hi)}`]); } }
-    if(op==="edges"){ zname=`Gradient of ${zn}`; }
+    if(op==="edges"){ zname=`Gradient of ${zn}`; } else if(op==="bg"){ zname=p.create?`Background of ${zn}`:`${zn} less its background`; }
     else if(op==="var"){ zname=`Variance of ${zn}`; zunit=sigSq(zu); }
     else if(mop==="log"){ zname=`ln ${zn}`; zunit=""; } else if(mop==="exp"){ zname=`exp ${zn}`; zunit=""; } else if(mop==="gamma"){ zname=`${zn} to the power ${+p.value}`; zunit=""; }
     else if(mop==="sqr"){ zname=`${zn} squared`; zunit=sigSq(zu); } else if(mop==="sqrt"){ zname=`√${zn}`; zunit=zu?`√${/^[^\s/·*²³⁻¹]+$/.test(zu)?zu:"("+zu+")"}`:""; }
@@ -10458,7 +10462,9 @@ ANA_KINDS.ijproc={label:"Process (ImageJ)", base:"Processed", baseOf:ijProcLabel
       gauss:"a Gaussian, a row pass then a column pass, with ImageJ's kernel (accuracy 0.0002, its tail a parabola, the edge cells standing for those beyond it)"+(Math.max(sx,sy)>8.5?" and, for so wide a Gaussian, the lines shrunk, blurred and grown again as ImageJ does":""),
       unsharp:"the image less the mask weight times its Gaussian blur (accuracy 0.01), over one less the weight",
       mean:"the mean over ImageJ's circular kernel",median:"the median over ImageJ's circular kernel (empty cells left out; an empty cell stays empty)",min:"the least value over ImageJ's circular kernel",max:"the largest value over ImageJ's circular kernel",var:"the variance (over n) over ImageJ's circular kernel",
+      bg:`${p.parab?"a paraboloid of rotation of that radius slid under the image in four directions, its corners corrected":`a ball of that radius rolled under the image${ijBall(+p.radius).sf>1?`, the image shrunk by ${ijBall(+p.radius).sf} for it (each block's least) and the background grown again by ImageJ's interpolation`:""}`}${p.smooth===false?"":", the image smoothed by ImageJ's 3 × 3 mean first"}${p.light?", for a light background (the values turned over)":""}, ${p.create?"the background given":"the background taken from each value"}`,
       math:"each value on its own"}[op];
+    if(op==="bg"&&!p.parab&&r.z.some((q,i)=>q==null&&M.z[i]!=null)) r.notes.push("Some cells came out empty: a ball's whole footprint was empty there.");
     const method=`ImageJ 1.54f's ${op==="math"?"Process › Math › ":IJ_RANK.includes(op)?"Process › Filters › ":op==="gauss"||op==="unsharp"?"Process › Filters › ":"Process › "}${cmd.replace(/\.\.\.$/,"")} of ${mq.name} (${M.ny} × ${M.nx}): ${how}, in Java's single-precision arithmetic step by step on ImageJ's image of the matrix, its values rounded to single precision as ImageJ's 32-bit image holds them${["smooth","sharpen","edges","gauss","unsharp"].includes(op)||IJ_RANK.includes(op)?", the cells past the edge the edge's own, as ImageJ takes them":""}. ${skip?` Beyond ImageJ, the empty cells left out: ${op==="gauss"||op==="unsharp"?"the Gaussian of the values (an empty cell 0) over the Gaussian of where there are values, both ImageJ's":"each circle's cells with a value alone"}, a cell empty before left empty; ImageJ itself lets an empty cell spread.`:""} In ImageJ, on the TIFF Kurve writes for this matrix: ${macro}`;
     return {tables:[{cols}],report:{sections:[{title:lab,tables:[{head:["","Value"],rows}]}],method},notes:r.notes,
       mat:{nx:M.nx,ny:M.ny,x:matAxisOf(M.xs),y:matAxisOf(M.ys),z:r.z,xname:M.xname||"X",xunit:xu,yname:M.yname||"Y",yunit:yu,zname,zunit,sname:`${mq.name}_${IJ_PROC_SN[mop||op]}`,disp:M.disp||null}}; }};
@@ -11287,16 +11293,115 @@ function ijMathOp(v,op,c0,lo,hi){ const f=Math.fround, n=v.length, out=new Float
       case "sqr": r=f(a*a); break; case "sqrt": r=a<=0?0:f(Math.sqrt(a)); break; case "abs": r=Math.abs(a); break;
       case "recip": r=a===0?NaN:f(1/a); break; case "nan": r=a>=lo&&a<=hi?a:NaN; break; default: r=a; }
     out[i]=r; } return out; }
-const IJ_PROCS=[["smooth","Smooth"],["sharpen","Sharpen"],["edges","Find edges"],["gauss","Gaussian blur"],["unsharp","Unsharp mask"],["mean","Mean"],["median","Median"],["min","Minimum"],["max","Maximum"],["var","Variance"],["math","Math"]];
+/* ImageJ's Subtract Background (BackgroundSubtracter of 1.54f) on a 32-bit image, its float arithmetic step by step:
+   ijBgFilter3   its own 3 × 3 filter, a row pass then a column pass (MAXIMUM, which returns the mean rise as shiftBy, or MEAN)
+   ijBall        RollingBall: the shrink factor and the trim by radius, the patch of the sphere's top
+   ijShrink, ijRollBall, ijEnlarge   shrinkImage (each block's least), rollBall (the ball's highest place under the image, raising
+                 every cell to it), enlargeImage with makeInterpolationArrays
+   ijSlideParabola, ijCorners, ijFilter1D, ijParaboloid   lineSlideParabola (with its edge estimates), correctCorners, filter1D and
+                 the nine passes of slidingParaboloidFloatBackground
+   One guard ImageJ lacks: where a line's parabola cannot move on (a value not a number), ImageJ loops for ever; here it steps on. */
+const ijJint=x=>x!==x?0:x>=2147483647?2147483647:x<=-2147483648?-2147483648:Math.trunc(x);
+function ijBgFilter3(px,W,H,type){ const f=Math.fround;
+  const f3=(len,p0,inc)=>{ let s=0, v3=px[p0], v2=v3, v1;
+    for(let i=0,p=p0;i<len;i++,p+=inc){ v1=v2; v2=v3; if(i<len-1) v3=px[p+inc];
+      if(type==="max"){ let m=v1>v3?v1:v3; if(v2>m) m=v2; s+=f(m-v2); px[p]=m; } else px[p]=f(f(f(v1+v2)+v3)*f(0.33333333)); }
+    return s; };
+  let sh=0; for(let y=0;y<H;y++) sh+=f3(W,y*W,1); for(let x=0;x<W;x++) sh+=f3(H,x,W); return sh/W/H; }
+function ijBall(radius){ let sf, at; if(radius<=10){ sf=1; at=24; } else if(radius<=30){ sf=2; at=24; } else if(radius<=100){ sf=4; at=32; } else { sf=8; at=40; }
+  let sr=radius/sf; if(sr<1) sr=1; const rsq=sr*sr, xtrim=Math.trunc(ijJint(at*sr)/100), hw=Math.floor(sr-xtrim+0.5), bw=2*hw+1, d=new Float32Array(bw*bw);
+  for(let y=0,p=0;y<bw;y++) for(let x=0;x<bw;x++,p++){ const xv=x-hw, yv=y-hw, t=rsq-xv*xv-yv*yv; d[p]=t>0?Math.sqrt(t):0; }
+  return {sf,width:bw,data:d}; }
+function ijShrink(px,W,H,sf){ const sw=Math.trunc((W+sf-1)/sf), sh=Math.trunc((H+sf-1)/sf), s=new Float32Array(sw*sh), FM=3.4028234663852886e38;
+  for(let ys=0;ys<sh;ys++) for(let xs=0;xs<sw;xs++){ let m=FM; for(let j=0,y=sf*ys;j<sf&&y<H;j++,y++) for(let k=0,x=sf*xs;k<sf&&x<W;k++,x++){ const t=px[x+y*W]; if(t<m) m=t; } s[xs+ys*sw]=m; }
+  return {s,sw,sh}; }
+function ijRollBall(px,W,H,ball){ const f=Math.fround, zb=ball.data, bw=ball.width, r=Math.trunc(bw/2), cache=new Float32Array(W*bw), FM=3.4028234663852886e38;
+  for(let y=-r;y<H+r;y++){ const nw=(y+r)%bw, nr=y+r;
+    if(nr<H){ cache.set(px.subarray(nr*W,nr*W+W),nw*W); px.fill(-FM,nr*W,nr*W+W); }
+    let y0=y-r; if(y0<0) y0=0; const yb0=y0-y+r; let ye=y+r; if(ye>=H) ye=H-1;
+    for(let x=-r;x<W+r;x++){ let z=FM, x0=x-r; if(x0<0) x0=0; const xb0=x0-x+r; let xe=x+r; if(xe>=W) xe=W-1;
+      for(let yp=y0,yb=yb0;yp<=ye;yp++,yb++){ let cp=(yp%bw)*W+x0; for(let xp=x0,bp=xb0+yb*bw;xp<=xe;xp++,cp++,bp++){ const zr=f(cache[cp]-zb[bp]); if(z>zr) z=zr; } }
+      for(let yp=y0,yb=yb0;yp<=ye;yp++,yb++) for(let xp=x0,p=xp+yp*W,bp=xb0+yb*bw;xp<=xe;xp++,p++,bp++){ const zm=f(z+zb[bp]); if(px[p]<zm) px[p]=zm; } } } }
+function ijInterpArr(len,slen,sf){ const f=Math.fround, idx=new Int32Array(len), w=new Float32Array(len);
+  for(let i=0;i<len;i++){ let si=Math.trunc((i-Math.trunc(sf/2))/sf); if(si>=slen-1) si=slen-2; idx[i]=si; w[i]=f(1-f(f(f(i+0.5)/sf)-f(si+0.5))); } return {idx,w}; }
+function ijEnlarge(s,sw,sh,px,W,H,sf){ const f=Math.fround, X=ijInterpArr(W,sw,sf), Y=ijInterpArr(H,sh,sf); let l0=new Float32Array(W), l1=new Float32Array(W);
+  const line=(L,sp)=>{ for(let x=0;x<W;x++){ const i=sp+X.idx[x], w=X.w[x]; L[x]=f(f(s[i]*w)+f(s[i+1]*f(1-w))); } };
+  line(l1,0); let ys0=-1;
+  for(let y=0;y<H;y++){ if(ys0<Y.idx[y]){ const t=l0; l0=l1; l1=t; ys0++; line(l1,(Y.idx[y]+1)*sw); }
+    const w=Y.w[y]; for(let x=0,p=y*W;x<W;x++,p++) px[p]=f(f(l0[x]*w)+f(l1[x]*f(1-w))); } }
+function ijRollingBg(px,W,H,radius,invert,smooth){ const ball=ijBall(radius), shrink=ball.sf>1;
+  if(invert) for(let i=0;i<px.length;i++) px[i]=-px[i];
+  if(smooth) ijBgFilter3(px,W,H,"mean");
+  let sm=px, sw=W, sh=H; if(shrink){ const r=ijShrink(px,W,H,ball.sf); sm=r.s; sw=r.sw; sh=r.sh; }
+  ijRollBall(sm,sw,sh,ball); if(shrink) ijEnlarge(sm,sw,sh,px,W,H,ball.sf);
+  if(invert) for(let i=0;i<px.length;i++) px[i]=-px[i]; }
+function ijSlideParabola(px,start,inc,length,c2,edges){ const f=Math.fround, FM=3.4028234663852886e38, cache=new Float32Array(length), next=new Int32Array(Math.max(length,1));
+  let minV=FM, last=0, firstC=length-1, lastC=0, vp1=0, vp2=0; const ct=f(f(1.999)*c2);
+  for(let i=0,p=start;i<length;i++,p+=inc){ const v=px[p]; cache[i]=v; if(v<minV) minV=v; if(i>=2&&f(f(f(vp1+vp1)-vp2)-v)<ct){ next[last]=i-1; last=i-1; } vp2=vp1; vp1=v; }
+  next[last]=length-1; next[length-1]=2147483647;
+  let i1=0;
+  while(i1<length-1){ const v1=cache[i1]; let minS=FM, i2=0, searchTo=length, rl=0;
+    for(let j=next[i1];j<searchTo;j=next[j],rl++){ const v2=cache[j], d=j-i1, sl=f(f(f(v2-v1)/d)+f(c2*d));
+      if(sl<minS){ minS=sl; i2=j; rl=-3; }
+      if(rl===0){ const b=f(f(0.5*minS)/c2), ms=(i1+ijJint(b+Math.sqrt(b*b+f(f(v1-minV)/c2))+1))|0; if(ms<searchTo&&ms>0) searchTo=ms; } }
+    if(i2<=i1) i2=i1+1;   // ImageJ would loop for ever here (no slope below Float.MAX_VALUE: a value not a number); step on
+    if(i1===0) firstC=i2; if(i2===length-1) lastC=i1;
+    for(let j=i1+1,p=start+j*inc;j<i2;j++,p+=inc){ const d=j-i1; px[p]=f(v1+f(d*f(minS-f(d*c2)))); }
+    i1=i2; }
+  if(edges){ if(4*firstC>=length) firstC=0; if(4*(length-1-lastC)>=length) lastC=length-1;
+    const v1=cache[firstC], v2=cache[lastC], dl=lastC-firstC, sl=f(f(v2-v1)/dl), va=f(v1-f(sl*firstC)), mid=f(0.5*(lastC+firstC)); let c6=0;
+    const p6=dx=>f(f(f(f(f(f(dx*dx)*dx)*dx)*dx)*dx)-1);
+    for(let i=Math.trunc((length+2)/3);i<=Math.trunc(2*length/3);i++){ const dx=f(f(f(i-mid)*2)/dl), pp=p6(dx);
+      if(cache[i]<f(f(va+f(sl*i))+f(c6*pp))) c6=f(-f(f(va+f(sl*i))-cache[i])/pp); }
+    let dx=f(f(f(firstC-mid)*2)/dl); edges[0]=f(f(va+f(c6*p6(dx)))+f(f(c2*firstC)*firstC));
+    dx=f(f(f(lastC-mid)*2)/dl); const q=length-1-lastC; edges[1]=f(f(f(va+f((length-1)*sl))+f(c6*p6(dx)))+f(f(c2*q)*q)); }
+  return edges; }
+function ijCorners(px,W,H,c2){ const f=Math.fround, cs=[0,0,0,0], e=[0,0];
+  ijSlideParabola(px,0,1,W,c2,e); cs[0]=e[0]; cs[1]=e[1];
+  ijSlideParabola(px,(H-1)*W,1,W,c2,e); cs[2]=e[0]; cs[3]=e[1];
+  ijSlideParabola(px,0,W,H,c2,e); cs[0]=f(cs[0]+e[0]); cs[2]=f(cs[2]+e[1]);
+  ijSlideParabola(px,W-1,W,H,c2,e); cs[1]=f(cs[1]+e[0]); cs[3]=f(cs[3]+e[1]);
+  const dl=Math.min(W,H), cd=f(2*c2);
+  ijSlideParabola(px,0,1+W,dl,cd,e); cs[0]=f(cs[0]+e[0]);
+  ijSlideParabola(px,W-1,W-1,dl,cd,e); cs[1]=f(cs[1]+e[0]);
+  ijSlideParabola(px,(H-1)*W,1-W,dl,cd,e); cs[2]=f(cs[2]+e[0]);
+  ijSlideParabola(px,W*H-1,-1-W,dl,cd,e); cs[3]=f(cs[3]+e[0]);
+  [[0,0],[W-1,1],[(H-1)*W,2],[W*H-1,3]].forEach(([p,k])=>{ const c=f(cs[k]/3); if(px[p]>c) px[p]=c; }); }
+function ijFilter1D(px,W,H,dir,c2){ let st=0, n=0, li=0, pi=0, len=0;
+  if(dir===0){ n=H; li=W; pi=1; len=W; } else if(dir===1){ n=W; li=1; pi=W; len=H; } else if(dir===2){ n=W-2; li=1; pi=W+1; }
+  else if(dir===3){ st=1; n=H-2; li=W; pi=W+1; } else if(dir===4){ st=2; n=W; li=1; pi=W-1; } else { n=H-2; li=W; pi=W-1; }
+  for(let i=st;i<n;i++){ let sp=i*li; if(dir===5) sp+=W-1;
+    if(dir===2) len=Math.min(H,W-i); else if(dir===3) len=Math.min(W,H-i); else if(dir===4) len=Math.min(H,i+1); else if(dir===5) len=Math.min(W,H-i);
+    ijSlideParabola(px,sp,pi,len,c2,null); } }
+function ijParaboloid(px,W,H,radius,invert,smooth,corners){ const f=Math.fround, rf=f(radius), c2=f(0.5/rf), cd=f(1/rf);
+  if(invert) for(let i=0;i<px.length;i++) px[i]=-px[i];
+  let sh=0; if(smooth){ sh=f(ijBgFilter3(px,W,H,"max")); ijBgFilter3(px,W,H,"mean"); }
+  if(corners) ijCorners(px,W,H,c2);
+  [[0,c2],[1,c2],[0,c2],[2,cd],[3,cd],[4,cd],[5,cd],[2,cd],[3,cd]].forEach(([d,c])=>ijFilter1D(px,W,H,d,c));
+  if(invert) for(let i=0;i<px.length;i++) px[i]=-f(px[i]-sh); else if(smooth) for(let i=0;i<px.length;i++) px[i]=f(px[i]-sh); }
+// Whether ImageJ's Subtract Background can be worked out here: a refusal in words, or "".
+function ijBgWhy(W,H,radius,parab,empty){ if(!(radius>0.0001)) return "The radius is a number above 0.";
+  if(parab&&empty) return "ImageJ's sliding paraboloid cannot pass an empty cell (it never finishes on one at the start of a line, and with smoothing one empties the whole image): use the rolling ball.";
+  if(!parab){ const b=ijBall(radius); if(b.sf>1){ const sw=Math.trunc((W+b.sf-1)/b.sf), sh=Math.trunc((H+b.sf-1)/b.sf);
+      if(sw<2||sh<2) return `A ball of radius ${radius} is too large for ${W} × ${H} cells: ImageJ shrinks the image by ${b.sf} first and fails on what is left. Use a smaller radius or the sliding paraboloid.`;
+      if((sw+b.width)*(sh+b.width)*b.width*b.width>3e9) return "A ball this large would take too long here; use a smaller radius or the sliding paraboloid."; } }
+  return ""; }
+// The background (create) or the image less it, as ImageJ's Process › Subtract Background with "light", "create", "sliding", "disable".
+function ijBackground(v,W,H,o){ const f=Math.fround, px=Float32Array.from(v);
+  if(o.parab) ijParaboloid(px,W,H,o.radius,!!o.light,o.smooth!==false,true); else ijRollingBg(px,W,H,o.radius,!!o.light,o.smooth!==false);
+  if(o.create) return px; const out=new Float32Array(W*H); for(let i=0;i<W*H;i++) out[i]=f(v[i]-px[i]); return out; }
+const IJ_PROCS=[["smooth","Smooth"],["sharpen","Sharpen"],["edges","Find edges"],["gauss","Gaussian blur"],["unsharp","Unsharp mask"],["bg","Subtract background"],["mean","Mean"],["median","Median"],["min","Minimum"],["max","Maximum"],["var","Variance"],["math","Math"]];
 /* One of them on a matrix: ImageJ's image of it in single precision, the operation, and the result in the matrix's own order (an empty
    cell where ImageJ's is NaN or infinite; a Minimum's or Maximum's ±3.4e38, ImageJ's for a neighbourhood with no value, empty too).
-   p: {op, sigma (cells), sy, radius, weight, mop, value, lo, hi, skip (Gaussian, Unsharp mask, Mean, Variance: the empty cells left
+   p: {op, sigma (cells), sy, radius, weight, mop, value, lo, hi, light, create, parab, smooth (Subtract background's), skip (Gaussian, Unsharp mask, Mean, Variance: the empty cells left
    out, ijGaussSkip, ijRankSkip)}. {z, notes} or {fail}. */
 function ijProcess(M,p){ const I=ijImage(M,true); if(I.fail) return I; const {G,W,H,v}=I, op=p.op, notes=[]; let r;
   if(op==="smooth"||op==="sharpen"||op==="edges") r=ijF3(v,W,H,op);
   else if(op==="gauss"){ const sx=+p.sigma, sy=p.sy!=null?+p.sy:sx; if(!(sx>=0&&sy>=0)||sx===0&&sy===0) return {fail:"Sigma is a number above 0."}; r=p.skip?ijGaussSkip(v,W,H,sx,sy,0.0002):ijGauss(v,W,H,sx,sy,0.0002); }
   else if(op==="unsharp"){ const sg=+p.sigma, w=+p.weight; if(!(sg>0)) return {fail:"Sigma is a number above 0."}; if(!(w>=0&&w<=0.99)) return {fail:"The mask weight is from 0 to 0.99."}; r=ijUnsharp(v,W,H,sg,w,!!p.skip); }
   else if(["mean","median","min","max","var"].includes(op)){ const rd=+p.radius; if(!(rd>=0.5&&rd<=1000)) return {fail:"The radius is from 0.5 to 1000 cells."}; r=p.skip&&(op==="mean"||op==="var")?ijRankSkip(v,W,H,rd,op):ijRank(v,W,H,rd,op); }
+  else if(op==="bg"){ const why=ijBgWhy(W,H,+p.radius,!!p.parab,v.some(x=>!Number.isFinite(x))); if(why) return {fail:why};
+    r=ijBackground(v,W,H,{radius:+p.radius,light:!!p.light,create:!!p.create,parab:!!p.parab,smooth:p.smooth!==false}); }
   else if(op==="math"){ const mo=IJ_MATH.find(e=>e[0]===p.mop); if(!mo) return {fail:"Choose an operation."}; const c=+p.value;
     if(mo[2]==="value"&&!Number.isFinite(c)) return {fail:"The value is a number."}; if(p.mop==="gamma"&&!(c>=0.05&&c<=5)) return {fail:"Gamma is from 0.05 to 5, as ImageJ's."};
     if(mo[2]==="range"&&!(Number.isFinite(+p.lo)&&Number.isFinite(+p.hi)&&+p.lo<=+p.hi)) return {fail:"The range kept is two numbers, the lower first."}; r=ijMathOp(v,p.mop,c,+p.lo,+p.hi); }
@@ -23173,17 +23278,21 @@ const ANA_FORMS={
         <label for="aIPw" class="tipd" data-ipr="w" title="How much of the blur is taken away, 0 to 0.99 (ImageJ's 0.6 to begin with)">Mask weight</label><span class="anarows" data-ipr="w"><input id="aIPw" type="text" class="num" value="${v(p.weight==null?0.6:p.weight)}"></span>
         <label for="aIPr" class="tipd" data-ipr="r" title="The circular kernel's radius in cells, as ImageJ's (1 is the 3 × 3 square; 0.5 a cross of five)">Radius</label><span class="anarows" data-ipr="r"><input id="aIPr" type="text" class="num" value="${v(p.radius==null?2:p.radius)}"> cells</span>
         <span data-ipr="k"></span><label class="chk tipd" data-ipr="k" title="Beyond ImageJ: each cell worked out from the cells with a value about it, so an empty cell (an unfinished scan's rows) does not spread; ImageJ lets it spread"><input type="checkbox" id="aIPk"${p.skip?" checked":""}> Leave the empty cells out</label>
+        <label for="aIPb" class="tipd" data-ipr="b" title="The rolling ball's radius in cells, as ImageJ's: at least the radius of the largest object that is not background (ImageJ's 50 to begin with)">Radius</label><span class="anarows" data-ipr="b"><input id="aIPb" type="text" class="num" value="${v(op==="bg"&&p.radius!=null?p.radius:50)}"> cells</span>
+        <span data-ipr="b"></span><span class="anarows" data-ipr="b"><label class="chk tipd" title="Dark objects on a light background: the background is taken from above"><input type="checkbox" id="aIPlt"${p.light?" checked":""}> Light background</label><label class="chk tipd" title="ImageJ's sliding paraboloid: a paraboloid of the same curvature slid under the image, no shrinking; better for a background that curves"><input type="checkbox" id="aIPpb"${p.parab?" checked":""}> Sliding paraboloid</label></span>
+        <span data-ipr="b"></span><span class="anarows" data-ipr="b"><label class="chk tipd" title="ImageJ's 3 × 3 mean before the background is found, so noise does not pull it down (ImageJ's Disable smoothing when off)"><input type="checkbox" id="aIPsm"${p.smooth===false?"":" checked"}> Smooth first</label><label class="chk tipd" title="The background itself, not the image less it (ImageJ's Create background)"><input type="checkbox" id="aIPcr"${p.create?" checked":""}> The background itself</label></span>
         <label for="aIPq" data-ipr="q">Math</label><select id="aIPq" data-ipr="q">${IJ_MATH.map(([k,t])=>`<option value="${k}"${k===(p.mop||"add")?" selected":""}>${t}</option>`).join("")}</select>
         <label for="aIPv" class="tipd" data-ipr="v" title="The number each value is combined with (Gamma: from 0.05 to 5, as ImageJ's)">Value</label><span class="anarows" data-ipr="v"><input id="aIPv" type="text" class="num" value="${v(p.value==null?25:p.value)}"></span>
         <label for="aIPl" class="tipd" data-ipr="n" title="The values kept; every other value is made empty, as ImageJ's NaN Background makes the cells outside its threshold NaN">Keep from</label><span class="anarows" data-ipr="n"><input id="aIPl" type="text" class="num" value="${v(p.lo)}" aria-label="Keep from"><span class="muted">to</span><input id="aIPh" type="text" class="num" value="${v(p.hi)}" aria-label="Keep to"></span></div>
         <p class="note" id="aIPmsg" aria-live="polite"></p>`; },
     wire(box){ const F=ANA_FORMS.ijproc, vals=()=>{ const r={}; box.querySelectorAll("input,select").forEach(el=>{ if(el.id) r[el.id]=el.type==="checkbox"?el.checked:el.value; }); return r; };
-      const show=r=>{ const op=r.aIPo, me=IJ_MATH.find(e=>e[0]===r.aIPq), on={s:op==="gauss"||op==="unsharp",u:op==="gauss",w:op==="unsharp",r:IJ_RANK.includes(op),k:["gauss","unsharp","mean","var"].includes(op),q:op==="math",v:op==="math"&&me&&me[2]==="value",n:op==="math"&&r.aIPq==="nan"};
+      const show=r=>{ const op=r.aIPo, me=IJ_MATH.find(e=>e[0]===r.aIPq), on={s:op==="gauss"||op==="unsharp",u:op==="gauss",w:op==="unsharp",b:op==="bg",r:IJ_RANK.includes(op),k:["gauss","unsharp","mean","var"].includes(op),q:op==="math",v:op==="math"&&me&&me[2]==="value",n:op==="math"&&r.aIPq==="nan"};
         box.querySelectorAll("[data-ipr]").forEach(el=>{ el.hidden=!on[el.dataset.ipr]; }); };
       const msg=()=>{ const r=vals(); show(r); const w=F.why(r), el=$("#aIPmsg"); if(w){ el.textContent=w; return; } const o=F.read(r), s=matOf(o.mat), G=ijGeom(s.x,s.y,s.nx,s.ny), u=s.xunit?" "+s.xunit:"";
         let t=`A new matrix of ${s.ny} × ${s.nx} that follows ${matName(o.mat)}`;
         if(o.op==="gauss"&&o.scaled) t+=`: sigma ${fmt(o.sigma/G.pw,4)} cells along X, ${fmt(o.sigma/G.ph,4)} along Y`;
         else if(IJ_RANK.includes(o.op)){ const L=ijLineRadii(o.radius); t+=`: a circle of ${L[L.length-2]} cells, ${2*L[L.length-1]+1} wide`; }
+        else if(o.op==="bg"&&!o.parab){ const b=ijBall(o.radius); t+=b.sf>1?`: the image shrunk by ${b.sf} for a ball ${b.width} cells across, as ImageJ does`:`: a ball ${b.width} cells across`; }
         el.textContent=t+"."; };
       // Scaled units ticked or not: the sigma typed turned into the other unit, so the blur stays the same
       box.querySelector("#aIPu").addEventListener("change",e=>{ const r=vals(), s=matOf(r.aIPm), x=parseNum(String(r.aIPs).trim()); if(!s||!(x>0)) return; const G=ijGeom(s.x,s.y,s.nx,s.ny); if(G.fail) return;
@@ -23192,6 +23301,7 @@ const ANA_FORMS={
     read(v){ const n=t=>{ const x=parseNum(String(t==null?"":t).trim()); return Number.isFinite(x)?x:null; }, op=IJ_PROCS.some(e=>e[0]===v.aIPo)?v.aIPo:"gauss", o={mat:v.aIPm||null,op};
       if(op==="gauss"){ o.sigma=n(v.aIPs); if(v.aIPu) o.scaled=true; } else if(op==="unsharp"){ o.sigma=n(v.aIPs); o.weight=n(v.aIPw); }
       else if(IJ_RANK.includes(op)) o.radius=n(v.aIPr);
+      else if(op==="bg"){ o.radius=n(v.aIPb); if(v.aIPlt) o.light=true; if(v.aIPpb) o.parab=true; if(!v.aIPsm) o.smooth=false; if(v.aIPcr) o.create=true; }
       if(v.aIPk&&["gauss","unsharp","mean","var"].includes(op)) o.skip=true;
       else if(op==="math"){ o.mop=IJ_MATH.some(e=>e[0]===v.aIPq)?v.aIPq:"add"; const me=IJ_MATH.find(e=>e[0]===o.mop); if(me[2]==="value") o.value=n(v.aIPv); if(o.mop==="nan"){ o.lo=n(v.aIPl); o.hi=n(v.aIPh); } }
       return o; },
@@ -23200,6 +23310,7 @@ const ANA_FORMS={
       if(o.op==="gauss"&&o.scaled&&Math.max(o.sigma/G.pw,o.sigma/G.ph)>Math.max(s.nx,s.ny)*10) return "Sigma is more than ten times the matrix: every cell would come out alike.";
       if(o.op==="unsharp"&&!(o.weight>=0&&o.weight<=0.99)) return "The mask weight is from 0 to 0.99.";
       if(IJ_RANK.includes(o.op)&&!(o.radius>=0.5&&o.radius<=100)) return "The radius is from 0.5 to 100 cells.";
+      if(o.op==="bg"){ const w=ijBgWhy(s.nx,s.ny,o.radius,!!o.parab,s.z.some(x=>x==null||!Number.isFinite(x))); if(w) return w; }
       if(o.op==="math"){ const me=IJ_MATH.find(e=>e[0]===o.mop); if(me[2]==="value"&&o.value==null) return "The value is a number.";
         if(o.mop==="gamma"&&!(o.value>=0.05&&o.value<=5)) return "Gamma is from 0.05 to 5, as ImageJ's.";
         if(o.mop==="nan"&&!(o.lo!=null&&o.hi!=null&&o.lo<=o.hi)) return "The values kept are two numbers, the lower first."; }
@@ -25618,6 +25729,7 @@ function ijProcItems(sid){ const on=!S.readOnly&&!!matOf(sid), run=(op,mop)=>()=
     {label:"Find edges",enabled:on,title:"Sobel's gradient: where the values change fastest (Process › Find Edges)",run:run("edges")},"-",
     {label:"Gaussian blur…",enabled:on,title:"A Gaussian of a sigma in cells or in X and Y's unit, ImageJ's kernel and edges (Process › Filters › Gaussian Blur)",run:dlg("gauss")},
     {label:"Unsharp mask…",enabled:on,title:"The image less a share of its blur, so details stand out (Process › Filters › Unsharp Mask)",run:dlg("unsharp")},
+    {label:"Subtract background…",enabled:on,title:"A smooth background under the image, by ImageJ's rolling ball or sliding paraboloid, taken away (Process › Subtract Background)",run:dlg("bg")},
     {label:"Filters",enabled:on,title:"ImageJ's rank filters over a circle of a radius in cells (Process › Filters)",sub:()=>[
       {label:"Mean…",run:dlg("mean")},{label:"Median…",title:"Takes out spikes and keeps edges",run:dlg("median")},{label:"Minimum…",run:dlg("min")},{label:"Maximum…",run:dlg("max")},{label:"Variance…",title:"How much the values vary about each cell",run:dlg("var")}]},
     {label:"Math",enabled:on,title:"Arithmetic on each value, as ImageJ's Process › Math",sub:()=>[
@@ -33588,7 +33700,7 @@ ${DL([["Stack columns","The columns ticked one under another in a column of valu
 <p>The image is shown as ImageJ shows a 32-bit image: each value scaled into 256 steps between the range shown (below it the table's first colour, above it its last) and coloured by a <b>lookup table</b>, the button beside Fit: ImageJ's own (Grays, Fire, Ice, Spectrum, 3-3-2 RGB, Red, Green, Blue, Cyan, Magenta, Yellow, Red/Green, HiLo, which marks the lowest step blue and the highest red) or Kurve's maps, and <em>Inverted</em> for its colours in the other order. <b>Contrast</b> (or ${K("C")}) opens ImageJ's Brightness and Contrast beside the image: the values' histogram with the range shown drawn over it, the table under it with the range's ends, and Minimum, Maximum, Brightness and Contrast as ImageJ's sliders (the image follows as one moves; letting go is one undo step). <em>Auto</em> is ImageJ's: each press leaves more of the brightest and darkest values out of the range, and after a few presses starts again; <em>Reset</em> the values' whole range; <em>Set…</em> two numbers (for every sheet of the book, if asked); <em>Enhance…</em> ImageJ's Enhance Contrast, the share of the values shown in the end colours (0.35 % to begin with). The table and range are kept with the matrix and undone with it, but are no change of its values (nothing in its record): a graph of the matrix uses them unless it has a colour map of its own, a TIFF saved for ImageJ carries the range as its display range, and Matrix › Save the image as PNG writes the image as shown, each cell a block of pixels, with a calibration bar beside it.</p>
 <p><b>Selections</b> are made as in ImageJ, with the tools on the image's bar: the Hand (to move the image; Space+drag or the middle button with any tool), Rectangle (ImageJ's first, chosen to begin with), Oval, Polygon (a click at each corner, a double click, ${K("Enter")} or a click on the first corner to finish, ${K("Backspace")} for the last corner), Straight line and Points (a click each). The selection is drawn in ImageJ's yellow with its handles: drag a handle to resize it (a rectangle's and an oval's edges go to the cells' boundaries), drag inside it to move it, and the arrows move it a cell; ${K("Esc")} lets go of it, ${K("Ctrl+A")} selects every cell. ImageJ's keys: ${K("M")} measures the selection, ${K("K")} plots a line's profile at once, ${K("T")} keeps it. Measure…, Profile… and the rest start from it.</p>
 <p>The <b>ROI Manager</b> (<em>Selections</em> on the bar) keeps selections with the book, as ImageJ's: a click on one shows it on the image, a double click renames it; Add, Update, Delete, Delete all; <em>Show all</em> draws every one numbered in cyan. <em>Measure</em> (or ${K("M")}) puts a row a selection into the book's <em>Results</em> sheet, ImageJ's columns over a rectangle's, an oval's or a polygon's cells, a line's length, angle and its profile's statistics, each point's value; the Results follow the matrix as any analysis does. What the analyses of a matrix found is drawn over its image in cyan (Find maxima's maxima, Spots' FWHM ellipses, a profile's line, Measure's region); the image's right-click has <em>Results on the image</em> to hide them.</p>
-<p><b>Process</b> (the window's Process button, its Matrix menu, or ${MP("Analyze › Image › Process")}) is ImageJ's Process menu: <em>Smooth</em>, <em>Sharpen</em> and <em>Find edges</em> (its 3 × 3 filters), <em>Gaussian blur</em> (a sigma in cells or, with <em>Scaled units</em>, in X and Y's unit; ticking it turns the sigma typed into the other unit), <em>Unsharp mask</em>, <em>Filters</em> (Mean, Median, Minimum, Maximum and Variance over ImageJ's circle of a radius in cells) and <em>Math</em> (add, subtract, multiply, divide, min, max, gamma, log, exp, square, square root, abs, reciprocal, and NaN background, every value outside a range made empty). Each makes a new matrix, worked out as ImageJ works its 32-bit image to the last bit (its values in single precision, the cells past the edge the edge's own), in a window of its own with the source's lookup table; it follows its source as any analysis does, so a value typed into the scan, or a change of the settings (its result sheet's <em>Change settings…</em>), works it out again, and one processed matrix can be processed again. ImageJ lets an empty cell spread through a blur or a mean (an unfinished scan's last rows empty half the image); <em>Leave the empty cells out</em> works each cell out from the cells with a value about it instead, and keeps the empty ones empty. The method gives the command that does the same in ImageJ.</p>
+<p><b>Process</b> (the window's Process button, its Matrix menu, or ${MP("Analyze › Image › Process")}) is ImageJ's Process menu: <em>Smooth</em>, <em>Sharpen</em> and <em>Find edges</em> (its 3 × 3 filters), <em>Gaussian blur</em> (a sigma in cells or, with <em>Scaled units</em>, in X and Y's unit; ticking it turns the sigma typed into the other unit), <em>Unsharp mask</em>, <em>Subtract background</em> (ImageJ's rolling ball of a radius in cells, the image shrunk first for a large one as ImageJ does, or its <em>sliding paraboloid</em>; a light background, smoothing first, or the background itself, as ImageJ's own checkboxes; the paraboloid refuses a matrix with empty cells, on which ImageJ's never finishes), <em>Filters</em> (Mean, Median, Minimum, Maximum and Variance over ImageJ's circle of a radius in cells) and <em>Math</em> (add, subtract, multiply, divide, min, max, gamma, log, exp, square, square root, abs, reciprocal, and NaN background, every value outside a range made empty). Each makes a new matrix, worked out as ImageJ works its 32-bit image to the last bit (its values in single precision, the cells past the edge the edge's own), in a window of its own with the source's lookup table; it follows its source as any analysis does, so a value typed into the scan, or a change of the settings (its result sheet's <em>Change settings…</em>), works it out again, and one processed matrix can be processed again. ImageJ lets an empty cell spread through a blur or a mean (an unfinished scan's last rows empty half the image); <em>Leave the empty cells out</em> works each cell out from the cells with a value about it instead, and keeps the empty ones empty. The method gives the command that does the same in ImageJ.</p>
 <p>The Cells view is the grid with X along the top, Y down the side and row 1 at the top, a tab for each matrix of the book (+ adds one, a double click renames, a right-click has the rest), the cell and its value above, and below the size, whether its values are original data or computed, and the N, mean, minimum and maximum of the cells selected. It is used as the worksheet is: click, drag, Shift and the arrows select; typing, F2 or a double click edits; Delete clears; Ctrl+C and Ctrl+V copy and paste tab-separated blocks. Only what is in view is drawn, so a million cells scroll as easily as a hundred.</p>
 <h2>Original data or computed</h2>
 <p>Values typed, read from columns or a picture, or transformed in place are <strong>original data</strong>: each change is one step to undo and an entry in the matrix's own record with the check code of its values (the SHA-256 of its rows written as the worksheet's original data is). <em>Set values…</em> makes a matrix <strong>computed</strong>: a formula of <code>x</code> and <code>y</code> (each cell's X and Y), <code>i</code> and <code>j</code> (its row and column from 1), the project's ${DA("formulas#consts","constants")} and other matrices of the same size by name (<code>Base * 2 + i</code>). It is worked out again whenever what it reads changes, and says why when it cannot be (a matrix it reads gone or of another size). <em>Keep the values only</em> drops the formula and keeps the values as original data. A matrix's name is a formula's name: a letter, then letters, digits and _.</p>

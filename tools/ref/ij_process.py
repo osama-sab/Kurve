@@ -10,6 +10,10 @@ it computes in double, into fixtures/ij-process.json.
                                         getAreaSums / addSideSums in doubles (full sums at a line's start, for kRadius < 2 and
                                         after a NaN), MIN and MAX, MEDIAN by getNaNAwareMedian with the pixel's own value as guess
   ij.plugin.filter.UnsharpMask          sharpenFloat: the Gaussian at accuracy 0.01, (v − w·b)/(1f − w)
+  ij.plugin.filter.BackgroundSubtracter rollingBallBackground for a FloatProcessor: RollingBall, shrinkImage, rollBall,
+                                        enlargeImage, its filter3x3 (MAXIMUM and MEAN), and slidingParaboloidFloatBackground with
+                                        correctCorners, filter1D and lineSlideParabola (one guard ImageJ lacks: where no slope is
+                                        below Float.MAX_VALUE the parabola steps on instead of looping for ever)
   ij.process.FloatProcessor.process     ADD (subtract as add(−value)), MULT (divide as multiply(1.0/value)), MINIMUM, MAXIMUM,
                                         GAMMA, LOG, EXP, SQR, SQRT, ABS; ImageMath's reciprocal and NaN Background
   Kurve's own (decision 10)             the empty cells left out: the Gaussian of the values over the Gaussian of the mask, the
@@ -281,6 +285,255 @@ def math_op(px, op, value, lo=None, hi=None):
         out.append(v2)
     return out
 
+# ---- BackgroundSubtracter ---------------------------------------------------------------------------------------------------
+FMAXF = F(FMAX)
+def jcast(x):                       # Java's (int) of a double: toward zero, NaN 0, saturated
+    if x != x: return 0
+    if x >= 2147483647: return 2147483647
+    if x <= -2147483648: return -2147483648
+    return int(x)
+def i32(x): x &= 0xffffffff; return x - (1 << 32) if x >= (1 << 31) else x
+
+def bg_filter3x3(pixels, width, height, kind):
+    def filter3(length, pixel0, inc):
+        shiftBy = 0.0
+        v3 = pixels[pixel0]; v2 = v3
+        p = pixel0
+        for i in range(length):
+            v1 = v2; v2 = v3
+            if i < length - 1: v3 = pixels[p + inc]
+            if kind == "max":
+                mx = v1 if v1 > v3 else v3
+                if v2 > mx: mx = v2
+                shiftBy += float(mx - v2)
+                pixels[p] = mx
+            else:
+                pixels[p] = (v1 + v2 + v3) * F(0.33333333)
+            p += inc
+        return shiftBy
+    shiftBy = 0.0
+    for y in range(height): shiftBy += filter3(width, y * width, 1)
+    for x in range(width): shiftBy += filter3(height, x, width)
+    return shiftBy / width / height
+
+class RollingBall:
+    def __init__(self, radius):
+        if radius <= 10: self.shrinkFactor = 1; arcTrimPer = 24
+        elif radius <= 30: self.shrinkFactor = 2; arcTrimPer = 24
+        elif radius <= 100: self.shrinkFactor = 4; arcTrimPer = 32
+        else: self.shrinkFactor = 8; arcTrimPer = 40
+        smallballradius = radius / self.shrinkFactor
+        if smallballradius < 1: smallballradius = 1
+        rsquare = smallballradius * smallballradius
+        xtrim = jcast(arcTrimPer * smallballradius) // 100
+        halfWidth = int(math.floor(smallballradius - xtrim + 0.5))   # Java's Math.round of a positive double
+        self.width = 2 * halfWidth + 1
+        self.data = []
+        for y in range(self.width):
+            for x in range(self.width):
+                xval = x - halfWidth; yval = y - halfWidth
+                temp = rsquare - xval * xval - yval * yval
+                self.data.append(F(math.sqrt(temp)) if temp > 0. else F(0))
+
+def shrink_image(pixels, width, height, sf):
+    sWidth = (width + sf - 1) // sf; sHeight = (height + sf - 1) // sf
+    s = [F(0)] * (sWidth * sHeight)
+    for ySmall in range(sHeight):
+        for xSmall in range(sWidth):
+            mn = FMAXF
+            y = sf * ySmall; j = 0
+            while j < sf and y < height:
+                x = sf * xSmall; k = 0
+                while k < sf and x < width:
+                    t = pixels[x + y * width]
+                    if t < mn: mn = t
+                    k += 1; x += 1
+                j += 1; y += 1
+            s[xSmall + ySmall * sWidth] = mn
+    return s, sWidth, sHeight
+
+def roll_ball(ball, pixels, width, height):
+    zBall = ball.data; ballWidth = ball.width; radius = ballWidth // 2
+    cache = [F(0)] * (width * ballWidth)
+    for y in range(-radius, height + radius):
+        nextLineToWriteInCache = (y + radius) % ballWidth
+        nextLineToRead = y + radius
+        if nextLineToRead < height:
+            cache[nextLineToWriteInCache * width:(nextLineToWriteInCache + 1) * width] = pixels[nextLineToRead * width:(nextLineToRead + 1) * width]
+            for x in range(width): pixels[nextLineToRead * width + x] = -FMAXF
+        y0 = max(y - radius, 0); yBall0 = y0 - y + radius
+        yend = min(y + radius, height - 1)
+        for x in range(-radius, width + radius):
+            z = FMAXF
+            x0 = max(x - radius, 0); xBall0 = x0 - x + radius
+            xend = min(x + radius, width - 1)
+            yBall = yBall0
+            for yp in range(y0, yend + 1):
+                cp = (yp % ballWidth) * width + x0; bp = xBall0 + yBall * ballWidth
+                for xp in range(x0, xend + 1):
+                    zReduced = cache[cp] - zBall[bp]
+                    if z > zReduced: z = zReduced
+                    cp += 1; bp += 1
+                yBall += 1
+            yBall = yBall0
+            for yp in range(y0, yend + 1):
+                p = x0 + yp * width; bp = xBall0 + yBall * ballWidth
+                for xp in range(x0, xend + 1):
+                    zMin = z + zBall[bp]
+                    if pixels[p] < zMin: pixels[p] = zMin
+                    p += 1; bp += 1
+                yBall += 1
+
+def interpolation_arrays(length, smallLength, sf):
+    idx = []; w = []
+    for i in range(length):
+        num = i - sf // 2
+        smallIndex = int(num / sf) if num >= 0 else -((-num) // sf)    # Java's int division: toward zero
+        if smallIndex >= smallLength - 1: smallIndex = smallLength - 2
+        idx.append(smallIndex)
+        distance = (i + F(0.5)) / sf - (smallIndex + F(0.5))
+        w.append(F(1) - distance)
+    return idx, w
+
+def enlarge_image(s, sw, sh, pixels, width, height, sf):
+    xi, xw = interpolation_arrays(width, sw, sf); yi, yw = interpolation_arrays(height, sh, sf)
+    line0 = [F(0)] * width; line1 = [F(0)] * width
+    for x in range(width): line1[x] = s[xi[x]] * xw[x] + s[xi[x] + 1] * (F(1) - xw[x])
+    ySmallLine0 = -1
+    for y in range(height):
+        if ySmallLine0 < yi[y]:
+            line0, line1 = line1, line0
+            ySmallLine0 += 1
+            sYPointer = (yi[y] + 1) * sw
+            for x in range(width): line1[x] = s[sYPointer + xi[x]] * xw[x] + s[sYPointer + xi[x] + 1] * (F(1) - xw[x])
+        weight = yw[y]
+        for x in range(width): pixels[y * width + x] = line0[x] * weight + line1[x] * (F(1) - weight)
+
+def rolling_ball_background(pixels, width, height, radius, invert, doPresmooth):
+    ball = RollingBall(radius); shrink = ball.shrinkFactor > 1
+    if invert:
+        for i in range(len(pixels)): pixels[i] = -pixels[i]
+    if doPresmooth: bg_filter3x3(pixels, width, height, "mean")
+    if shrink:
+        small, sw, sh = shrink_image(pixels, width, height, ball.shrinkFactor)
+        roll_ball(ball, small, sw, sh)
+        enlarge_image(small, sw, sh, pixels, width, height, ball.shrinkFactor)
+    else:
+        roll_ball(ball, pixels, width, height)
+    if invert:
+        for i in range(len(pixels)): pixels[i] = -pixels[i]
+
+def line_slide_parabola(pixels, start, inc, length, coeff2, correctedEdges):
+    cache = [F(0)] * length; nextPoint = [0] * max(length, 1)
+    minValue = FMAXF; lastpoint = 0; firstCorner = length - 1; lastCorner = 0
+    vPrevious1 = F(0); vPrevious2 = F(0)
+    curvatureTest = F(1.999) * coeff2
+    p = start
+    for i in range(length):
+        v = pixels[p]; cache[i] = v
+        if v < minValue: minValue = v
+        if i >= 2 and vPrevious1 + vPrevious1 - vPrevious2 - v < curvatureTest:
+            nextPoint[lastpoint] = i - 1; lastpoint = i - 1
+        vPrevious2 = vPrevious1; vPrevious1 = v
+        p += inc
+    nextPoint[lastpoint] = length - 1
+    nextPoint[length - 1] = 2147483647
+    i1 = 0
+    while i1 < length - 1:
+        v1 = cache[i1]; minSlope = FMAXF; i2 = 0; searchTo = length; recalc = 0
+        j = nextPoint[i1]
+        while j < searchTo:
+            v2 = cache[j]
+            slope = (v2 - v1) / (j - i1) + coeff2 * (j - i1)
+            if slope < minSlope:
+                minSlope = slope; i2 = j; recalc = -3
+            if recalc == 0:
+                b = float(F(0.5) * minSlope / coeff2)
+                maxSearch = i32(i1 + jcast(b + math.sqrt(b * b + float((v1 - minValue) / coeff2)) + 1))
+                if maxSearch < searchTo and maxSearch > 0: searchTo = maxSearch
+            j = nextPoint[j]; recalc += 1
+        if i2 <= i1: i2 = i1 + 1            # the guard ImageJ lacks (it would loop for ever)
+        if i1 == 0: firstCorner = i2
+        if i2 == length - 1: lastCorner = i1
+        p = start + (i1 + 1) * inc
+        for jj in range(i1 + 1, i2):
+            pixels[p] = v1 + (jj - i1) * (minSlope - (jj - i1) * coeff2)
+            p += inc
+        i1 = i2
+    if correctedEdges is not None:
+        if 4 * firstCorner >= length: firstCorner = 0
+        if 4 * (length - 1 - lastCorner) >= length: lastCorner = length - 1
+        v1 = cache[firstCorner]; v2 = cache[lastCorner]
+        slope = (v2 - v1) / (lastCorner - firstCorner)
+        value0 = v1 - slope * firstCorner
+        coeff6 = F(0)
+        mid = F(0.5) * (lastCorner + firstCorner)
+        for i in range((length + 2) // 3, (2 * length) // 3 + 1):
+            dx = (i - mid) * F(2) / (lastCorner - firstCorner)
+            poly6 = dx * dx * dx * dx * dx * dx - F(1)
+            if cache[i] < value0 + slope * i + coeff6 * poly6:
+                coeff6 = -(value0 + slope * i - cache[i]) / poly6
+        dx = (firstCorner - mid) * F(2) / (lastCorner - firstCorner)
+        correctedEdges[0] = value0 + coeff6 * (dx * dx * dx * dx * dx * dx - F(1)) + coeff2 * firstCorner * firstCorner
+        dx = (lastCorner - mid) * F(2) / (lastCorner - firstCorner)
+        correctedEdges[1] = value0 + (length - 1) * slope + coeff6 * (dx * dx * dx * dx * dx * dx - F(1)) + coeff2 * (length - 1 - lastCorner) * (length - 1 - lastCorner)
+    return correctedEdges
+
+def correct_corners(pixels, width, height, coeff2):
+    corners = [F(0)] * 4; e = [F(0), F(0)]
+    e = line_slide_parabola(pixels, 0, 1, width, coeff2, e); corners[0] = e[0]; corners[1] = e[1]
+    e = line_slide_parabola(pixels, (height - 1) * width, 1, width, coeff2, e); corners[2] = e[0]; corners[3] = e[1]
+    e = line_slide_parabola(pixels, 0, width, height, coeff2, e); corners[0] += e[0]; corners[2] += e[1]
+    e = line_slide_parabola(pixels, width - 1, width, height, coeff2, e); corners[1] += e[0]; corners[3] += e[1]
+    diagLength = min(width, height); coeff2diag = 2 * coeff2
+    e = line_slide_parabola(pixels, 0, 1 + width, diagLength, coeff2diag, e); corners[0] += e[0]
+    e = line_slide_parabola(pixels, width - 1, -1 + width, diagLength, coeff2diag, e); corners[1] += e[0]
+    e = line_slide_parabola(pixels, (height - 1) * width, 1 - width, diagLength, coeff2diag, e); corners[2] += e[0]
+    e = line_slide_parabola(pixels, width * height - 1, -1 - width, diagLength, coeff2diag, e); corners[3] += e[0]
+    for p, k in ((0, 0), (width - 1, 1), ((height - 1) * width, 2), (width * height - 1, 3)):
+        if pixels[p] > corners[k] / 3: pixels[p] = corners[k] / 3
+
+def filter1d(pixels, width, height, direction, coeff2):
+    startLine = 0; nLines = 0; lineInc = 0; pointInc = 0; length = 0
+    if direction == "x": nLines = height; lineInc = width; pointInc = 1; length = width
+    elif direction == "y": nLines = width; lineInc = 1; pointInc = width; length = height
+    elif direction == "1a": nLines = width - 2; lineInc = 1; pointInc = width + 1
+    elif direction == "1b": startLine = 1; nLines = height - 2; lineInc = width; pointInc = width + 1
+    elif direction == "2a": startLine = 2; nLines = width; lineInc = 1; pointInc = width - 1
+    elif direction == "2b": startLine = 0; nLines = height - 2; lineInc = width; pointInc = width - 1
+    for i in range(startLine, nLines):
+        startPixel = i * lineInc
+        if direction == "2b": startPixel += width - 1
+        if direction == "1a": length = min(height, width - i)
+        elif direction == "1b": length = min(width, height - i)
+        elif direction == "2a": length = min(height, i + 1)
+        elif direction == "2b": length = min(width, height - i)
+        line_slide_parabola(pixels, startPixel, pointInc, length, coeff2, None)
+
+def sliding_paraboloid_background(pixels, width, height, radius, invert, doPresmooth, correctCorners=True):
+    radius = F(radius)                                        # (float)radius
+    coeff2 = F(0.5) / radius; coeff2diag = F(1) / radius
+    if invert:
+        for i in range(len(pixels)): pixels[i] = -pixels[i]
+    shiftBy = F(0)
+    if doPresmooth:
+        shiftBy = F(bg_filter3x3(pixels, width, height, "max"))
+        bg_filter3x3(pixels, width, height, "mean")
+    if correctCorners: correct_corners(pixels, width, height, coeff2)
+    for d, c in (("x", coeff2), ("y", coeff2), ("x", coeff2), ("1a", coeff2diag), ("1b", coeff2diag), ("2a", coeff2diag), ("2b", coeff2diag), ("1a", coeff2diag), ("1b", coeff2diag)):
+        filter1d(pixels, width, height, d, c)
+    if invert:
+        for i in range(len(pixels)): pixels[i] = -(pixels[i] - shiftBy)
+    elif doPresmooth:
+        for i in range(len(pixels)): pixels[i] -= shiftBy
+
+def subtract_background(px, W, H, p):                         # rollingBallBackground for a FloatProcessor, called as the plugin
+    pixels = list(px)
+    if p.get("parab"): sliding_paraboloid_background(pixels, W, H, p["radius"], bool(p.get("light")), p.get("smooth", True))
+    else: rolling_ball_background(pixels, W, H, p["radius"], bool(p.get("light")), p.get("smooth", True))
+    if p.get("create"): return pixels
+    return [px[i] - pixels[i] for i in range(W * H)]          # snapshotPixels[p] - bgPixels[p]
+
 # ---- Kurve's: the empty cells left out --------------------------------------------------------------------------------------
 def gauss_skip(px, W, H, sx, sy, acc):
     a = [v if math.isfinite(v) else F(0) for v in px]; m = [F(1) if math.isfinite(v) else F(0) for v in px]
@@ -321,6 +574,7 @@ def run(case, p):
         sx = p["sigma"]; sy = p.get("sy", sx)
         r = gauss_skip(px, W, H, sx, sy, 0.0002) if p.get("skip") else gauss(px, W, H, sx, sy, 0.0002)
     elif op == "unsharp": r = unsharp(px, W, H, p["sigma"], p["weight"], p.get("skip", False))
+    elif op == "bg": r = subtract_background(px, W, H, p)
     elif op in ("mean", "median", "min", "max", "var"):
         r = rank_skip(px, W, H, p["radius"], op) if p.get("skip") and op in ("mean", "var") else rank(px, W, H, p["radius"], op)
     else: r = math_op(px, p["mop"], p.get("value"), p.get("lo"), p.get("hi"))
@@ -360,7 +614,11 @@ def main():
         for c in range(nx):
             v = 100 + 0.8 * c + 0.3 * r + 900 * math.exp(-((c - 12) ** 2 + (r - 20) ** 2) / 8) + 400 * math.exp(-((c - 30) ** 2 + (r - 9) ** 2) / 18)
             z.append(round(float(v + rng.normal(0, 3)), 4))
-    add("wide blur", nx, ny, z, [{"op": "gauss", "sigma": 9.0}, {"op": "gauss", "sigma": 12.5}, {"op": "gauss", "sigma": 20.0}, {"op": "gauss", "sigma": 4.0, "sy": 10.0},
+    bgs = [{"op": "bg", "radius": r} for r in (3.0, 8.0, 12.0, 25.0, 50.0, 150.0)] + \
+          [{"op": "bg", "radius": 6.0, "light": True}, {"op": "bg", "radius": 10.0, "create": True}, {"op": "bg", "radius": 10.0, "smooth": False}, {"op": "bg", "radius": 40.0, "light": True, "create": True}] + \
+          [{"op": "bg", "radius": r, "parab": True} for r in (2.0, 5.0, 20.0, 80.0)] + \
+          [{"op": "bg", "radius": 5.0, "parab": True, "light": True}, {"op": "bg", "radius": 8.0, "parab": True, "smooth": False}, {"op": "bg", "radius": 8.0, "parab": True, "create": True}]
+    add("wide blur", nx, ny, z, bgs + [{"op": "gauss", "sigma": 9.0}, {"op": "gauss", "sigma": 12.5}, {"op": "gauss", "sigma": 20.0}, {"op": "gauss", "sigma": 4.0, "sy": 10.0},
                                 {"op": "unsharp", "sigma": 10.0, "weight": 0.6}, {"op": "median", "radius": 6}, {"op": "mean", "radius": 6}, {"op": "var", "radius": 4}])
     # 4. a confocal scan of counts: Poisson spots, whole numbers with ties
     nx, ny = 32, 28
@@ -368,16 +626,18 @@ def main():
     for (cx, cy, a) in ((8, 7, 60), (20, 15, 90), (25, 22, 40), (9, 21, 25)):
         yy, xx = np.mgrid[0:ny, 0:nx]; lam += a * np.exp(-((xx - cx) ** 2 + (yy - cy) ** 2) / 4.5)
     z = [float(v) for v in rng.poisson(lam).ravel()]
-    add("photon counts", nx, ny, z, [{"op": "smooth"}, {"op": "gauss", "sigma": 1.5}, {"op": "median", "radius": 1}, {"op": "median", "radius": 2},
+    add("photon counts", nx, ny, z, [{"op": "bg", "radius": 4.0}, {"op": "bg", "radius": 4.0, "parab": True}, {"op": "bg", "radius": 25.0}, {"op": "smooth"}, {"op": "gauss", "sigma": 1.5}, {"op": "median", "radius": 1}, {"op": "median", "radius": 2},
                                     {"op": "min", "radius": 1.5}, {"op": "max", "radius": 2.5}, {"op": "var", "radius": 1}, {"op": "math", "mop": "sqrt"}, {"op": "math", "mop": "log"}])
     # 5. small and odd shapes: one column, one row, a block of empty cells
+    add("a bright corner", 24, 19, [round(50 + 0.5 * c - 0.3 * r + (800 if (c < 3 and r < 3) else 0) + 30 * math.cos(c * 0.7) * math.sin(r * 0.5), 3) for r in range(19) for c in range(24)],
+        [{"op": "bg", "radius": 4.0, "parab": True}, {"op": "bg", "radius": 4.0, "parab": True, "smooth": False}, {"op": "bg", "radius": 15.0, "parab": True, "light": True}, {"op": "bg", "radius": 6.0}])
     add("one row", 6, 1, [1.0, 4.0, 2.0, 8.0, 5.0, 7.0], [{"op": "smooth"}, {"op": "gauss", "sigma": 1.0}, {"op": "median", "radius": 2}, {"op": "var", "radius": 1}])
     add("one column", 1, 5, [3.0, 1.0, 4.0, 1.0, 5.0], [{"op": "smooth"}, {"op": "gauss", "sigma": 1.0}, {"op": "max", "radius": 1}])
     z = [float(i % 7) - 2.5 for i in range(10 * 8)]
     for r in (5, 6, 7):
         for c in range(10): z[r * 10 + c] = None
     add("unfinished scan", 10, 8, z, [{"op": "gauss", "sigma": 1.0}, {"op": "gauss", "sigma": 1.0, "skip": True}, {"op": "mean", "radius": 1}, {"op": "mean", "radius": 1, "skip": True},
-                                     {"op": "median", "radius": 1}, {"op": "min", "radius": 2}, {"op": "edges"}, {"op": "var", "radius": 2, "skip": True}])
+                                     {"op": "median", "radius": 1}, {"op": "min", "radius": 2}, {"op": "edges"}, {"op": "var", "radius": 2, "skip": True}, {"op": "bg", "radius": 3.0}, {"op": "bg", "radius": 3.0, "smooth": False}])
     for c in cases:
         c["want"] = [run(c, p) for p in c["ops"]]
     out = {"about": "ImageJ 1.54f's Process menu on 32-bit images, written again from its source (tools/ref/ij_process.py)", "cases": cases}

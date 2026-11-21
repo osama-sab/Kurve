@@ -1779,18 +1779,22 @@ graph first, with the taskbar kept at the bottom of the screen.
   `ijConvLine`, `ijDownK`, `ijUpK`, `ijDownLine`, `ijUpLine`, `ijBlur1`, `ijGauss(v, W, H, sx, sy, acc)` (GaussianBlur: X then Y, past σ
   8.5 the line shrunk by ⌊σ/4⌋), `ijLineRadii`, `ijRank(v, W, H, radius, "mean"|"median"|"min"|"max"|"var")` (RankFilters: the circle,
   the double sums full at a row's start and after a NaN, the NaN-aware median from the cell's own value), `ijUnsharp`, `IJ_MATH` and
-  `ijMathOp(v, op, c, lo, hi)` (FloatProcessor.process, ImageMath's reciprocal and NaN Background); beyond ImageJ `ijGaussSkip` (the
+  `ijMathOp(v, op, c, lo, hi)` (FloatProcessor.process, ImageMath's reciprocal and NaN Background); BackgroundSubtracter's
+  `ijBackground(v, W, H, {radius, light, create, parab, smooth})` (`ijJint` Java's (int), `ijBgFilter3` its 3 × 3 max and mean, `ijBall`,
+  `ijShrink`, `ijRollBall`, `ijInterpArr`, `ijEnlarge`, `ijRollingBg`; `ijSlideParabola` (one guard: where no slope is below
+  Float.MAX_VALUE it steps on, where ImageJ loops for ever), `ijCorners`, `ijFilter1D`, `ijParaboloid`) and `ijBgWhy` (a radius above 0,
+  the paraboloid refused with empty cells, a ball too large for the image shrunk or to work out); beyond ImageJ `ijGaussSkip` (the
   Gaussian of the values over the Gaussian of the mask) and `ijRankSkip` (Mean and Variance over the cells with a value), a cell empty
   before kept empty; `IJ_PROCS`, `ijProcess(M, {op, sigma, sy, radius, weight, mop, value, lo, hi, skip})` → `{z, notes}` in the matrix's
   order (non-finite and Minimum's or Maximum's ±3.4e38 empty) or `{fail}`; in ANA `IJ_PROC_CMD`, `IJ_MATH_CMD`, `IJ_PROC_SN`, `IJ_RANK`,
   `ijProcLabel(p)`, `ANA_KINDS.ijproc` (`typed`, `mat`, `opensMat`, `baseOf` (an analysis named by its operation, read by `anaDlg` and
   `anaMakeTyped`), `titleOf` (the dialog's title); `p.mat`, `op`, `sigma`, `scaled` (σ in X and Y's unit, over ImageJ's pixel size),
-  `weight`, `radius`, `mop`, `value`, `lo`, `hi`, `skip`; the sheet a line of what was done; the method ImageJ's command; its matrix
+  `weight`, `radius`, `mop`, `value`, `lo`, `hi`, `skip`, `light`, `create`, `parab`, `smooth`; the sheet a line of what was done; the method ImageJ's command; its matrix
   `sname` `<source>_<op>`, Z renamed where the operation changes it (Gradient of, Variance of, ln, a unit squared), and the source's
   lookup table, `disp`), which `anaWriteMat` takes (a new sheet `m.sname` and `m.disp`; worked out again it keeps the sheet's own);
   the matrix an analysis reads carries `disp`. The page: `ANA_FORMS.ijproc` (`#aIPm` (never a matrix made from the analysis edited:
   `matFromAna(sid, aid)`, `S.anaEdit` set by `anaDlg`), `#aIPo`, `#aIPs` with `#aIPu` (ticking it turns the σ typed into the other unit),
-  `#aIPw`, `#aIPr`, `#aIPk`, `#aIPq`, `#aIPv`, `#aIPl`/`#aIPh`, rows shown by `data-ipr`, `#aIPmsg` the cells σ comes to or the
+  `#aIPw`, `#aIPr`, `#aIPb` with `#aIPlt`, `#aIPpb`, `#aIPsm`, `#aIPcr` (Subtract background's), `#aIPk`, `#aIPq`, `#aIPv`, `#aIPl`/`#aIPh`, rows shown by `data-ipr`, `#aIPmsg` the cells σ comes to or the
   circle's), `ijProcItems(sid)` (the window's Process button `[data-mxproc]`, Matrix › Process, Analyze › Image › Process),
   `ijProcRun(sid, kp)` (what needs no setting, through `anaMakeTyped`), `ijProcDlg(sid, op, mop)`, `ijProcOpen(aid, say)` (its window
   brought forward; a kind with `opensMat` opens its matrix after `anaDlg`, and `anaDone` after the worker when `S.anaOpen` names it);
@@ -4019,7 +4023,7 @@ out, a click in about the cell, the keys, never past the scan, a series' heat ma
 through ImageJ's levels by the wheel, the keys and the list, Fit, a pan, a resize keeping the cells square, the readout); I.3, the
 lookup tables and Brightness and Contrast against ImageJ's; I.4, the selection tools, handles and keys, the ROI Manager and its
 Results, the overlays; I.5, Process (its menu, Smooth at once, Gaussian blur through its dialog in the scan's unit, Median, Log, NaN
-background, each against ijProcess cell by cell, a result following its source and another made from it, its own settings never
+background, Subtract background by the ball and the paraboloid, each against ijProcess cell by cell, a result following its source and another made from it, its own settings never
 offered its result, empty cells spreading as ImageJ's or left out, Analyze › Image › Process, undo, a reload).
 `node tools/img-test.mjs [path]` checks the image analyses' properties (QUDI_SPEC Q.5 to Q.8): a spot's position, FWHM, peak and
 background each with an error equal to its spread over 300 Poisson repeats and no bias, the reduced χ² near 1, a lone spot split

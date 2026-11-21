@@ -91,9 +91,10 @@ rounds, small counts, none); `fixtures/ij-display.json`. ref-test's `ijLut.table
 `tools/ref/ij_process.py` (IMAGE_SPEC I.5) is ImageJ 1.54f's Process menu on a 32-bit image written again in Python from its source,
 float32 where Java computes in float and Python's float where it computes in double: FloatProcessor.filter3x3 (Smooth, Sharpen, Find
 Edges), GaussianBlur (makeGaussianKernel, convolveLine, and past σ 8.5 its down- and upscaling), RankFilters (makeLineRadii, the padded
-cache, Mean and Variance from its double sums kept as it keeps them, Minimum, Maximum, the NaN-aware Median), UnsharpMask, Math, and
-Kurve's own empty cells left out, on seven images and 96 operations; `fixtures/ij-process.json`. ref-test's `ijProcess.*` (filter3x3,
-gauss, unsharp, rank, math, skip) count the cells that differ and must be 0.
+cache, Mean and Variance from its double sums kept as it keeps them, Minimum, Maximum, the NaN-aware Median), UnsharpMask,
+BackgroundSubtracter (the rolling ball, shrunk and enlarged, and the sliding paraboloid with its corners), Math, and Kurve's own empty
+cells left out, on eight images and 122 operations; `fixtures/ij-process.json`. ref-test's `ijProcess.*` (filter3x3, gauss, unsharp,
+rank, bg, math, skip) count the cells that differ and must be 0.
 
 ImageJ's own readout, where its jar may be run:
 
