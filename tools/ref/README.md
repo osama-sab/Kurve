@@ -99,6 +99,12 @@ rank, bg, math, skip) count the cells that differ and must be 0.
 where it has it, numpy's float64 for its doubles so a log of 0 is −∞) and setAutoThreshold of a 32-bit image (resetMinAndMax,
 create8BitImage, the byte histogram, scaleAndSetThreshold), written again from the source, on 32 histograms and four images;
 `fixtures/ij-threshold.json`. ref-test's `ijThreshold.methods` and `.levels` count the cases that differ and must be 0.
+`tools/ref/ij_particles.py` (IMAGE_SPEC I.6) is ImageJ 1.54f's Analyze Particles written again from its source: ParticleAnalyzer's scan
+and fill, Wand.autoOutline (threshold and legacy mode), PolygonFiller, FloodFiller.particleAnalyzerFill, getTracedPerimeter,
+EllipseFitter, FloatPolygon.getConvexHull, Roi.getFeretValues and Analyzer's circularity, AR, Round and Solidity, on four images
+(shapes with a hole and a particle inside it, a diagonal line, a pixel, one on the edge; Poisson spots; a smoothed random field; cells
+2 by 0.5 with empty cells) and 18 settings (holes, edges, sizes, circularity, ranges from below and between): 244 particles;
+`fixtures/ij-particles.json`. ref-test's `ijParticles.cells` (count and cells, exact), `.shape` (1e-14) and `.stats` (1e-14).
 
 ImageJ's own readout, where its jar may be run:
 

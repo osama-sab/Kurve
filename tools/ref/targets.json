@@ -138,6 +138,15 @@
  "ijThreshold.levels": {
   "tol": 0
  },
+ "ijParticles.cells": {
+  "tol": 0
+ },
+ "ijParticles.shape": {
+  "tol": 1e-14
+ },
+ "ijParticles.stats": {
+  "tol": 1e-14
+ },
  "reshape": {
   "tol": 1e-13
  },

@@ -904,6 +904,8 @@ them all at once is slice 2.
   method and the range as they change, each change one undo step.
 - **The macro's arithmetic.** ImageJ's Threshold window and its `setAutoThreshold` can disagree on a 32-bit image; Kurve gives the
   command's (made 8-bit, the level turned back into values), which a script can repeat, and says the level beside the count.
+- **Particles as an analysis.** ImageJ's Results grow a row each run; here the particles are a result sheet that follows the scan
+  and its threshold (a method is worked out again on new values), with the outlines drawn where they were found.
 - **A threshold is part of the matrix's view.** Kept with it and undone with it, it stays as numbers when the values change, as
   ImageJ's does; a mask made from it is a result that follows, with the method rather than the numbers when a method set it.
 

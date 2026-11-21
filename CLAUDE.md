@@ -1810,7 +1810,25 @@ graph first, with the taskbar kept at the bottom of the screen.
   ImageJ's window), `mxThOpen(sid)`, `mxThDraw`, `mxThWire`: `[data-thm]` the method or By hand, `[data-thd]` dark, `[data-thk]` the
   empty cells left out, `[data-thl]`/`[data-thh]` a range typed, `.thn` the count and level, `[data-ths]` Show in red, `[data-tha]` auto,
   reset, mask, nan); Process's `mask` op (Convert to mask: 255 in the range, 0 elsewhere; `#aIPtm`, `#aIPdk`, `#aIPsk`, a range by
-  hand in `#aIPl`/`#aIPh`; Process › Binary › Convert to mask…), Matrix › Threshold, Analyze › Image › Threshold);
+  hand in `#aIPl`/`#aIPh`; Process › Binary › Convert to mask…), Matrix › Threshold, Analyze › Image › Threshold); **Analyze
+  Particles** (I.6: in MAT `ijWand` (Wand.autoOutline, threshold and legacy mode, 8-connected, the thresholds as floats), `ijPolyMask`
+  (PolygonFiller of a traced outline), `ijFloodMask` (FloodFiller.particleAnalyzerFill: the particle's own cells, its holes out),
+  `ijTracedPerim`, `ijEllipseFit` (EllipseFitter), `ijHull` (FloatPolygon.getConvexHull), `ijFeret` (Roi.getFeretValues), `ijHullArea`,
+  `ijParticles(M, {lo, hi, min, max (cells), cmin, cmax, exclude, holes})` (ParticleAnalyzer's scan row by row from the top of ImageJ's
+  image, each particle filled with −Float.MAX_VALUE so it is not found again, with its holes when they are included; the size filter
+  and Solidity count the cells with a value, as FloatStatistics' pixelCount; the statistics by `ijMeasure` over the region kind `mask`;
+  Major and Minor 0 when the cells are not square to 1 %, as ImageJ's; `{rows [{n, cells, area, mean, sd, mode, min, max, x, y, xm,
+  ym, perim, bx, by, w, h, major, minor, angle, circ, feret, feretx, ferety (ImageJ's pixels), feretangle, minferet, ar, round,
+  solidity, intden, raw, median, skew, kurt, poly, px, py}], label (each cell's particle number), total, fraction}`); in ANA
+  `IJ_PA_COLS`, `ANA_KINDS.ijparticles` (`typed`; `p.mat`, the threshold `method` (or "manual" with `lo`, `hi`), `dark`, `skip`, `min`,
+  `max`, `units` (sizes in X and Y's unit squared), `cmin`, `cmax`, `exclude`, `holes`, `out` "none"|"mask"|"count"; a row a particle
+  under ImageJ's names, the section *Summary* (`cnt`, `tot`, `avg`, `pct`, `mmean`), the method ImageJ's Set Measurements and Analyze
+  Particles; `report.ijpa {mat, polys, labels}` the outlines; `mat` the particles (255) or their numbers); the page's
+  `ANA_FORMS.ijparticles` (`#aPAm`, `#aPAt`, `#aPAd`, `#aPAk`, `#aPAl`/`#aPAh` by hand (`data-par`), `#aPAs0`/`#aPAs1` with `#aPAu`,
+  `#aPAc0`/`#aPAc1`, `#aPAe`, `#aPAo`, `#aPAx`, `#aPAmsg` the count as set, past 250 000 cells when worked out), `ijpaStart(sid)` (the
+  sheet's threshold, else Default with a dark background), the outlines and numbers drawn by `mxOverlay` in cyan, the report's
+  *Show the outlines*, *Histogram of the areas*, *Open the matrix*; the Threshold panel's *Particles…* (`[data-tha="pa"]`), Matrix ›
+  Analyze particles…, Analyze › Image › Analyze particles…);
   `matDataItems` (Data › Matrix: New, From columns, From a picture, Open, then the matrix in front's, `matFront`),
   `matPlotItems` (Plot › Plot a matrix). The graph: `plotCfg` forces the heat layout while `plot.mat` names a matrix;
   `buildPlot` draws it with no column (`MAT`: `ps` from its names, no points, `matViewOf` the zoom in its X units or

@@ -496,6 +496,20 @@ if (fixtures["ij-threshold"]) {
       note("ijThreshold.levels", ok ? 0 : 1, `${im.name}, ${w.method}${w.dark ? " dark" : ""}${w.skip ? " skip" : ""}: ${r.fail || [r.t, r.lower, r.upper, r.inside]} against ${[w.t, w.lower, w.upper, w.inside]}`); } }
 }
 
+/* ---- ImageJ's Analyze Particles (IMAGE_SPEC I.6): every particle's cells (the count of particles or cells that differ), its shape
+   (perimeter, ellipse, circularity, Feret, solidity: relative error) and statistics, against tools/ref/ij_particles.py ---- */
+if (fixtures["ij-particles"]) {
+  const PA = get("ijParticles"), rel = (a, b) => a === b ? 0 : Math.abs(a - b) / Math.max(Math.abs(b), 1e-300);
+  for (const c of fixtures["ij-particles"].cases) c.ops.forEach((p, k) => { const r = PA({ nx: c.nx, ny: c.ny, xs: c.xs, ys: c.ys, z: c.z }, p), w = c.want[k], tag = `${c.name}, ${JSON.stringify(p)}`;
+    if (r.fail || r.rows.length !== w.length) { note("ijParticles.cells", 1, `${tag}: ${r.fail || r.rows.length} particles against ${w.length}`); return; }
+    let bc = 0, ws = 0, wt = 0, at = "";
+    r.rows.forEach((q, i) => { const e = w[i]; if (q.cells !== e.cells) bc++;
+      for (const f of ["perim", "major", "minor", "angle", "circ", "feret", "feretangle", "minferet", "feretx", "ferety", "solidity", "ar", "round"]) {
+        const d = e[f] == null ? (Number.isFinite(q[f]) ? 1 : 0) : rel(q[f], e[f]); if (d > ws) { ws = d; at = `#${i + 1} ${f}`; } }
+      for (const f of ["area", "mean", "min", "max", "x", "y"]) wt = Math.max(wt, rel(q[f], e[f])); });
+    note("ijParticles.cells", bc, `${tag}: ${w.length} particles`); note("ijParticles.shape", ws, `${tag}${at ? ", " + at : ""}`); note("ijParticles.stats", wt, tag); });
+}
+
 /* ---- NIST's Norris: certified values read from the file itself ---- */
 {
   const txt = readFileSync(join(here, "ref", "nist", "Norris.dat"), "utf8").split(/\r?\n/);

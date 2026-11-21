@@ -150,7 +150,17 @@ thresholds by Default as ImageJ's window does); Convert to mask (255 and 0) and 
 Beyond ImageJ: *Leave the empty cells out* of the histogram (ImageJ counts NaN in its lowest bin). **Checks**: `tools/ref/ij_threshold.py`
 (AutoThresholder and setAutoThreshold written again from the source, numpy's float64 for Java's doubles) on 32 histograms (huge counts
 that wrap Java's ints, bilevel, one bin, the ends) × 16 methods and four images × 16 methods, light and dark (and the empty cells left
-out): 672 cases equal (`ijThreshold.methods`, `.levels`); `tools/img-drive.mjs` I.6 (11). Analyze Particles next.
+out): 672 cases equal (`ijThreshold.methods`, `.levels`); `tools/img-drive.mjs` I.6 (11).
+
+**Analyze Particles done 21.11.** `ijParticles` in MAT: ParticleAnalyzer's scan and fill, the Wand's outline (threshold, legacy mode),
+PolygonFiller, FloodFiller.particleAnalyzerFill (holes left out unless included), the traced perimeter, EllipseFitter, the convex hull,
+Feret's diameters, circularity, AR, Round and Solidity, the statistics by `ijMeasure` over each particle's cells. The kind `ijparticles`
+(its threshold a method followed when the values change, or a range; size in cells or units squared; circularity; edges; holes): a row a
+particle under ImageJ's names, a Summary, the outlines and numbers on the image in cyan, a mask or count mask as a matrix, a histogram
+of the areas; from the Threshold panel's *Particles…*, Matrix › Analyze particles…, Analyze › Image › Analyze particles…. **Checks**:
+`tools/ref/ij_particles.py` (the same written again from the source) on four images and 18 settings, 244 particles: the count and every
+particle's cells equal, the shapes within 4·10⁻¹⁶, the statistics equal (`ijParticles.*`; a flood fill 4-connected or the perimeter's
+corner rule changed are caught); `tools/img-drive.mjs` I.6 (8 more, 19).
 
 **I.7 Scale bar, channels, histogram.** ImageJ's Scale Bar on the image and its picture (width, height, place, colour,
 text); a composite of the book's channels (each its table, added), Analyze › Histogram as a quick look with ImageJ's

@@ -463,6 +463,51 @@ await page(async p => {
   check(`the threshold is kept with the matrix across a reload (${rl && rl.method}), and broken ones from storage dropped`, rl && rl.method === "Li" && rl.skip && jk.every(x => x === null), JSON.stringify([rl, jk]));
 }, { name: "I.6" });
 
+console.log("I.6 Analyze particles");
+await page(async p => {
+  const sid = await nv(p); await p.evaluate(() => { const id = matWinIds()[0], st = winState(id); st.g = [0.03, 0.03, 0.8, 0.9]; st.max = false; applyWins(); }); await p.waitForTimeout(300);
+  const id = await p.evaluate(() => matWinIds()[0]), W = `#w-${id}`;
+  // the threshold panel's Particles… starts from its threshold
+  await p.click(`${W} [data-mxth]`); await p.waitForTimeout(300); await p.selectOption(`${W} [data-thm]`, "Otsu"); if (!await p.isChecked(`${W} [data-thd]`)) await p.click(`${W} [data-thd]`); await p.waitForTimeout(200);
+  await p.click(`${W} [data-tha="pa"]`); await p.waitForTimeout(300);
+  const d0 = await p.evaluate(() => ({ t: $("#aPAt").value, d: $("#aPAd").checked, msg: $("#aPAmsg").textContent, title: $("#formTitle").textContent }));
+  const want = (o) => p.evaluate(([o, sid]) => { const s = matOf(sid), T = ijThreshold(ijOfSheet(s), { method: o.method, dark: o.dark }); const r = ijParticles(ijOfSheet(s), Object.assign({ lo: T.lower, hi: T.upper }, o)); return r.rows.map(q => [q.cells, q.area, q.mean, q.x, q.y, q.perim, q.circ, q.feret, q.solidity]); }, [o, sid]);
+  let w = await want({ method: "Otsu", dark: true });
+  check(`Particles… from the Threshold panel starts from its threshold (${d0.t}, dark ${d0.d}) and counts them as they are set ("${d0.msg}")`, d0.t === "Otsu" && d0.d && d0.msg === `${w.length} particles`, JSON.stringify(d0));
+  await p.click("#formOk"); await p.waitForTimeout(600);
+  const got = await p.evaluate(() => { const a = anaList().filter(x => x.kind === "ijparticles").pop(), col = k => (P().cols.find(c => c.ana === a.id && c.ak === k) || { data: [] }).data;
+    const n = col("n").filter(v => v != null).length; return { name: a.name, rows: [...Array(n).keys()].map(i => ["cells", "area", "mean", "x", "y", "perim", "circ", "feret", "solidity"].map(k => col(k)[i])), cnt: col("cnt")[0], meth: a.res.report.method }; });
+  check(`it makes ${got.name}, a row a particle (${got.cnt}), each ImageJ's measurements as ijParticles gives them, and ImageJ's commands in its method`,
+    got.cnt === w.length && JSON.stringify(got.rows) === JSON.stringify(w) && /setAutoThreshold\("Otsu dark"\); run\("Analyze Particles\.\.\.", "size=0-Infinity pixel circularity=0\.00-1\.00 display summarize"\);/.test(got.meth), JSON.stringify([got.cnt, w.length, got.meth.slice(-160)]));
+  // the outlines on the image, in cyan
+  const cy = await p.evaluate(() => { const a = anaList().filter(x => x.kind === "ijparticles").pop(); anaActs(a).find(x => x.key === "show").run(); const id = matWinIds()[0], box = $("#w-" + id + " .mximg"), g = box._g, ctx = box.querySelector("canvas").getContext("2d");
+    let hit = 0, tot = 0; for (const P of a.res.report.ijpa.polys.slice(0, 10)) { const q = P[0], t = mxD2S(g, q[0], q[1]); if (t.x < 3 || t.y < 3 || t.x > g.W - 3 || t.y > g.H - 3) continue; tot++;
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) { const d = ctx.getImageData(Math.floor((Math.round(t.x) + 0.5 + dx) * g.dpr), Math.floor((Math.round(t.y) + 0.5 + dy) * g.dpr), 1, 1).data; if (d[0] < 60 && d[1] > 200 && d[2] > 200) { hit++; dx = dy = 9; } } } return { hit, tot }; });
+  check(`Show the outlines draws each particle's outline on the image in cyan (${cy.hit} of ${cy.tot} corners found)`, cy.tot > 3 && cy.hit === cy.tot, JSON.stringify(cy));
+  // sizes, circularity, edges, holes, a count mask, through the dialog's settings
+  const aid = await p.evaluate(() => anaList().filter(x => x.kind === "ijparticles").pop().id);
+  await p.evaluate(aid => { anaDlg("ijparticles", { id: aid }); }, aid); await p.waitForTimeout(250);
+  await p.fill("#aPAs0", "20"); await p.fill("#aPAc0", "0.6"); await p.check("#aPAe"); await p.selectOption("#aPAx", "count"); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(600);
+  w = await want({ method: "Otsu", dark: true, min: 20, cmin: 0.6, exclude: true });
+  const g2 = await p.evaluate(aid => { const a = anaOf(aid), col = k => (P().cols.find(c => c.ana === a.id && c.ak === k) || { data: [] }).data, s = anaMatSheet(a); return { cnt: col("cnt")[0], cells: col("cells").filter(v => v != null), m: s && { max: Math.max(...s.z), zname: s.zname } }; }, aid);
+  check(`20 cells at least, circularity 0.6 and more, the edges left out: ${g2.cnt} particles, as ijParticles; a count mask numbering them 1 to ${g2.m && g2.m.max}`, g2.cnt === w.length && JSON.stringify(g2.cells) === JSON.stringify(w.map(q => q[0])) && g2.cells.every(c => c >= 20) && g2.m && g2.m.max === w.length, JSON.stringify([g2, w.length]));
+  // in units squared; refusals
+  await p.evaluate(aid => { anaDlg("ijparticles", { id: aid }); }, aid); await p.waitForTimeout(250);
+  await p.fill("#aPAs0", "abc"); await p.waitForTimeout(100); const r1 = [await p.isDisabled("#formOk"), await p.textContent("#aPAmsg")];
+  await p.fill("#aPAs0", "0.3"); await p.selectOption("#aPAu", "units"); await p.fill("#aPAc0", "1.5"); await p.waitForTimeout(100); const r2 = [await p.isDisabled("#formOk"), await p.textContent("#aPAmsg")];
+  await p.fill("#aPAc0", ""); await p.waitForTimeout(100); const ok3 = await p.textContent("#aPAmsg"); await p.click("#formOk"); await p.waitForTimeout(600);
+  const pw = await p.evaluate(sid => { const s = matOf(sid); return ijGeom(s.x, s.y, s.nx, s.ny).pw; }, sid); w = await want({ method: "Otsu", dark: true, min: 0.3 / (pw * pw), exclude: true });
+  const g3 = await p.evaluate(aid => { const a = anaOf(aid); return (P().cols.find(c => c.ana === a.id && c.ak === "cnt") || { data: [] }).data[0]; }, aid);
+  check(`a size typed in µm² (0.3, ${(0.3 / (pw * pw)).toFixed(1)} cells) gives ${g3} particles; text and a circularity past 1 refused ("${r1[1]}", "${r2[1]}")`, g3 === w.length && r1[0] && r2[0] && /not a number/.test(r1[1]) && /from 0 to 1/.test(r2[1]) && /particle/.test(ok3), JSON.stringify([g3, w.length, r1, r2, ok3]));
+  // following the scan, a reload
+  const before = g3; await p.evaluate(() => { const st = mxSt(matBooks()[0].id), cells = []; for (let r = 10; r < 16; r++) for (let c = 10; c < 16; c++) cells.push([r, c, 50000]); mxWrite(st.sid, cells, "typed a spot"); }); await p.waitForTimeout(600);
+  const after = await p.evaluate(aid => (P().cols.find(c => c.ana === aid && c.ak === "cnt") || { data: [] }).data[0], aid); w = await want({ method: "Otsu", dark: true, min: 0.3 / (pw * pw), exclude: true });
+  check(`a spot typed into the scan is found when the particles are worked out again (${before} → ${after})`, after === w.length && after !== before, JSON.stringify([before, after, w.length]));
+  await p.evaluate(() => flushEdits()); await p.waitForTimeout(800); await p.reload(); await ready(p); await p.waitForTimeout(600);
+  const rl = await p.evaluate(aid => { const a = anaOf(aid); return a && { cnt: (P().cols.find(c => c.ana === aid && c.ak === "cnt") || { data: [] }).data[0], ok: anaSig(a) === a.sig, items: menuItems("analyze").find(i => i && i.label === "Image").sub().map(i => i && i.label) }; }, aid);
+  check(`kept across a reload and up to date; Analyze › Image has Analyze particles… (${rl.items.filter(Boolean).join(", ")})`, rl && rl.cnt === after && rl.ok && rl.items.includes("Analyze particles…"), JSON.stringify(rl));
+}, { name: "I.6" });
+
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

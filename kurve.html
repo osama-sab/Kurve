@@ -10486,6 +10486,38 @@ ANA_KINDS.ijproc={label:"Process (ImageJ)", base:"Processed", baseOf:ijProcLabel
     const method=`ImageJ 1.54f's ${op==="math"?"Process › Math › ":IJ_RANK.includes(op)?"Process › Filters › ":op==="gauss"||op==="unsharp"?"Process › Filters › ":"Process › "}${cmd.replace(/\.\.\.$/,"")} of ${mq.name} (${M.ny} × ${M.nx}): ${how}, in Java's single-precision arithmetic step by step on ImageJ's image of the matrix, its values rounded to single precision as ImageJ's 32-bit image holds them${["smooth","sharpen","edges","gauss","unsharp"].includes(op)||IJ_RANK.includes(op)?", the cells past the edge the edge's own, as ImageJ takes them":""}. ${skip?` Beyond ImageJ, the empty cells left out: ${op==="gauss"||op==="unsharp"?"the Gaussian of the values (an empty cell 0) over the Gaussian of where there are values, both ImageJ's":"each circle's cells with a value alone"}, a cell empty before left empty; ImageJ itself lets an empty cell spread.`:""} In ImageJ, on the TIFF Kurve writes for this matrix: ${macro}`;
     return {tables:[{cols}],report:{sections:[{title:lab,tables:[{head:["","Value"],rows}]}],method},notes:r.notes,
       mat:{nx:M.nx,ny:M.ny,x:matAxisOf(M.xs),y:matAxisOf(M.ys),z:r.z,xname:M.xname||"X",xunit:xu,yname:M.yname||"Y",yunit:yu,zname,zunit,sname:`${mq.name}_${IJ_PROC_SN[mop||op]}`,disp:op==="mask"?{lut:"ij:grays"}:M.disp||null}}; }};
+/* ImageJ's Analyze Particles (IMAGE_SPEC I.6): a threshold (a method, as setAutoThreshold, or a range) and ijParticles; a row a particle
+   under ImageJ's names, a summary as ImageJ's, the outlines kept for the image, and a mask or a count mask as a matrix if asked. */
+const IJ_PA_COLS=[["n","#"],["area","Area"],["mean","Mean"],["sd","StdDev"],["mode","Mode"],["min","Min"],["max","Max"],["x","X"],["y","Y"],["xm","XM"],["ym","YM"],["perim","Perim."],["bx","BX"],["by","BY"],["w","Width"],["h","Height"],
+  ["major","Major"],["minor","Minor"],["angle","Angle"],["circ","Circ."],["feret","Feret"],["intden","IntDen"],["median","Median"],["skew","Skew"],["kurt","Kurt"],["raw","RawIntDen"],["feretx","FeretX"],["ferety","FeretY"],["feretangle","FeretAngle"],["minferet","MinFeret"],["ar","AR"],["round","Round"],["solidity","Solidity"],["cells","Cells"]];
+ANA_KINDS.ijparticles={label:"Analyze particles (ImageJ)", base:"Particles", typed:true, typedWhat:"a matrix",
+  help:"ImageJ's Analyze › Analyze Particles on a matrix: each connected region of cells in the threshold's range a particle, with ImageJ's measurements (area, mean, centroid, perimeter, the fitted ellipse, circularity, Feret's diameters, solidity…), filtered by size and circularity, those on the edges left out if asked, and its outline on the image",
+  heavy(p,ins){ const q=ins.find(q=>q.mat); return !!q&&q.mat.z.length>1e6; },
+  run(ins,p){ p=p||{}; const mq=ins.find(q=>q.mat); if(!mq) return {fail:"Its matrix has been deleted."};
+    const M=mq.mat, mm={nx:M.nx,ny:M.ny,xs:M.xs,ys:M.ys,z:M.z}, G=ijGeom({v:M.xs},{v:M.ys},M.nx,M.ny); if(G.fail) return {fail:G.fail};
+    let lo=+p.lo, hi=+p.hi, T=null; const method=p.method==="manual"?"manual":IJ_TH_METHODS.includes(p.method)?p.method:"Default";
+    if(method!=="manual"){ T=ijThreshold(mm,{method,dark:!!p.dark,skip:!!p.skip}); if(T.fail) return {fail:T.fail}; lo=T.lower; hi=T.upper; }
+    if(!(lo<=hi)) return {fail:"The threshold's range is two numbers, the lower first."};
+    const cu=G.pw*G.ph, num=v=>v==null||v===""?null:+v, sz=v=>v==null?null:p.units?v/cu:v, s0=num(p.min), s1=num(p.max), c0=num(p.cmin), c1=num(p.cmax);
+    if(s0!=null&&!(s0>=0)||s1!=null&&!(s1>=(s0||0))) return {fail:"The sizes are from a number 0 or more to a larger one."};
+    if(c0!=null&&!(c0>=0&&c0<=1)||c1!=null&&!(c1>=(c0||0))) return {fail:"The circularity is from 0 to 1, the lower first."};
+    const r=ijParticles(mm,{lo,hi,min:sz(s0),max:sz(s1),cmin:c0,cmax:c1,exclude:!!p.exclude,holes:!!p.holes}); if(r.fail) return {fail:r.fail};
+    const xu=M.xunit||"", yu=M.yunit||"", zu=M.zunit||"", au=xu&&xu===yu?sigSq(xu):xu&&yu?`${xu}·${yu}`:"", U=(n,u)=>u?`${n} (${u})`:n, cols=[], secs=[], notes=[];
+    const unit={area:au,mean:zu,sd:zu,mode:zu,min:zu,max:zu,x:xu,y:yu,xm:xu,ym:yu,perim:xu===yu?xu:"",bx:xu,by:yu,w:xu,h:yu,major:xu===yu?xu:"",minor:xu===yu?xu:"",feret:xu===yu?xu:"",minferet:xu===yu?xu:"",median:zu,angle:"°",feretangle:"°"};
+    const fin=v=>v==null||!Number.isFinite(v)?null:v, rows=r.rows.map(q=>{ const o={}; IJ_PA_COLS.forEach(([k])=>{ o[k]=fin(q[k]); }); return o; });
+    anaTab("",IJ_PA_COLS.map(([k,n])=>[k,U(n,unit[k]||"")]),rows,cols,[]);
+    cols.forEach(c=>{ if(c.k==="x") c.role="x"; if(c.k==="y") c.role="y"; });
+    const total=r.total, n=r.rows.length, mean=n?r.rows.reduce((t,q)=>t+q.mean,0)/n:null;
+    anaTab("Summary",[["cnt","Count"],["tot",U("Total area",au)],["avg",U("Average size",au)],["pct","% Area"],["mmean",U("Mean",zu)]],[{cnt:n,tot:total,avg:n?total/n:null,pct:r.fraction,mmean:mean}],cols,secs);
+    if(!n) notes.push("No particle: no cell is in the threshold's range, or every particle was left out by the size, circularity or edge.");
+    if(Math.abs(G.pw-G.ph)/G.pw>=0.01) notes.push("The cells are not square, so Major and Minor are 0, and AR and Round empty, as ImageJ gives them.");
+    const u=zu?" "+zu:"", e=v=>v<=-1e30?"the least":v>=1e30?"the greatest":fmt(v,6)+u;
+    const thr=method==="manual"?`setThreshold(${lo}, ${hi});`:`setAutoThreshold("${method}${p.dark?" dark":""}");`;
+    const opts=[`size=${s0==null?0:s0}-${s1==null?"Infinity":s1}`].concat(p.units?[]:["pixel"],[`circularity=${(c0==null?0:c0).toFixed(2)}-${(c1==null?1:c1).toFixed(2)}`,"display"],p.exclude?["exclude"]:[],p.holes?["include"]:[],["summarize"]).join(" ");
+    const method_=`ImageJ 1.54f's Analyze › Analyze Particles of ${mq.name} (${M.ny} × ${M.nx}): the cells from ${e(lo)} to ${e(hi)} (${method==="manual"?"a range typed":`${method}${p.dark?", dark background":""}${p.skip?", the empty cells left out of its histogram":""}, level ${T.t} of 255`}), each 8-connected region a particle found row by row from the top of ImageJ's image, traced by its Wand and ${p.holes?"filled with its holes":"its holes left out"}, ${p.exclude?"those touching the edge left out, ":""}measured as ImageJ's Set Measurements with every measurement but area fraction, the values in single precision. In ImageJ, on the TIFF Kurve writes for this matrix: run("Set Measurements...", "area mean standard modal min centroid center perimeter bounding fit shape feret's integrated median skewness kurtosis redirect=None decimal=9"); ${thr} run("Analyze Particles...", "${opts}");`;
+    let mat=null; if(p.out==="mask"||p.out==="count"){ const z=Array.from(r.label,(l,i)=>M.z[i]==null&&p.out==="mask"?0:p.out==="mask"?(l?255:0):l);
+      mat={nx:M.nx,ny:M.ny,x:matAxisOf(M.xs),y:matAxisOf(M.ys),z,xname:M.xname||"X",xunit:xu,yname:M.yname||"Y",yunit:yu,zname:p.out==="mask"?`Particles of ${M.zname||mq.name}`:`Particle number of ${M.zname||mq.name}`,zunit:"",sname:`${mq.name}_${p.out==="mask"?"particles":"count"}`,disp:{lut:p.out==="mask"?"ij:grays":"ij:spectrum"}}; }
+    return {tables:[{cols}],report:{sections:secs,method:method_,ijpa:{mat:p.mat||null,polys:r.rows.slice(0,2000).map(q=>q.poly),labels:r.rows.slice(0,2000).map(q=>[q.x,q.y,q.n])}},notes,mat}; }};
 /* ==ANA:END== */
 /* ==MAT:START== Matrices (ux/spec/SHEET_SPEC.md, slice 3.6), pure: a grid of Z with its X and Y.
    A matrix is {nx, ny, x, y, z}: `z` row major (z[r*nx + c], a row a Y, a column an X), null for a
@@ -10706,6 +10738,7 @@ function matTiff(m,o){ o=o||{}; const nx=m.nx, ny=m.ny;
    lower-Y edge outside, on a right or upper one inside). */
 function ijRegion(G,xs,ys,reg){ const W=G.W, H=G.H, kind=reg&&reg.kind||"all";
   if(kind==="all") return {kind,x0:0,y0:0,w:W,h:H,mask:null,bx0:0,by0:0,bw:W,bh:H,macro:"run(\"Select None\");"};
+  if(kind==="mask") return {kind,x0:reg.x0,y0:reg.y0,w:reg.w,h:reg.h,mask:reg.mask||null,bx0:reg.x0,by0:reg.y0,bw:reg.w,bh:reg.h,macro:""};   // a particle's own cells (I.6)
   if(kind==="rect"||kind==="oval"){ const a=[+reg.x0,+reg.x1], b=[+reg.y0,+reg.y1];
     if(![...a,...b].every(Number.isFinite)) return {fail:`Give the ${kind==="oval"?"oval":"rectangle"}'s edges in X and Y.`};
     const xl=Math.min(...a), xh=Math.max(...a), yl=Math.min(...b), yh=Math.max(...b), tx=1e-9*G.pw, ty=1e-9*G.ph;
@@ -11555,6 +11588,113 @@ function ijThreshold(M,o){ o=o||{}; const I=ijImage(M,true); if(I.fail) return I
   if(max>min){ lower=lower===0?Math.min(min,-1e30):min+(lower/255)*(max-min); upper=upper===255?Math.max(max,1e30):min+(upper/255)*(max-min); } else lower=upper=min;
   let n=0, inside=0; for(const x of v) if(Number.isFinite(x)){ n++; if(x>=lower&&x<=upper) inside++; }
   return {t,lower,upper,min,max,hist,empty,n,inside,method,dark:!!o.dark}; }
+/* ImageJ's Analyze Particles (IMAGE_SPEC I.6; ij.plugin.filter.ParticleAnalyzer of 1.54f) on a 32-bit image with a threshold range:
+   ijWand        Wand.autoOutline in threshold and legacy mode (8-connected), the outline's corners as ImageJ's ints
+   ijPolyMask    PolygonFiller.getMask of a traced outline: the cells whose centres are inside
+   ijFloodMask   FloodFiller.particleAnalyzerFill: the particle's own cells (8-connected from its first), so its holes are left out
+   ijTracedPerim PolygonRoi.getTracedPerimeter: the outline's length less (w + h − √(w² + h²)) at each corner
+   ijEllipseFit  EllipseFitter: the ellipse of the same second moments, scaled to the same area (Major, Minor, Angle, its centre)
+   ijHull        FloatPolygon.getConvexHull (gift wrapping from the lowest point, collinear points left out)
+   ijFeret       Roi.getFeretValues: the largest distance between hull points, its angle, the least caliper width, its start
+   ijParticles   the scan, row by row, each particle found from its first cell, measured, filtered by size, circularity and the
+                 edges, and filled so it is not found again (with its holes when they are included). */
+function ijWand(px,W,H,x0,y0,lo,hi){ const L=Math.fround(lo), U=Math.fround(hi);
+  const ins=(x,y)=>{ if(x<0||x>=W||y<0||y>=H) return false; const v=px[y*W+x]; return v>=L&&v<=U; };
+  const insd=(x,y,d)=>{ switch(d&3){ case 0: return ins(x,y); case 1: return ins(x,y-1); case 2: return ins(x-1,y-1); default: return ins(x-1,y); } };
+  let x=x0, y=y0; if(!ins(x,y)) return null; do x++; while(ins(x,y));
+  const xs=[], ys=[]; let sx=x, sy=y, sd; if(ins(sx,sy)) sd=1; else { sd=3; sy++; }
+  x=sx; y=sy; let d=sd;
+  do{ let nd=d+1; do{ if(insd(x,y,nd)) break; nd--; } while(nd>=d);
+    if(nd!==d){ xs.push(x); ys.push(y); }
+    switch(nd&3){ case 0: x++; break; case 1: y--; break; case 2: x--; break; default: y++; }
+    d=nd; } while(x!==sx||y!==sy||(d&3)!==sd);
+  if(xs[0]!==x){ xs.push(x); ys.push(y); }
+  return {xs,ys}; }
+function ijPolyMask(xs,ys,bx,by,w,h){ const n=xs.length, mask=new Uint8Array(w*h);
+  for(let yy=0;yy<h;yy++){ const cy=by+yy+0.5, cr=[];
+    for(let k=0;k<n;k++){ let ax=xs[k], ay=ys[k], bx2=xs[(k+1)%n], by2=ys[(k+1)%n]; if(ay===by2) continue; if(ay>by2){ [ax,bx2]=[bx2,ax]; [ay,by2]=[by2,ay]; }
+      if(cy>ay&&cy<by2) cr.push(ax+(cy-ay)*(bx2-ax)/(by2-ay)); }
+    for(let xx=0;xx<w;xx++){ const cx=bx+xx+0.5; let c=0; for(const e of cr) if(e<cx) c++; if(c&1) mask[yy*w+xx]=1; } }
+  return mask; }
+function ijFloodMask(ipf,W,H,x,y,lo,hi,bx,by,w,h,fill){ const mask=new Uint8Array(w*h), inp=(xx,yy)=>{ const v=ipf[yy*W+xx]; return v>=lo&&v<=hi; }, st=[[x,y]];
+  while(st.length){ const [px,py]=st.pop(); if(!inp(px,py)) continue; let x1=px, x2=px;
+    while(x1>=0&&inp(x1,py)) x1--; x1++; while(x2<W&&inp(x2,py)) x2++; x2--;
+    for(let i=x1;i<=x2;i++){ mask[(py-by)*w+(i-bx)]=1; ipf[py*W+i]=fill; }
+    if(x1>0) x1--; if(x2<W-1) x2++;
+    let on=false; for(let i=x1;i<=x2;i++){ if(!on&&py>0&&inp(i,py-1)){ st.push([i,py-1]); on=true; } else if(on&&py>0&&!inp(i,py-1)) on=false; }
+    on=false; for(let i=x1;i<=x2;i++){ if(!on&&py<H-1&&inp(i,py+1)){ st.push([i,py+1]); on=true; } else if(on&&py<H-1&&!inp(i,py+1)) on=false; } }
+  return mask; }
+function ijTracedPerim(xs,ys,w,h){ const n=xs.length; if(n<4) return 0; let sdx=0, sdy=0, nc=0, dx1=xs[0]-xs[n-1], dy1=ys[0]-ys[n-1], s1=Math.abs(dx1)+Math.abs(dy1), corner=false;
+  for(let i=0;i<n;i++){ const j=i+1===n?0:i+1, dx2=xs[j]-xs[i], dy2=ys[j]-ys[i]; sdx+=Math.abs(dx1); sdy+=Math.abs(dy1); const s2=Math.abs(dx2)+Math.abs(dy2);
+    if(s1>1||!corner){ corner=true; nc++; } else corner=false; dx1=dx2; dy1=dy2; s1=s2; }
+  return sdx*w+sdy*h-(nc*((w+h)-Math.sqrt(w*w+h*h))); }
+function ijEllipseFit(mask,w,h,left,top){ const HALFPI=1.5707963267949;
+  if(!mask){ let major=(w*2)/1.772453851, minor=(h*2)/1.772453851, angle=0, theta=0; if(major<minor){ const t=major; major=minor; minor=t; angle=90; theta=Math.PI/2; } return {major,minor,angle,theta,xc:left+w/2,yc:top+h/2}; }
+  let xsum=0, ysum=0, x2sum=0, y2sum=0, xysum=0, bc=0;
+  for(let y=0;y<h;y++){ let bl=0, xl=0; for(let x=0;x<w;x++) if(mask[y*w+x]){ bl++; xl+=x; x2sum+=x*x; } xsum+=xl; ysum+=bl*y; xysum+=xl*y; y2sum+=y*y*bl; bc+=bl; }
+  let u20=0, u02=0, u11=0, xm=0, ym=0;
+  if(bc){ x2sum+=0.08333333*bc; y2sum+=0.08333333*bc; const n=bc, x1=xsum/n, y1=ysum/n, x2=x2sum/n, y2=y2sum/n, xy=xysum/n; xm=x1; ym=y1; u20=x2-x1*x1; u02=y2-y1*y1; u11=xy-x1*y1; }
+  let m4=4*Math.abs(u02*u20-u11*u11); if(m4<0.000001) m4=0.000001;
+  let a11=u02/m4, a12=u11/m4, a22=u20/m4, tmp=a11-a22; if(tmp===0) tmp=0.000001;
+  let theta=0.5*Math.atan(2*a12/tmp); if(theta<0) theta+=HALFPI;
+  if(a12>0) theta+=HALFPI; else if(a12===0){ if(a22>a11){ theta=0; tmp=a22; a22=a11; a11=tmp; } else if(a11!==a22) theta=HALFPI; }
+  tmp=Math.sin(theta); if(tmp===0) tmp=0.000001; const z=a12*Math.cos(theta)/tmp;
+  let major=Math.sqrt(1/Math.abs(a22+z)), minor=Math.sqrt(1/Math.abs(a11-z)); const scale=Math.sqrt(bc/(Math.PI*major*minor));
+  major=major*scale*2; minor=minor*scale*2; let angle=180*theta/Math.PI; if(angle===180) angle=0; if(major<minor){ const t=major; major=minor; minor=t; }
+  return {major,minor,angle,theta,xc:left+xm+0.5,yc:top+ym+0.5}; }
+function ijHull(X,Y){ const n=X.length, xx=[], yy=[]; let sy=Infinity; for(let i=0;i<n;i++) if(Y[i]<sy) sy=Y[i];
+  let sx=Infinity, p1=0; for(let i=0;i<n;i++) if(Y[i]===sy&&X[i]<sx){ sx=X[i]; p1=i; }
+  const ps=p1, sq=v=>v*v;
+  do{ const x1=X[p1], y1=Y[p1]; let p2=p1, x2=0, y2=0;
+    do{ p2++; if(p2===n) p2=0; if(p2===p1) break; x2=X[p2]; y2=Y[p2]; } while(x2===x1&&y2===y1);
+    let p3=p2+1; if(p3===n) p3=0;
+    if(p2!==p1) do{ const x3=X[p3], y3=Y[p3], det=x1*(y2-y3)-y1*(x2-x3)+(y3*x2-y2*x3); let cf=false;
+        if(det===0&&p3!==p2){ cf=sq(x3-x1)+sq(y3-y1)>sq(x2-x1)+sq(y2-y1); }
+        if(det>0||cf){ x2=x3; y2=y3; p2=p3; } p3++; if(p3===n) p3=0; } while(p3!==p1);
+    xx.push(x1); yy.push(y1); if(p2===p1) break; p1=p2; if(xx.length>1&&X[p1]===xx[0]&&Y[p1]===yy[0]) break; }
+  while(p1!==ps);
+  return {xs:xx,ys:yy}; }
+function ijFeret(hx,hy,pw,ph){ const n=hx.length; if(!n) return null; let p1=0, p2=0, d2=0;
+  for(let i=0;i<n;i++) for(let j=i+1;j<n;j++){ const dx=(hx[i]-hx[j])*pw, dy=(hy[i]-hy[j])*ph, q=dx*dx+dy*dy; if(q>d2){ d2=q; p1=i; p2=j; } }
+  if(hx[p1]>hx[p2]){ const t=p1; p1=p2; p2=t; }
+  const xf1=hx[p1], yf1=hy[p1], xf2=hx[p2], yf2=hy[p2]; let angle=(180/Math.PI)*Math.atan2((yf1-yf2)*ph,(xf2-xf1)*pw); if(angle<0) angle+=180;
+  let x0=hx[n-1], y0=hy[n-1], minF=Number.MAX_VALUE;
+  for(let i=0;i<n;i++){ const xp=x0, yp=y0; x0=hx[i]; y0=hy[i]; let xn=(y0-yp)*ph, yn=(xp-x0)*pw; const nf=1/Math.sqrt(xn*xn+yn*yn); xn*=nf*pw; yn*=nf*ph;
+    let md=0; for(let j=0;j<n;j++){ const dist=(hx[j]-x0)*xn+(hy[j]-y0)*yn; if(dist>md) md=dist; } if(md<minF) minF=md; }
+  return {feret:Math.sqrt(d2),angle,min:minF,fx:xf1,fy:yf1}; }
+function ijHullArea(hx,hy){ let c=0; const n=hx.length; for(let i=0;i<n;i++){ const j=i-1<0?n-1:i-1; c+=(Math.round(hx[i])+Math.round(hx[j]))*(Math.round(hy[i])-Math.round(hy[j])); } return Math.abs(c/2); }
+const IJ_PA_OUT=[["none","Nothing"],["outlines","Outlines on the image"],["mask","A mask"],["count","A count mask"]];
+/* ijParticles(M, {lo, hi (the threshold range, as setThreshold), min, max (sizes in cells), cmin, cmax (circularity), exclude (edges),
+   holes (included), single}) → {rows [{n (the particle's number), cells (pixelCount), area, mean, sd, mode, min, max, x, y, xm, ym,
+   perim, bx, by, w, h, major, minor, angle, circ, feret, feretx, ferety, feretangle, minferet, ar, round, solidity, intden, raw,
+   median, skew, kurt, poly (the outline's corners in X and Y), px, py (ImageJ's first cell)}], label (a particle's number a cell, 0
+   none, in the matrix's order), total, geom} or {fail}. */
+function ijParticles(M,o){ o=o||{}; const I=ijImage(M,true); if(I.fail) return I; const {G,W,H,v}=I, lo=+o.lo, hi=+o.hi;
+  if(!(lo<=hi)) return {fail:"The threshold's range is two numbers, the lower first."};
+  const FILL=-3.4028234663852886e38, px=Float32Array.from(v), ipf=o.holes?null:Float32Array.from(v), pw=G.pw, ph=G.ph;
+  const minS=o.min!=null&&o.min!==""?+o.min:0, maxS=o.max!=null&&o.max!==""?+o.max:Infinity, cmin=o.cmin!=null&&o.cmin!==""?+o.cmin:0, cmax=o.cmax!=null&&o.cmax!==""?+o.cmax:1;
+  const rows=[], lab=new Int32Array(W*H), xs=M.xs||matAxis(M.x,M.nx), ys=M.ys||matAxis(M.y,M.ny); let total=0;
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){ const val=px[y*W+x]; if(!(val>=lo&&val<=hi)) continue;
+    const wd=ijWand(px,W,H,x,y,lo,hi); if(!wd||!wd.xs.length) continue;
+    let bx=Infinity, by=Infinity, ex=-Infinity, ey=-Infinity; for(let k=0;k<wd.xs.length;k++){ bx=Math.min(bx,wd.xs[k]); by=Math.min(by,wd.ys[k]); ex=Math.max(ex,wd.xs[k]); ey=Math.max(ey,wd.ys[k]); }
+    const w=ex-bx, h=ey-by; let mask=null;
+    if(w>1&&h>1){ mask=ijPolyMask(wd.xs,wd.ys,bx,by,w,h); if(ipf) mask=ijFloodMask(ipf,W,H,x,y,lo,hi,bx,by,w,h,FILL); }
+    let cells=0; for(let yy=0;yy<h;yy++) for(let xx=0;xx<w;xx++) if((!mask||mask[yy*w+xx])&&Number.isFinite(v[(by+yy)*W+bx+xx])) cells++;   // FloatStatistics' pixelCount: an empty cell left out
+    let include=true; if(o.exclude&&(bx===0||by===0||bx+w===W||by+h===H)) include=false;
+    if(include&&(cmin>0||cmax!==1)){ const pr=ijTracedPerim(wd.xs,wd.ys,1,1); let c=pr===0?0:4*Math.PI*(cells/(pr*pr)); if(c>1&&cmax<=1) c=1; if(c<cmin||c>cmax) include=false; }
+    if(include&&cells>=minS&&cells<=maxS){
+      const st=ijMeasure({nx:M.nx,ny:M.ny,xs,ys,z:M.z},{kind:"mask",x0:bx,y0:by,w,h,mask},{single:true});
+      if(!st.fail){ const perim=ijTracedPerim(wd.xs,wd.ys,pw,ph), ef=ijEllipseFit(mask,w,h,bx,by), ps=Math.abs(pw-ph)/pw<0.01?pw:0, major=ef.major*ps, minor=ef.minor*ps;
+        const hull=ijHull(wd.xs,wd.ys), fr=ijFeret(hull.xs,hull.ys,pw,ph), ca=ijHullArea(hull.xs,hull.ys); let circ=perim===0?0:4*Math.PI*(st.area/(perim*perim)); if(circ>1) circ=1;
+        const n=rows.length+1; for(let yy=0;yy<h;yy++) for(let xx=0;xx<w;xx++) if(!mask||mask[yy*w+xx]){ const c=G.col(bx+xx), r=G.row(by+yy); lab[r*M.nx+c]=n; }
+        total+=st.area;
+        rows.push({n,cells,area:st.area,mean:st.mean,sd:st.sd,mode:st.mode,min:st.min,max:st.max,x:st.x,y:st.y,xm:st.xm,ym:st.ym,perim,bx:st.bx,by:st.by,w:st.w,h:st.h,
+          major,minor,angle:ef.angle,circ,feret:fr.feret,feretx:fr.fx,ferety:fr.fy,feretangle:fr.angle,minferet:fr.min,ar:major/minor,round:4*st.area/(Math.PI*major*major),solidity:cells/ca,
+          intden:st.intden,raw:st.raw,median:st.median,skew:st.skew,kurt:st.kurt,px:x,py:y,poly:wd.xs.map((q,k)=>[(q-G.xo)*pw,(G.yo-wd.ys[k])*ph])}); } }
+    // filled so it is not found again: its own cells, or with its holes the whole outline
+    for(let yy=0;yy<h;yy++) for(let xx=0;xx<w;xx++) if(!mask||mask[yy*w+xx]) px[(by+yy)*W+bx+xx]=FILL; }
+  let nv=0; for(const q of v) if(Number.isFinite(q)) nv++;
+  return {rows,label:lab,total,fraction:100*total/(W*H*pw*ph),cellsWith:nv,geom:G}; }
 /* ==MAT:END== */
 /* ==SIG:START== Signal processing and mathematics (ux/spec/SIGNAL_SPEC.md, wave 5), pure: the transform of any
    length, windows and spectra (5.1); the later slices' filters, correlation, envelopes, wavelets, interpolation and
@@ -23465,6 +23605,36 @@ const ANA_FORMS={
       return ""; },
     valid(r){ return !ANA_FORMS.ijproc.why(r); },
     inp(p,inp){ if(p.mat) inp.mat=p.mat; else delete inp.mat; }},
+  ijparticles:{noGroup:true,
+    html(p){ const M=matAll(), sid=p.mat&&matOf(p.mat)?p.mat:(matFront()||(M[0]&&M[0].s.id)), v=x=>x==null?"":esc(String(x)), m=p.method||"Default", s=matOf(sid), au=s&&s.xunit?sigSq(s.xunit):"";
+      return `<div class="grid2 padlg"><label for="aPAm">Matrix</label><select id="aPAm">${M.map(q=>`<option value="${q.s.id}"${q.s.id===sid?" selected":""}>${esc(matName(q.s.id))}</option>`).join("")}</select>
+        <label for="aPAt" class="tipd" title="The threshold: one of ImageJ's sixteen methods (setAutoThreshold), worked out again when the values change, or a range typed">Threshold</label><select id="aPAt">${IJ_TH_METHODS.map(x=>`<option${x===m?" selected":""}>${x}</option>`).join("")}<option value="manual"${m==="manual"?" selected":""}>By hand</option></select>
+        <span data-par="a"></span><span class="anarows" data-par="a"><label class="chk tipd" title="Bright particles on a dark background: the cells above the level"><input type="checkbox" id="aPAd"${p.dark?" checked":""}> Dark background</label><label class="chk tipd" title="Beyond ImageJ: the empty cells left out of the histogram the method reads"><input type="checkbox" id="aPAk"${p.skip?" checked":""}> Leave the empty cells out</label></span>
+        <label for="aPAl" data-par="h">From</label><span class="anarows" data-par="h"><input type="text" class="num" id="aPAl" value="${v(p.lo)}" aria-label="From"><span class="muted">to</span><input type="text" class="num" id="aPAh" value="${v(p.hi)}" aria-label="To"></span>
+        <label for="aPAs0" class="tipd" title="A particle's area, as ImageJ's Size: in cells, or in X and Y's unit squared; empty for no limit">Size</label><span class="anarows"><input type="text" class="num" id="aPAs0" value="${v(p.min)}" placeholder="0" aria-label="Least size"><span class="muted">to</span><input type="text" class="num" id="aPAs1" value="${v(p.max)}" placeholder="any" aria-label="Largest size"><select id="aPAu" aria-label="The sizes' unit"><option value="cells">cells</option><option value="units"${p.units?" selected":""}>${esc(au||"units²")}</option></select></span>
+        <label for="aPAc0" class="tipd" title="4π·area/perimeter², from 0 to 1 (a circle)">Circularity</label><span class="anarows"><input type="text" class="num" id="aPAc0" value="${v(p.cmin)}" placeholder="0" aria-label="Least circularity"><span class="muted">to</span><input type="text" class="num" id="aPAc1" value="${v(p.cmax)}" placeholder="1" aria-label="Largest circularity"></span>
+        <span></span><span class="anarows"><label class="chk tipd" title="Particles touching the matrix's edge left out (ImageJ's Exclude on edges)"><input type="checkbox" id="aPAe"${p.exclude?" checked":""}> Exclude on edges</label><label class="chk tipd" title="A particle's holes counted as its own, and whatever lies in them (ImageJ's Include holes)"><input type="checkbox" id="aPAo"${p.holes?" checked":""}> Include holes</label></span>
+        <label for="aPAx">A matrix of</label><select id="aPAx">${[["none","Nothing"],["mask","The particles (255) and the rest (0)"],["count","Each particle's number"]].map(([k,t])=>`<option value="${k}"${k===(p.out||"none")?" selected":""}>${t}</option>`).join("")}</select></div>
+        <p class="note" id="aPAmsg" aria-live="polite"></p>`; },
+    wire(box){ const F=ANA_FORMS.ijparticles, vals=()=>{ const r={}; box.querySelectorAll("input,select").forEach(el=>{ if(el.id) r[el.id]=el.type==="checkbox"?el.checked:el.value; }); return r; };
+      const msg=()=>{ const r=vals(), man=r.aPAt==="manual"; box.querySelectorAll("[data-par]").forEach(el=>{ el.hidden=el.dataset.par==="h"?!man:man; }); const w=F.why(r), el=$("#aPAmsg"); if(w){ el.textContent=w; return; }
+        const o=F.read(r), s=matOf(o.mat); if(s.nx*s.ny>250000){ el.textContent=`${s.ny} × ${s.nx} cells: the particles are counted when it is worked out.`; return; }
+        const q=ANA_KINDS.ijparticles.run([{name:s.name,mat:Object.assign(ijOfSheet(s),{xunit:s.xunit,yunit:s.yunit,zunit:s.zunit})}],o);
+        el.textContent=q.fail?q.fail:(()=>{ const n=q.tables[0].cols.find(c=>c.k==="cnt"); return `${n?n.vals[0]:0} particle${n&&n.vals[0]===1?"":"s"}`; })(); };
+      box.addEventListener("input",msg); box.addEventListener("change",msg); msg(); },
+    read(v){ const n=t=>{ const x=parseNum(String(t==null?"":t).trim()); return Number.isFinite(x)?x:null; }, m=v.aPAt==="manual"||IJ_TH_METHODS.includes(v.aPAt)?v.aPAt:"Default", o={mat:v.aPAm||null,method:m};
+      if(m==="manual"){ o.lo=n(v.aPAl); o.hi=n(v.aPAh); if(o.lo==null) o.lo=-1e30; if(o.hi==null) o.hi=1e30; } else { if(v.aPAd) o.dark=true; if(v.aPAk) o.skip=true; }
+      const s0=n(v.aPAs0), s1=n(v.aPAs1), c0=n(v.aPAc0), c1=n(v.aPAc1); if(s0!=null) o.min=s0; if(s1!=null) o.max=s1; if(v.aPAu==="units") o.units=true; if(c0!=null) o.cmin=c0; if(c1!=null) o.cmax=c1;
+      if(v.aPAe) o.exclude=true; if(v.aPAo) o.holes=true; if(v.aPAx==="mask"||v.aPAx==="count") o.out=v.aPAx; return o; },
+    why(r){ const o=ANA_FORMS.ijparticles.read(r), s=o.mat&&matOf(o.mat); if(!s) return "Choose a matrix."; const G=ijGeom(s.x,s.y,s.nx,s.ny); if(G.fail) return G.fail;
+      const bad=k=>String(r[k]||"").trim()!==""&&!Number.isFinite(parseNum(String(r[k]).trim()));
+      if(["aPAs0","aPAs1","aPAc0","aPAc1"].some(bad)||o.method==="manual"&&["aPAl","aPAh"].some(bad)) return "A field holds something that is not a number.";
+      if(o.method==="manual"&&!(o.lo<=o.hi)) return "The range is two numbers, the lower first.";
+      if(o.min!=null&&o.min<0||o.max!=null&&o.max<(o.min||0)) return "The sizes are from a number 0 or more to a larger one.";
+      if(o.cmin!=null&&!(o.cmin>=0&&o.cmin<=1)||o.cmax!=null&&!(o.cmax>=(o.cmin||0))) return "The circularity is from 0 to 1, the lower first.";
+      return ""; },
+    valid(r){ return !ANA_FORMS.ijparticles.why(r); },
+    inp(p,inp){ if(p.mat) inp.mat=p.mat; else delete inp.mat; }},
   fft:{noGroup:true, html(p){ return `<div class="grid2">${sigWinHtml(p,"boxcar")}
       <label for="aFd" class="tipd" title="Taken off before the window: a mean or a slope otherwise puts its own large values near frequency 0">Take off</label><select id="aFd">${SIG_DETREND.map(([k,t])=>`<option value="${k}"${k===(p.detrend||"none")?" selected":""}>${t}</option>`).join("")}</select>
       <label for="aFp" class="tipd" title="Zeros added at the end: a finer frequency step to read, no new information">Padding</label><span class="anarows"><select id="aFp"><option value="none">None</option><option value="pow2"${p.pad==="pow2"?" selected":""}>To the next power of 2</option><option value="n"${Number.isFinite(+p.pad)&&+p.pad>0?" selected":""}>To a length…</option></select><input type="text" id="aFpn" inputmode="numeric" aria-label="Length to pad to" value="${Number.isFinite(+p.pad)&&+p.pad>0?Math.round(+p.pad):""}" placeholder="points"></span>
@@ -23808,6 +23978,9 @@ function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&
   if(!rep) return [];
   if(ANA_KINDS[a.kind]&&ANA_KINDS[a.kind].mat) return [{key:"map",label:"Draw the map",title:"The analysis's matrix, as an image with its colour bar, on a new graph",enabled:!ro&&!!anaMatSheet(a),run:()=>anaMatPlot(a.id)},
     {key:"open",label:"Open the matrix",title:"The matrix's cells in its window",enabled:!!anaMatSheet(a),run:()=>{ const s=anaMatSheet(a); if(s) matOpen(a.out.mat,s.id); }}];
+  if(a.kind==="ijparticles"){ const q=rep.ijpa; return [{key:"show",label:"Show the outlines",title:"The matrix's image with each particle's outline and number in cyan",enabled:!!(q&&q.mat&&matOf(q.mat)),run:()=>{ const s=matOf(q.mat), b=s&&matBookOf(s.id); if(!b) return; matOpen(b.id,s.id); const id=mxWinId(b.id); if(mxSt(b.id).view!=="img") mxSetView(id,"img"); mxSt(b.id).ov=true; mxImgDraw(id); }},
+    {key:"hist",label:"Histogram of the areas",title:"The particles' areas counted into bins, on a graph of their own",enabled:!ro,run:()=>{ const c=P().cols.find(c=>c.ana===a.id&&c.ak==="area"); if(c) histogramCols([c.id]); else toast("There are no particles: Recalculate first."); }}]
+    .concat(anaMatSheet(a)?[{key:"open",label:"Open the matrix",title:"The particles as a matrix, in its window",enabled:true,run:()=>{ const s=anaMatSheet(a); if(s) matOpen(a.out.mat,s.id); }}]:[]); }
   if(SIG_PLOT[a.kind]) return [{key:"plot",label:SIG_PLOT[a.kind],title:"The result's main column against its X, on a new graph",enabled:!ro,run:()=>sigPlot(a.id)}];
   if(a.kind==="corr") return [{key:"scatter",label:"Scatter matrix",title:"Each pair's values against each other, a graph a pair, in a figure",enabled:!ro&&(a.in.cols||[]).length>1,run:()=>anaScatter(a.id)}];
   if(a.kind==="anovan") return [{key:"inter",label:"Interaction plot",title:"The cells' means by the first factor, a line for each level of the second, with their intervals, on a graph",enabled:!ro,run:()=>anaInterPlot(a.id)},
@@ -25495,7 +25668,7 @@ function mxThDraw(id){ const el=$("#w-"+id), box=el&&el.querySelector(".mxth"); 
     <div class="throw"><label for="thL_${id}">From</label><input type="text" class="num" id="thL_${id}" data-thl value="${esc(t?shown(t.lo):"")}" placeholder="the least" aria-label="From"${ro?" disabled":""}><span class="muted">to</span><input type="text" class="num" id="thH_${id}" data-thh value="${esc(t?shown(t.hi):"")}" placeholder="the greatest" aria-label="To"${ro?" disabled":""}></div>
     <p class="note thn" aria-live="polite">${t?`${inN.toLocaleString("en")} of ${nv.toLocaleString("en")} cells (${fmt(100*inN/Math.max(1,nv),3)} %)${t.method!=="manual"?` · level ${R.t} of 255`:""}${R.empty&&!t.skip?` · ${R.empty} empty counted in the lowest bin, as ImageJ`:""}`:"No threshold."}</p>
     <label class="chk"><input type="checkbox" data-ths${st.thShow!==false?" checked":""}> Show in red</label>
-    <div class="bcbtns"><button class="btn sm" data-tha="auto" title="The method worked out again on the values as they are now"${ro?" disabled":""}>Auto</button><button class="btn sm" data-tha="reset" title="No threshold"${ro||!t?" disabled":""}>Reset</button><button class="btn sm" data-tha="mask" title="Process › Binary › Convert to Mask: a new matrix of 255 in the range and 0 elsewhere, which follows this one"${ro||!t?" disabled":""}>Mask</button><button class="btn sm" data-tha="nan" title="Process › Math › NaN Background: a new matrix with every value outside the range empty"${ro||!t?" disabled":""}>NaN background</button></div>`;
+    <div class="bcbtns"><button class="btn sm" data-tha="auto" title="The method worked out again on the values as they are now"${ro?" disabled":""}>Auto</button><button class="btn sm" data-tha="reset" title="No threshold"${ro||!t?" disabled":""}>Reset</button><button class="btn sm" data-tha="mask" title="Process › Binary › Convert to Mask: a new matrix of 255 in the range and 0 elsewhere, which follows this one"${ro||!t?" disabled":""}>Mask</button><button class="btn sm" data-tha="nan" title="Process › Math › NaN Background: a new matrix with every value outside the range empty"${ro||!t?" disabled":""}>NaN background</button><button class="btn sm" data-tha="pa" title="Analyze › Analyze Particles with this threshold"${ro||!t?" disabled":""}>Particles…</button></div>`;
   if(keep){ const q=document.getElementById(keep); if(q) q.focus({preventScroll:true}); } }
 function mxThWire(el,id){ const box=el.querySelector(".mxth"), sid=()=>mxSt(mxBid(id)).sid;
   const by=()=>{ const s=matOf(sid()); if(!s) return; const m=box.querySelector("[data-thm]").value, d=box.querySelector("[data-thd]").checked, k=box.querySelector("[data-thk]").checked;
@@ -25513,7 +25686,11 @@ function mxThWire(el,id){ const box=el.querySelector(".mxth"), sid=()=>mxSt(mxBi
     if(a==="auto"){ const m=t&&t.method!=="manual"?t.method:"Default", r=matThrBy(s,m,!!(t&&t.dark),!!(t&&t.skip)); if(r) matThrSet(s.id,r); }
     else if(a==="reset") matThrSet(s.id,null);
     else if(a==="mask"&&t) ijProcRun(s.id,t.method==="manual"?{op:"mask",method:"manual",lo:t.lo,hi:t.hi}:{op:"mask",method:t.method,dark:!!t.dark,skip:!!t.skip});
-    else if(a==="nan"&&t) ijProcRun(s.id,{op:"math",mop:"nan",lo:t.lo,hi:t.hi}); }); }
+    else if(a==="nan"&&t) ijProcRun(s.id,{op:"math",mop:"nan",lo:t.lo,hi:t.hi});
+    else if(a==="pa"&&t) anaDlg("ijparticles",{p:ijpaStart(s.id)}); }); }
+// Analyze Particles' start: the matrix in front and its threshold, else Default with a dark background (bright spots, as a scan's).
+function ijpaStart(sid){ sid=sid||matFront(); const s=matOf(sid); if(!s) return {}; const t=matThrOf(s), o={mat:sid,exclude:false,out:"none"};
+  if(t) Object.assign(o,t.method==="manual"?{method:"manual",lo:t.lo,hi:t.hi}:{method:t.method,dark:!!t.dark,skip:!!t.skip}); else Object.assign(o,{method:"Default",dark:true}); return o; }
 // The 256 entries of a table, r, g, b each: ImageJ's own (ijLut), else Kurve's map at 256 places; reversed when inverted.
 const MXLUT={};
 function mxLut(k,inv){ const key=k+(inv?"~":""); if(MXLUT[key]) return MXLUT[key]; let L=/^ij:/.test(k)?ijLut(k.slice(3)):null;
@@ -25599,6 +25776,8 @@ function mxOverlay(ctx,g,s,st){ const b=matBookOf(s.id); if(st.rm&&st.roiAll&&b&
     if(rep.spt&&rep.spt.mat===s.id){ const sx=g.nx*g.mx/(g.e.x1-g.e.x0), sy=g.ny*g.my/(g.e.y1-g.e.y0);
       rep.spt.spots.forEach(([x,y,w1,w2,th])=>{ const t=mxD2S(g,x,y), a=th*Math.PI/180; ctx.beginPath(); ctx.ellipse(t.x,t.y,Math.max(1,w1/2*Math.hypot(Math.cos(a)*sx,Math.sin(a)*sy)),Math.max(1,w2/2*Math.hypot(Math.sin(a)*sx,Math.cos(a)*sy)),-Math.atan2(Math.sin(a)*sy,Math.cos(a)*sx),0,2*Math.PI); ctx.stroke(); }); }
     if(rep.ijp&&rep.ijp.mat===s.id){ const A=mxD2S(g,rep.ijp.x0,rep.ijp.y0), B=mxD2S(g,rep.ijp.x1,rep.ijp.y1); ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke(); }
+    if(rep.ijpa&&rep.ijpa.mat===s.id){ ctx.beginPath(); rep.ijpa.polys.forEach(P=>{ P.forEach((q,k)=>{ const t=mxD2S(g,q[0],q[1]), x=Math.round(t.x)+0.5, y=Math.round(t.y)+0.5; if(k) ctx.lineTo(x,y); else ctx.moveTo(x,y); }); ctx.closePath(); }); ctx.stroke();
+      if(rep.ijpa.labels.length<=400){ ctx.fillStyle="#00ffff"; ctx.font="10px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; rep.ijpa.labels.forEach(([x,y,n])=>{ const t=mxD2S(g,x,y); ctx.fillText(String(n),t.x,t.y); }); } }
     if(rep.ijm&&rep.ijm.mat===s.id&&rep.ijm.region&&rep.ijm.region.kind!=="all"){ ctx.restore(); mxShape(ctx,g,rep.ijm.region,"#00ffff",false); ctx.save(); ctx.setTransform(d,0,0,d,0,0); ctx.strokeStyle="#00ffff"; } });
   ctx.restore(); }
 function mxPolyEnd(id){ const st=mxSt(mxBid(id)), d=st.draft; if(!d) return; st.draft=null; const g=$(`#w-${id} .mximg`)._g;
@@ -25920,6 +26099,7 @@ function matMenuItems(sid){ const s=matOf(sid), ro=S.readOnly, on=!!s&&!ro;
     {label:"Threshold",enabled:!!s,title:"ImageJ's Image › Adjust › Threshold: the cells in a range shown in red, by one of its sixteen methods or by hand, beside the image",run:()=>mxThOpen(sid)},
     {label:"Save the image as PNG",enabled:!!s,title:"The image as shown, each cell a block of pixels, with its calibration bar",run:()=>mxSavePng(sid)},
     {label:"Process",enabled:!!s,title:"ImageJ's Process menu: filters and arithmetic, each a new matrix that follows this one",sub:()=>ijProcItems(sid)},
+    {label:"Analyze particles…",enabled:on,title:ANA_KINDS.ijparticles.help,run:()=>anaDlg("ijparticles",{p:ijpaStart(sid)})},
     {label:"Spots…",enabled:on,title:ANA_KINDS.spots.help,run:()=>anaDlg("spots",{p:spxStart(sid)})},
     {label:"Shift between scans…",enabled:on&&matAll().length>1,title:matAll().length>1?ANA_KINDS.shift.help:"A second matrix of the same size is needed",run:()=>anaDlg("shift",{p:shStart(sid)})},
     {label:"ImageJ",title:"ImageJ's measurements of this matrix, and the matrix as a TIFF ImageJ opens with its calibration",sub:()=>[
@@ -31565,6 +31745,7 @@ function analyzeMenu(){
         {label:"Measure…", title:ok?ANA_KINDS.ijmeasure.help:need, run:()=>anaDlg("ijmeasure",{p:ijmStart()}), enabled:ok},
         {label:"Find maxima…", title:ok?ANA_KINDS.ijmaxima.help:need, run:()=>anaDlg("ijmaxima",{p:ijxStart()}), enabled:ok},
         {label:"Profile…", title:ok?ANA_KINDS.ijprofile.help:need, run:()=>anaDlg("ijprofile",{p:ijpStart()}), enabled:ok},"-",
+        {label:"Analyze particles…", title:ok?ANA_KINDS.ijparticles.help:need, run:()=>anaDlg("ijparticles",{p:ijpaStart()}), enabled:ok},
         {label:"Spots…", title:ok?ANA_KINDS.spots.help:need, run:()=>anaDlg("spots",{p:spxStart()}), enabled:ok},
         {label:"Shift between scans…", title:ok&&matAll().length>1?ANA_KINDS.shift.help:"Two matrices of one size are needed", run:()=>anaDlg("shift",{p:shStart()}), enabled:ok&&matAll().length>1}]; }},
     {label:"Statistics", sub:()=>[{label:"Quick statistics…", title:"The Statistics window: each column's numbers at a glance, the integral of the range in view, the noise and the signal to noise, with no sheet made", run:go("desc"), enabled:has},
@@ -33922,6 +34103,7 @@ ${DL([["Stack columns","The columns ticked one under another in a column of valu
 <p><b>Selections</b> are made as in ImageJ, with the tools on the image's bar: the Hand (to move the image; Space+drag or the middle button with any tool), Rectangle (ImageJ's first, chosen to begin with), Oval, Polygon (a click at each corner, a double click, ${K("Enter")} or a click on the first corner to finish, ${K("Backspace")} for the last corner), Straight line and Points (a click each). The selection is drawn in ImageJ's yellow with its handles: drag a handle to resize it (a rectangle's and an oval's edges go to the cells' boundaries), drag inside it to move it, and the arrows move it a cell; ${K("Esc")} lets go of it, ${K("Ctrl+A")} selects every cell. ImageJ's keys: ${K("M")} measures the selection, ${K("K")} plots a line's profile at once, ${K("T")} keeps it. Measure…, Profile… and the rest start from it.</p>
 <p>The <b>ROI Manager</b> (<em>Selections</em> on the bar) keeps selections with the book, as ImageJ's: a click on one shows it on the image, a double click renames it; Add, Update, Delete, Delete all; <em>Show all</em> draws every one numbered in cyan. <em>Measure</em> (or ${K("M")}) puts a row a selection into the book's <em>Results</em> sheet, ImageJ's columns over a rectangle's, an oval's or a polygon's cells, a line's length, angle and its profile's statistics, each point's value; the Results follow the matrix as any analysis does. What the analyses of a matrix found is drawn over its image in cyan (Find maxima's maxima, Spots' FWHM ellipses, a profile's line, Measure's region); the image's right-click has <em>Results on the image</em> to hide them.</p>
 <p><b>Threshold</b> (the window's Threshold button, its Matrix menu, or ${MP("Analyze › Image › Threshold")}) is ImageJ's Image › Adjust › Threshold: the cells in a range of values drawn in red on the image, the range set by one of ImageJ's sixteen methods (Default, Huang, Intermodes, IsoData, Li, MaxEntropy, Mean, MinError, Minimum, Moments, Otsu, Percentile, RenyiEntropy, Shanbhag, Triangle, Yen), with <em>Dark background</em> for bright objects, or typed. As ImageJ's <code>setAutoThreshold</code> does for a 32-bit image, the values are made 8-bit over their range, the method reads that histogram, and its level is turned back into values, so the range is ImageJ's to the last digit; an empty cell is counted in the lowest bin, as ImageJ counts NaN, unless <em>Leave the empty cells out</em>. The threshold is kept with the matrix (undone with it, never in its record) and stays as numbers when the values change; <em>Auto</em> works it out again. <em>Mask</em> makes a new matrix of 255 in the range and 0 elsewhere (Process › Binary › Convert to mask…, as ImageJ's with a black background), <em>NaN background</em> one with every other value empty; both follow the scan.</p>
+<p><b>Analyze particles</b> (the Threshold panel's <em>Particles…</em>, the Matrix menu, or ${MP("Analyze › Image › Analyze particles…")}) is ImageJ's Analyze › Analyze Particles: each 8-connected region of cells in the threshold's range a particle (the threshold the matrix's own to begin with, by a method so it is worked out again when the values change, or typed), found and traced as ImageJ's Wand traces it, its holes its own or not (<em>Include holes</em>), those touching the edge left out if asked, and those outside a size (in cells or in X and Y's unit squared) or a circularity left out. A row a particle under ImageJ's names: Area, Mean, StdDev, Mode, Min, Max, the centroid X and Y, the centre of mass XM and YM, Perim., the bounding rectangle, the fitted ellipse's Major, Minor and Angle, Circ., Feret's diameter with its angle, start and least width, IntDen, Median, Skew, Kurt, AR, Round and Solidity, each as ImageJ works it out (with cells that are not square, Major and Minor are 0, as ImageJ gives them); and a Summary (the count, total and average area, the share of the matrix, the mean). Its report draws each particle's outline and number on the image in cyan, and counts the areas into a histogram; a matrix of the particles or of their numbers can be made beside it. It follows the scan.</p>
 <p><b>Process</b> (the window's Process button, its Matrix menu, or ${MP("Analyze › Image › Process")}) is ImageJ's Process menu: <em>Smooth</em>, <em>Sharpen</em> and <em>Find edges</em> (its 3 × 3 filters), <em>Gaussian blur</em> (a sigma in cells or, with <em>Scaled units</em>, in X and Y's unit; ticking it turns the sigma typed into the other unit), <em>Unsharp mask</em>, <em>Subtract background</em> (ImageJ's rolling ball of a radius in cells, the image shrunk first for a large one as ImageJ does, or its <em>sliding paraboloid</em>; a light background, smoothing first, or the background itself, as ImageJ's own checkboxes; the paraboloid refuses a matrix with empty cells, on which ImageJ's never finishes), <em>Filters</em> (Mean, Median, Minimum, Maximum and Variance over ImageJ's circle of a radius in cells) and <em>Math</em> (add, subtract, multiply, divide, min, max, gamma, log, exp, square, square root, abs, reciprocal, and NaN background, every value outside a range made empty). Each makes a new matrix, worked out as ImageJ works its 32-bit image to the last bit (its values in single precision, the cells past the edge the edge's own), in a window of its own with the source's lookup table; it follows its source as any analysis does, so a value typed into the scan, or a change of the settings (its result sheet's <em>Change settings…</em>), works it out again, and one processed matrix can be processed again. ImageJ lets an empty cell spread through a blur or a mean (an unfinished scan's last rows empty half the image); <em>Leave the empty cells out</em> works each cell out from the cells with a value about it instead, and keeps the empty ones empty. The method gives the command that does the same in ImageJ.</p>
 <p>The Cells view is the grid with X along the top, Y down the side and row 1 at the top, a tab for each matrix of the book (+ adds one, a double click renames, a right-click has the rest), the cell and its value above, and below the size, whether its values are original data or computed, and the N, mean, minimum and maximum of the cells selected. It is used as the worksheet is: click, drag, Shift and the arrows select; typing, F2 or a double click edits; Delete clears; Ctrl+C and Ctrl+V copy and paste tab-separated blocks. Only what is in view is drawn, so a million cells scroll as easily as a hundred.</p>
 <h2>Original data or computed</h2>

@@ -163,6 +163,7 @@ Data
         Reciprocal
         NaN background…  ## the values kept, the rest empty
     Threshold  ## ↓; new (IMAGE_SPEC I.6): ImageJ's Threshold panel beside the image (also the window's Threshold button)
+    Analyze particles…  ## ↓; new (IMAGE_SPEC I.6): ImageJ's Analyze Particles, a row a particle, outlines on the image
     Spots…  ## ↓; new (QUDI_SPEC Q.5): Kurve's own, each spot fitted with its errors
     Shift between scans…  ## ↓; new (QUDI_SPEC Q.8): two scans of one size registered to a hundredth of a cell, with an error
     ImageJ  ## ↓; new (QUDI_SPEC Q.2 to Q.4): ImageJ's measurements of this matrix, and the matrix as a TIFF
@@ -343,6 +344,7 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
     Measure…  ## ImageJ's Analyze › Measure over the matrix, a rectangle, an oval or a polygon, into a result sheet
     Find maxima…  ## ImageJ's Process › Find Maxima, a row a maximum
     Profile…  ## ImageJ's Analyze › Plot Profile of a straight line
+    Analyze particles…  ## new (IMAGE_SPEC I.6): ImageJ's Analyze Particles
     Spots…  ## new (QUDI_SPEC Q.5): beyond ImageJ, each spot a fitted Gaussian with its errors
     Shift between scans…  ## new (QUDI_SPEC Q.8): beyond ImageJ, the drift or a back scan's lag with its error
   Statistics  ## ← the Statistics menu (DS2)

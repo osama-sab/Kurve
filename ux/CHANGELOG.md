@@ -1024,6 +1024,17 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Images, slice I.6, second half: Analyze Particles (2026-11-21)
+
+- **ImageJ's Analyze Particles** (the Threshold panel's *Particles…*, Matrix › Analyze particles…, Analyze › Image › Analyze particles…):
+  each region of cells in the threshold's range a particle, ImageJ's size, circularity, edge and holes options, a row a particle under
+  ImageJ's names (area, mean, centroid, perimeter, the fitted ellipse, circularity, Feret's diameters, solidity…) and a Summary.
+- The outlines and numbers drawn on the image in cyan; a matrix of the particles or of their numbers; a histogram of the areas. It
+  follows the scan and its threshold.
+
+Checked: a NumPy transcription of ImageJ 1.54f's ParticleAnalyzer, Wand, PolygonFiller, FloodFiller, EllipseFitter, convex hull and Feret
+on 244 particles: the same particles and cells, shapes within 4·10⁻¹⁶ (three new bench entries); `tools/img-drive.mjs` (8 new, 107).
+
 ## Images, slice I.6, first half: Threshold (2026-11-21)
 
 - **ImageJ's Threshold** beside the image (the window's *Threshold* button, Matrix › Threshold, Analyze › Image › Threshold): the cells in a
