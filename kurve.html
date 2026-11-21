@@ -10416,6 +10416,52 @@ ANA_KINDS.shift={label:"Shift between scans (Kurve)", base:"Shift", typed:true, 
       const z=p.out==="moved"?zm:zm.map((v,i)=>v==null||MA.z[i]==null?null:MA.z[i]-v);
       mat={nx:MA.nx,ny:MA.ny,x:matAxisOf(MA.xs),y:matAxisOf(MA.ys),z,xname:MA.xname||"X",xunit:xu,yname:MA.yname||"Y",yunit:yu,zname:p.out==="moved"?"Moved":"Difference",zunit:MA.zunit||""}; }
     return {tables:[{cols}],report:{sections:secs,method},notes,mat}; }};
+/* ImageJ's Process menu (IMAGE_SPEC I.5): a filter or a piece of arithmetic on a matrix, worked out as ImageJ works it on its 32-bit
+   image (ijProcess), into a matrix of the analysis's own that follows its input; its sheet a line of what was done, its method the
+   command that does the same in ImageJ. */
+const IJ_PROC_CMD={smooth:"Smooth",sharpen:"Sharpen",edges:"Find Edges",gauss:"Gaussian Blur...",unsharp:"Unsharp Mask...",mean:"Mean...",median:"Median...",min:"Minimum...",max:"Maximum...",var:"Variance..."};
+const IJ_MATH_CMD={add:"Add...",sub:"Subtract...",mul:"Multiply...",div:"Divide...",min:"Min...",max:"Max...",gamma:"Gamma...",log:"Log",exp:"Exp",sqr:"Square",sqrt:"Square Root",abs:"Abs",recip:"Reciprocal",nan:"NaN Background"};
+const IJ_PROC_SN={smooth:"smooth",sharpen:"sharp",edges:"edges",gauss:"blur",unsharp:"unsharp",mean:"mean",median:"median",min:"min",max:"max",var:"var",
+  add:"add",sub:"sub",mul:"mul",div:"div",gamma:"gamma",log:"log",exp:"exp",sqr:"sqr",sqrt:"sqrt",abs:"abs",recip:"recip",nan:"nan"};
+// What a setting of it is called: the operation's name, Math's by its own.
+function ijProcLabel(p){ p=p||{}; if(p.op==="math"){ const m=IJ_MATH.find(e=>e[0]===p.mop); return m?m[1]:"Math"; } const e=IJ_PROCS.find(e=>e[0]===p.op); return e?e[1]:"Processed"; }
+const IJ_RANK=["mean","median","min","max","var"];
+ANA_KINDS.ijproc={label:"Process (ImageJ)", base:"Processed", baseOf:ijProcLabel, titleOf:p=>`${ijProcLabel(p)} (ImageJ)`, typed:true, typedWhat:"a matrix", mat:true, opensMat:true,
+  help:"ImageJ's Process menu on a matrix: Smooth, Sharpen, Find edges, Gaussian blur, Unsharp mask, the filters Mean, Median, Minimum, Maximum and Variance, and Math, worked out as ImageJ works them on its 32-bit image, into a new matrix that follows its input",
+  heavy(p,ins){ const q=ins.find(q=>q.mat); if(!q) return false; const n=q.mat.z.length, r=+p.radius||1;
+    return IJ_RANK.includes(p.op)?n*(Math.PI*r*r+1)*(p.op==="median"?4:1)>4e7:p.op==="gauss"||p.op==="unsharp"?n>2e6:n>4e6; },
+  run(ins,p){ p=p||{}; const mq=ins.find(q=>q.mat); if(!mq) return {fail:"Its matrix has been deleted."};
+    const M=mq.mat, op=IJ_PROCS.some(e=>e[0]===p.op)?p.op:null; if(!op) return {fail:"Choose an operation."};
+    const G=ijGeom({v:M.xs},{v:M.ys},M.nx,M.ny); if(G.fail) return {fail:G.fail};
+    const xu=M.xunit||"", yu=M.yunit||"", zu=M.zunit||"", zn=M.zname||"Z", f6=v=>fmt(v,6);
+    const skip=!!p.skip&&["gauss","unsharp","mean","var"].includes(op), pp={op,mop:p.mop,value:p.value,lo:p.lo,hi:p.hi,weight:p.weight,radius:p.radius,skip}; let sx=+p.sigma, sy=sx;
+    if(op==="gauss"&&p.scaled){ sx=+p.sigma/G.pw; sy=+p.sigma/G.ph; } pp.sigma=sx; pp.sy=sy;
+    const r=ijProcess({nx:M.nx,ny:M.ny,xs:M.xs,ys:M.ys,z:M.z},pp); if(r.fail) return {fail:r.fail};
+    const mop=op==="math"?p.mop:null, lab=ijProcLabel(p), rows=[["Operation",lab],["Of",mq.name],["Cells",`${M.ny} × ${M.nx}`]];
+    let set="", cmd=op==="math"?IJ_MATH_CMD[mop]:IJ_PROC_CMD[op], macro="", zname=zn, zunit=zu;
+    if(op==="gauss"){ set=p.scaled?`sigma=${+p.sigma} scaled`:`sigma=${+p.sigma}`; rows.push(["Sigma",p.scaled?`${f6(+p.sigma)}${xu?" "+xu:""} (${f6(sx)} × ${f6(sy)} cells)`:`${f6(sx)} cells`]); }
+    else if(op==="unsharp"){ set=`radius=${+p.sigma} mask=${(+p.weight).toFixed(2)}`; rows.push(["Sigma",`${f6(+p.sigma)} cells`],["Mask weight",+p.weight]); }
+    else if(IJ_RANK.includes(op)){ const L=ijLineRadii(+p.radius); set=`radius=${+p.radius}`; rows.push(["Radius",`${f6(+p.radius)} cells`],["Kernel",`${L[L.length-2]} cells in a circle ${2*L[L.length-1]+1} wide`]); }
+    else if(op==="math"){ const me=IJ_MATH.find(e=>e[0]===mop);
+      if(me[2]==="value"){ set=`value=${+p.value}`; rows.push(["Value",+p.value]); }
+      if(mop==="nan"){ macro=`setThreshold(${+p.lo}, ${+p.hi}); `; rows.push(["Kept",`${f6(+p.lo)} to ${f6(+p.hi)}`]); } }
+    if(op==="edges"){ zname=`Gradient of ${zn}`; }
+    else if(op==="var"){ zname=`Variance of ${zn}`; zunit=sigSq(zu); }
+    else if(mop==="log"){ zname=`ln ${zn}`; zunit=""; } else if(mop==="exp"){ zname=`exp ${zn}`; zunit=""; } else if(mop==="gamma"){ zname=`${zn} to the power ${+p.value}`; zunit=""; }
+    else if(mop==="sqr"){ zname=`${zn} squared`; zunit=sigSq(zu); } else if(mop==="sqrt"){ zname=`√${zn}`; zunit=zu?`√${/^[^\s/·*²³⁻¹]+$/.test(zu)?zu:"("+zu+")"}`:""; }
+    else if(mop==="recip"){ zname=`1/${zn}`; zunit=zu?`1/${/^[^\s/·*²³⁻¹]+$/.test(zu)?zu:"("+zu+")"}`:""; }
+    macro+=`run("${cmd}"${set?`, "${set}"`:""});`;
+    if(skip) rows.push(["Empty cells","left out (Kurve)"]);
+    let nv=0; for(const v of r.z) if(v!=null) nv++; rows.push(["Cells with a value",nv]);
+    const cols=[{k:"what",name:lab,unit:"",role:"ignore",vals:rows.map(e=>e[0])},{k:"val",name:"Value",unit:"",role:"ignore",vals:rows.map(e=>typeof e[1]==="number"?e[1]:String(e[1]))}];
+    const how={smooth:"the mean of each cell and its eight neighbours",sharpen:"each cell less its eight neighbours' sum over twelve times itself, as ImageJ's 3 × 3 kernel (−1 … 12 … −1)/4",edges:"Sobel's gradient, the square root of the two 3 × 3 sums' squares",
+      gauss:"a Gaussian, a row pass then a column pass, with ImageJ's kernel (accuracy 0.0002, its tail a parabola, the edge cells standing for those beyond it)"+(Math.max(sx,sy)>8.5?" and, for so wide a Gaussian, the lines shrunk, blurred and grown again as ImageJ does":""),
+      unsharp:"the image less the mask weight times its Gaussian blur (accuracy 0.01), over one less the weight",
+      mean:"the mean over ImageJ's circular kernel",median:"the median over ImageJ's circular kernel (empty cells left out; an empty cell stays empty)",min:"the least value over ImageJ's circular kernel",max:"the largest value over ImageJ's circular kernel",var:"the variance (over n) over ImageJ's circular kernel",
+      math:"each value on its own"}[op];
+    const method=`ImageJ 1.54f's ${op==="math"?"Process › Math › ":IJ_RANK.includes(op)?"Process › Filters › ":op==="gauss"||op==="unsharp"?"Process › Filters › ":"Process › "}${cmd.replace(/\.\.\.$/,"")} of ${mq.name} (${M.ny} × ${M.nx}): ${how}, in Java's single-precision arithmetic step by step on ImageJ's image of the matrix, its values rounded to single precision as ImageJ's 32-bit image holds them${["smooth","sharpen","edges","gauss","unsharp"].includes(op)||IJ_RANK.includes(op)?", the cells past the edge the edge's own, as ImageJ takes them":""}. ${skip?` Beyond ImageJ, the empty cells left out: ${op==="gauss"||op==="unsharp"?"the Gaussian of the values (an empty cell 0) over the Gaussian of where there are values, both ImageJ's":"each circle's cells with a value alone"}, a cell empty before left empty; ImageJ itself lets an empty cell spread.`:""} In ImageJ, on the TIFF Kurve writes for this matrix: ${macro}`;
+    return {tables:[{cols}],report:{sections:[{title:lab,tables:[{head:["","Value"],rows}]}],method},notes:r.notes,
+      mat:{nx:M.nx,ny:M.ny,x:matAxisOf(M.xs),y:matAxisOf(M.ys),z:r.z,xname:M.xname||"X",xunit:xu,yname:M.yname||"Y",yunit:yu,zname,zunit,sname:`${mq.name}_${IJ_PROC_SN[mop||op]}`,disp:M.disp||null}}; }};
 /* ==ANA:END== */
 /* ==MAT:START== Matrices (ux/spec/SHEET_SPEC.md, slice 3.6), pure: a grid of Z with its X and Y.
    A matrix is {nx, ny, x, y, z}: `z` row major (z[r*nx + c], a row a Y, a column an X), null for a
@@ -11144,6 +11190,123 @@ function ijBCSet(k,v,dmin,dmax,min,max,sr){
   else if(k==="brightness"){ const c=dmin+(dmax-dmin)*((sr-v)/sr), w=max-min; min=c-w/2; max=c+w/2; }
   else if(k==="contrast"){ const c=min+(max-min)/2, mid=sr/2, sl=v<=mid?v/mid:mid/(sr-v); if(sl>0){ min=c-(0.5*(dmax-dmin))/sl; max=c+(0.5*(dmax-dmin))/sl; } }
   return {min,max}; }
+/* ImageJ's Process menu on a 32-bit image (IMAGE_SPEC I.5), each in Java's float arithmetic step by step (f = Math.fround) on ImageJ's
+   image (W × H, the top row first, NaN for an empty cell), written out from ImageJ 1.54f's source:
+   ijF3        FloatProcessor.filter3x3: Smooth (the 3 × 3 mean, times 0.11111111f), Sharpen (the kernel −1 … 12 … −1 over 4), Find Edges
+               (Sobel's √(sum1² + sum2²)); the edge rows and columns repeated, as its pointers do.
+   ijGauss     GaussianBlur.blurGaussian: a row pass then a column pass, each a one-sided kernel (makeGaussianKernel: its radius from the
+               accuracy, its tail a parabola to 0, normalised with the running sums that stand for the pixels past the edge), and past σ
+               of 8.5 cells the line shrunk by ⌊σ/4⌋ (its down- and up-scaling kernels), blurred and grown again.
+   ijRank      RankFilters on the circular kernel of makeLineRadii (radius 1.5 as 1.75, 2.5 as 2.85): Mean and Variance from the sums
+               in doubles kept along each row as RankFilters keeps them (the whole area at a row's first cell and after a NaN, then a
+               column out and a column in), Minimum and Maximum, Median (getNaNAwareMedian: NaN left out, the cell's own value the first
+               guess, so an even count can give it back); rows and columns past the edge repeated.
+   ijUnsharp   UnsharpMask: the Gaussian at accuracy 0.01, then (v − w·blur)/(1 − w).
+   ijMathOp    FloatProcessor.process and ImageMath: add, subtract, multiply, divide (by 1/c), min, max, gamma (0 at 0 and below), log
+               (ln), exp, square, square root (0 at 0 and below), abs, reciprocal (NaN for 0), NaN outside a range. */
+function ijF3(v,W,H,type){ const f=Math.fround, out=new Float32Array(W*H), px=Float32Array.from(v); if(W<2){ out.set(px); return out; }
+  const K=[-1,-1,-1,-1,12,-1,-1,-1,-1], sc=f(1/4);
+  for(let y=0;y<H;y++){ let p=y*W, p6=p, p3=p6-(y>0?W:0), p9=p6+(y<H-1?W:0); let v2=px[p3], v5=px[p6], v8=px[p9], v3=px[p3], v6=px[p6], v9=px[p9], v1, v4, v7;
+    for(let x=0;x<W;x++,p++){ if(x<W-1){ p3++; p6++; p9++; } v1=v2; v2=v3; v3=px[p3]; v4=v5; v5=v6; v6=px[p6]; v7=v8; v8=v9; v9=px[p9];
+      if(type==="smooth") out[p]=f(f(f(f(f(f(f(f(v1+v2)+v3)+v4)+v5)+v6)+v7)+v8)+v9)*f(0.11111111);
+      else if(type==="edges"){ const s1=f(f(f(f(f(v1+f(2*v2))+v3)-v7)-f(2*v8))-v9), s2=f(f(f(f(f(v1+f(2*v4))+v7)-v3)-f(2*v6))-v9); out[p]=Math.sqrt(f(f(s1*s1)+f(s2*s2))); }
+      else { const V=[v1,v2,v3,v4,v5,v6,v7,v8,v9]; let sum=f(K[0]*V[0]); for(let k=1;k<9;k++) sum=f(sum+f(K[k]*V[k])); out[p]=f(sum*sc); } } }
+  return out; }
+function ijGaussKernel(sigma,acc,maxRadius){ let kR=Math.ceil(sigma*Math.sqrt(-2*Math.log(acc)))+1; if(maxRadius<50) maxRadius=50; if(kR>maxRadius) kR=maxRadius;
+  const k0=new Float32Array(kR), k1=new Float32Array(kR); for(let i=0;i<kR;i++) k0[i]=Math.exp(-0.5*i*i/sigma/sigma);
+  if(kR<maxRadius&&kR>3){ let sq=Number.MAX_VALUE, r=kR; while(r>Math.trunc(kR/2)){ r--; const a=Math.sqrt(k0[r])/(kR-r); if(a<sq) sq=a; else break; }
+    for(let r1=r+2;r1<kR;r1++) k0[r1]=(kR-r1)*(kR-r1)*sq*sq; }
+  let sum; if(kR<maxRadius){ sum=k0[0]; for(let i=1;i<kR;i++) sum+=2*k0[i]; } else sum=sigma*Math.sqrt(2*Math.PI);
+  let rs=0.5+0.5*k0[0]/sum; for(let i=0;i<kR;i++){ const q=k0[i]/sum; k0[i]=q; rs-=q; k1[i]=rs; } return [k0,k1]; }
+function ijConvLine(inp,out,K,readFrom,readTo,writeFrom,writeTo,point0,pointInc){ const f=Math.fround, length=inp.length, first=inp[0], last=inp[length-1], kern=K[0], k0=kern[0], kSum=K[1], kR=kern.length, firstPart=kR<length?kR:length;
+  let p=point0+writeFrom*pointInc, i=writeFrom;
+  for(;i<firstPart;i++,p+=pointInc){ let r=f(inp[i]*k0); r=f(r+f(kSum[i]*first)); if(i+kR>length) r=f(r+f(kSum[length-i-1]*last));
+    for(let k=1;k<kR;k++){ let q=0; if(i-k>=0) q=f(q+inp[i-k]); if(i+k<length) q=f(q+inp[i+k]); r=f(r+f(kern[k]*q)); } out[p]=r; }
+  const iEnd=length-kR<writeTo?length-kR:writeTo;
+  for(;i<iEnd;i++,p+=pointInc){ let r=f(inp[i]*k0); for(let k=1;k<kR;k++) r=f(r+f(kern[k]*f(inp[i-k]+inp[i+k]))); out[p]=r; }
+  for(;i<writeTo;i++,p+=pointInc){ let r=f(inp[i]*k0); if(i<kR) r=f(r+f(kSum[i]*first)); if(i+kR>=length) r=f(r+f(kSum[length-i-1]*last));
+    for(let k=1;k<kR;k++){ let q=0; if(i-k>=0) q=f(q+inp[i-k]); if(i+k<length) q=f(q+inp[i+k]); r=f(r+f(kern[k]*q)); } out[p]=r; } }
+function ijDownK(u){ const mid=Math.trunc(u*3/2), k=new Float32Array(3*u); for(let i=0;i<=Math.trunc(u/2);i++){ const x=i/u, q=(0.75-x*x)/u; k[mid-i]=q; k[mid+i]=q; }
+  for(let i=Math.trunc(u/2)+1;i<Math.trunc((u*3+1)/2);i++){ const x=i/u, q=(0.125+0.5*(x-1)*(x-2))/u; k[mid-i]=q; k[mid+i]=q; } return k; }
+function ijUpK(u){ const k=new Float32Array(4*u), mid=2*u; for(let i=0;i<u;i++){ const x=i/u, q=2/3-x*x*(1-0.5*x); k[mid+i]=q; k[mid-i]=q; }
+  for(let i=u;i<2*u;i++){ const x=i/u, q=(2-x)*(2-x)*(2-x)/6; k[mid+i]=q; k[mid-i]=q; } return k; }
+function ijDownLine(px,cache,kernel,rb,pixel0,unscaled0,length,pointInc,newLength){ const f=Math.fround; let p=pixel0+pointInc*(unscaled0-Math.trunc(rb*3/2)); const pLast=pixel0+pointInc*(length-1);
+  for(let xo=-1;xo<=newLength;xo++){ let s0=0, s1=0, s2=0; for(let x=0;x<rb;x++,p+=pointInc){ const q=px[p<pixel0?pixel0:(p>pLast?pLast:p)]; s0=f(s0+f(q*kernel[x+2*rb])); s1=f(s1+f(q*kernel[x+rb])); s2=f(s2+f(q*kernel[x])); }
+    if(xo>0) cache[xo-1]=f(cache[xo-1]+s0); if(xo>=0&&xo<newLength) cache[xo]=f(cache[xo]+s1); if(xo+1<newLength) cache[xo+1]=s2; } }
+function ijUpLine(cache,px,kernel,rb,pixel0,unscaled0,writeFrom,writeTo,pointInc){ const f=Math.fround; let p=pixel0+pointInc*writeFrom;
+  for(let xo=writeFrom;xo<writeTo;xo++,p+=pointInc){ const t=xo-unscaled0+rb-1, xin=Math.trunc(t/rb), x=rb-1-t%rb;
+    px[p]=f(f(f(f(cache[xin-2]*kernel[x])+f(cache[xin-1]*kernel[x+rb]))+f(cache[xin]*kernel[x+2*rb]))+f(cache[xin+1]*kernel[x+3*rb])); } }
+function ijBlur1(px,W,H,sigma,acc,xDir){ const length=xDir?W:H, pointInc=xDir?1:W, lineInc=xDir?W:1, nLines=xDir?H:W, UP=2, MINS=4;
+  const down=sigma>2*MINS+0.5, rb=down?Math.min(Math.floor(sigma/MINS),length):1, sG=down?Math.sqrt(sigma*sigma/(rb*rb)-1/3-1/4):sigma;
+  const maxLength=down?Math.trunc((length+rb-1)/rb)+2*(UP+1):length, K=ijGaussKernel(sG,acc,maxLength), kRadius=K[0].length*rb;
+  const readFrom=0-kRadius<0?0:-kRadius, readTo=length+kRadius>length?length:length+kRadius, newLength=down?Math.trunc((readTo-readFrom+rb-1)/rb)+2*(UP+1):length, unscaled0=readFrom-(UP+1)*rb;
+  const dk=down?ijDownK(rb):null, uk=down?ijUpK(rb):null;
+  for(let line=0;line<nLines;line++){ const pixel0=line*lineInc, c1=new Float32Array(newLength);
+    if(down){ const c2=new Float32Array(newLength); ijDownLine(px,c1,dk,rb,pixel0,unscaled0,length,pointInc,newLength); ijConvLine(c1,c2,K,0,newLength,1,newLength-1,0,1); ijUpLine(c2,px,uk,rb,pixel0,unscaled0,0,length,pointInc); }
+    else { let p=pixel0+readFrom*pointInc; for(let i=readFrom;i<readTo;i++,p+=pointInc) c1[i]=px[p]; ijConvLine(c1,px,K,readFrom,readTo,0,length,pixel0,pointInc); } } }
+function ijGauss(v,W,H,sx,sy,acc){ const px=Float32Array.from(v); if(sx>0) ijBlur1(px,W,H,sx,acc,true); if(sy>0) ijBlur1(px,W,H,sy,acc,false); return px; }
+function ijLineRadii(radius){ if(radius>=1.5&&radius<1.75) radius=1.75; else if(radius>=2.5&&radius<2.85) radius=2.85;
+  const r2=Math.trunc(radius*radius)+1, kR=Math.trunc(Math.sqrt(r2+1e-10)), kH=2*kR+1, k=new Int32Array(2*kH+2); k[2*kR]=-kR; k[2*kR+1]=kR; let n=2*kR+1;
+  for(let y=1;y<=kR;y++){ const dx=Math.trunc(Math.sqrt(r2-y*y+1e-10)); k[2*(kR-y)]=-dx; k[2*(kR-y)+1]=dx; k[2*(kR+y)]=-dx; k[2*(kR+y)+1]=dx; n+=4*dx+2; }
+  k[k.length-2]=n; k[k.length-1]=kR; return k; }
+function ijRank(v,W,H,radius,kind){ const L=ijLineRadii(radius), kH=(L.length-2)/2, kR=L[L.length-1], N=L[L.length-2], small=kR<2, out=new Float32Array(W*H), px=Float32Array.from(v);
+  const at=(x,y)=>px[(y<0?0:y>=H?H-1:y)*W+(x<0?0:x>=W?W-1:x)], MAXF=3.4028234663852886e38;
+  for(let y=0;y<H;y++){ let full=true, s0=0, s1=0;
+    for(let x=0;x<W;x++){ const p=y*W+x;
+      if(kind==="min"||kind==="max"){ const sg=kind==="max"?1:-1; let m=-MAXF; for(let i=0;i<kH;i++){ const yy=y+i-kR; for(let dx=L[2*i];dx<=L[2*i+1];dx++){ const q=at(x+dx,yy)*sg; if(m<q) m=q; } } out[p]=m*sg; continue; }
+      if(kind==="mean"||kind==="var"){
+        if(full){ full=small; s0=0; s1=0; for(let i=0;i<kH;i++){ const yy=y+i-kR; for(let dx=L[2*i];dx<=L[2*i+1];dx++){ const q=at(x+dx,yy); s0+=q; s1+=q*q; } } }
+        else { let a=0, b=0; for(let i=0;i<kH;i++){ const yy=y+i-kR; let q=at(x-1+L[2*i],yy); a-=q; b-=q*q; q=at(x+L[2*i+1],yy); a+=q; b+=q*q; } s0+=a; s1+=b; if(Number.isNaN(s0)) full=true; }
+        if(kind==="mean") out[p]=s0/N; else { let q=Math.fround((s1-s0*s0/N)/N); if(q<0) q=0; out[p]=q; } continue; }
+      // the median, NaN left out, the cell's own value the first guess
+      const g=px[p]; let n=N; const ab=[], be=[];
+      for(let i=0;i<kH;i++){ const yy=y+i-kR; for(let dx=L[2*i];dx<=L[2*i+1];dx++){ const q=at(x+dx,yy); if(Number.isNaN(q)) n--; else if(q>g) ab.push(q); else if(q<g) be.push(q); } }
+      if(n===0){ out[p]=NaN; continue; } const h=Math.trunc(n/2);
+      if(ab.length>h){ ab.sort((a,b)=>a-b); out[p]=ab[ab.length-h-1]; } else if(be.length>h){ be.sort((a,b)=>a-b); out[p]=be[h]; } else out[p]=g; } }
+  return out; }
+/* Beyond ImageJ (decision 10): the empty cells left out instead of spreading. The Gaussian of the values (an empty cell 0) over the
+   Gaussian of where there are values, each worked out as ImageJ's (normalised convolution); Mean and Variance over the cells with a
+   value in each circle. A cell empty before stays empty. */
+function ijGaussSkip(v,W,H,sx,sy,acc){ const f=Math.fround, n=W*H, a=new Float32Array(n), m=new Float32Array(n);
+  for(let i=0;i<n;i++) if(Number.isFinite(v[i])){ a[i]=v[i]; m[i]=1; }
+  const A=ijGauss(a,W,H,sx,sy,acc), B=ijGauss(m,W,H,sx,sy,acc), out=new Float32Array(n); for(let i=0;i<n;i++) out[i]=Number.isFinite(v[i])?f(A[i]/B[i]):NaN; return out; }
+function ijRankSkip(v,W,H,radius,kind){ const L=ijLineRadii(radius), kH=(L.length-2)/2, kR=L[L.length-1], out=new Float32Array(W*H);
+  const at=(x,y)=>v[(y<0?0:y>=H?H-1:y)*W+(x<0?0:x>=W?W-1:x)];
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){ const p=y*W+x; if(!Number.isFinite(v[p])){ out[p]=NaN; continue; } let s0=0, s1=0, n=0;
+    for(let i=0;i<kH;i++){ const yy=y+i-kR; for(let dx=L[2*i];dx<=L[2*i+1];dx++){ const q=at(x+dx,yy); if(Number.isFinite(q)){ s0+=q; s1+=q*q; n++; } } }
+    if(kind==="mean") out[p]=s0/n; else { let q=Math.fround((s1-s0*s0/n)/n); if(q<0) q=0; out[p]=q; } }
+  return out; }
+function ijUnsharp(v,W,H,sigma,weight,skip){ const f=Math.fround, w=f(weight), b=skip?ijGaussSkip(v,W,H,sigma,sigma,0.01):ijGauss(v,W,H,sigma,sigma,0.01), out=new Float32Array(W*H), d=f(1-w);
+  for(let i=0;i<W*H;i++) out[i]=f(f(f(v[i])-f(w*b[i]))/d); return out; }
+const IJ_MATH=[["add","Add","value"],["sub","Subtract","value"],["mul","Multiply","value"],["div","Divide","value"],["min","Min","value"],["max","Max","value"],["gamma","Gamma","value"],["log","Log"],["exp","Exp"],["sqr","Square"],["sqrt","Square root"],["abs","Abs"],["recip","Reciprocal"],["nan","NaN background","range"]];
+function ijMathOp(v,op,c0,lo,hi){ const f=Math.fround, n=v.length, out=new Float32Array(n), c=f(op==="sub"?-c0:op==="div"?1/c0:c0);
+  for(let i=0;i<n;i++){ const a=f(v[i]); let r;
+    switch(op){ case "add": case "sub": r=f(a+c); break; case "mul": case "div": r=f(a*c); break;
+      case "min": r=a<c0?f(c0):a; break; case "max": r=a>c0?f(c0):a; break;
+      case "gamma": r=a<=0?0:f(Math.exp(c*Math.log(a))); break; case "log": r=f(Math.log(a)); break; case "exp": r=f(Math.exp(a)); break;
+      case "sqr": r=f(a*a); break; case "sqrt": r=a<=0?0:f(Math.sqrt(a)); break; case "abs": r=Math.abs(a); break;
+      case "recip": r=a===0?NaN:f(1/a); break; case "nan": r=a>=lo&&a<=hi?a:NaN; break; default: r=a; }
+    out[i]=r; } return out; }
+const IJ_PROCS=[["smooth","Smooth"],["sharpen","Sharpen"],["edges","Find edges"],["gauss","Gaussian blur"],["unsharp","Unsharp mask"],["mean","Mean"],["median","Median"],["min","Minimum"],["max","Maximum"],["var","Variance"],["math","Math"]];
+/* One of them on a matrix: ImageJ's image of it in single precision, the operation, and the result in the matrix's own order (an empty
+   cell where ImageJ's is NaN or infinite; a Minimum's or Maximum's ±3.4e38, ImageJ's for a neighbourhood with no value, empty too).
+   p: {op, sigma (cells), sy, radius, weight, mop, value, lo, hi, skip (Gaussian, Unsharp mask, Mean, Variance: the empty cells left
+   out, ijGaussSkip, ijRankSkip)}. {z, notes} or {fail}. */
+function ijProcess(M,p){ const I=ijImage(M,true); if(I.fail) return I; const {G,W,H,v}=I, op=p.op, notes=[]; let r;
+  if(op==="smooth"||op==="sharpen"||op==="edges") r=ijF3(v,W,H,op);
+  else if(op==="gauss"){ const sx=+p.sigma, sy=p.sy!=null?+p.sy:sx; if(!(sx>=0&&sy>=0)||sx===0&&sy===0) return {fail:"Sigma is a number above 0."}; r=p.skip?ijGaussSkip(v,W,H,sx,sy,0.0002):ijGauss(v,W,H,sx,sy,0.0002); }
+  else if(op==="unsharp"){ const sg=+p.sigma, w=+p.weight; if(!(sg>0)) return {fail:"Sigma is a number above 0."}; if(!(w>=0&&w<=0.99)) return {fail:"The mask weight is from 0 to 0.99."}; r=ijUnsharp(v,W,H,sg,w,!!p.skip); }
+  else if(["mean","median","min","max","var"].includes(op)){ const rd=+p.radius; if(!(rd>=0.5&&rd<=1000)) return {fail:"The radius is from 0.5 to 1000 cells."}; r=p.skip&&(op==="mean"||op==="var")?ijRankSkip(v,W,H,rd,op):ijRank(v,W,H,rd,op); }
+  else if(op==="math"){ const mo=IJ_MATH.find(e=>e[0]===p.mop); if(!mo) return {fail:"Choose an operation."}; const c=+p.value;
+    if(mo[2]==="value"&&!Number.isFinite(c)) return {fail:"The value is a number."}; if(p.mop==="gamma"&&!(c>=0.05&&c<=5)) return {fail:"Gamma is from 0.05 to 5, as ImageJ's."};
+    if(mo[2]==="range"&&!(Number.isFinite(+p.lo)&&Number.isFinite(+p.hi)&&+p.lo<=+p.hi)) return {fail:"The range kept is two numbers, the lower first."}; r=ijMathOp(v,p.mop,c,+p.lo,+p.hi); }
+  else return {fail:"Choose an operation."};
+  const z=new Array(W*H).fill(null); let nan=0, sent=0;
+  for(let py=0;py<H;py++){ const row=G.row(py); for(let px=0;px<W;px++){ const q=r[py*W+px], had=Number.isFinite(v[py*W+px]);
+    if(Math.abs(q)===3.4028234663852886e38&&(op==="min"||op==="max")){ sent++; continue; } if(Number.isFinite(q)) z[row*W+G.col(px)]=q; else if(had) nan++; } }
+  if(nan) notes.push(`${nan} cell${nan===1?"":"s"} with a value came out NaN or infinite, as ImageJ's do, and ${nan===1?"is":"are"} left empty${["gauss","unsharp","mean","var"].includes(op)&&!p.skip?" (an empty cell spreads through the filter; Leave the empty cells out keeps them)":""}.`);
+  if(sent) notes.push(`${sent} cell${sent===1?"":"s"} with no value in their neighbourhood left empty (ImageJ writes ±3.4e38 there).`);
+  return {z,notes}; }
 /* ==MAT:END== */
 /* ==SIG:START== Signal processing and mathematics (ux/spec/SIGNAL_SPEC.md, wave 5), pure: the transform of any
    length, windows and spectra (5.1); the later slices' filters, correlation, envelopes, wavelets, interpolation and
@@ -22521,7 +22684,7 @@ function runAna(a,p,o){ o=o||{}; const K=ANA_KINDS[a.kind]; p=p||P(); if(!K||!p)
   const notes=[], ins=anaInputs(a,cs,by,notes,K);
   // A matrix read as its cells, with each one's X and Y (a surface fit's, FIT2_SPEC 4.4).
   for(const [id,which] of [[a.in.mat,1],[a.in.mat2,2]]) if(id){ const ms=matOf(id,p); if(!ms){ a.res=Object.assign({},a.res||{},{err:"Its matrix has been deleted"}); a.sig=sig; return false; }
-    const xy=matXY(ms); ins.push({id:"mat:"+ms.id,name:ms.name,which,mat:{nx:ms.nx,ny:ms.ny,xs:Array.from(xy.X),ys:Array.from(xy.Y),z:Array.from(ms.z),xname:ms.xname||"",yname:ms.yname||"",zname:ms.zname||"",xunit:ms.xunit||"",yunit:ms.yunit||"",zunit:ms.zunit||""}}); }
+    const xy=matXY(ms); ins.push({id:"mat:"+ms.id,name:ms.name,which,mat:{nx:ms.nx,ny:ms.ny,xs:Array.from(xy.X),ys:Array.from(xy.Y),z:Array.from(ms.z),xname:ms.xname||"",yname:ms.yname||"",zname:ms.zname||"",xunit:ms.xunit||"",yunit:ms.yunit||"",zunit:ms.zunit||"",disp:ms.disp?{lut:ms.disp.lut,inv:!!ms.disp.inv}:null}}); }
   // A large one is worked out by the compute worker (1.3c), its result put in when it comes back
   // (anaDone), if what it read has not changed meanwhile; the page goes on.
   const nv=ins.reduce((t,q)=>t+(q.vals||q.cells||(q.pts&&q.pts.x)||[]).length,0);
@@ -22532,8 +22695,9 @@ function runAna(a,p,o){ o=o||{}; const K=ANA_KINDS[a.kind]; p=p||P(); if(!K||!p)
    only as a result sheet is, worked out again with the analysis, cut from it and deleted with it. */
 function anaWriteMat(a,p,m){ const books=matBooks(p).slice(), bi=books.findIndex(b=>b.id===(a.out&&a.out.mat)), names={};
   ["xname","xunit","yname","yunit","zname","zunit"].forEach(k=>{ if(m[k]) names[k]=String(m[k]); });
-  if(bi<0){ const nm=a.name.replace(/[^A-Za-z0-9_]/g,""), s=matSheetNew(m,nm&&!matNameWhy(nm,null,p)?nm:matFreeName(nm.replace(/\d+$/,"")||"Result",p),Object.assign({ana:a.id},names)), b=matBookNew(s,a.name); books.push(b); a.out=Object.assign({},a.out,{mat:b.id}); }
-  else { const b=books[bi], s0=b.sheets[0], s=Object.assign({id:s0.id,name:s0.name,ana:a.id},names,{nx:m.nx,ny:m.ny,x:m.x,y:m.y,z:m.z}); MATZ_OK.add(s.z); books[bi]=Object.assign({},b,{sheets:[s]}); }
+  const dsp=m.disp&&dispClean({lut:m.disp.lut,inv:m.disp.inv});   // a processed image keeps its source's lookup table, not its range
+  if(bi<0){ const nm=String(m.sname||a.name).replace(/[^A-Za-z0-9_]/g,"").replace(/_+/g,"_").replace(/^[^A-Za-z]+/,""), s=matSheetNew(m,nm&&!matNameWhy(nm,null,p)?nm:matFreeName(nm.replace(/\d+$/,"")||"Result",p),Object.assign({ana:a.id},names,dsp?{disp:dsp}:{})), b=matBookNew(s,a.name); books.push(b); a.out=Object.assign({},a.out,{mat:b.id}); }
+  else { const b=books[bi], s0=b.sheets[0], s=Object.assign({id:s0.id,name:s0.name,ana:a.id},names,s0.disp?{disp:s0.disp}:dsp?{disp:dsp}:{},{nx:m.nx,ny:m.ny,x:m.x,y:m.y,z:m.z}); MATZ_OK.add(s.z); books[bi]=Object.assign({},b,{sheets:[s]}); }
   p.mats=books; }
 // The patch a save of analyses needs: their matrices too, when any has one.
 const anaPatch=(o,p)=>matBooks(p).some(b=>b.sheets.some(s=>s.ana))?Object.assign(o,{mats:p.mats}):o;
@@ -22557,6 +22721,7 @@ function anaDone(id,j,r,notes){ const p=P(); if(!p||S.pid!==j.pid) return; const
   // No worker after all (or one that failed to start): on the page.
   if(r==null){ const ok=runAna(a,p,{sync:true}); save(anaPatch({ana,cols:p.cols},p),`worked out ${a.name}`); renderAll(); return ok; }
   const ok=anaApply(a,p,r,notes,j.sig); save(anaPatch({ana,cols:p.cols},p),ok?`worked out ${a.name}`:`could not work out ${a.name}: ${a.res.err}`); renderAll();
+  if(ok&&S.anaOpen===id){ S.anaOpen=null; ijProcOpen(id,true); return; }
   if(ok) toast(`${a.name} worked out.`); else toast(`${a.name} could not be worked out: ${a.res.err}.`); }
 // The table into the result sheet: a column per key, kept by id across recalculations.
 function anaWrite(a,p,t){ const sid=a.out.sheet, have=new Map(p.cols.filter(c=>c.ana===a.id).map(c=>[c.ak,c])), keep=new Set();
@@ -23000,6 +23165,47 @@ const ANA_FORMS={
       return ""; },
     valid(r){ return !ANA_FORMS.shift.why(r); },
     inp(p,inp){ if(p.mat) inp.mat=p.mat; else delete inp.mat; if(p.mat2) inp.mat2=p.mat2; else delete inp.mat2; }},
+  ijproc:{noGroup:true,
+    html(p){ const M=matAll().filter(q=>!matFromAna(q.s.id,S.anaEdit)), sid=p.mat&&M.some(q=>q.s.id===p.mat)?p.mat:(M.some(q=>q.s.id===matFront())?matFront():(M[0]&&M[0].s.id)), v=x=>x==null?"":esc(String(x)), op=p.op||"gauss", s=matOf(sid), xu=s&&s.xunit||"";
+      return `<div class="grid2 ipdlg"><label for="aIPm">Matrix</label><select id="aIPm">${M.map(q=>`<option value="${q.s.id}"${q.s.id===sid?" selected":""}>${esc(matName(q.s.id))}</option>`).join("")}</select>
+        <label for="aIPo">Operation</label><select id="aIPo">${IJ_PROCS.map(([k,t])=>`<option value="${k}"${k===op?" selected":""}>${t}</option>`).join("")}</select>
+        <label for="aIPs" class="tipd" data-ipr="s" title="The Gaussian's standard deviation: in cells, or with Scaled units in X and Y's unit (cells of another height then take another sigma along Y, as ImageJ's); an unsharp mask's is in cells">Sigma</label><span class="anarows" data-ipr="s"><input id="aIPs" type="text" class="num" value="${v(p.sigma==null?(op==="unsharp"?1:2):p.sigma)}"><label class="chk" data-ipr="u"><input type="checkbox" id="aIPu"${p.scaled?" checked":""}> Scaled units${xu?` (${esc(xu)})`:""}</label></span>
+        <label for="aIPw" class="tipd" data-ipr="w" title="How much of the blur is taken away, 0 to 0.99 (ImageJ's 0.6 to begin with)">Mask weight</label><span class="anarows" data-ipr="w"><input id="aIPw" type="text" class="num" value="${v(p.weight==null?0.6:p.weight)}"></span>
+        <label for="aIPr" class="tipd" data-ipr="r" title="The circular kernel's radius in cells, as ImageJ's (1 is the 3 × 3 square; 0.5 a cross of five)">Radius</label><span class="anarows" data-ipr="r"><input id="aIPr" type="text" class="num" value="${v(p.radius==null?2:p.radius)}"> cells</span>
+        <span data-ipr="k"></span><label class="chk tipd" data-ipr="k" title="Beyond ImageJ: each cell worked out from the cells with a value about it, so an empty cell (an unfinished scan's rows) does not spread; ImageJ lets it spread"><input type="checkbox" id="aIPk"${p.skip?" checked":""}> Leave the empty cells out</label>
+        <label for="aIPq" data-ipr="q">Math</label><select id="aIPq" data-ipr="q">${IJ_MATH.map(([k,t])=>`<option value="${k}"${k===(p.mop||"add")?" selected":""}>${t}</option>`).join("")}</select>
+        <label for="aIPv" class="tipd" data-ipr="v" title="The number each value is combined with (Gamma: from 0.05 to 5, as ImageJ's)">Value</label><span class="anarows" data-ipr="v"><input id="aIPv" type="text" class="num" value="${v(p.value==null?25:p.value)}"></span>
+        <label for="aIPl" class="tipd" data-ipr="n" title="The values kept; every other value is made empty, as ImageJ's NaN Background makes the cells outside its threshold NaN">Keep from</label><span class="anarows" data-ipr="n"><input id="aIPl" type="text" class="num" value="${v(p.lo)}" aria-label="Keep from"><span class="muted">to</span><input id="aIPh" type="text" class="num" value="${v(p.hi)}" aria-label="Keep to"></span></div>
+        <p class="note" id="aIPmsg" aria-live="polite"></p>`; },
+    wire(box){ const F=ANA_FORMS.ijproc, vals=()=>{ const r={}; box.querySelectorAll("input,select").forEach(el=>{ if(el.id) r[el.id]=el.type==="checkbox"?el.checked:el.value; }); return r; };
+      const show=r=>{ const op=r.aIPo, me=IJ_MATH.find(e=>e[0]===r.aIPq), on={s:op==="gauss"||op==="unsharp",u:op==="gauss",w:op==="unsharp",r:IJ_RANK.includes(op),k:["gauss","unsharp","mean","var"].includes(op),q:op==="math",v:op==="math"&&me&&me[2]==="value",n:op==="math"&&r.aIPq==="nan"};
+        box.querySelectorAll("[data-ipr]").forEach(el=>{ el.hidden=!on[el.dataset.ipr]; }); };
+      const msg=()=>{ const r=vals(); show(r); const w=F.why(r), el=$("#aIPmsg"); if(w){ el.textContent=w; return; } const o=F.read(r), s=matOf(o.mat), G=ijGeom(s.x,s.y,s.nx,s.ny), u=s.xunit?" "+s.xunit:"";
+        let t=`A new matrix of ${s.ny} × ${s.nx} that follows ${matName(o.mat)}`;
+        if(o.op==="gauss"&&o.scaled) t+=`: sigma ${fmt(o.sigma/G.pw,4)} cells along X, ${fmt(o.sigma/G.ph,4)} along Y`;
+        else if(IJ_RANK.includes(o.op)){ const L=ijLineRadii(o.radius); t+=`: a circle of ${L[L.length-2]} cells, ${2*L[L.length-1]+1} wide`; }
+        el.textContent=t+"."; };
+      // Scaled units ticked or not: the sigma typed turned into the other unit, so the blur stays the same
+      box.querySelector("#aIPu").addEventListener("change",e=>{ const r=vals(), s=matOf(r.aIPm), x=parseNum(String(r.aIPs).trim()); if(!s||!(x>0)) return; const G=ijGeom(s.x,s.y,s.nx,s.ny); if(G.fail) return;
+        $("#aIPs").value=String(+(e.target.checked?x*G.pw:x/G.pw).toPrecision(4)); msg(); });
+      box.addEventListener("input",msg); box.addEventListener("change",msg); msg(); },
+    read(v){ const n=t=>{ const x=parseNum(String(t==null?"":t).trim()); return Number.isFinite(x)?x:null; }, op=IJ_PROCS.some(e=>e[0]===v.aIPo)?v.aIPo:"gauss", o={mat:v.aIPm||null,op};
+      if(op==="gauss"){ o.sigma=n(v.aIPs); if(v.aIPu) o.scaled=true; } else if(op==="unsharp"){ o.sigma=n(v.aIPs); o.weight=n(v.aIPw); }
+      else if(IJ_RANK.includes(op)) o.radius=n(v.aIPr);
+      if(v.aIPk&&["gauss","unsharp","mean","var"].includes(op)) o.skip=true;
+      else if(op==="math"){ o.mop=IJ_MATH.some(e=>e[0]===v.aIPq)?v.aIPq:"add"; const me=IJ_MATH.find(e=>e[0]===o.mop); if(me[2]==="value") o.value=n(v.aIPv); if(o.mop==="nan"){ o.lo=n(v.aIPl); o.hi=n(v.aIPh); } }
+      return o; },
+    why(r){ const o=ANA_FORMS.ijproc.read(r), s=o.mat&&matOf(o.mat); if(!s) return "Choose a matrix."; const G=ijGeom(s.x,s.y,s.nx,s.ny); if(G.fail) return G.fail;
+      if(o.op==="gauss"&&!(o.sigma>0)) return "Sigma is a number above 0."; if(o.op==="unsharp"&&!(o.sigma>0)) return "Sigma is a number above 0.";
+      if(o.op==="gauss"&&o.scaled&&Math.max(o.sigma/G.pw,o.sigma/G.ph)>Math.max(s.nx,s.ny)*10) return "Sigma is more than ten times the matrix: every cell would come out alike.";
+      if(o.op==="unsharp"&&!(o.weight>=0&&o.weight<=0.99)) return "The mask weight is from 0 to 0.99.";
+      if(IJ_RANK.includes(o.op)&&!(o.radius>=0.5&&o.radius<=100)) return "The radius is from 0.5 to 100 cells.";
+      if(o.op==="math"){ const me=IJ_MATH.find(e=>e[0]===o.mop); if(me[2]==="value"&&o.value==null) return "The value is a number.";
+        if(o.mop==="gamma"&&!(o.value>=0.05&&o.value<=5)) return "Gamma is from 0.05 to 5, as ImageJ's.";
+        if(o.mop==="nan"&&!(o.lo!=null&&o.hi!=null&&o.lo<=o.hi)) return "The values kept are two numbers, the lower first."; }
+      return ""; },
+    valid(r){ return !ANA_FORMS.ijproc.why(r); },
+    inp(p,inp){ if(p.mat) inp.mat=p.mat; else delete inp.mat; }},
   fft:{noGroup:true, html(p){ return `<div class="grid2">${sigWinHtml(p,"boxcar")}
       <label for="aFd" class="tipd" title="Taken off before the window: a mean or a slope otherwise puts its own large values near frequency 0">Take off</label><select id="aFd">${SIG_DETREND.map(([k,t])=>`<option value="${k}"${k===(p.detrend||"none")?" selected":""}>${t}</option>`).join("")}</select>
       <label for="aFp" class="tipd" title="Zeros added at the end: a finer frequency step to read, no new information">Padding</label><span class="anarows"><select id="aFp"><option value="none">None</option><option value="pow2"${p.pad==="pow2"?" selected":""}>To the next power of 2</option><option value="n"${Number.isFinite(+p.pad)&&+p.pad>0?" selected":""}>To a length…</option></select><input type="text" id="aFpn" inputmode="numeric" aria-label="Length to pad to" value="${Number.isFinite(+p.pad)&&+p.pad>0?Math.round(+p.pad):""}" placeholder="points"></span>
@@ -23266,6 +23472,7 @@ function anaReads(x,y,seen){ seen=seen||new Set(); if(!x||seen.has(x)) return fa
 function anaResOk(c,a0){ return !a0||(c.ana!==a0.id&&!anaReads(c.ana,a0.id)); }
 async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[kind]||{}, p=P(); if(!K||!p||S.readOnly) return; if(S.ws&&S.ws.edit) wsCommit(0,0,true);
   const a0=o.id?anaOf(o.id):null, sid=a0?sheetOf(colById(a0.in.cols[0])||{})||curSheet():anaOfSheet(curSheet())&&!K.resIn?SHEET0.id:curSheet();
+  S.anaEdit=a0?a0.id:null;   // a Process analysis is never offered a matrix made from its own (matFromAna)
   // A kind that takes another analysis's results (resIn: an inverse FFT reads an FFT's) offers them, but never its own
   // or those of an analysis that reads it, so no circle can be made.
   const cand=K.cells?sheetCols(sid).filter(c=>hasVals(c)):sheetCols(sid).filter(c=>(!c.ana||K.resIn&&anaResOk(c,a0))&&(c.role==="y"||c.role==="ignore"||K.xs&&c.role==="x")&&(anyVal(c.data)||(K.cats&&hasVals(c)))).concat(yCols().filter(c=>c.src&&!sheetCols(sid).includes(c)));
@@ -23288,7 +23495,7 @@ async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[kin
     <div class="grid2"><label for="aRc">Recalculate</label><select id="aRc"><option value="auto">By itself, when its data change</option><option value="manual"${a0&&a0.recalc==="manual"?" selected":""}>Only when asked</option></select></div>
     ${whereH}${K.cells?"":`<label class="chk"><input type="checkbox" id="aMask"${a0&&a0.in.masked?" checked":""}> Include masked points</label>`}</div>`;
   const rowsOk=v=>[v.aRow0,v.aRow1].every(t=>String(t||"").trim()===""||/^\d+$/.test(String(t).trim())&&+t>=1)&&!(+v.aRow0>0&&+v.aRow1>0&&+v.aRow1<+v.aRow0);
-  const pr=formDlg({title:a0?`${a0.name}: settings`:K.label,html,ok:"Work it out",valid:r=>K.typed?(!F.valid||F.valid(r)):cand.some(c=>r["aI_"+c.id])&&rowsOk(r)&&(!F.valid||F.valid(r))});
+  const pr=formDlg({title:a0?`${a0.name}: settings`:K.titleOf?K.titleOf(p0):K.label,html,ok:"Work it out",valid:r=>K.typed?(!F.valid||F.valid(r)):cand.some(c=>r["aI_"+c.id])&&rowsOk(r)&&(!F.valid||F.valid(r))});
   const box=$("#formBody .anadlg"); if(box&&F.wire) F.wire(box);
   const v=await pr; if(!v) return; const q=P(); if(!q) return;
   const cols=cand.filter(c=>v["aI_"+c.id]).map(c=>c.id), read={}; cols.forEach(id=>{ if(v["aR_"+id]==="orig") read[id]="orig"; });
@@ -23299,14 +23506,15 @@ async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[kin
   // The columns a kind names beside those ticked (a key, a group, another sheet's columns) are read too.
   if(F.extra) (F.extra(kp)||[]).forEach(id=>{ if(id&&!inp.cols.includes(id)&&colById(id)) inp.cols.push(id); });
   if(F.inp) F.inp(kp,inp);   // a form's own inputs (a surface fit's matrix)
-  if(a0){ const a=ana.find(x=>x.id===a0.id); if(!a) return; pushUndo(`the settings of ${a.name}`); Object.assign(a,{in:inp,p:kp,recalc:v.aRc,by:who()}); runAna(a,q);
-    save(anaPatch({ana,cols:q.cols},q),`changed the settings of ${a.name}`); showSheet(a.out.sheet,{quiet:true}); toast(`${a.name} worked out again.`,{action:"Undo",run:undo}); return; }
+  if(a0){ const a=ana.find(x=>x.id===a0.id); if(!a) return; pushUndo(`the settings of ${a.name}`); Object.assign(a,{in:inp,p:kp,recalc:v.aRc,by:who()}); const lt=runAna(a,q);
+    save(anaPatch({ana,cols:q.cols},q),`changed the settings of ${a.name}`); if(K.opensMat){ if(lt==="later") S.anaOpen=a.id; else ijProcOpen(a.id); } else showSheet(a.out.sheet,{quiet:true}); toast(`${a.name} worked out again.`,{action:"Undo",run:undo}); return; }
   pushUndo(K.label.toLowerCase()); stampSheets(q);
-  const used=new Set(ana.map(x=>x.name).concat(sheetList(q).map(s=>s.name))); let n=1; while(used.has(`${K.base} ${n}`)) n++;
-  const name=`${K.base} ${n}`, sh={id:newSheetId(),name}, a={id:newAnaId(),kind,name,in:inp,p:kp,out:{sheet:sh.id},recalc:v.aRc==="manual"?"manual":"auto",at:Date.now(),by:who()};
-  sh.ana=a.id; const ss=sheetList(q).concat([sh]); q.sheets=ss; ana.push(a); runAna(a,q);
+  const base=K.baseOf?K.baseOf(kp):K.base, used=new Set(ana.map(x=>x.name).concat(sheetList(q).map(s=>s.name))); let n=1; while(used.has(`${base} ${n}`)) n++;
+  const name=`${base} ${n}`, sh={id:newSheetId(),name}, a={id:newAnaId(),kind,name,in:inp,p:kp,out:{sheet:sh.id},recalc:v.aRc==="manual"?"manual":"auto",at:Date.now(),by:who()};
+  sh.ana=a.id; const ss=sheetList(q).concat([sh]); q.sheets=ss; ana.push(a); const lt=runAna(a,q);
   const tw=typeof K.typedWhat==="function"?K.typedWhat(kp):K.typedWhat;
   save(anaPatch({ana,sheets:ss,cols:q.cols},q),`worked out ${name} (${K.label.toLowerCase()}) of ${K.typed?(tw||"the counts typed"):andList(cols.map(id=>colRef(colById(id))))}`);
+  if(K.opensMat){ if(lt==="later"){ S.anaOpen=a.id; toast(`${name} is being worked out; its window opens when it is done.`); } else ijProcOpen(a.id,true); return; }
   showSheet(sh.id,{quiet:true}); const a1=anaOf(a.id);
   if(a1&&a1.res&&a1.res.err) toast(`${name} could not be worked out: ${a1.res.err}.`,{action:"Change settings…",run:()=>anaDlg(kind,{id:a.id})});
   else toast(`${name}: the results of ${K.typed?(tw||"the counts typed"):andList(cols.map(id=>specName(colById(id))))}, on a sheet of their own.`,{action:"Undo",run:undo}); }
@@ -24895,7 +25103,7 @@ function syncMatWins(){ const books=matBooks(), want=new Set(books.map(b=>mxWinI
     if(!WINS[id]){ WINS[id]={title:b.name,icon:"grid",def:[0.06+(i%6)*0.03,0.05+(i%6)*0.04,0.52,0.62],open:false,mx:b.id};
       const prev=[...document.querySelectorAll(".win.mxwin,.win.wswin")].pop()||$("#w-sheet");
       prev.insertAdjacentHTML("afterend",`<section class="win mxwin" id="w-${id}" data-win="${id}" aria-label="${esc(b.name)}"><header class="win-h">${ICON("grid","sm")}<h2 class="win-t">${esc(b.name)}</h2><span class="win-sub"></span><span class="sp"></span></header><div class="win-b mx-b">
-        <div class="mxbar"><div class="seg mini mxview-sw" role="group" aria-label="View"><button data-mxv="img" aria-pressed="true" title="The matrix as an image, each cell a pixel at its true shape">Image</button><button data-mxv="cells" aria-pressed="false" title="The matrix as cells, to read and type values">Cells</button></div><span class="mxzoom"><button class="btn icon sm" data-mxz="out" title="Zoom out (−)" aria-label="Zoom out"><b aria-hidden="true">−</b></button><button class="btn sm mxmag" data-mxz="menu" aria-haspopup="menu" title="The magnification: ImageJ's levels, Fit and 100 %"></button><button class="btn icon sm" data-mxz="in" title="Zoom in (+)" aria-label="Zoom in">${ICON("plus","sm")}</button><button class="btn sm" data-mxz="fit" title="The whole image, as large as the window allows (0, or a double-click)">Fit</button><button class="btn sm mxlutb" data-mxlut aria-haspopup="menu" title="The lookup table: the colours the values are shown in"><span class="lsw" aria-hidden="true"></span><span class="lnm"></span>${ICON("chev","sm")}</button><button class="btn sm" data-mxbc aria-pressed="false" title="Brightness and contrast: the range of values the table spans (C)">Contrast</button><span class="seg mini mxtools" role="radiogroup" aria-label="Selection tool">${MX_TOOLS.map(([k,ic,t])=>`<button type="button" role="radio" data-mxt="${k}" aria-checked="${k==="rect"}" title="${t}" aria-label="${t}">${ICON(ic,"sm")}</button>`).join("")}</span><button class="btn sm" data-mxrm aria-pressed="false" title="The ROI Manager: the selections kept with this book, measured together (T keeps the selection, M measures it)">Selections</button></span><span class="mxaddr" title="The cell: its row and column"></span><input class="mxval" type="text" spellcheck="false" aria-label="The cell's value" title="The cell's value: type a number and press Enter"><span class="sp"></span><button class="btn sm" data-mxmenu aria-haspopup="menu" title="What can be done to this matrix">Matrix ${ICON("chev","sm")}</button><button class="btn sm" data-mxplot aria-haspopup="menu" title="Plot this matrix on a graph of its own">${ICON("chart","sm")}Plot</button></div>
+        <div class="mxbar"><div class="seg mini mxview-sw" role="group" aria-label="View"><button data-mxv="img" aria-pressed="true" title="The matrix as an image, each cell a pixel at its true shape">Image</button><button data-mxv="cells" aria-pressed="false" title="The matrix as cells, to read and type values">Cells</button></div><span class="mxzoom"><button class="btn icon sm" data-mxz="out" title="Zoom out (−)" aria-label="Zoom out"><b aria-hidden="true">−</b></button><button class="btn sm mxmag" data-mxz="menu" aria-haspopup="menu" title="The magnification: ImageJ's levels, Fit and 100 %"></button><button class="btn icon sm" data-mxz="in" title="Zoom in (+)" aria-label="Zoom in">${ICON("plus","sm")}</button><button class="btn sm" data-mxz="fit" title="The whole image, as large as the window allows (0, or a double-click)">Fit</button><button class="btn sm mxlutb" data-mxlut aria-haspopup="menu" title="The lookup table: the colours the values are shown in"><span class="lsw" aria-hidden="true"></span><span class="lnm"></span>${ICON("chev","sm")}</button><button class="btn sm" data-mxbc aria-pressed="false" title="Brightness and contrast: the range of values the table spans (C)">Contrast</button><span class="seg mini mxtools" role="radiogroup" aria-label="Selection tool">${MX_TOOLS.map(([k,ic,t])=>`<button type="button" role="radio" data-mxt="${k}" aria-checked="${k==="rect"}" title="${t}" aria-label="${t}">${ICON(ic,"sm")}</button>`).join("")}</span><button class="btn sm" data-mxrm aria-pressed="false" title="The ROI Manager: the selections kept with this book, measured together (T keeps the selection, M measures it)">Selections</button></span><span class="mxaddr" title="The cell: its row and column"></span><input class="mxval" type="text" spellcheck="false" aria-label="The cell's value" title="The cell's value: type a number and press Enter"><span class="sp"></span><button class="btn sm" data-mxproc aria-haspopup="menu" title="ImageJ's Process menu: filters and arithmetic, each a new matrix that follows this one">Process ${ICON("chev","sm")}</button><button class="btn sm" data-mxmenu aria-haspopup="menu" title="What can be done to this matrix">Matrix ${ICON("chev","sm")}</button><button class="btn sm" data-mxplot aria-haspopup="menu" title="Plot this matrix on a graph of its own">${ICON("chart","sm")}Plot</button></div>
         <div class="mxinfo" hidden><span class="mxdim"></span><span class="mxdsp"></span><span class="mxread" aria-live="off"></span></div>
         <div class="mxiw" hidden><div class="mximg" tabindex="0" role="img"><canvas></canvas></div><div class="mxside" hidden><section class="mxbc" hidden aria-label="Brightness and contrast"></section><section class="mxroi" hidden aria-label="Selections"></section></div></div>
         <div class="mxgrid" tabindex="0" role="grid" aria-label="The matrix's values"><div class="mxview"></div><div class="mxsp"></div></div>
@@ -24938,8 +25146,9 @@ function mxBar(id){ const el=$("#w-"+id); if(!el) return; const st=mxSt(mxBid(id
 function mxFoot(id){ const el=$("#w-"+id); if(!el) return; const st=mxSt(mxBid(id)), s=matOf(st.sid); if(!s) return;
   el.querySelector(".mxsize").textContent=`${s.ny.toLocaleString("en")} rows × ${s.nx.toLocaleString("en")} columns`;
   const sw=el.querySelector(".mxstate"); sw.classList.toggle("bad",!!(s.fx&&s.fx.err));
-  sw.textContent=s.fx?(s.fx.err?`Not worked out: ${s.fx.err}`:`Computed: = ${s.fx.src}`):`Original data · check code ${s.raw&&s.raw.fp?s.raw.fp.slice(0,10):"working it out…"}`;
-  sw.title=s.fx?"Worked out again whenever what it reads changes; outside the original data's record":"Its values are original data, each change in its record";
+  const an=s.ana?anaOf(s.ana):null;   // an analysis's matrix (a Process result, a spectrogram): its results, read only
+  sw.textContent=an?`Results of ${an.name}`:s.fx?(s.fx.err?`Not worked out: ${s.fx.err}`:`Computed: = ${s.fx.src}`):`Original data · check code ${s.raw&&s.raw.fp?s.raw.fp.slice(0,10):"working it out…"}`;
+  sw.title=an?"Worked out again by its analysis whenever what it reads changes; read only, outside the original data's record":s.fx?"Worked out again whenever what it reads changes; outside the original data's record":"Its values are original data, each change in its record";
   const q=mxSel(st), n=(q.r1-q.r0+1)*(q.c1-q.c0+1), box=el.querySelector(".mxsel");
   if(n<2){ box.textContent=""; return; }
   let k=0, sum=0, lo=Infinity, hi=-Infinity; for(let r=q.r0;r<=q.r1;r++){ const o=r*s.nx; for(let c=q.c0;c<=q.c1;c++){ const v=s.z[o+c]; if(v!=null){ k++; sum+=v; if(v<lo) lo=v; if(v>hi) hi=v; } } }
@@ -25116,8 +25325,8 @@ function anaMakeTyped(kind,kp,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[
   const ana=anaList(q).map(x=>Object.assign({},x)), a0=o.id?ana.find(x=>x.id===o.id):null, mt=r=>o.pre?Object.assign(r,{mats:q.mats}):r;
   if(a0){ pushUndo(o.undo||`the settings of ${a0.name}`); if(o.pre) o.pre(q); Object.assign(a0,{in:inp,p:kp,by:who()}); runAna(a0,q); save(mt(anaPatch({ana,cols:q.cols},q)),o.log||`changed the settings of ${a0.name}`); return a0.id; }
   pushUndo(o.undo||K.label.toLowerCase()); if(o.pre) o.pre(q); stampSheets(q);
-  const used=new Set(ana.map(x=>x.name).concat(sheetList(q).map(x=>x.name))); let n=1; while(used.has(`${K.base} ${n}`)) n++;
-  const name=`${K.base} ${n}`, sh={id:newSheetId(),name}, a={id:newAnaId(),kind,name,in:inp,p:kp,out:{sheet:sh.id},recalc:"auto",at:Date.now(),by:who()};
+  const base=K.baseOf?K.baseOf(kp):K.base, used=new Set(ana.map(x=>x.name).concat(sheetList(q).map(x=>x.name))); let n=1; while(used.has(`${base} ${n}`)) n++;
+  const name=`${base} ${n}`, sh={id:newSheetId(),name}, a={id:newAnaId(),kind,name,in:inp,p:kp,out:{sheet:sh.id},recalc:"auto",at:Date.now(),by:who()};
   sh.ana=a.id; const ss=sheetList(q).concat([sh]); q.sheets=ss; ana.push(a); runAna(a,q);
   const tw=typeof K.typedWhat==="function"?K.typedWhat(kp):K.typedWhat;
   save(mt(anaPatch({ana,sheets:ss,cols:q.cols},q)),o.log||`worked out ${name} (${K.label.toLowerCase()}) of ${tw||"a matrix"}`); if(o.show) showSheet(sh.id,{quiet:true}); return a.id; }
@@ -25350,6 +25559,7 @@ function wireMx(el,id){ const grid=el.querySelector(".mxgrid"), bid=()=>mxBid(id
       mxWrite(st.sid,[[st.r,st.c,v]],`typed into row ${st.r+1}, column ${st.c+1}`); grid.focus({preventScroll:true}); renderMatWin(id); }
     else if(e.key==="Escape"){ e.preventDefault(); grid.focus({preventScroll:true}); mxBar(id); } });
   el.querySelector("[data-mxmenu]").addEventListener("click",e=>toggleMenu(e.currentTarget,()=>matMenuItems(mxSt(bid()).sid),{label:"Matrix"}));
+  el.querySelector("[data-mxproc]").addEventListener("click",e=>toggleMenu(e.currentTarget,()=>ijProcItems(mxSt(bid()).sid),{label:"Process"}));
   el.querySelector("[data-mxplot]").addEventListener("click",e=>toggleMenu(e.currentTarget,()=>MAT_KINDS.map(([k,l])=>({label:l,enabled:!S.readOnly,run:()=>plotMatrix(mxSt(bid()).sid,k)})),{label:"Plot"}));
   const tabs=el.querySelector(".mxtabs");
   tabs.addEventListener("click",e=>{ if(e.target.closest("[data-mxnew]")){ matAddSheet(bid()); return; } const t=e.target.closest("[data-mxs]"); if(!t) return; const st=mxSt(bid());
@@ -25380,6 +25590,7 @@ function matMenuItems(sid){ const s=matOf(sid), ro=S.readOnly, on=!!s&&!ro;
     {label:"Brightness and contrast",enabled:!!s,title:"The range of values the table spans, beside its image (C in the image)",run:()=>mxBcOpen(sid)},
     {label:"Enhance contrast…",enabled:on,title:"ImageJ's Process › Enhance Contrast: a share of the values saturated",run:()=>mxBcAct(null,"enh",sid)},
     {label:"Save the image as PNG",enabled:!!s,title:"The image as shown, each cell a block of pixels, with its calibration bar",run:()=>mxSavePng(sid)},
+    {label:"Process",enabled:!!s,title:"ImageJ's Process menu: filters and arithmetic, each a new matrix that follows this one",sub:()=>ijProcItems(sid)},
     {label:"Spots…",enabled:on,title:ANA_KINDS.spots.help,run:()=>anaDlg("spots",{p:spxStart(sid)})},
     {label:"Shift between scans…",enabled:on&&matAll().length>1,title:matAll().length>1?ANA_KINDS.shift.help:"A second matrix of the same size is needed",run:()=>anaDlg("shift",{p:shStart(sid)})},
     {label:"ImageJ",title:"ImageJ's measurements of this matrix, and the matrix as a TIFF ImageJ opens with its calibration",sub:()=>[
@@ -25388,6 +25599,32 @@ function matMenuItems(sid){ const s=matOf(sid), ro=S.readOnly, on=!!s&&!ro;
       {label:"Profile…",enabled:on,title:ANA_KINDS.ijprofile.help,run:()=>anaDlg("ijprofile",{p:ijpStart(sid)})},"-",
       {label:"Save as a TIFF (.tif)",enabled:!!s,title:"A 32-bit TIFF that ImageJ opens with its calibration: each pixel's centre this cell's X and Y, the units and the values' unit",run:()=>exportMatTiff(sid)}]},
     {label:"Delete this matrix…",danger:true,enabled:on,run:()=>matDeleteSheet(sid)}].filter(Boolean); }
+/* ImageJ's Process menu (IMAGE_SPEC I.5): what needs no setting is worked out at once, the rest through its dialog; each a new matrix,
+   a Process analysis that follows its input, opened in its window. */
+// Whether a matrix is made, through any chain of Process analyses, from the matrix of analysis `aid` (so it cannot be that analysis's input).
+function matFromAna(sid,aid,seen){ if(!aid) return false; seen=seen||new Set(); if(seen.has(sid)) return false; seen.add(sid); const s=matOf(sid); if(!s||!s.ana) return false;
+  if(s.ana===aid) return true; const a=anaOf(s.ana); return !!a&&[a.in.mat,a.in.mat2].some(m=>m&&matFromAna(m,aid,seen)); }
+function ijProcOpen(aid,say){ const a=anaOf(aid); if(!a) return; if(a.res&&a.res.err){ toast(`${a.name} could not be worked out: ${a.res.err}.`,{action:"Change settings…",run:()=>anaDlg(a.kind,{id:aid})}); return; }
+  const s=anaMatSheet(a); if(!s) return; matOpen(a.out.mat,s.id);
+  if(say) toast(`${a.name}: a new matrix, ${s.name}, that follows ${a.in.mat?matName(a.in.mat):"its input"}.`,{action:"Undo",run:undo}); }
+function ijProcRun(sid,kp){ sid=sid||matFront(); if(!matOf(sid)){ toast("No matrix is open."); return; } if(S.readOnly) return;
+  const aid=anaMakeTyped("ijproc",Object.assign({mat:sid},kp)); if(!aid) return; const a=anaOf(aid);
+  if(a&&a.res&&a.res.report||a&&a.res&&a.res.err) ijProcOpen(aid,true); else { S.anaOpen=aid; toast(`${a?a.name:"It"} is being worked out; its window opens when it is done.`); } }
+function ijProcDlg(sid,op,mop){ sid=sid||matFront(); const s=matOf(sid); if(!s){ toast("No matrix is open."); return; } const p={mat:sid,op}; if(mop) p.mop=mop;
+  if(mop==="nan"){ const {lo,hi}=matRange(s.z); p.lo=lo; p.hi=hi; } anaDlg("ijproc",{p}); }
+function ijProcItems(sid){ const on=!S.readOnly&&!!matOf(sid), run=(op,mop)=>()=>ijProcRun(sid,mop?{op,mop}:{op}), dlg=(op,mop)=>()=>ijProcDlg(sid,op,mop);
+  return [{label:"Smooth",enabled:on,title:"Each cell the mean of itself and its eight neighbours (ImageJ's Process › Smooth)",run:run("smooth")},
+    {label:"Sharpen",enabled:on,title:"ImageJ's 3 × 3 sharpening: each cell against its eight neighbours (Process › Sharpen)",run:run("sharpen")},
+    {label:"Find edges",enabled:on,title:"Sobel's gradient: where the values change fastest (Process › Find Edges)",run:run("edges")},"-",
+    {label:"Gaussian blur…",enabled:on,title:"A Gaussian of a sigma in cells or in X and Y's unit, ImageJ's kernel and edges (Process › Filters › Gaussian Blur)",run:dlg("gauss")},
+    {label:"Unsharp mask…",enabled:on,title:"The image less a share of its blur, so details stand out (Process › Filters › Unsharp Mask)",run:dlg("unsharp")},
+    {label:"Filters",enabled:on,title:"ImageJ's rank filters over a circle of a radius in cells (Process › Filters)",sub:()=>[
+      {label:"Mean…",run:dlg("mean")},{label:"Median…",title:"Takes out spikes and keeps edges",run:dlg("median")},{label:"Minimum…",run:dlg("min")},{label:"Maximum…",run:dlg("max")},{label:"Variance…",title:"How much the values vary about each cell",run:dlg("var")}]},
+    {label:"Math",enabled:on,title:"Arithmetic on each value, as ImageJ's Process › Math",sub:()=>[
+      {label:"Add…",run:dlg("math","add")},{label:"Subtract…",run:dlg("math","sub")},{label:"Multiply…",run:dlg("math","mul")},{label:"Divide…",run:dlg("math","div")},
+      {label:"Min…",title:"Values below it raised to it",run:dlg("math","min")},{label:"Max…",title:"Values above it lowered to it",run:dlg("math","max")},{label:"Gamma…",run:dlg("math","gamma")},"-",
+      {label:"Log",title:"The natural logarithm, as ImageJ's",run:run("math","log")},{label:"Exp",run:run("math","exp")},{label:"Square",run:run("math","sqr")},{label:"Square root",run:run("math","sqrt")},{label:"Abs",run:run("math","abs")},{label:"Reciprocal",title:"1 over each value; 0 gives an empty cell",run:run("math","recip")},"-",
+      {label:"NaN background…",title:"Every value outside a range made empty, as ImageJ's NaN Background outside its threshold",run:dlg("math","nan")}]}]; }
 /* A matrix for ImageJ (QUDI_SPEC Q.2): the sheet as matTiff writes it, saved; the toast says the pixel size it has, that the
    values are single precision, and what could not be kept. */
 async function exportMatTiff(sid){ sid=sid||matFront(); const s=matOf(sid); if(!s){ toast("No matrix is open."); return; }
@@ -30991,7 +31228,8 @@ function analyzeMenu(){
       {label:"Area between two curves…", title:yCols().length>1?ANA_KINDS.between.help:"Two columns are needed: the area is between two", run:()=>anaDlg("between",{two:true}), enabled:!S.readOnly&&!!P()&&yCols().length>1},
       {label:"Interpolate…", title:ANA_KINDS.interp.help, run:()=>anaDlg("interp"), enabled:!S.readOnly&&!!P()}]},
     {label:"Image", sub:()=>{ const ok=!S.readOnly&&!!P()&&matAll().length>0, need="A matrix is needed: Data › Matrix makes one, and a qudi scan is read as one";
-      return [{label:"Measure…", title:ok?ANA_KINDS.ijmeasure.help:need, run:()=>anaDlg("ijmeasure",{p:ijmStart()}), enabled:ok},
+      return [{label:"Process", title:ok?ANA_KINDS.ijproc.help:need, sub:()=>ijProcItems(matFront()||(matAll()[0]&&matAll()[0].s.id)), enabled:ok},"-",
+        {label:"Measure…", title:ok?ANA_KINDS.ijmeasure.help:need, run:()=>anaDlg("ijmeasure",{p:ijmStart()}), enabled:ok},
         {label:"Find maxima…", title:ok?ANA_KINDS.ijmaxima.help:need, run:()=>anaDlg("ijmaxima",{p:ijxStart()}), enabled:ok},
         {label:"Profile…", title:ok?ANA_KINDS.ijprofile.help:need, run:()=>anaDlg("ijprofile",{p:ijpStart()}), enabled:ok},"-",
         {label:"Spots…", title:ok?ANA_KINDS.spots.help:need, run:()=>anaDlg("spots",{p:spxStart()}), enabled:ok},
@@ -33350,6 +33588,7 @@ ${DL([["Stack columns","The columns ticked one under another in a column of valu
 <p>The image is shown as ImageJ shows a 32-bit image: each value scaled into 256 steps between the range shown (below it the table's first colour, above it its last) and coloured by a <b>lookup table</b>, the button beside Fit: ImageJ's own (Grays, Fire, Ice, Spectrum, 3-3-2 RGB, Red, Green, Blue, Cyan, Magenta, Yellow, Red/Green, HiLo, which marks the lowest step blue and the highest red) or Kurve's maps, and <em>Inverted</em> for its colours in the other order. <b>Contrast</b> (or ${K("C")}) opens ImageJ's Brightness and Contrast beside the image: the values' histogram with the range shown drawn over it, the table under it with the range's ends, and Minimum, Maximum, Brightness and Contrast as ImageJ's sliders (the image follows as one moves; letting go is one undo step). <em>Auto</em> is ImageJ's: each press leaves more of the brightest and darkest values out of the range, and after a few presses starts again; <em>Reset</em> the values' whole range; <em>Set…</em> two numbers (for every sheet of the book, if asked); <em>Enhance…</em> ImageJ's Enhance Contrast, the share of the values shown in the end colours (0.35 % to begin with). The table and range are kept with the matrix and undone with it, but are no change of its values (nothing in its record): a graph of the matrix uses them unless it has a colour map of its own, a TIFF saved for ImageJ carries the range as its display range, and Matrix › Save the image as PNG writes the image as shown, each cell a block of pixels, with a calibration bar beside it.</p>
 <p><b>Selections</b> are made as in ImageJ, with the tools on the image's bar: the Hand (to move the image; Space+drag or the middle button with any tool), Rectangle (ImageJ's first, chosen to begin with), Oval, Polygon (a click at each corner, a double click, ${K("Enter")} or a click on the first corner to finish, ${K("Backspace")} for the last corner), Straight line and Points (a click each). The selection is drawn in ImageJ's yellow with its handles: drag a handle to resize it (a rectangle's and an oval's edges go to the cells' boundaries), drag inside it to move it, and the arrows move it a cell; ${K("Esc")} lets go of it, ${K("Ctrl+A")} selects every cell. ImageJ's keys: ${K("M")} measures the selection, ${K("K")} plots a line's profile at once, ${K("T")} keeps it. Measure…, Profile… and the rest start from it.</p>
 <p>The <b>ROI Manager</b> (<em>Selections</em> on the bar) keeps selections with the book, as ImageJ's: a click on one shows it on the image, a double click renames it; Add, Update, Delete, Delete all; <em>Show all</em> draws every one numbered in cyan. <em>Measure</em> (or ${K("M")}) puts a row a selection into the book's <em>Results</em> sheet, ImageJ's columns over a rectangle's, an oval's or a polygon's cells, a line's length, angle and its profile's statistics, each point's value; the Results follow the matrix as any analysis does. What the analyses of a matrix found is drawn over its image in cyan (Find maxima's maxima, Spots' FWHM ellipses, a profile's line, Measure's region); the image's right-click has <em>Results on the image</em> to hide them.</p>
+<p><b>Process</b> (the window's Process button, its Matrix menu, or ${MP("Analyze › Image › Process")}) is ImageJ's Process menu: <em>Smooth</em>, <em>Sharpen</em> and <em>Find edges</em> (its 3 × 3 filters), <em>Gaussian blur</em> (a sigma in cells or, with <em>Scaled units</em>, in X and Y's unit; ticking it turns the sigma typed into the other unit), <em>Unsharp mask</em>, <em>Filters</em> (Mean, Median, Minimum, Maximum and Variance over ImageJ's circle of a radius in cells) and <em>Math</em> (add, subtract, multiply, divide, min, max, gamma, log, exp, square, square root, abs, reciprocal, and NaN background, every value outside a range made empty). Each makes a new matrix, worked out as ImageJ works its 32-bit image to the last bit (its values in single precision, the cells past the edge the edge's own), in a window of its own with the source's lookup table; it follows its source as any analysis does, so a value typed into the scan, or a change of the settings (its result sheet's <em>Change settings…</em>), works it out again, and one processed matrix can be processed again. ImageJ lets an empty cell spread through a blur or a mean (an unfinished scan's last rows empty half the image); <em>Leave the empty cells out</em> works each cell out from the cells with a value about it instead, and keeps the empty ones empty. The method gives the command that does the same in ImageJ.</p>
 <p>The Cells view is the grid with X along the top, Y down the side and row 1 at the top, a tab for each matrix of the book (+ adds one, a double click renames, a right-click has the rest), the cell and its value above, and below the size, whether its values are original data or computed, and the N, mean, minimum and maximum of the cells selected. It is used as the worksheet is: click, drag, Shift and the arrows select; typing, F2 or a double click edits; Delete clears; Ctrl+C and Ctrl+V copy and paste tab-separated blocks. Only what is in view is drawn, so a million cells scroll as easily as a hundred.</p>
 <h2>Original data or computed</h2>
 <p>Values typed, read from columns or a picture, or transformed in place are <strong>original data</strong>: each change is one step to undo and an entry in the matrix's own record with the check code of its values (the SHA-256 of its rows written as the worksheet's original data is). <em>Set values…</em> makes a matrix <strong>computed</strong>: a formula of <code>x</code> and <code>y</code> (each cell's X and Y), <code>i</code> and <code>j</code> (its row and column from 1), the project's ${DA("formulas#consts","constants")} and other matrices of the same size by name (<code>Base * 2 + i</code>). It is worked out again whenever what it reads changes, and says why when it cannot be (a matrix it reads gone or of another size). <em>Keep the values only</em> drops the formula and keeps the values as original data. A matrix's name is a formula's name: a letter, then letters, digits and _.</p>

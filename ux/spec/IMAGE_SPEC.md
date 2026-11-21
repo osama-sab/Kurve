@@ -121,6 +121,19 @@ Background (the rolling ball and the sliding paraboloid), Math (add, subtract, m
 square, square root, abs, reciprocal, NaN background) as new matrices following their input. **Checks**: each against
 the port of its ImageJ source on scans with edges and empty cells.
 
+**Done 21.11 (but Subtract Background, next).** `ijProcess` in MAT: FloatProcessor.filter3x3 (Smooth, Sharpen, Find Edges), GaussianBlur
+(its kernel, edges and the downscaling past σ 8.5), RankFilters (Mean, Median, Minimum, Maximum, Variance on its circle, its sums in
+doubles as it keeps them, its NaN-aware median), UnsharpMask, and Math (FloatProcessor.process and ImageMath), each in Java's float
+arithmetic step by step. The kind `ijproc`: a new matrix that follows its input, named after the operation, with the source's lookup
+table, opened in its window; its sheet a line of what was done and the method ImageJ's command. Its dialog (σ in cells or in the scan's
+unit, converted when the unit is switched; a radius; a value; a range kept), the window's *Process* button, Matrix › Process, Analyze ›
+Image › Process. Beyond ImageJ (decision 10): *Leave the empty cells out* for the Gaussian, Unsharp mask, Mean and Variance, so an
+unfinished scan's empty rows do not spread through the image (normalised convolution; ImageJ lets NaN spread). **Checks**:
+`tools/ref/ij_process.py` (ImageJ's Java written again in NumPy's float32 from the source, an independent transcription) on seven
+images (a field with offsets, gaps and a zero; the same on falling axes; a wide blur with two spots that makes ImageJ shrink its lines;
+Poisson counts; a row; a column; an unfinished scan), 96 operations, every cell equal (`ijProcess.*`, six bench entries; three one-bit
+changes to the port make 20 of them differ); `tools/img-drive.mjs` I.5 (13).
+
 **I.6 Threshold and particles.** ImageJ's AutoThresholder (Default, Huang, Intermodes, IsoData, Li, MaxEntropy, Mean,
 MinError, Minimum, Moments, Otsu, Percentile, RenyiEntropy, Shanbhag, Triangle, Yen) on the 256-bin histogram, the range
 shown on the image in red, dark or light background; Analyze Particles (size and circularity ranges, edges excluded, holes

@@ -898,6 +898,17 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-21: Processing as ImageJ processes (IMAGE_SPEC I.5)
+
+- **A new image, never the scan changed.** ImageJ filters an image in place and keeps one undo; Kurve keeps the scan as recorded and
+  puts each filter's result in a matrix of its own, which follows the scan and can be filtered again: a chain of steps that can each
+  be changed later, as a column's processing can.
+- **Exactly ImageJ's numbers.** Each filter is ImageJ's own arithmetic in single precision, edges and all, so a blurred scan here and
+  in ImageJ are the same to the last bit, and the method says the command that does it there.
+- **ImageJ's behaviour first, the better one asked for.** An empty cell spreads through ImageJ's blur and mean; that stays the default,
+  and *Leave the empty cells out* is beside it, saying why, rather than silently differing from ImageJ.
+- **Process on the image's bar**, as ImageJ's Process menu is beside its image: what needs no setting runs at once, the rest asks.
+
 ### 2026-11-20: A scan keeps its shape (IMAGE_SPEC I.1)
 
 - **A pixel is not stretched to fit a window.** A matrix's map takes the largest area of the scan's own shape that the window

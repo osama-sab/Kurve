@@ -111,6 +111,24 @@
  "ijBC.sliders": {
   "tol": 0
  },
+ "ijProcess.filter3x3": {
+  "tol": 0
+ },
+ "ijProcess.gauss": {
+  "tol": 0
+ },
+ "ijProcess.unsharp": {
+  "tol": 0
+ },
+ "ijProcess.rank": {
+  "tol": 0
+ },
+ "ijProcess.math": {
+  "tol": 0
+ },
+ "ijProcess.skip": {
+  "tol": 0
+ },
  "reshape": {
   "tol": 1e-13
  },

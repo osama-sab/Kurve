@@ -329,6 +329,73 @@ await page(async p => {
   check(`the selections are kept with the book across a reload (${rl.map(r => r[0]).join(", ")}), and broken ones from storage cleaned`, rl.length === 3 && rl[1][0] === "Background" && jk.length === 1 && jk[0].id === "w" && jk[0].pts.length === 1, JSON.stringify([rl, jk]));
 }, { name: "I.4" });
 
+console.log("I.5 Process");
+await page(async p => {
+  const sid = await nv(p); await p.evaluate(() => { const id = matWinIds()[0], st = winState(id); st.g = [0.03, 0.03, 0.62, 0.9]; st.max = false; applyWins(); }); await p.waitForTimeout(300);
+  const id0 = await p.evaluate(() => matWinIds()[0]), W = `#w-${id0}`;
+  // the menu by its items' names, a submenu opened by a click on its name
+  const pick = async (btn, ...path) => { await p.click(btn); await p.waitForTimeout(120);
+    for (const nm of path) { await p.locator(".menu .mi").filter({ hasText: new RegExp("^" + nm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }).last().click(); await p.waitForTimeout(150); } };
+  const same = (a, b) => a.length === b.length && a.every((v, i) => v === b[i] || v == null && b[i] == null);
+  const want = (src, o) => p.evaluate(([src, o]) => { const s = matOf(src), { X, Y } = matXYOf(s); const r = ijProcess({ nx: s.nx, ny: s.ny, xs: Array.from(X), ys: Array.from(Y), z: s.z }, o); return r.fail || r.z; }, [src, o]);
+  const last = () => p.evaluate(() => { const a = anaList().filter(x => x.kind === "ijproc").pop(), s = a && anaMatSheet(a); return a && { aid: a.id, name: a.name, sid: s && s.id, sname: s && s.name, z: s && s.z, ana: s && s.ana, disp: s && s.disp, zname: s && s.zname, zunit: s && s.zunit, front: frontWinId(), win: s && mxWinId(a.out.mat), err: a.res && a.res.err }; });
+  await p.evaluate(sid => matDispSet(sid, { lut: "ij:fire" }), sid); await p.waitForTimeout(100);
+  const items = await p.evaluate(() => ijProcItems(matFront()).filter(x => x && x !== "-").map(x => x.label));
+  check(`the image's bar has Process, ImageJ's menu (${items.join(", ")})`, await p.isVisible(`${W} [data-mxproc]`) && items.join("|") === "Smooth|Sharpen|Find edges|Gaussian blur…|Unsharp mask…|Filters|Math", JSON.stringify(items));
+  // Smooth: at once, a new matrix in its window, ImageJ's values, the source's lookup table, one undo step
+  const u0 = await p.evaluate(() => undoStack.length); await pick(`${W} [data-mxproc]`, "Smooth"); await p.waitForTimeout(400); let r = await last();
+  let w = await want(sid, { op: "smooth" });
+  check(`Smooth makes ${r.sname}, a new matrix of ImageJ's values, in its own window in front, with the source's lookup table, one undo step`, r && same(r.z, w) && r.ana === r.aid && r.front === r.win && r.disp && r.disp.lut === "ij:fire" && !Number.isFinite(r.disp.lo) && await p.evaluate(() => undoStack.length) === u0 + 1, JSON.stringify([r && r.sname, r && r.front, r && r.win, r && r.disp]));
+  const smooth = r;
+  // Gaussian blur… through its dialog: sigma in the scan's unit
+  await p.evaluate(() => focusWin(matWinIds()[0])); await p.waitForTimeout(150);
+  await pick(`${W} [data-mxproc]`, "Gaussian blur"); await p.waitForTimeout(200);
+  const g0 = await p.evaluate(() => ({ title: $("#formTitle") && $("#formTitle").textContent, s: $("#aIPs").value, shown: [...document.querySelectorAll("#formBody [data-ipr]")].filter(e => !e.hidden).map(e => e.dataset.ipr) }));
+  await p.fill("#aIPs", "0"); await p.waitForTimeout(80); const bad0 = [await p.isDisabled("#formOk"), await p.textContent("#aIPmsg")];
+  await p.fill("#aIPs", "2"); await p.check("#aIPu"); await p.waitForTimeout(80); const conv = await p.inputValue("#aIPs");
+  await p.fill("#aIPs", "0.25"); await p.waitForTimeout(80); const gm = await p.textContent("#aIPmsg");
+  check(`its dialog (${g0.title}) starts at sigma ${g0.s} with only the Gaussian's fields, refuses 0 ("${bad0[1]}"); Scaled units turns 2 cells into ${conv} µm, and says the sigma in cells for 0.25 µm ("${gm}")`, g0.title === "Gaussian blur (ImageJ)" && conv === "0.254" && g0.s === "2" && [...new Set(g0.shown)].sort().join("") === "ksu" && bad0[0] && /above 0/.test(bad0[1]) && /1\.969 cells along X, 1\.969 along Y/.test(gm), JSON.stringify([g0, bad0, gm]));
+  await p.click("#formOk"); await p.waitForTimeout(500); r = await last();
+  const pw = await p.evaluate(sid => { const s = matOf(sid); return ijGeom(s.x, s.y, s.nx, s.ny).pw; }, sid);
+  w = await want(sid, { op: "gauss", sigma: 0.25 / pw });
+  check(`…and makes ${r.name}: ImageJ's Gaussian Blur with sigma 0.25 µm scaled, every cell; the method gives ImageJ's command`, same(r.z, w) && await p.evaluate(aid => /run\("Gaussian Blur\.\.\.", "sigma=0\.25 scaled"\)/.test(anaOf(aid).res.report.method), r.aid), r.name);
+  // Filters › Median… and Math › Log, Math › NaN background…
+  await p.evaluate(() => focusWin(matWinIds()[0])); await p.waitForTimeout(150);
+  await pick(`${W} [data-mxproc]`, "Filters", "Median"); await p.waitForTimeout(200); await p.fill("#aIPr", "200"); await p.waitForTimeout(80); const rb = [await p.isDisabled("#formOk"), await p.textContent("#aIPmsg")];
+  await p.fill("#aIPr", "2"); await p.waitForTimeout(80); const rm = await p.textContent("#aIPmsg"); await p.click("#formOk"); await p.waitForTimeout(500); r = await last(); w = await want(sid, { op: "median", radius: 2 });
+  check(`Filters › Median: a radius of 200 refused ("${rb[1]}"), 2 cells a circle of 21 ("${rm}"), ImageJ's median of every cell`, rb[0] && same(r.z, w) && /21 cells/.test(rm), JSON.stringify([rb, rm]));
+  await p.evaluate(() => focusWin(matWinIds()[0])); await p.waitForTimeout(150);
+  await pick(`${W} [data-mxproc]`, "Math", "Log"); await p.waitForTimeout(400); r = await last(); w = await want(sid, { op: "math", mop: "log" });
+  check(`Math › Log at once: ImageJ's natural log, named ${r.zname}, no unit`, same(r.z, w) && /^ln /.test(r.zname) && !r.zunit, JSON.stringify([r.zname, r.zunit]));
+  await p.evaluate(() => focusWin(matWinIds()[0])); await p.waitForTimeout(150);
+  await pick(`${W} [data-mxproc]`, "Math", "NaN background"); await p.waitForTimeout(200);
+  const nb = await p.evaluate(sid => { const { lo, hi } = matRange(matOf(sid).z); return [+$("#aIPl").value === lo, +$("#aIPh").value === hi, lo, hi]; }, sid);
+  await p.fill("#aIPl", "20000"); await p.fill("#aIPh", "1e9"); await p.click("#formOk"); await p.waitForTimeout(500); r = await last(); w = await want(sid, { op: "math", mop: "nan", lo: 20000, hi: 1e9 });
+  const kept = r.z.filter(v => v != null).length;
+  check(`Math › NaN background starts with the values' range, and keeps only the cells from 20 000 up (${kept} of 4096)`, nb[0] && nb[1] && same(r.z, w) && kept > 20 && kept < 2000, JSON.stringify([nb, kept]));
+  // processed images follow their input; a chain of them; a matrix made from one is never its input
+  await p.evaluate(() => { const st = mxSt(matBooks()[0].id); mxWrite(st.sid, [[30, 30, 500000]], "typed into a cell"); }); await p.waitForTimeout(600);
+  const fol = await p.evaluate(aid => { const a = anaOf(aid); return anaMatSheet(a).z; }, smooth.aid); w = await want(sid, { op: "smooth" });
+  check("a value typed into the scan: the smoothed matrix follows it", same(fol, w) && fol[30 * 64 + 30] > 50000, fol[30 * 64 + 30]);
+  await p.evaluate(sm => ijProcRun(sm, { op: "edges" }), smooth.sid); await p.waitForTimeout(500); r = await last(); w = await want(smooth.sid, { op: "edges" });
+  const offered = await p.evaluate(aid => { anaDlg("ijproc", { id: aid }); return [...document.querySelectorAll("#aIPm option")].map(o => o.textContent); }, smooth.aid); await p.waitForTimeout(150);
+  await p.click("#formCancel").catch(() => p.keyboard.press("Escape")); await p.waitForTimeout(150);
+  check(`Find edges of the smoothed matrix follows it in turn (${r.zname}); Smooth's own settings never offer its result or what is made from it (${offered.length} matrices)`, same(r.z, w) && /^Gradient of/.test(r.zname) && !offered.some(t => t === smooth.sname || t === r.sname) && offered.length === 5, JSON.stringify(offered));
+  // the empty cells: ImageJ lets them spread, Kurve leaves them out when asked
+  await p.evaluate(() => { const st = mxSt(matBooks()[0].id), cells = []; for (let r = 58; r < 64; r++) for (let c = 0; c < 64; c++) cells.push([r, c, null]); mxWrite(st.sid, cells, "cleared the unfinished rows"); }); await p.waitForTimeout(500);
+  const sp = await p.evaluate(sid => { const a = anaMakeTyped("ijproc", { mat: sid, op: "gauss", sigma: 1.5 }), b = anaMakeTyped("ijproc", { mat: sid, op: "gauss", sigma: 1.5, skip: true });
+    const n = id => anaMatSheet(anaOf(id)).z.filter(v => v == null).length; return { ij: n(a), kv: n(b), note: anaOf(a).res.notes.join(" ") }; }, sid);
+  check(`six empty rows (384 cells): ImageJ's Gaussian spreads them (${sp.ij} empty, said in a note), Leave the empty cells out keeps 384`, sp.ij > 384 && sp.kv === 384 && /Leave the empty cells out/.test(sp.note), JSON.stringify(sp));
+  // Analyze › Image › Process; undo; the report's Open the matrix; a reload
+  const az = await p.evaluate(() => { const im = menuItems("analyze").find(i => i && i.label === "Image"), sub = im && im.sub(); const pr = sub && sub.find(i => i && i.label === "Process"); return pr ? pr.sub().filter(x => x && x !== "-").map(x => x.label) : null; });
+  const nb0 = await p.evaluate(() => matBooks().length); await p.evaluate(() => undo()); await p.waitForTimeout(300); const nb1 = await p.evaluate(() => matBooks().length);
+  check(`Analyze › Image › Process has the same menu (${az && az.length} items); undo takes the last processed matrix away (${nb0} → ${nb1} books)`, az && az.length === 7 && nb1 === nb0 - 1, JSON.stringify(az));
+  const acts = await p.evaluate(aid => anaActs(anaOf(aid)).map(a => a.label), smooth.aid);
+  await p.evaluate(() => flushEdits()); await p.waitForTimeout(800); await p.reload(); await ready(p); await p.waitForTimeout(600);
+  const rl = await p.evaluate(aid => { const a = anaOf(aid), s = a && anaMatSheet(a); return s && { n: s.z.length, lut: s.disp && s.disp.lut, ok: anaSig(a) === a.sig }; }, smooth.aid);
+  check(`its report opens the matrix or draws its map (${acts.join(", ")}); kept across a reload with its lookup table, up to date`, acts.includes("Open the matrix") && rl && rl.n === 4096 && rl.lut === "ij:fire" && rl.ok, JSON.stringify([acts, rl]));
+}, { name: "I.5" });
+
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

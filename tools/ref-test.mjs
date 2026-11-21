@@ -475,6 +475,16 @@ if (fixtures["ij-display"]) {
     note("ijBC.sliders", sb, `${c.name}${sat2 ? ", " + sat2 : ""}`); }
 }
 
+/* ---- ImageJ's Process menu (IMAGE_SPEC I.5): every cell of each operation against tools/ref/ij_process.py's port of ImageJ 1.54f
+   (the count of cells that differ, so 0 is every one equal, NaN and empty alike) ---- */
+if (fixtures["ij-process"]) {
+  const PR = get("ijProcess"), grp = (p) => p.skip ? "skip" : ["smooth", "sharpen", "edges"].includes(p.op) ? "filter3x3" : ["mean", "median", "min", "max", "var"].includes(p.op) ? "rank" : p.op;
+  for (const c of fixtures["ij-process"].cases) c.ops.forEach((p, k) => { const r = PR({ nx: c.nx, ny: c.ny, xs: c.xs, ys: c.ys, z: c.z }, p), w = c.want[k];
+    let bad = 0, at = ""; if (r.fail) { bad = w.length; at = r.fail; }
+    else for (let i = 0; i < w.length; i++) { const a = r.z[i], b = w[i]; if (!(a === b || a == null && b == null)) { bad++; if (!at) at = `cell ${i}: ${a} against ${b}`; } }
+    note("ijProcess." + grp(p), bad, `${c.name}, ${JSON.stringify(p)}${at ? ", " + at : ""}`); });
+}
+
 /* ---- NIST's Norris: certified values read from the file itself ---- */
 {
   const txt = readFileSync(join(here, "ref", "nist", "Norris.dat"), "utf8").split(/\r?\n/);

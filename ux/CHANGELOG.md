@@ -1024,6 +1024,22 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Images, slice I.5: Process (2026-11-21)
+
+- **ImageJ's Process menu** for a matrix, from the image's *Process* button, Matrix › Process or Analyze › Image › Process: Smooth,
+  Sharpen, Find edges, Gaussian blur (sigma in cells or in the scan's unit), Unsharp mask, Filters (Mean, Median, Minimum, Maximum,
+  Variance over ImageJ's circle), Math (Add, Subtract, Multiply, Divide, Min, Max, Gamma, Log, Exp, Square, Square root, Abs,
+  Reciprocal, NaN background).
+- Each makes a **new matrix** in its own window, with the source's lookup table, that **follows** the scan (a value typed, the settings
+  changed) and can be processed again; the scan itself is never changed.
+- Every value is **ImageJ's to the last bit** (its single-precision arithmetic, its kernels and edges); the method gives ImageJ's command.
+- **Leave the empty cells out** (Gaussian, Unsharp mask, Mean, Variance): an unfinished scan's empty rows no longer spread through the
+  image, as they do in ImageJ.
+- An analysis's matrix says *Results of …* in its window's foot.
+
+Checked: a NumPy transcription of ImageJ 1.54f's filter3x3, GaussianBlur, RankFilters, UnsharpMask and ImageMath, every cell equal on 96
+operations over seven images (six new bench entries); `tools/img-drive.mjs` (13 new, 85).
+
 ## Images, slice I.4: selections and the ROI Manager (2026-11-20)
 
 - **ImageJ's selection tools** on the image's bar: Rectangle (chosen to begin with), Oval, Polygon, Straight line, Points, and the Hand;
