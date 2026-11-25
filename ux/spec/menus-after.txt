@@ -131,7 +131,11 @@ Data
       (the tables: ImageJ's Grays, Fire, Ice, Spectrum, 3-3-2 RGB, Red, Green, Blue, Cyan, Magenta, Yellow, Red/Green, HiLo; Kurve's Viridis, Magma, Cool to warm, Grey; Inverted)
     Brightness and contrast  ## ↓; new (IMAGE_SPEC I.3): the panel beside the image, as ImageJ's B&C
     Enhance contrast…  ## ↓; new (IMAGE_SPEC I.3): ImageJ's Process › Enhance Contrast, a share of the values saturated
-    Save the image as PNG  ## ↓; new (IMAGE_SPEC I.3): the image as shown, each cell a block of pixels, with its calibration bar
+    Scale bar…  ## ↓; new (IMAGE_SPEC I.7): ImageJ's Scale Bar on the image and its picture
+    Remove the scale bar  ## ↓; new (IMAGE_SPEC I.7): while the matrix has one
+    Channels  ## ↓; new (IMAGE_SPEC I.7): the book's matrices of one size as ImageJ's composite (also the window's Channels button)
+      (Composite; Added, The brightest of them, The darkest of them; each channel; Colours: red, green, blue…)
+    Save the image as PNG  ## ↓; new (IMAGE_SPEC I.3): the image as shown, each cell a block of pixels, with its scale bar and calibration bar
     Process  ## ↓; new (IMAGE_SPEC I.5): ImageJ's Process menu, each a new matrix that follows this one (also the window's Process button)
       Smooth  ## ImageJ's Process › Smooth, at once
       Sharpen  ## at once
@@ -170,6 +174,7 @@ Data
       Measure…  ## Q.3: the cells selected as its rectangle to begin with
       Find maxima…  ## Q.4: a tenth of the values' range as the prominence to begin with
       Profile…  ## Q.4: the cells selected corner to corner, else across the middle row
+      Histogram…  ## new (IMAGE_SPEC I.7): ImageJ's Analyze › Histogram of the selection or the whole (H on the image)
       Save as a TIFF (.tif)  ## Q.2: a 32-bit TIFF with ImageJ's calibration
     Delete this matrix…  ## ↓
   Columns  ## ~ "Spectra"
@@ -346,6 +351,8 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
     Measure…  ## ImageJ's Analyze › Measure over the matrix, a rectangle, an oval or a polygon, into a result sheet
     Find maxima…  ## ImageJ's Process › Find Maxima, a row a maximum
     Profile…  ## ImageJ's Analyze › Plot Profile of a straight line
+    Histogram…  ## new (IMAGE_SPEC I.7): ImageJ's Analyze › Histogram of the matrix in front, with its numbers
+    Scale bar…  ## new (IMAGE_SPEC I.7): ImageJ's Analyze › Tools › Scale Bar
     Analyze particles…  ## new (IMAGE_SPEC I.6): ImageJ's Analyze Particles
     Spots…  ## new (QUDI_SPEC Q.5): beyond ImageJ, each spot a fitted Gaussian with its errors
     Shift between scans…  ## new (QUDI_SPEC Q.8): beyond ImageJ, the drift or a back scan's lag with its error

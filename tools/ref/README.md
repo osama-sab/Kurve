@@ -106,6 +106,13 @@ EllipseFitter, FloatPolygon.getConvexHull, Roi.getFeretValues and Analyzer's cir
 2 by 0.5 with empty cells) and 18 settings (holes, edges, sizes, circularity, ranges from below and between): 244 particles;
 `fixtures/ij-particles.json`. ref-test's `ijParticles.cells` (count and cells, exact), `.shape` (1e-14) and `.stats` (1e-14).
 
+`tools/ref/ij_scalebar.py` (IMAGE_SPEC I.7) is ImageJ 1.54f's Scale Bar, its numbers and its composite written again from its source:
+ScaleBar's computeDefaultBarWidth, Utils.round and getDigits and the positions of the bars, the text and the boxes; IJ.d2s as
+DecimalFormat with half-even rounding (Python's Decimal of the double); CompositeImage's COMPOSITE mode through
+ImageProcessor.updateComposite with Java's int arithmetic, the tables from `fixtures/ij-display.json`. It writes
+`fixtures/ij-scalebar.json`; ref-test's `ijScaleBar.numbers`, `ijScaleBar.bars` and `ijComposite.colours` (exact).
+Usage: `PYREF=$SC/pyref python3.13 -I tools/ref/ij_scalebar.py`.
+
 ImageJ's own readout, where its jar may be run:
 
 ```sh

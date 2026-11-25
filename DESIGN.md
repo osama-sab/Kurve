@@ -910,6 +910,18 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-25: Scale bar, channels, histogram (IMAGE_SPEC I.7)
+
+- **A scale bar in the image's pixels.** ImageJ's bar is an overlay sized in the image's pixels, so it is the same part of the
+  picture at any zoom and in the PNG; Kurve keeps that rather than a bar of fixed screen size, because the picture saved is what
+  goes into a paper. Its width opens where ImageJ's does (80 screen pixels' worth, rounded down to 1, 2 or 5), and the label has
+  the decimals typed.
+- **Channels are the book's matrices of one size.** A qudi scan's counters and a processed copy are sheets of one book already;
+  showing them together needs no new object, only a switch on the book (*Channels*), each channel keeping the table and range it
+  has when shown alone, so Contrast on the channel in front is ImageJ's current channel.
+- **The histogram is a look, not a result.** It opens in a dialog with ImageJ's numbers written as ImageJ writes them; *Plot it*
+  makes the result (a Measure analysis that follows the matrix) when the histogram is to be kept.
+
 ### 2026-11-21: A threshold as ImageJ's (IMAGE_SPEC I.6)
 
 - **The panel beside the image, as Brightness and contrast is.** A threshold is looked at while it is set: the red cells follow the

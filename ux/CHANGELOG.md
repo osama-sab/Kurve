@@ -1024,6 +1024,20 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Images, slice I.7: scale bar, channels, histogram (2026-11-25)
+
+- **Scale bar** (Matrix › Scale bar…, Analyze › Image › Scale bar…): ImageJ's Scale Bar on the image and its PNG, its width
+  opening on ImageJ's default at the magnification shown, its height and text in the image's pixels, ImageJ's colours, a box,
+  a corner or the selection, a vertical bar too; kept with the matrix, one undo a change.
+- **Channels** (the window's Channels button, Matrix › Channels): a book's matrices of one size shown together as ImageJ's
+  composite, each in its own table and range, added (or the brightest, the darkest); *Colours: red, green, blue…*; a channel
+  left out; the readout gives each channel's value; the PNG is the composite.
+- **Histogram** (H on the image, Matrix › ImageJ › Histogram…, Analyze › Image › Histogram…): ImageJ's histogram of the selection
+  or the whole, with its numbers as ImageJ writes them, Log, the list, and *Plot it*.
+
+Checked: `tools/ref/ij_scalebar.py` (ScaleBar, IJ.d2s, updateComposite written again from ImageJ's source) on 1620 numbers,
+680 bars and 12 composites, all equal; img-drive I.7 (18). IMAGE_SPEC's seven slices are done.
+
 ## The user's reports: columns, the worksheet's bar, steps on a graph, lining spectra up, several at once (2026-11-25)
 
 - **Fixed: a column moved left froze the worksheet** when the project had several sheets: the move

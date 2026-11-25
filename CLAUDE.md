@@ -1845,6 +1845,26 @@ graph first, with the taskbar kept at the bottom of the screen.
   sheet's threshold, else Default with a dark background), the outlines and numbers drawn by `mxOverlay` in cyan, the report's
   *Show the outlines*, *Histogram of the areas*, *Open the matrix*; the Threshold panel's *Particles…* (`[data-tha="pa"]`), Matrix ›
   Analyze particles…, Analyze › Image › Analyze particles…);
+  **Scale bar, channels, histogram** (I.7: in MAT `ijJavaInt`, `ijD2s(x, d)` (IJ.d2s: DecimalFormat half even on the double's
+  exact value, a tie found from the digits past it; negative d scientific), `ijD2sSig(x, sig, max)`, `ijD2sHist` (HistogramPlot's),
+  `ijRound125` (ScaleBar.Utils.round, its power of ten by `+("1e"+k)`: `Math.pow(10, -4)` is not 10⁻⁴ here), `ijDigitsStr`, `ijDigits`,
+  `ijScaleBar(o)` (computeDefaultBarWidth and setElementsPositions: `{W, H, pw, ph, unit, vunit, mag, width, wdig, height, hdig, thick,
+  font, loc "lr"|"ur"|"ll"|"ul"|"sel" with sel, horiz, vert, hide, bg, tw(text)}` → `{hw, hd, vh, vd, hLabel, vLabel, hPx, vPx, hBar,
+  hText, vBar, vText, hBg, vBg, outer, inner, auto}`, rectangles in the image's pixels), `ijComposite(chs, n, mode)` (CompositeImage's
+  COMPOSITE: each channel `{z, lo, hi, lut, on}` through `ij8` and its table, sum clamped at 255, max or min; Int32Array 0xRRGGBB). The
+  page: a sheet's `sbar` (`sbarClean` in `matClean`: `{w, wd, vh, vd, thick, font, loc, color, bg, bold, hide, serif, horiz, vert, sx,
+  sy}`, `SB_COLORS` ImageJ's nine, `SB_LOCS`), `sbarGeom(s, sb, mag)` (the image as a pixel a cell's width, rows by `mxAspect`; a unit of
+  none "pixels" for cells one apart, else X's name), `sbarDraw(ctx, s, sb, k, ox, oy)` (in `mxImgDraw` and `mxSavePng`), `matSbarSet`
+  (one undo step), `sbarDlg(sid)` (`#sbW`, `#sbT`, `#sbF`, `#sbC`, `#sbB`, `#sbL`, `#sbBo`, `#sbH`, `#sbS`, `#sbHz`, `#sbV`, `#sbVh`;
+  the width ImageJ's default at the window's magnification, its digits as typed); a book's `comp` (`compClean`: `{on, mode
+  "sum"|"max"|"min", off}`), `mxChans(b, s)` (the book's sheets of s's size), `mxCompOn`, `mxCompImage(b, s)` (`MXCOMP`; a cell empty in
+  every channel on clear), `matCompSet`, `matCompColours` (`IJ_CHAN`: red, green, blue, grays, cyan, magenta, yellow; one undo step),
+  `mxChanItems(sid)` (`[data-mxch]` on the bar while the book has two of one size, Matrix › Channels), `mxDispLine` and `mxRead` (each
+  channel's value) in a composite, the PNG the composite alone; `ijHistDlg(sid)` (H on the image, its right-click, Matrix › ImageJ ›
+  Histogram…, Analyze › Image › Histogram…: `ijMeasure` over `ijmStart`'s region in single precision, `.ijhistd` with `#ijhLog`,
+  `[data-ijh]` list, copy, plot (an `ijmeasure` analysis and `ijmHist`)); Analyze › Image › Scale bar…. `tools/ref/ij_scalebar.py` →
+  `fixtures/ij-scalebar.json` (1620 numbers, 92 of the histogram's, 89 roundings, 680 bars, 12 composites; ref-test's
+  `ijScaleBar.numbers`, `.bars`, `ijComposite.colours`, exact);
   `matDataItems` (Data › Matrix: New, From columns, From a picture, Open, then the matrix in front's, `matFront`),
   `matPlotItems` (Plot › Plot a matrix). The graph: `plotCfg` forces the heat layout while `plot.mat` names a matrix;
   `buildPlot` draws it with no column (`MAT`: `ps` from its names, no points, `matViewOf` the zoom in its X units or
@@ -4093,7 +4113,10 @@ through ImageJ's levels by the wheel, the keys and the list, Fit, a pan, a resiz
 lookup tables and Brightness and Contrast against ImageJ's; I.4, the selection tools, handles and keys, the ROI Manager and its
 Results, the overlays; I.5, Process (its menu, Smooth at once, Gaussian blur through its dialog in the scan's unit, Median, Log, NaN
 background, Subtract background by the ball and the paraboloid, each against ijProcess cell by cell, a result following its source and another made from it, its own settings never
-offered its result, empty cells spreading as ImageJ's or left out, Analyze › Image › Process, undo, a reload).
+offered its result, empty cells spreading as ImageJ's or left out, Analyze › Image › Process, undo, a reload); I.6, Threshold and Analyze
+Particles; I.7, the scale bar (its default width at the magnification, its white run on the screen and in the PNG as long as its pixels,
+growing with the zoom, undo, a vertical one at the upper left), the channels (ImageJ's colours, each cell the colour ijComposite gives, one
+left out, the brightest, the readout), the histogram (H, ImageJ's numbers, Log, Plot it) and a reload.
 `node tools/img-test.mjs [path]` checks the image analyses' properties (QUDI_SPEC Q.5 to Q.8): a spot's position, FWHM, peak and
 background each with an error equal to its spread over 300 Poisson repeats and no bias, the reduced χ² near 1, a lone spot split
 in at most 1 %, an elliptical spot fitted round not split, two spots 0.8 FWHM apart found as two and biased when fitted as one, the

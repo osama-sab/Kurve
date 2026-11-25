@@ -147,6 +147,15 @@
  "ijParticles.stats": {
   "tol": 1e-14
  },
+ "ijScaleBar.numbers": {
+  "tol": 0
+ },
+ "ijScaleBar.bars": {
+  "tol": 0
+ },
+ "ijComposite.colours": {
+  "tol": 0
+ },
  "reshape": {
   "tol": 1e-13
  },

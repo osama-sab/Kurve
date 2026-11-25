@@ -508,6 +508,83 @@ await page(async p => {
   check(`kept across a reload and up to date; Analyze › Image has Analyze particles… (${rl.items.filter(Boolean).join(", ")})`, rl && rl.cnt === after && rl.ok && rl.items.includes("Analyze particles…"), JSON.stringify(rl));
 }, { name: "I.6" });
 
+console.log("I.7 Scale bar, channels, histogram");
+await page(async p => {
+  const sid = await nv(p); await p.evaluate(() => { const id = matWinIds()[0], st = winState(id); st.g = [0.03, 0.03, 0.8, 0.9]; st.max = false; applyWins(); }); await p.waitForTimeout(300);
+  const id = await p.evaluate(() => matWinIds()[0]);
+  // The menus.
+  const mi = await p.evaluate(sid => ({ mat: matMenuItems(sid).filter(Boolean).map(i => i.label), ij: matMenuItems(sid).find(i => i && i.label === "ImageJ").sub().filter(i => i && i.label).map(i => i.label), an: menuItems("analyze").find(i => i && i.label === "Image").sub().filter(i => i && i.label).map(i => i.label) }), sid);
+  check(`the Matrix menu has Scale bar… and Channels, its ImageJ submenu Histogram…, Analyze › Image both (${mi.an.join(", ")})`, mi.mat.includes("Scale bar…") && mi.mat.includes("Channels") && mi.ij.includes("Histogram…") && mi.an.includes("Histogram…") && mi.an.includes("Scale bar…"), JSON.stringify(mi));
+  // The dialog opens on ImageJ's default width at the magnification on screen.
+  await p.evaluate(sid => { matMenuItems(sid).find(i => i && i.label === "Scale bar…").run(); }, sid); await p.waitForTimeout(300);
+  const d0 = await p.evaluate(sid => { const s = matOf(sid), st = mxStFor(sid), G = ijScaleBar({ W: s.nx, H: s.ny, pw: ijGeom(s.x, s.y, s.nx, s.ny).pw, ph: ijGeom(s.x, s.y, s.nx, s.ny).ph, mag: st.mag, unit: "µm" }); return { w: $("#sbW").value, want: ijD2s(G.hw, G.hd), lab: [...document.querySelectorAll("#formBody label")].map(l => l.textContent).slice(0, 3), mag: st.mag }; }, sid);
+  check(`the dialog's width is ImageJ's default at ${Math.round(d0.mag * 100)} % (${d0.w}), in µm; the height and font in pixels`, d0.w === d0.want && /Width in µm/.test(d0.lab[0]) && /Height in pixels/.test(d0.lab[1]), JSON.stringify(d0));
+  await p.fill("#sbW", "2"); await p.selectOption("#sbB", "black"); await p.click("#formOk"); await p.waitForTimeout(400);
+  const sb = await p.evaluate(sid => { const s = matOf(sid); return { sb: s.sbar, G: sbarGeom(s, s.sbar, 1), pw: ijGeom(s.x, s.y, s.nx, s.ny).pw }; }, sid);
+  check(`2 µm typed: kept with the matrix, ${sb.G.hPx} pixels of the image (2 ÷ ${sb.pw} µm a pixel), labelled "${sb.G.hLabel}"`, sb.sb.w === 2 && sb.sb.wd === 0 && sb.G.hPx === Math.round(2 / sb.pw) && sb.G.hLabel === "2 µm" && sb.sb.bg === "black", JSON.stringify(sb));
+  // Drawn on the image: the bar's white run as long as its pixels at the magnification.
+  const run = () => p.evaluate(sid => { const id = matWinIds()[0], box = $("#w-" + id + " .mximg"), g = box._g, s = matOf(sid), G = sbarGeom(s, s.sbar, 1), ctx = box.querySelector("canvas").getContext("2d");
+    const y = Math.round((g.ty + (G.hBar.y + G.hBar.h / 2) * g.mx) * g.dpr), x0 = Math.round((g.tx + G.hBar.x * g.mx) * g.dpr), x1 = Math.round((g.tx + (G.hBar.x + G.hBar.w) * g.mx) * g.dpr);
+    const row = ctx.getImageData(0, y, Math.round(g.W * g.dpr), 1).data; let n = 0, a = -1; for (let x = Math.max(0, x0 - 20); x < Math.min(row.length / 4, x1 + 20); x++) if (row[4 * x] > 250 && row[4 * x + 1] > 250 && row[4 * x + 2] > 250) { n++; if (a < 0) a = x; }
+    const bg = ctx.getImageData(Math.round((g.tx + (G.hBg.x + 1) * g.mx) * g.dpr), Math.round((g.ty + (G.hBg.y + G.hBg.h - 1) * g.mx) * g.dpr), 1, 1).data;
+    return { n, want: x1 - x0, a, x0, mag: g.mx, px: G.hPx, bg: [...bg].slice(0, 3) }; }, sid);
+  let r = await run();
+  check(`on the image the bar is ${r.n} screen pixels white where ${r.px} image pixels at ${r.mag} make ${r.want}, its box black`, Math.abs(r.n - r.want) <= 2 && Math.abs(r.a - r.x0) <= 1 && r.bg.every(v => v < 20), JSON.stringify(r));
+  await p.evaluate(() => { const id = matWinIds()[0]; mxZoomStep(id, true); }); await p.waitForTimeout(200); r = await run();
+  check(`zoomed in, it grows with the image, as ImageJ's overlay does (${r.n} at ${r.mag})`, Math.abs(r.n - r.want) <= 2, JSON.stringify(r));
+  // The picture: the bar k pixels a cell.
+  const pic = await p.evaluate(async sid => { const got = []; const keep = saveFile; saveFile = async (n, b) => { got.push([n, b]); return true; }; await mxSavePng(sid); saveFile = keep;
+    const bm = await createImageBitmap(got[0][1]), cv = document.createElement("canvas"); cv.width = bm.width; cv.height = bm.height; const g = cv.getContext("2d"); g.drawImage(bm, 0, 0);
+    const s = matOf(sid), G = sbarGeom(s, s.sbar, 1), k = Math.max(1, Math.min(16, Math.round(800 / 64))), H = Math.max(64 * k, 120), y0 = Math.round((H - 64 * k) / 2), y = y0 + Math.round((G.hBar.y + G.hBar.h / 2) * k);
+    const row = g.getImageData(0, y, 64 * k, 1).data; let n = 0; for (let x = 0; x < 64 * k; x++) if (row[4 * x] > 250 && row[4 * x + 1] > 250 && row[4 * x + 2] > 250) n++; return { n, want: G.hPx * k, k }; }, sid);
+  check(`the PNG has it too: ${pic.n} pixels white for ${pic.want} (${pic.k} a cell)`, Math.abs(pic.n - pic.want) <= 1, JSON.stringify(pic));
+  await p.evaluate(() => undo()); await p.waitForTimeout(250);
+  check("one undo takes the bar away", await p.evaluate(sid => !matOf(sid).sbar, sid));
+  await p.evaluate(() => redo()); await p.waitForTimeout(250);
+  // Upper left, vertical too, text hidden: as ijScaleBar places them.
+  await p.evaluate(sid => { matSbarSet(sid, Object.assign({}, matOf(sid).sbar, { loc: "ul", vert: true, hide: true, vh: 3 })); }, sid); await p.waitForTimeout(250);
+  const ul = await p.evaluate(sid => { const s = matOf(sid), G = sbarGeom(s, s.sbar, 1), id = matWinIds()[0], box = $("#w-" + id + " .mximg"), g = box._g, ctx = box.querySelector("canvas").getContext("2d");
+    const at = (x, y) => [...ctx.getImageData(Math.round((g.tx + x * g.mx) * g.dpr), Math.round((g.ty + y * g.mx) * g.dpr), 1, 1).data].slice(0, 3);
+    return { h: at(G.hBar.x + G.hBar.w / 2, G.hBar.y + G.hBar.h / 2), v: at(G.vBar.x + G.vBar.w / 2, G.vBar.y + G.vBar.h / 2), vPx: G.vPx, want: Math.round(3 / ijGeom(s.x, s.y, s.nx, s.ny).ph), hBar: G.hBar, vBar: G.vBar, tw: G.hText.w, outer: G.outer, inner: G.inner }; }, sid);
+  check(`upper left, a vertical bar of 3 µm (${ul.vPx} pixels), no text: both bars drawn white where ijScaleBar puts them, against the top and left edges, inside the box`, ul.h.every(v => v > 250) && ul.v.every(v => v > 250) && ul.vPx === ul.want && ul.tw === 0 && ul.vBar.x === ul.outer + ul.inner && ul.vBar.y < 10, JSON.stringify(ul));
+  // Channels: three matrices of one size in the book.
+  await p.evaluate(sid => { const s = matOf(sid), b = matBookOf(sid), mk = (nm, f) => Object.assign({}, s, { id: "mt" + nm, name: nm, z: s.z.map((v, i) => v == null ? null : f(v, i)), raw: undefined, sbar: undefined, disp: undefined });
+    save({ mats: matBooks().map(q => q.id === b.id ? Object.assign({}, q, { sheets: q.sheets.concat([mk("Green", (v, i) => (i % 64) * 10), mk("Blue", (v, i) => Math.floor(i / 64) * 10)]) }) : q) }); }, sid); await p.waitForTimeout(400);
+  await p.evaluate(sid => { mxChanItems(sid).find(i => i && /^Colours/.test(i.label)).run(); }, sid); await p.waitForTimeout(400);
+  const ch = await p.evaluate(sid => { const b = matBookOf(sid); return { on: b.comp && b.comp.on, luts: b.sheets.map(q => q.disp && q.disp.lut), btn: !$("#w-" + matWinIds()[0] + " [data-mxch]").hidden, line: $("#w-" + matWinIds()[0] + " .mxdsp").textContent }; }, sid);
+  check(`Colours: red, green, blue gives the channels ImageJ's colours and shows them together (${ch.luts.join(", ")}; "${ch.line}")`, ch.on && ch.luts.join() === "ij:red,ij:green,ij:blue" && ch.btn && /Composite of 3 channels, added/.test(ch.line), JSON.stringify(ch));
+  const px = () => p.evaluate(sid => { const id = matWinIds()[0], box = $("#w-" + id + " .mximg"), g = box._g, ctx = box.querySelector("canvas").getContext("2d"), b = matBookOf(sid), s = matOf(sid), ch = mxChans(b, s), c = compClean(b.comp);
+    const want = ijComposite(ch.map(q => { const d = matDispOf(q); return { z: q.z, lo: d.lo, hi: d.hi, lut: mxLut(d.lut, d.inv), on: !c.off.includes(q.id) }; }), s.nx * s.ny, c.mode); let bad = 0, n = 0;
+    for (const [r, cc] of [[0, 0], [10, 50], [33, 33], [63, 5], [20, 61], [47, 12]]) { const q = mxCellRect(g, r, cc); if (q.x < 0 || q.y < 0 || q.x + q.w > g.W || q.y + q.h > g.H) continue; n++;
+      const a = ctx.getImageData(Math.floor((q.x + q.w / 2) * g.dpr), Math.floor((q.y + q.h / 2) * g.dpr), 1, 1).data, v = want[r * s.nx + cc]; if (a[0] !== (v >> 16 & 255) || a[1] !== (v >> 8 & 255) || a[2] !== (v & 255)) bad++; }
+    return { bad, n }; }, sid);
+  await p.evaluate(() => mxZoomFit(matWinIds()[0])); await p.waitForTimeout(200);
+  let cp = await px();
+  check(`each cell drawn the colour ijComposite gives it (${cp.n} cells looked at)`, cp.bad === 0 && cp.n >= 4, JSON.stringify(cp));
+  await p.evaluate(sid => { const it = mxChanItems(sid).find(i => i && i.label === "Green"); it.run(); }, sid); await p.waitForTimeout(250); cp = await px();
+  const off = await p.evaluate(sid => compClean(matBookOf(sid).comp).off.length, sid);
+  check("a channel switched off leaves it out", off === 1 && cp.bad === 0, JSON.stringify([off, cp]));
+  await p.evaluate(sid => { mxChanItems(sid).find(i => i && i.label === "The brightest of them").run(); }, sid); await p.waitForTimeout(250); cp = await px();
+  check("the brightest of them, as ImageJ's Max projection", await p.evaluate(sid => matBookOf(sid).comp.mode === "max", sid) && cp.bad === 0, JSON.stringify(cp));
+  const rd = await p.evaluate(() => { const id = matWinIds()[0], box = $("#w-" + id + " .mximg"); mxRead(id, { x: box._g.W / 2, y: box._g.H / 2 }); return $("#w-" + id + " .mxread").textContent; });
+  check(`the readout gives each channel's value ("${rd}")`, /M?\S* [\d.]+ .*Blue [\d.]+/.test(rd) && !/Green/.test(rd), rd);
+  // The histogram: H on the image.
+  await p.evaluate(sid => { const st = mxStFor(sid); st.roi = null; st.isel = false; st.r = st.er = 0; st.c = st.ec = 0; }, sid);
+  await p.focus(`#w-${id} .mximg`); await p.keyboard.press("h"); await p.waitForTimeout(300);
+  const hd = await p.evaluate(sid => { const s = matOf(sid), R = ijMeasure({ nx: s.nx, ny: s.ny, x: s.x, y: s.y, z: s.z }, { kind: "all" }, { single: true });
+    return { title: $("#formTitle").textContent, rows: [...document.querySelectorAll("#formBody .ijhs tr")].map(t => [t.cells[0].textContent, t.querySelector("td").textContent]), want: [String(R.n), ijD2sHist(R.min), ijD2sHist(R.mean), ijD2sHist(R.max), ijD2sHist(R.sd)], bars: (document.querySelector("#formBody .ijhist path:last-child").getAttribute("d").match(/M/g) || []).length, nz: R.hist.counts.filter(v => v > 0).length }; }, sid);
+  check(`H: the histogram of the whole matrix with ImageJ's numbers (${hd.rows.map(r => r.join(" ")).join(", ")})`, /Histogram of/.test(hd.title) && JSON.stringify(hd.rows.slice(0, 5).map(r => r[1])) === JSON.stringify(hd.want) && hd.bars === hd.nz, JSON.stringify(hd));
+  await p.check("#ijhLog"); await p.waitForTimeout(100);
+  check("Log draws the counts' logarithms behind", await p.evaluate(() => document.querySelectorAll("#formBody .ijhist path").length === 2));
+  await p.click('#formBody [data-ijh="plot"]'); await p.waitForTimeout(700);
+  const pl = await p.evaluate(() => ({ a: anaList().filter(x => x.kind === "ijmeasure").length, g: P().graphs.length }));
+  check("Plot it: a Measure analysis of the same cells and its histogram on a graph", pl.a === 1 && pl.g >= 1, JSON.stringify(pl));
+  // Kept across a reload.
+  await p.evaluate(() => flushEdits()); await p.waitForTimeout(800); await p.reload(); await ready(p); await p.waitForTimeout(600);
+  const rl = await p.evaluate(() => { const b = matBooks()[0]; return { comp: b.comp, sb: b.sheets[0].sbar && b.sheets[0].sbar.w }; });
+  check(`the scale bar and the composite are kept across a reload`, rl.sb === 2 && rl.comp && rl.comp.on && rl.comp.mode === "max", JSON.stringify(rl));
+}, { name: "I.7" });
+
 await browser.close(); server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

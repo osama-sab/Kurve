@@ -603,6 +603,12 @@ body.dwin-page{margin:0;height:100vh;overflow:hidden;background:var(--panel);col
 .mximg[data-tool="hand"]{cursor:grab}
 .mxbc>*{flex:0 0 auto}
 .mxth{display:flex;flex-direction:column;gap:var(--sp-2);padding:var(--sp-3);border-bottom:1px solid var(--rule-2)}
+/* ImageJ's histogram (IMAGE_SPEC I.7): the bars over the dialog's width, the range under them, the numbers beside. */
+.ijhistd .ijhw{border:1px solid var(--rule-2);border-radius:var(--r-s);background:var(--panel-2);padding:var(--sp-2)}
+.ijhistd .ijhist{width:100%;height:180px;display:block}
+.ijhistd .ijhx{display:flex;justify-content:space-between;font-family:var(--mono);font-size:var(--fs-tab);color:var(--muted);margin:var(--sp-1) 0 var(--sp-4)}
+.ijhistd .ijhs{margin-bottom:var(--sp-4)}
+.ijhistd .ijhs td{font-family:var(--mono)}
 .mxth>*{flex:0 0 auto}
 .mxth .bch{display:flex;align-items:center;justify-content:space-between;font-size:var(--fs-body)}
 .mxth .bchist{width:100%;height:80px;display:block;background:var(--panel-2);border:1px solid var(--rule-2);border-radius:var(--r-s)}
@@ -11787,6 +11793,72 @@ function ijParticles(M,o){ o=o||{}; const I=ijImage(M,true); if(I.fail) return I
     for(let yy=0;yy<h;yy++) for(let xx=0;xx<w;xx++) if(!mask||mask[yy*w+xx]) px[(by+yy)*W+bx+xx]=FILL; }
   let nv=0; for(const q of v) if(Number.isFinite(q)) nv++;
   return {rows,label:lab,total,fraction:100*total/(W*H*pw*ph),cellsWith:nv,geom:G}; }
+/* ImageJ's numbers as it writes them (IJ.d2s of 1.54f): ijD2s(x, d) DecimalFormat with d decimals (0 to 9), half even on the double's
+   exact value (toFixed rounds a tie up: an exact tie is found from the digits past it), d below 0 scientific with −d (to 9), its
+   mantissa as Java's "0.0E0"; ijD2sSig(x, sig, max) IJ.d2s(x, significant, max digits); ijJavaInt Java's (int) of a double. */
+function ijJavaInt(v){ return Number.isNaN(v)?0:v>=2147483647?2147483647:v<=-2147483648?-2147483648:Math.trunc(v); }
+function ijD2s(x,d){ if(Number.isNaN(x)) return "NaN"; if(!Number.isFinite(x)) return x>0?"Infinity":"-Infinity"; if(x===3.4028234663852886e38) return "3.4e38";
+  const sg=x<0||Object.is(x,-0)?"-":"";
+  if(d<0){ const k=Math.min(9,-d), ex=Math.abs(x).toExponential(Math.min(100,k+25)), e=ex.indexOf("e"), dg=ex.slice(0,e).replace(".",""), tail=dg.slice(1+k);
+    const m=/^50*$/.test(tail)&&+dg[k]%2===0?sg+dg[0]+"."+dg.slice(1,1+k)+ex.slice(e):x.toExponential(k);
+    return m.replace("e+","E").replace("e","E"); }
+  d=Math.max(0,Math.min(9,d|0)); if(Math.abs(x)>=1e21) return String(x);
+  const ex=Math.abs(x).toFixed(Math.min(100,d+30)), i=ex.indexOf("."), tail=ex.slice(i+1+d);
+  if(/^50*$/.test(tail)&&+(d?ex[i+d]:ex[i-1])%2===0) return sg+ex.slice(0,d?i+1+d:i);
+  return x.toFixed(d); }
+function ijD2sSig(x,sig,max){ const lg=Math.log10(Math.abs(x)), mag=ijJavaInt(Math.ceil(lg+0.223*Math.pow(10,-max))); let dec=x===0?0:max-mag;
+  if(dec<0||mag<sig+1-max) return ijD2s(x,-sig); if(dec>sig) dec=Math.max(sig,dec-max+sig); return ijD2s(x,dec); }
+// HistogramPlot's d2s: a whole number with none, else three significant digits within eight.
+function ijD2sHist(d){ return ijJavaInt(d)===d?ijD2s(d,0):ijD2sSig(d,3,8); }
+/* ImageJ's Scale Bar (IMAGE_SPEC I.7; ScaleBar of 1.54f). ijRound125 (Utils.round: down to 1, 2 or 5 times a power of ten),
+   ijDigits (Utils.getDigits: the decimals x has as IJ.d2s writes it with nine, trailing zeros off; past 10⁶ or below 10⁻⁴ as many
+   significant digits as it has, negative). ijScaleBar(o): computeDefaultBarWidth (a width that is not one, or under 1 % or over 67 %
+   of the image's, made 80 screen pixels' worth, rounded down to 1, 2, 5, within 4 % to 67 % of the image; the same for a vertical
+   bar's height) and setElementsPositions, for an image W × H pixels of pw × ph units at magnification mag (above 1 counted 1). o: {W,
+   H, pw, ph, unit, vunit, mag, width, wdig, height, hdig, thick (4), font (14), loc ("lr", "ur", "ll", "ul", "sel" with o.sel {x, y}),
+   horiz (true), vert, hide, bg (a background box), tw(text) its width in the image's pixels}. {hw, hd, vh, vd, hLabel, vLabel, hPx, vPx,
+   hBar, hText, vBar, vText, hBg, vBg ({x, y, w, h}, the image's pixels, y down), outer, inner, auto} or {fail}. */
+function ijRound125(x){ const b=+("1e"+Math.floor(Math.log10(x)+1e-8));   /* a power of ten correctly rounded, as Java's (Math.pow(10, -4) is not, here) */ return x>4.999999*b?5*b:x>1.999999*b?2*b:b; }
+function ijDigitsStr(s){ let pt=false, tot=0, dec=0, sci=false; for(const c of s){ if(c===".") pt=true; else if(c==="e"||c==="E"){ sci=true; break; } else if(c>="0"&&c<="9"){ tot++; if(pt) dec++; } }
+  if(sci){ const d=-(tot-1); return d===0?-1:d; } return dec; }
+function ijDigits(x){ return Math.abs(x)>1e6||Math.abs(x)<1e-4?ijDigitsStr(ijD2s(x,-9).replace(/0+E/,"E")):ijDigitsStr(ijD2s(x,9).replace(/0+$/,"")); }
+function ijScaleBar(o){ const W=o.W|0, H=o.H|0; if(!(W>0&&H>0)) return {fail:"The image has no pixels."};
+  const pw=o.pw>0?o.pw:1, ph=o.ph>0?o.ph:1, mag=Math.min(1,o.mag>0?o.mag:1), iw=W*pw, ih=H*ph, auto={h:false,v:false};
+  const def=(len,p,full)=>{ let v=ijRound125(80*p/mag); if(v>0.67*full) v=ijRound125(0.67*full); else if(v<0.04*full) v=ijRound125(0.04*full); return v; };
+  let hw=+o.width, hd=o.wdig, vh=+o.height, vd=o.hdig;
+  if(!(hw>0)||hw<0.01*iw||hw>0.67*iw){ hw=def(W,pw,iw); hd=ijDigits(hw); auto.h=true; } else if(!Number.isInteger(hd)) hd=ijDigits(hw);
+  if(!(vh>0)||vh<0.01*ih||vh>0.67*ih){ vh=def(H,ph,ih); vd=ijDigits(vh); auto.v=true; } else if(!Number.isInteger(vd)) vd=ijDigits(vh);
+  const thick=Math.max(1,o.thick==null?4:o.thick|0), fs=Math.max(1,o.font==null?14:o.font|0), horiz=o.horiz!==false, vert=!!o.vert, hide=!!o.hide, tw=o.tw||(t=>Math.round(t.length*fs*0.6));
+  const unit=o.unit||"pixels", vunit=o.vunit||unit, hLabel=ijD2s(hw,hd)+" "+unit, vLabel=ijD2s(vh,vd)+" "+vunit;
+  const hPx=ijJavaInt(Math.floor(hw/pw+0.5)), vPx=ijJavaInt(Math.floor(vh/ph+0.5)), loc=o.loc||"lr", upper=loc==="ur"||loc==="ul", right=loc==="lr"||loc==="ur";
+  const hBoxW=horiz?Math.max(hPx,hide?0:tw(hLabel)):0, hBoxH=horiz?thick+ijJavaInt((hide?0:fs)*1.25):0;
+  const vBoxW=vert?thick+ijJavaInt((hide?0:fs)*1.25):0, vBoxH=vert?Math.max(vPx,hide?0:tw(vLabel)):0;
+  const outer=ijJavaInt((W+H)/100), inner=o.bg?Math.max(ijJavaInt(Math.max(hBoxW,vBoxH)/20),2):0, hTextTop=vert&&upper;
+  const hBg={x:0,y:0,w:inner+hBoxW+inner,h:inner+hBoxH+inner}, vBg={x:0,y:0,w:inner+vBoxW+inner,h:inner+vBoxH+inner};
+  if(loc==="ur"){ hBg.x=W-outer-inner-vBoxW+(vert?thick:0)-hBoxW-inner; hBg.y=outer; vBg.x=W-outer-inner-vBoxW-inner; vBg.y=outer+(hTextTop?hBoxH-thick:0); hBg.w+=vert?vBoxW-thick:0; }
+  else if(loc==="lr"){ hBg.x=W-outer-inner-vBoxW-hBoxW+(vert?thick:0)-inner; hBg.y=H-outer-inner-hBoxH-inner; vBg.x=W-outer-inner-vBoxW-inner; vBg.y=H-outer-inner-hBoxH+(horiz?thick:0)-vBoxH-inner; vBg.h+=horiz?hBoxH-thick:0; }
+  else if(loc==="ul"){ hBg.x=outer+(vert?vBg.w-2*inner-thick:0); hBg.y=outer; vBg.x=outer; vBg.y=outer+(hTextTop?hBoxH-thick:0); hBg.w+=vert?vBoxW-thick:0; hBg.x-=vert?vBoxW-thick:0; }
+  else if(loc==="ll"){ hBg.x=outer+(vert?vBg.w-2*inner-thick:0); hBg.y=H-outer-inner-hBoxH-inner; vBg.x=outer; vBg.y=H-outer-inner-hBoxH+(horiz?thick:0)-vBoxH-inner; vBg.h+=horiz?hBoxH-thick:0; }
+  else { if(!o.sel) return {fail:"At the selection needs a selection on the image."}; hBg.x=vBg.x=o.sel.x|0; hBg.y=vBg.y=o.sel.y|0; }
+  const sh=vert&&!right&&upper?vBoxW-thick:0, htw=hide?0:tw(hLabel), vth=hide?0:tw(vLabel);
+  const hBar={x:hBg.x+inner+ijJavaInt((hBoxW-hPx)/2)+sh, y:hBg.y+inner+(hTextTop?hBoxH-thick:0), w:hPx, h:thick};
+  const hText={x:hBg.x+inner+ijJavaInt((hBoxW-htw)/2)+sh, y:hTextTop?hBg.y+inner-Math.floor(fs*0.25+0.5):hBar.y+hBar.h, w:htw, h:hide?0:fs};
+  const vBar={x:vBg.x+(right?inner:vBg.w-thick-inner), w:thick, h:vPx, y:0}; vBar.y=vBg.y+inner+ijJavaInt((vBoxH-vBar.h)/2);
+  const vText={h:vth, w:hide?0:fs, x:right?vBar.x+vBar.w:vBar.x-vBoxW+thick-Math.floor(fs*0.25+0.5), y:vBg.y+inner+ijJavaInt((vBoxH-vth)/2)};
+  return {hw,hd,vh,vd,hLabel,vLabel,hPx,vPx,hBar,hText,vBar,vText,hBg,vBg,outer,inner,auto,thick,fs,horiz,vert,hide,bg:!!o.bg}; }
+/* ImageJ's composite of a book's channels (IMAGE_SPEC I.7; CompositeImage.updateImage in its COMPOSITE mode and
+   ImageProcessor.updateComposite of 1.54f): each channel's cells to ImageJ's 8-bit index over its own display range (ij8; an empty cell
+   0, as ImageJ holds it NaN), through its lookup table, and the channels put together component by component: summed and clamped at 255
+   (ImageJ's default), or the greatest or the least. chs [{z (cells), lo, hi, lut (768 bytes), on}]; Int32Array of 0xRRGGBB, a cell with
+   no channel on black (white for the least). Past ImageJ: its fill for a first channel switched off skips the first pixel. */
+function ijComposite(chs,n,mode){ const out=new Int32Array(n), on=chs.filter(c=>c.on!==false); mode=mode==="max"||mode==="min"?mode:"sum";
+  if(!on.length){ if(mode==="min") out.fill(0xffffff); return out; }
+  const idx=on.map(c=>{ const b=new Uint8Array(n); for(let i=0;i<n;i++){ const v=c.z[i]; b[i]=v==null||Number.isNaN(v)?0:ij8(v,c.lo,c.hi); } return b; });
+  for(let i=0;i<n;i++){ let r=mode==="min"?255:0, g=r, b=r;
+    for(let k=0;k<on.length;k++){ const L=on[k].lut, j=3*idx[k][i], R=L[j], G=L[j+1], B=L[j+2];
+      if(mode==="sum"){ r+=R; g+=G; b+=B; } else if(mode==="max"){ if(R>r) r=R; if(G>g) g=G; if(B>b) b=B; } else { if(R<r) r=R; if(G<g) g=G; if(B<b) b=B; } }
+    out[i]=(Math.min(255,r)<<16)|(Math.min(255,g)<<8)|Math.min(255,b); }
+  return out; }
 /* ==MAT:END== */
 /* ==SIG:START== Signal processing and mathematics (ux/spec/SIGNAL_SPEC.md, wave 5), pure: the transform of any
    length, windows and spectra (5.1); the later slices' filters, correlation, envelopes, wavelets, interpolation and
@@ -25223,11 +25295,12 @@ function matClean(p){ if(p.mats==null) return; if(!Array.isArray(p.mats)){ delet
       if(typeof s.ana==="string"&&s.ana) o.ana=s.ana;
       if(s.disp&&typeof s.disp==="object"){ const d=dispClean(s.disp); if(d) o.disp=d; }   /* how it is shown (IMAGE_SPEC I.3) */
       if(s.thr&&typeof s.thr==="object"){ const t=thrClean(s.thr); if(t) o.thr=t; }   /* its threshold (I.6) */
+      if(s.sbar&&typeof s.sbar==="object"){ const t=sbarClean(s.sbar); if(t) o.sbar=t; }   /* its scale bar (I.7) */
       if(s.meta&&typeof s.meta==="object"&&!Array.isArray(s.meta)){ const m={}; Object.keys(s.meta).slice(0,200).forEach(k=>{ const v=s.meta[k]; if(typeof v==="string"||typeof v==="number") m[String(k).slice(0,200)]=String(v).slice(0,400); }); if(Object.keys(m).length) o.meta=m; }   /* the file's header fields (QUDI_SPEC decision 4) */
       if(s.fx&&typeof s.fx==="object"&&typeof s.fx.src==="string"&&s.fx.refs&&typeof s.fx.refs==="object"){ o.fx={src:s.fx.src.slice(0,4000),refs:Object.assign(Object.create(null),...Object.entries(s.fx.refs).filter(([k,v])=>typeof v==="string").map(([k,v])=>({[k]:v})))}; if(typeof s.fx.err==="string") o.fx.err=s.fx.err; }
       if(s.raw&&typeof s.raw==="object"&&Array.isArray(s.raw.hist)) o.raw={fp:typeof s.raw.fp==="string"?s.raw.fp:"",hist:s.raw.hist.filter(e=>e&&typeof e==="object"&&typeof e.text==="string").slice(-60)};
       return o; });
-    const o={id:b.id,name:str(b.name)||"MBook",sheets};
+    const o={id:b.id,name:str(b.name)||"MBook",sheets}; if(b.comp&&typeof b.comp==="object"){ const c=compClean(b.comp); if(c) o.comp=c; }   /* its channels shown together (I.7) */
     if(Array.isArray(b.rois)){ const fin=v=>typeof v==="number"&&Number.isFinite(v), rois=b.rois.filter(r=>r&&typeof r==="object"&&typeof r.id==="string"&&IJ_ROI_KINDS.some(e=>e[0]===r.kind)).slice(0,1000).map(r=>{   /* the ROI Manager's selections (IMAGE_SPEC I.4) */
         const q={id:r.id.slice(0,40),name:str(r.name)||r.kind,kind:r.kind}; if(r.kind==="poly"||r.kind==="point"){ q.pts=(Array.isArray(r.pts)?r.pts:[]).filter(t=>Array.isArray(t)&&fin(t[0])&&fin(t[1])).slice(0,2000).map(t=>[t[0],t[1]]); return q.pts.length>=(r.kind==="poly"?3:1)?q:null; }
         return fin(r.x0)&&fin(r.x1)&&fin(r.y0)&&fin(r.y1)?Object.assign(q,{x0:r.x0,x1:r.x1,y0:r.y0,y1:r.y1}):null; }).filter(Boolean); if(rois.length) o.rois=rois; }
@@ -25621,18 +25694,129 @@ async function mxBcAct(id,a,sid){ sid=sid||mxSt(mxBid(id)).sid; const s=matOf(si
 /* The image as a picture (IMAGE_SPEC I.3): each cell k × k pixels of its colour (k the whole number that makes the longer side about
    800 pixels, 1 to 16; the cells' true shape when X and Y share a unit), an empty cell clear, and a calibration bar beside it: the table
    from bottom to top with the range's ends and the values' unit, as ImageJ's Calibration Bar. */
-async function mxSavePng(sid){ const s=matOf(sid); if(!s) return; const d=matDispOf(s), im=mxImage(s,d), ry=mxAspect(s), k=Math.max(1,Math.min(16,Math.round(800/Math.max(s.nx,s.ny*ry))));
+async function mxSavePng(sid){ const s=matOf(sid); if(!s) return; const bk=matBookOf(sid), comp=mxCompOn(bk,s), d=matDispOf(s), im=comp?mxCompImage(bk,s):mxImage(s,d), ry=mxAspect(s), k=Math.max(1,Math.min(16,Math.round(800/Math.max(s.nx,s.ny*ry))));
   const w=s.nx*k, h=Math.max(1,Math.round(s.ny*k*ry)), lab=[fmt(d.hi,5),fmt(d.lo,5)], u=s.zunit||"", fs=13, font=`${fs}px ${getComputedStyle(document.body).fontFamily}`;
   const c0=document.createElement("canvas").getContext("2d"); c0.font=font; const tw=Math.ceil(Math.max(...lab.concat([u]).map(t=>c0.measureText(t).width)));
-  const bw=18, gap=12, W=w+gap+bw+6+tw+4, H=Math.max(h,120), cv=document.createElement("canvas"); cv.width=W; cv.height=H; const g=cv.getContext("2d");
-  g.imageSmoothingEnabled=false; g.drawImage(im.cv,0,Math.round((H-h)/2),w,h);
+  // A composite has no one table to show: the picture is the image alone (and its scale bar).
+  const bw=18, gap=12, W=comp?w:w+gap+bw+6+tw+4, H=comp?h:Math.max(h,120), cv=document.createElement("canvas"); cv.width=W; cv.height=H; const g=cv.getContext("2d");
+  g.imageSmoothingEnabled=false; g.drawImage(im.cv,0,Math.round((H-h)/2),w,h); if(s.sbar) sbarDraw(g,s,s.sbar,k,0,Math.round((H-h)/2));
+  if(comp){ const blob=await new Promise(r=>cv.toBlob(r,"image/png")); if(!blob){ toast("The picture could not be made."); return; }
+    const ok=await saveFile(safeName(bk.name+" composite",".png"),blob,"image/png"); if(ok===false) return;
+    toast(`Saved the composite: ${s.nx} × ${s.ny} cells at ${k} pixel${k>1?"s":""} a cell, ${mxCompImage(bk,s).n} channels${s.sbar?", with its scale bar":""}.`); return; }
   const L=mxLut(d.lut,d.inv), bh=Math.min(h,256*Math.max(1,Math.floor(h/256)))||h, by=Math.round((H-bh)/2), bx=w+gap;
   for(let i=0;i<256;i++){ g.fillStyle=`rgb(${L[3*i]},${L[3*i+1]},${L[3*i+2]})`; const y0=by+bh-(i+1)*bh/256; g.fillRect(bx,Math.floor(y0),bw,Math.ceil(bh/256)+1); }
   g.strokeStyle="#000"; g.lineWidth=1; g.strokeRect(bx+0.5,by+0.5,bw-1,bh-1); g.fillStyle="#000"; g.font=font; g.textBaseline="top"; g.fillText(lab[0],bx+bw+6,by); g.textBaseline="bottom"; g.fillText(lab[1],bx+bw+6,by+bh);
   if(u){ g.textBaseline="middle"; g.fillText(u,bx+bw+6,by+bh/2); }
   const blob=await new Promise(r=>cv.toBlob(r,"image/png")); if(!blob){ toast("The picture could not be made."); return; }
   const b=matBookOf(sid), ok=await saveFile(safeName(b&&b.sheets.length>1?`${b.name} ${s.name}`:(b?b.name:s.name),".png"),blob,"image/png"); if(ok===false) return;
-  toast(`Saved the image: ${s.nx} × ${s.ny} cells at ${k} pixel${k>1?"s":""} a cell, in ${lutName(d.lut)}${d.inv?" inverted":""} from ${fmt(d.lo,5)} to ${fmt(d.hi,5)}${u?" "+u:""}, with its calibration bar.`); }
+  toast(`Saved the image: ${s.nx} × ${s.ny} cells at ${k} pixel${k>1?"s":""} a cell, in ${lutName(d.lut)}${d.inv?" inverted":""} from ${fmt(d.lo,5)} to ${fmt(d.hi,5)}${u?" "+u:""}, with ${s.sbar?"its scale bar and ":""}its calibration bar.`); }
+/* ---- Scale bar, channels and the histogram (IMAGE_SPEC I.7). A scale bar is the sheet's `sbar` {w, wd, vh, vd, thick, font, loc,
+   color, bg, bold, hide, serif, horiz, vert, sx, sy}, kept with the matrix (undone with it, never in its record), drawn over its image as
+   ImageJ's Scale Bar overlay is (ijScaleBar: its sizes in the image's pixels, so it grows with the zoom) and into its picture. A book's
+   `comp` {on, mode, off} shows its matrices of one size together as ImageJ's composite (ijComposite), each in its own table and range;
+   the histogram is ImageJ's Analyze › Histogram of the selection or the whole, with its numbers as ImageJ writes them. ---- */
+const SB_COLORS=[["white","White","#ffffff"],["black","Black","#000000"],["lgray","Light grey","#c0c0c0"],["gray","Grey","#808080"],["dgray","Dark grey","#404040"],["red","Red","#ff0000"],["green","Green","#00ff00"],["blue","Blue","#0000ff"],["yellow","Yellow","#ffff00"]];
+const SB_LOCS=[["lr","Lower right"],["ur","Upper right"],["ll","Lower left"],["ul","Upper left"],["sel","At the selection"]];
+const sbCol=k=>(SB_COLORS.find(e=>e[0]===k)||SB_COLORS[0])[2];
+function sbarClean(b){ if(!b||typeof b!=="object") return null; const fin=v=>typeof v==="number"&&Number.isFinite(v), col=k=>SB_COLORS.some(e=>e[0]===k), dg=v=>Number.isInteger(v)&&v>=-9&&v<=9?v:null, int=(v,a,z,d)=>Number.isInteger(v)&&v>=a&&v<=z?v:d;
+  const o={w:fin(b.w)&&b.w>0?b.w:null,wd:dg(b.wd),vh:fin(b.vh)&&b.vh>0?b.vh:null,vd:dg(b.vd),thick:int(b.thick,1,1000,4),font:int(b.font,4,500,14),loc:SB_LOCS.some(e=>e[0]===b.loc)?b.loc:"lr",
+    color:col(b.color)?b.color:"white",bg:col(b.bg)?b.bg:null,bold:b.bold!==false,hide:!!b.hide,serif:!!b.serif,horiz:b.horiz!==false,vert:!!b.vert};
+  if(!o.horiz&&!o.vert) o.horiz=true; if(o.loc==="sel"){ o.sx=fin(b.sx)?Math.round(b.sx):0; o.sy=fin(b.sy)?Math.round(b.sy):0; } return o; }
+const sbFont=sb=>`${sb.bold?"bold ":""}${sb.font}px ${sb.serif?"serif":"sans-serif"}`;
+// The image as ImageJ has it for the bar: a pixel a cell's width, rows of that size (a cell's height over its width, mxAspect), the units
+// X's and Y's; a matrix with no unit on X is in pixels when its cells are one apart, else in its X's name.
+function sbarGeom(s,sb,mag){ const e=matExtent(s), ry=mxAspect(s), pw=Math.abs(e.x1-e.x0)/s.nx, ph=Math.abs(e.y1-e.y0)/s.ny/ry;
+  const c=(sbarGeom.cx=sbarGeom.cx||document.createElement("canvas").getContext("2d")); c.font=sbFont(sb);
+  const un=(u,p,nm)=>u||(Math.abs(p-1)<1e-12?"pixels":nm||"units");
+  return ijScaleBar({W:s.nx,H:Math.max(1,Math.round(s.ny*ry)),pw:pw>0?pw:1,ph:ph>0?ph:1,unit:un(s.xunit,pw,s.xname),vunit:un(s.yunit,ph*ry,s.yname),mag:mag||1,width:sb.w,wdig:sb.wd,height:sb.vh,hdig:sb.vd,
+    thick:sb.thick,font:sb.font,loc:sb.loc,sel:{x:sb.sx||0,y:sb.sy||0},horiz:sb.horiz,vert:sb.vert,hide:sb.hide,bg:!!sb.bg,tw:t=>Math.round(c.measureText(t).width)}); }
+// Draws it with ctx's transform taking the image's pixels to the canvas (a pixel `k` canvas pixels, the image's corner at ox, oy).
+function sbarDraw(ctx,s,sb,k,ox,oy){ const G=sbarGeom(s,sb,1); if(!G||G.fail) return; ctx.save(); ctx.setTransform(k,0,0,k,ox,oy);
+  const R=(r,c)=>{ if(r.w>0&&r.h>0){ ctx.fillStyle=c; ctx.fillRect(r.x,r.y,r.w,r.h); } };
+  if(sb.bg){ if(G.horiz) R(G.hBg,sbCol(sb.bg)); if(G.vert) R(G.vBg,sbCol(sb.bg)); }
+  const col=sbCol(sb.color); if(G.horiz) R(G.hBar,col); if(G.vert) R(G.vBar,col);
+  if(!G.hide){ ctx.font=sbFont(sb); ctx.fillStyle=col; ctx.textBaseline="top"; if(G.horiz) ctx.fillText(G.hLabel,G.hText.x,G.hText.y);
+    if(G.vert){ ctx.translate(G.vText.x,G.vText.y+G.vText.h); ctx.rotate(-Math.PI/2); ctx.fillText(G.vLabel,0,0); } }
+  ctx.restore(); }
+function matSbarSet(sid,sb,log){ const s=matOf(sid); if(!s||S.readOnly) return false; const n=sb?sbarClean(sb):null;
+  pushUndo(n?(s.sbar?"changing the scale bar":"adding a scale bar"):"removing the scale bar");
+  save({mats:matsWith(sid,q=>{ const o=Object.assign({},q); if(n) o.sbar=n; else delete o.sbar; return o; })},log||(n?`put a scale bar of ${ijD2s(sbarGeom(s,n,1).hw,sbarGeom(s,n,1).hd)} on ${s.name}`:`removed the scale bar of ${s.name}`)); return true; }
+// Analyze › Tools › Scale Bar's dialog: its width in X's unit (worked out as ImageJ's is when it opens: 80 screen pixels' worth, rounded
+// down to 1, 2 or 5, at the image's magnification), its height in pixels, the text, colours, place; a vertical bar too.
+async function sbarDlg(sid){ sid=sid||matFront(); const s=matOf(sid); if(!s){ toast("No matrix is open."); return; } if(S.readOnly) return;
+  const st=mxStFor(sid), b=matBookOf(sid), id=b&&mxWinId(b.id), box=id&&$(`#w-${id} .mximg`), cur=s.sbar||sbarClean({}), G=sbarGeom(s,cur,st&&st.mag||1);
+  const sel=st&&box&&box._g&&(st.isel||st.r!==st.er||st.c!==st.ec||st.roi)?(()=>{ const q=mxSel(st), a=mxCellRect(box._g,q.r0,q.c0), z=mxCellRect(box._g,q.r1,q.c1), g=box._g;
+    return {x:Math.round((Math.min(a.x,z.x)-g.tx)/g.mx),y:Math.round((Math.min(a.y,z.y)-g.ty)/g.mx)}; })():null;
+  const opt=(list,v,none)=>(none?`<option value="">None</option>`:"")+list.map(([k,l])=>`<option value="${k}"${k===v?" selected":""}>${esc(l)}</option>`).join("");
+  const xu=G.hLabel.slice(G.hLabel.indexOf(" ")+1), yu=G.vLabel.slice(G.vLabel.indexOf(" ")+1);
+  const r=await formDlg({title:`Scale bar on ${s.name}`,html:`<div class="grid2 sbdlg">
+    <label for="sbW" class="tipd" title="The bar's length. ImageJ's default: 80 pixels of the screen at this magnification, rounded down to 1, 2 or 5">Width in ${esc(xu)}</label><input id="sbW" type="text" inputmode="decimal" value="${esc(ijD2s(G.hw,G.hd))}">
+    <label for="sbT" class="tipd" title="In the image's pixels (cells), as ImageJ's">Height in pixels</label><input id="sbT" type="text" inputmode="numeric" value="${cur.thick}">
+    <label for="sbF" class="tipd" title="In the image's pixels, as ImageJ's">Font size</label><input id="sbF" type="text" inputmode="numeric" value="${cur.font}">
+    <label for="sbC">Colour</label><select id="sbC">${opt(SB_COLORS,cur.color)}</select>
+    <label for="sbB">Background</label><select id="sbB">${opt(SB_COLORS,cur.bg,true)}</select>
+    <label for="sbL">Location</label><select id="sbL">${opt(SB_LOCS.filter(e=>e[0]!=="sel"||sel||cur.loc==="sel"),cur.loc)}</select>
+    <span></span><label class="chk"><input type="checkbox" id="sbBo"${cur.bold?" checked":""}> Bold text</label>
+    <span></span><label class="chk"><input type="checkbox" id="sbH"${cur.hide?" checked":""}> Hide the text</label>
+    <span></span><label class="chk"><input type="checkbox" id="sbS"${cur.serif?" checked":""}> Serif font</label>
+    <span></span><label class="chk"><input type="checkbox" id="sbHz"${cur.horiz?" checked":""}> Horizontal</label>
+    <span></span><label class="chk"><input type="checkbox" id="sbV"${cur.vert?" checked":""}> Vertical</label>
+    <label for="sbVh">Vertical height in ${esc(yu)}</label><input id="sbVh" type="text" inputmode="decimal" value="${esc(ijD2s(G.vh,G.vd))}"></div>`,
+    ok:s.sbar?"Change it":"Add it",focus:"#sbW",valid:v=>+v.sbW>0&&+v.sbT>=1&&+v.sbF>=4&&(v.sbHz||v.sbV)&&(!v.sbV||+v.sbVh>0)});
+  if(!r||!matOf(sid)) return;
+  const nb={w:+r.sbW,wd:ijDigitsStr(r.sbW.trim()),vh:+r.sbVh,vd:ijDigitsStr(r.sbVh.trim()),thick:Math.round(+r.sbT),font:Math.round(+r.sbF),color:r.sbC,bg:r.sbB||null,loc:r.sbL,bold:r.sbBo,hide:r.sbH,serif:r.sbS,horiz:r.sbHz,vert:r.sbV};
+  if(nb.loc==="sel"){ const p=sel||{x:cur.sx||0,y:cur.sy||0}; nb.sx=p.x; nb.sy=p.y; }
+  matSbarSet(sid,nb); const G2=sbarGeom(matOf(sid),sbarClean(nb),1);
+  toast(G2.fail?G2.fail:`A scale bar of ${G2.hLabel}: ${G2.hPx} pixel${G2.hPx===1?"":"s"} of the image${G2.vert?`; a vertical one of ${G2.vLabel}, ${G2.vPx} pixels`:""}.`,{action:"Undo",run:undo}); }
+// ---- Channels: a book's matrices of one size, shown together.
+function compClean(c){ if(!c||typeof c!=="object") return null; return {on:!!c.on,mode:["sum","max","min"].includes(c.mode)?c.mode:"sum",off:Array.isArray(c.off)?c.off.filter(k=>typeof k==="string").slice(0,64):[]}; }
+function mxChans(b,s){ return b&&s?b.sheets.filter(q=>q.nx===s.nx&&q.ny===s.ny):[]; }
+function mxCompOn(b,s){ return !!(b&&b.comp&&b.comp.on&&mxChans(b,s).length>1&&mxChans(b,s).includes(s)); }
+const COMP_MODES=[["sum","Added (ImageJ's composite)"],["max","The brightest of them"],["min","The darkest of them"]], IJ_CHAN=["ij:red","ij:green","ij:blue","ij:grays","ij:cyan","ij:magenta","ij:yellow"];
+const MXCOMP=new Map();
+function mxCompImage(b,s){ const ch=mxChans(b,s), c=compClean(b.comp), ds=ch.map(q=>matDispOf(q)), key=JSON.stringify([c,ch.map(q=>q.id),ds.map(d=>[d.lut,d.inv,d.lo,d.hi]),JSON.stringify([s.x,s.y])]);
+  let o=MXCOMP.get(b.id); if(o&&o.key===key&&o.zs.length===ch.length&&o.zs.every((z,i)=>z===ch[i].z)) return o;
+  const n=s.nx*s.ny, on=ch.filter(q=>!c.off.includes(q.id)), px=ijComposite(ch.map((q,i)=>({z:q.z,lo:ds[i].lo,hi:ds[i].hi,lut:mxLut(ds[i].lut,ds[i].inv),on:!c.off.includes(q.id)})),n,c.mode);
+  const {X,Y}=matXYOf(s), fx=s.nx>1&&X[0]>X[s.nx-1], fy=s.ny>1&&Y[0]<Y[s.ny-1], cv=document.createElement("canvas"); cv.width=s.nx; cv.height=s.ny;
+  const ctx=cv.getContext("2d"), im=ctx.createImageData(s.nx,s.ny), d=im.data;
+  for(let j=0;j<s.ny;j++){ const r=fy?s.ny-1-j:j; for(let i=0;i<s.nx;i++){ const k=r*s.nx+(fx?s.nx-1-i:i); if(!on.some(q=>q.z[k]!=null)) continue; const v=px[k], q=4*(j*s.nx+i); d[q]=v>>16&255; d[q+1]=v>>8&255; d[q+2]=v&255; d[q+3]=255; } }
+  ctx.putImageData(im,0,0); o={key,zs:ch.map(q=>q.z),cv,fx,fy,px,n:on.length}; MXCOMP.set(b.id,o); return o; }
+function matCompSet(bid,patch,log){ const b=matBooks().find(q=>q.id===bid); if(!b||S.readOnly) return false; const c=compClean(Object.assign({},b.comp||{},patch));
+  pushUndo("changing how the channels are shown"); save({mats:matBooks().map(q=>q.id===bid?Object.assign({},q,{comp:c}):q)},log||`showed ${b.name} ${c.on?`as a composite (${COMP_MODES.find(e=>e[0]===c.mode)[1].toLowerCase()})`:"one matrix at a time"}`); return true; }
+// Each channel ImageJ's channel colour in turn, and the composite on: one undo step.
+function matCompColours(bid,sid){ const b=matBooks().find(q=>q.id===bid), s=matOf(sid); if(!b||!s||S.readOnly) return; const ch=mxChans(b,s); if(ch.length<2) return;
+  pushUndo("giving the channels their colours"); const lut=new Map(ch.map((q,i)=>[q.id,IJ_CHAN[i%IJ_CHAN.length]]));
+  save({mats:matBooks().map(q=>q.id!==bid?q:Object.assign({},q,{comp:compClean(Object.assign({},q.comp||{},{on:true})),sheets:q.sheets.map(t=>lut.has(t.id)?Object.assign({},t,{disp:dispClean(Object.assign({},t.disp||{},{lut:lut.get(t.id),inv:false}))}):t)}))},
+    `showed ${b.name}'s ${ch.length} matrices as a composite in ${andList(ch.map((q,i)=>`${q.name} ${lutName(lut.get(q.id)).toLowerCase()}`))}`);
+  toast(`A composite of ${ch.length} channels: ${andList(ch.map(q=>`${q.name} in ${lutName(lut.get(q.id)).toLowerCase()}`))}.`,{action:"Undo",run:undo}); }
+function mxChanItems(sid){ const s=matOf(sid), b=matBookOf(sid); if(!s||!b) return []; const ch=mxChans(b,s), c=compClean(b.comp||{}), ro=S.readOnly;
+  if(ch.length<2) return [{label:"Another matrix of this size in the book is needed for a composite",enabled:false}];
+  return [{label:"Composite",checked:c.on,enabled:!ro,title:"The book's matrices of this size shown together, each in its own table and range, as ImageJ's composite",run:()=>matCompSet(b.id,{on:!c.on})},
+    {group:"Put together"}].concat(COMP_MODES.map(([k,l])=>({label:l,radio:true,checked:c.mode===k,enabled:!ro,run:()=>matCompSet(b.id,{mode:k,on:true})})),
+    [{group:"Channels"}],ch.map(q=>{ const d=matDispOf(q), off=c.off.includes(q.id);
+      return {label:q.name,checked:!off,grad:cmapCss((d.inv?"~":"")+d.lut),enabled:!ro&&(off||ch.length-c.off.length>1),title:`In ${lutName(d.lut)}${d.inv?" inverted":""}, ${fmt(d.lo,5)} to ${fmt(d.hi,5)}: its table and range are set when it is the one shown (Contrast)`,
+        run:()=>matCompSet(b.id,{off:off?c.off.filter(k=>k!==q.id):c.off.concat([q.id]),on:true})}; }),
+    ["-",{label:"Colours: red, green, blue…",enabled:!ro,title:"Each channel's table ImageJ's channel colour in turn (red, green, blue, grays, cyan, magenta, yellow), and the composite on",run:()=>matCompColours(b.id,sid)}]); }
+// ---- ImageJ's Analyze › Histogram of the selection, or of the whole matrix: 256 bins from the least value to the greatest, the numbers
+// as ImageJ's histogram window writes them (N, Min, Max, Mean, StdDev, Mode with its count, Bins, Bin Width), Log, List and Copy.
+function ijHistDlg(sid){ sid=sid||matFront(); const s=matOf(sid); if(!s){ toast("No matrix is open."); return; }
+  const p=ijmStart(sid), reg=ijRegOf(p), R=ijMeasure({nx:s.nx,ny:s.ny,x:s.x,y:s.y,z:s.z},reg,{single:true});
+  if(R.fail||!R.n){ toast(R.fail||"The selection holds no value."); return; }
+  const H=R.hist, cnt=Array.from(H.counts), mxc=Math.max(...cnt), u=s.zunit?` ${s.zunit}`:"";
+  const stats=[["N",String(R.n)],["Min",ijD2sHist(R.min)],["Mean",ijD2sHist(R.mean)],["Max",ijD2sHist(R.max)],["StdDev",ijD2sHist(R.sd)],["Mode",`${ijD2sHist(R.mode)} (${mxc})`],["Bins","256"],["Bin width",ijD2sHist(H.size)]];
+  const svg=log=>{ const Wd=512, Ht=200, lg=v=>v>0?Math.log(v):0, mlg=lg(mxc)||1; let b="", g="";
+    cnt.forEach((n,i)=>{ const x=i*2; if(log&&n>0){ const h=lg(n)/mlg*Ht; g+=`M${x} ${Ht}V${(Ht-h).toFixed(2)}h2V${Ht}z`; } if(n>0){ const h=n/mxc*Ht; b+=`M${x} ${Ht}V${(Ht-h).toFixed(2)}h2V${Ht}z`; } });
+    return `<svg class="ijhist" viewBox="0 0 ${Wd} ${Ht}" preserveAspectRatio="none" role="img" aria-label="The histogram: 256 bins, the fullest ${mxc} values">${g?`<path d="${g}" fill="var(--faint)"/>`:""}<path d="${b}" fill="var(--ink)"/></svg>`; };
+  const what=reg.kind==="all"?"the whole matrix":ijRegText(reg);
+  formDlg({title:`Histogram of ${s.name}`,ok:"Done",wide:true,html:`<div class="ijhistd"><p class="lab">${esc(what[0].toUpperCase()+what.slice(1))}, ${R.cells} cell${R.cells===1?"":"s"}${R.miss?`, ${R.miss} empty left out`:""}.</p>
+    <div class="ijhw">${svg(false)}</div><div class="ijhx"><span>${esc(ijD2sHist(H.start))}</span><span>${esc(ijD2sHist(H.start+256*H.size))}${esc(u)}</span></div>
+    <table class="rtab ana kv ijhs"><tbody>${stats.map(([k,v])=>`<tr><th>${k}</th><td>${esc(v)}</td></tr>`).join("")}</tbody></table>
+    <div class="actions"><label class="chk"><input type="checkbox" id="ijhLog"> Log</label><button type="button" class="btn sm" data-ijh="list" title="Each bin's start and count, tab-separated, as ImageJ's List">Copy the list</button><button type="button" class="btn sm" data-ijh="copy" title="The numbers above">Copy the numbers</button><button type="button" class="btn sm" data-ijh="plot"${S.readOnly?" disabled":""} title="A Measure analysis of the same cells, and its histogram on a graph">Plot it</button></div></div>`});
+  const body=$("#formBody .ijhistd"); if(!body) return;
+  body.querySelector("#ijhLog").addEventListener("change",e=>{ body.querySelector(".ijhw").innerHTML=svg(e.target.checked); });
+  body.querySelector('[data-ijh="list"]').addEventListener("click",()=>copyText(["bin start\tcount"].concat(cnt.map((n,i)=>`${H.start+i*H.size}\t${n}`)).join("\n"),"The histogram's 256 bins"));
+  body.querySelector('[data-ijh="copy"]').addEventListener("click",()=>copyText(stats.map(([k,v])=>`${k}\t${v}`).join("\n"),"The histogram's numbers"));
+  body.querySelector('[data-ijh="plot"]').addEventListener("click",()=>{ $("#formOk").click(); const aid=anaMakeTyped("ijmeasure",p); if(aid) setTimeout(()=>ijmHist(aid),60); }); }
 // The tables, for the bar's button and the Matrix menu.
 function mxLutItems(sid){ const s=matOf(sid); if(!s) return []; const d=matDispOf(s), ro=S.readOnly;
   return [{group:"ImageJ's"}].concat(CMAP_LIST.filter(q=>/^ij:/.test(q[0])).map(([k,l])=>({label:lutName(k),radio:true,checked:d.lut===k,enabled:!ro,grad:cmapCss(k),run:()=>matDispSet(sid,{lut:k})})),
@@ -25646,7 +25830,7 @@ function syncMatWins(){ const books=matBooks(), want=new Set(books.map(b=>mxWinI
     if(!WINS[id]){ WINS[id]={title:b.name,icon:"grid",def:[0.06+(i%6)*0.03,0.05+(i%6)*0.04,0.52,0.62],open:false,mx:b.id};
       const prev=[...document.querySelectorAll(".win.mxwin,.win.wswin")].pop()||$("#w-sheet");
       prev.insertAdjacentHTML("afterend",`<section class="win mxwin" id="w-${id}" data-win="${id}" aria-label="${esc(b.name)}"><header class="win-h">${ICON("grid","sm")}<h2 class="win-t">${esc(b.name)}</h2><span class="win-sub"></span><span class="sp"></span></header><div class="win-b mx-b">
-        <div class="mxbar"><div class="seg mini mxview-sw" role="group" aria-label="View"><button data-mxv="img" aria-pressed="true" title="The matrix as an image, each cell a pixel at its true shape">Image</button><button data-mxv="cells" aria-pressed="false" title="The matrix as cells, to read and type values">Cells</button></div><span class="mxzoom"><button class="btn icon sm" data-mxz="out" title="Zoom out (−)" aria-label="Zoom out"><b aria-hidden="true">−</b></button><button class="btn sm mxmag" data-mxz="menu" aria-haspopup="menu" title="The magnification: ImageJ's levels, Fit and 100 %"></button><button class="btn icon sm" data-mxz="in" title="Zoom in (+)" aria-label="Zoom in">${ICON("plus","sm")}</button><button class="btn sm" data-mxz="fit" title="The whole image, as large as the window allows (0, or a double-click)">Fit</button><button class="btn sm mxlutb" data-mxlut aria-haspopup="menu" title="The lookup table: the colours the values are shown in"><span class="lsw" aria-hidden="true"></span><span class="lnm"></span>${ICON("chev","sm")}</button><button class="btn sm" data-mxbc aria-pressed="false" title="Brightness and contrast: the range of values the table spans (C)">Contrast</button><button class="btn sm" data-mxth aria-pressed="false" title="ImageJ's Threshold: the cells in a range of values shown in red, set by one of ImageJ's sixteen methods or by hand">Threshold</button><span class="seg mini mxtools" role="radiogroup" aria-label="Selection tool">${MX_TOOLS.map(([k,ic,t])=>`<button type="button" role="radio" data-mxt="${k}" aria-checked="${k==="rect"}" title="${t}" aria-label="${t}">${ICON(ic,"sm")}</button>`).join("")}</span><button class="btn sm" data-mxrm aria-pressed="false" title="The ROI Manager: the selections kept with this book, measured together (T keeps the selection, M measures it)">Selections</button></span><span class="mxaddr" title="The cell: its row and column"></span><input class="mxval" type="text" spellcheck="false" aria-label="The cell's value" title="The cell's value: type a number and press Enter"><span class="sp"></span><button class="btn sm" data-mxproc aria-haspopup="menu" title="ImageJ's Process menu: filters and arithmetic, each a new matrix that follows this one">Process ${ICON("chev","sm")}</button><button class="btn sm" data-mxmenu aria-haspopup="menu" title="What can be done to this matrix">Matrix ${ICON("chev","sm")}</button><button class="btn sm" data-mxplot aria-haspopup="menu" title="Plot this matrix on a graph of its own">${ICON("chart","sm")}Plot</button></div>
+        <div class="mxbar"><div class="seg mini mxview-sw" role="group" aria-label="View"><button data-mxv="img" aria-pressed="true" title="The matrix as an image, each cell a pixel at its true shape">Image</button><button data-mxv="cells" aria-pressed="false" title="The matrix as cells, to read and type values">Cells</button></div><span class="mxzoom"><button class="btn icon sm" data-mxz="out" title="Zoom out (−)" aria-label="Zoom out"><b aria-hidden="true">−</b></button><button class="btn sm mxmag" data-mxz="menu" aria-haspopup="menu" title="The magnification: ImageJ's levels, Fit and 100 %"></button><button class="btn icon sm" data-mxz="in" title="Zoom in (+)" aria-label="Zoom in">${ICON("plus","sm")}</button><button class="btn sm" data-mxz="fit" title="The whole image, as large as the window allows (0, or a double-click)">Fit</button><button class="btn sm mxlutb" data-mxlut aria-haspopup="menu" title="The lookup table: the colours the values are shown in"><span class="lsw" aria-hidden="true"></span><span class="lnm"></span>${ICON("chev","sm")}</button><button class="btn sm" data-mxbc aria-pressed="false" title="Brightness and contrast: the range of values the table spans (C)">Contrast</button><button class="btn sm" data-mxth aria-pressed="false" title="ImageJ's Threshold: the cells in a range of values shown in red, set by one of ImageJ's sixteen methods or by hand">Threshold</button><button class="btn sm" data-mxch aria-haspopup="menu" aria-pressed="false" title="Channels: the book's matrices of this size shown together, as ImageJ's composite" hidden>Channels ${ICON("chev","sm")}</button><span class="seg mini mxtools" role="radiogroup" aria-label="Selection tool">${MX_TOOLS.map(([k,ic,t])=>`<button type="button" role="radio" data-mxt="${k}" aria-checked="${k==="rect"}" title="${t}" aria-label="${t}">${ICON(ic,"sm")}</button>`).join("")}</span><button class="btn sm" data-mxrm aria-pressed="false" title="The ROI Manager: the selections kept with this book, measured together (T keeps the selection, M measures it)">Selections</button></span><span class="mxaddr" title="The cell: its row and column"></span><input class="mxval" type="text" spellcheck="false" aria-label="The cell's value" title="The cell's value: type a number and press Enter"><span class="sp"></span><button class="btn sm" data-mxproc aria-haspopup="menu" title="ImageJ's Process menu: filters and arithmetic, each a new matrix that follows this one">Process ${ICON("chev","sm")}</button><button class="btn sm" data-mxmenu aria-haspopup="menu" title="What can be done to this matrix">Matrix ${ICON("chev","sm")}</button><button class="btn sm" data-mxplot aria-haspopup="menu" title="Plot this matrix on a graph of its own">${ICON("chart","sm")}Plot</button></div>
         <div class="mxinfo" hidden><span class="mxdim"></span><span class="mxdsp"></span><span class="mxread" aria-live="off"></span></div>
         <div class="mxiw" hidden><div class="mximg" tabindex="0" role="img"><canvas></canvas></div><div class="mxside" hidden><section class="mxbc" hidden aria-label="Brightness and contrast"></section><section class="mxroi" hidden aria-label="Selections"></section><section class="mxth" hidden aria-label="Threshold"></section></div></div>
         <div class="mxgrid" tabindex="0" role="grid" aria-label="The matrix's values"><div class="mxview"></div><div class="mxsp"></div></div>
@@ -25825,9 +26009,10 @@ function mxImgDraw(id){ const el=$("#w-"+id), box=el&&el.querySelector(".mximg")
   if(cv.width!==cw||cv.height!==ch){ cv.width=cw; cv.height=ch; cv.style.width=W+"px"; cv.style.height=H+"px"; }
   const key=s.nx+"x"+s.ny+"|"+ry; if(st.mag==null||st.imk!==key){ mxFit(st,s,W,H); st.imk=key; }
   mxClamp(st,s,W,H);
-  const mx=st.mag, my=st.mag*ry, tx=Math.round((W/2-st.cx*mx)*dpr)/dpr, ty=Math.round((H/2-st.cy*my)*dpr)/dpr, im=mxImage(s,mxDisp(s)), ctx=cv.getContext("2d");
+  const bk=matBookOf(s.id), comp=mxCompOn(bk,s), mx=st.mag, my=st.mag*ry, tx=Math.round((W/2-st.cx*mx)*dpr)/dpr, ty=Math.round((H/2-st.cy*my)*dpr)/dpr, im=comp?mxCompImage(bk,s):mxImage(s,mxDisp(s)), ctx=cv.getContext("2d");
   ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cw,ch); ctx.imageSmoothingEnabled=false;
   ctx.setTransform(dpr*mx,0,0,dpr*my,dpr*tx,dpr*ty); ctx.drawImage(im.cv,0,0); { const t=matThrOf(s); if(t&&st.thShow!==false) ctx.drawImage(mxThrImage(s,t).cv,0,0); } ctx.setTransform(1,0,0,1,0,0);
+  if(s.sbar) sbarDraw(ctx,s,s.sbar,dpr*mx,dpr*tx,dpr*ty);
   const g={tx,ty,mx,my,W,H,fx:im.fx,fy:im.fy,nx:s.nx,ny:s.ny,dpr}; box._g=g;
   g.e=matExtent(s); mxOverlay(ctx,g,s,st);
   const q=mxSel(st), roi=st.roi;
@@ -25977,16 +26162,18 @@ function mxDimText(s){ const e=matExtent(s), w=e.x1-e.x0, h=e.y1-e.y0, f=v=>{ co
   const size=!xu&&!yu?"":xu===yu?`${f(w)} × ${f(h)} ${xu} `:`${f(w)} ${xu} × ${f(h)} ${yu} `.replace(/  +/g," ");
   return `${size}${size?n:`${s.nx} × ${s.ny} cells`}; 64-bit${s.zunit?`, ${s.zunit}`:""}`; }
 // The display beside it: the table and the range shown.
-function mxDispLine(s){ const d=matDispOf(s); return `${lutName(d.lut)}${d.inv?" inverted":""} · ${fmt(d.lo,5)} – ${fmt(d.hi,5)}${s.zunit?" "+s.zunit:""}${d.auto?"":" (set)"}`; }
+function mxDispLine(s){ const d=matDispOf(s), bk=matBookOf(s.id); if(mxCompOn(bk,s)){ const c=compClean(bk.comp), n=mxChans(bk,s).filter(q=>!c.off.includes(q.id)).length; return `Composite of ${n} channel${n===1?"":"s"}, ${c.mode==="sum"?"added":c.mode==="max"?"the brightest":"the darkest"} · ${s.name}: ${lutName(d.lut)}${d.inv?" inverted":""}, ${fmt(d.lo,5)} – ${fmt(d.hi,5)}`; } return `${lutName(d.lut)}${d.inv?" inverted":""} · ${fmt(d.lo,5)} – ${fmt(d.hi,5)}${s.zunit?" "+s.zunit:""}${d.auto?"":" (set)"}`; }
 function mxImgBar(id){ const el=$("#w-"+id); if(!el) return; const st=mxSt(mxBid(id)), s=matOf(st.sid); if(!s) return;
   el.querySelector(".mxmag").textContent=st.mag==null?"Fit":mxMagText(st.mag); el.querySelector(".mxdim").textContent=mxDimText(s);
   const d=matDispOf(s), lb=el.querySelector("[data-mxlut]"); lb.querySelector(".lsw").style.background=cmapCss((d.inv?"~":"")+d.lut); lb.querySelector(".lnm").textContent=lutName(d.lut)+(d.inv?" inv.":"");
-  el.querySelector(".mxdsp").textContent=mxDispLine(s); el.querySelector("[data-mxbc]").setAttribute("aria-pressed",String(!!st.bc)); }
+  el.querySelector(".mxdsp").textContent=mxDispLine(s); el.querySelector("[data-mxbc]").setAttribute("aria-pressed",String(!!st.bc));
+  { const bk=matBookOf(s.id), ch=el.querySelector("[data-mxch]"); ch.hidden=mxChans(bk,s).length<2; ch.setAttribute("aria-pressed",String(mxCompOn(bk,s))); } }
 // The readout: the cell under the pointer (or the one selected), as ImageJ's status bar gives it.
 function mxRead(id,pt){ const el=$("#w-"+id), box=el&&el.querySelector(".mximg"), out=el&&el.querySelector(".mxread"); if(!out||!box._g) return; const st=mxSt(mxBid(id)), s=matOf(st.sid); if(!s) return;
   if(pt!==undefined) box._pt=pt; const p=box._pt, at=p?mxImgAt(box._g,p.x,p.y):st.isel?{r:st.r,c:st.c}:null;
   if(!at){ out.textContent=""; return; } const {X,Y}=matXYOf(s), v=s.z[at.r*s.nx+at.c], u=(t,un)=>`${fmt(t,6)}${un?" "+un:""}`;
-  out.textContent=`${s.xname||"X"} ${u(X[at.c],s.xunit)} · ${s.yname||"Y"} ${u(Y[at.r],s.yunit)} · ${v==null?"empty":u(v,s.zunit)} · row ${at.r+1}, column ${at.c+1}`; }
+  const bk=matBookOf(s.id), cv=mxCompOn(bk,s)?mxChans(bk,s).filter(q=>!compClean(bk.comp).off.includes(q.id)).map(q=>{ const w=q.z[at.r*q.nx+at.c]; return `${q.name} ${w==null?"empty":u(w,q.zunit)}`; }).join(" · "):null;
+  out.textContent=`${s.xname||"X"} ${u(X[at.c],s.xunit)} · ${s.yname||"Y"} ${u(Y[at.r],s.yunit)} · ${cv||(v==null?"empty":u(v,s.zunit))} · row ${at.r+1}, column ${at.c+1}`; }
 // Zooms to m about a point of the box (its middle by default), keeping the cell there under it.
 function mxZoomTo(id,m,px,py){ const el=$("#w-"+id), box=el&&el.querySelector(".mximg"); if(!box) return; const st=mxSt(mxBid(id)), s=matOf(st.sid); if(!s) return;
   const W=box.clientWidth, H=box.clientHeight, ry=mxAspect(s); if(st.mag==null) mxFit(st,s,W,H); if(px==null){ px=W/2; py=H/2; }
@@ -26012,6 +26199,7 @@ function wireMxImg(el,id){ const box=el.querySelector(".mximg"), bid=()=>mxBid(i
   el.querySelector("[data-mxlut]").addEventListener("click",e=>{ e.stopPropagation(); toggleMenu(e.currentTarget,()=>mxLutItems(mxSt(bid()).sid),{label:"Lookup table",focus:"checked"}); });
   el.querySelector("[data-mxbc]").addEventListener("click",e=>{ e.stopPropagation(); mxBcToggle(id); });
   el.querySelector("[data-mxth]").addEventListener("click",e=>{ e.stopPropagation(); mxThToggle(id); });
+  el.querySelector("[data-mxch]").addEventListener("click",e=>{ e.stopPropagation(); toggleMenu(e.currentTarget,()=>mxChanItems(mxSt(bid()).sid),{label:"Channels"}); });
   el.querySelector(".mxzoom").addEventListener("click",e=>{ const b=e.target.closest("[data-mxz]"); if(!b) return; const k=b.dataset.mxz;
     if(k==="menu") toggleMenu(b,()=>mxMagItems(id),{label:"Magnification",focus:"checked"}); else if(k==="fit") mxZoomFit(id); else mxZoomStep(id,k==="in"); });
   box.addEventListener("wheel",e=>{ e.preventDefault(); const st=mxSt(bid()); if(st.mag==null) return; const p=at(e);
@@ -26085,6 +26273,7 @@ function wireMxImg(el,id){ const box=el.querySelector(".mximg"), bid=()=>mxBid(i
     if(!ctl&&!e.altKey&&(k==="m"||k==="M")){ e.preventDefault(); mxMeasure(id); return; }
     if(!ctl&&!e.altKey&&(k==="k"||k==="K")){ e.preventDefault(); mxProfile(id); return; }
     if(!ctl&&!e.altKey&&(k==="t"||k==="T")){ e.preventDefault(); mxRoiAdd(id); return; }
+    if(!ctl&&!e.altKey&&(k==="h"||k==="H")){ e.preventDefault(); ijHistDlg(st.sid); return; }
     if(ctl&&(k==="a"||k==="A")){ e.preventDefault(); st.r=0; st.c=0; st.er=s.ny-1; st.ec=s.nx-1; st.roi={kind:"rect"}; st.roiId=null; st.isel=true; mxImgDraw(id); mxFoot(id); mxRoiDraw(id); return; }
     if(ctl&&(k==="c"||k==="C")){ e.preventDefault(); copyText(mxSelText(s,mxSel(st)),"The cells"); return; }
     if(k==="F2"){ e.preventDefault(); mxSetView(id,"cells"); mxEdBegin(id); return; } });
@@ -26093,6 +26282,7 @@ function wireMxImg(el,id){ const box=el.querySelector(".mximg"), bid=()=>mxBid(i
     openMenu(pointerAnchor(e.clientX,e.clientY),[{label:"Zoom in",kbd:"+",run:()=>mxZoomStep(id,true,p)},{label:"Zoom out",kbd:"−",run:()=>mxZoomStep(id,false,p)},{label:"Fit",kbd:"0",run:()=>mxZoomFit(id)},{label:"100 %",run:()=>mxZoomTo(id,1,p.x,p.y)},"-",
       {label:"Measure",kbd:"M",title:"ImageJ's Measure of the selection, kept with the book and measured with the others into its Results",enabled:!S.readOnly&&!!(st.roi||st.isel),run:()=>mxMeasure(id)},
       {label:"Profile",kbd:"K",title:"The straight line's profile, plotted",enabled:!S.readOnly&&!!(st.roi&&st.roi.kind==="line"),run:()=>mxProfile(id)},
+      {label:"Histogram",kbd:"H",title:"ImageJ's histogram of the selection, or of the whole matrix, with its numbers",run:()=>ijHistDlg(s.id)},
       {label:"Keep the selection",kbd:"T",title:"Into the book's ROI Manager",enabled:!S.readOnly&&!!(st.roi||st.isel),run:()=>mxRoiAdd(id)},
       {label:"Results on the image",checked:st.ov!==false,title:"What analyses of this matrix found (maxima, spots, profiles, regions), drawn over it in cyan",run:()=>{ st.ov=st.ov===false; mxImgDraw(id); }},"-",
       {label:"Copy the cells",kbd:"Ctrl+C",run:()=>copyText(mxSelText(s,mxSel(st)),"The cells")},{label:"Show the cell's value",kbd:"F2",title:"The Cells view at this cell",run:()=>{ mxSetView(id,"cells"); }},
@@ -26207,7 +26397,10 @@ function matMenuItems(sid){ const s=matOf(sid), ro=S.readOnly, on=!!s&&!ro;
     {label:"Brightness and contrast",enabled:!!s,title:"The range of values the table spans, beside its image (C in the image)",run:()=>mxBcOpen(sid)},
     {label:"Enhance contrast…",enabled:on,title:"ImageJ's Process › Enhance Contrast: a share of the values saturated",run:()=>mxBcAct(null,"enh",sid)},
     {label:"Threshold",enabled:!!s,title:"ImageJ's Image › Adjust › Threshold: the cells in a range shown in red, by one of its sixteen methods or by hand, beside the image",run:()=>mxThOpen(sid)},
-    {label:"Save the image as PNG",enabled:!!s,title:"The image as shown, each cell a block of pixels, with its calibration bar",run:()=>mxSavePng(sid)},
+    {label:"Scale bar…",enabled:on,title:"ImageJ's Scale Bar on the image and its picture: a length in X's unit, its text, colours and place",run:()=>sbarDlg(sid)},
+    s&&s.sbar?{label:"Remove the scale bar",enabled:on,run:()=>{ matSbarSet(sid,null); toast("The scale bar is removed.",{action:"Undo",run:undo}); }}:null,
+    {label:"Channels",enabled:!!s,title:"The book's matrices of this size shown together, as ImageJ's composite",sub:()=>mxChanItems(sid)},
+    {label:"Save the image as PNG",enabled:!!s,title:"The image as shown, each cell a block of pixels, with its scale bar and its calibration bar",run:()=>mxSavePng(sid)},
     {label:"Process",enabled:!!s,title:"ImageJ's Process menu: filters and arithmetic, each a new matrix that follows this one",sub:()=>ijProcItems(sid)},
     {label:"Analyze particles…",enabled:on,title:ANA_KINDS.ijparticles.help,run:()=>anaDlg("ijparticles",{p:ijpaStart(sid)})},
     {label:"Spots…",enabled:on,title:ANA_KINDS.spots.help,run:()=>anaDlg("spots",{p:spxStart(sid)})},
@@ -26215,7 +26408,8 @@ function matMenuItems(sid){ const s=matOf(sid), ro=S.readOnly, on=!!s&&!ro;
     {label:"ImageJ",title:"ImageJ's measurements of this matrix, and the matrix as a TIFF ImageJ opens with its calibration",sub:()=>[
       {label:"Measure…",enabled:on,title:"ImageJ's Measure over the matrix, a rectangle (the cells selected, to begin with), an oval or a polygon",run:()=>anaDlg("ijmeasure",{p:ijmStart(sid)})},
       {label:"Find maxima…",enabled:on,title:ANA_KINDS.ijmaxima.help,run:()=>anaDlg("ijmaxima",{p:ijxStart(sid)})},
-      {label:"Profile…",enabled:on,title:ANA_KINDS.ijprofile.help,run:()=>anaDlg("ijprofile",{p:ijpStart(sid)})},"-",
+      {label:"Profile…",enabled:on,title:ANA_KINDS.ijprofile.help,run:()=>anaDlg("ijprofile",{p:ijpStart(sid)})},
+      {label:"Histogram…",kbd:"H",enabled:!!s,title:"ImageJ's Analyze › Histogram of the selection, or of the whole matrix, with its numbers",run:()=>ijHistDlg(sid)},"-",
       {label:"Save as a TIFF (.tif)",enabled:!!s,title:"A 32-bit TIFF that ImageJ opens with its calibration: each pixel's centre this cell's X and Y, the units and the values' unit",run:()=>exportMatTiff(sid)}]},
     {label:"Delete this matrix…",danger:true,enabled:on,run:()=>matDeleteSheet(sid)}].filter(Boolean); }
 /* ImageJ's Process menu (IMAGE_SPEC I.5): what needs no setting is worked out at once, the rest through its dialog; each a new matrix,
@@ -31946,7 +32140,9 @@ function analyzeMenu(){
         {label:"Threshold", title:ok?"ImageJ's Threshold on the matrix in front: the cells in a range shown in red, by one of its sixteen methods or by hand":need, run:()=>mxThOpen(matFront()||matAll()[0].s.id), enabled:ok},"-",
         {label:"Measure…", title:ok?ANA_KINDS.ijmeasure.help:need, run:()=>anaDlg("ijmeasure",{p:ijmStart()}), enabled:ok},
         {label:"Find maxima…", title:ok?ANA_KINDS.ijmaxima.help:need, run:()=>anaDlg("ijmaxima",{p:ijxStart()}), enabled:ok},
-        {label:"Profile…", title:ok?ANA_KINDS.ijprofile.help:need, run:()=>anaDlg("ijprofile",{p:ijpStart()}), enabled:ok},"-",
+        {label:"Profile…", title:ok?ANA_KINDS.ijprofile.help:need, run:()=>anaDlg("ijprofile",{p:ijpStart()}), enabled:ok},
+        {label:"Histogram…", title:ok?"ImageJ's histogram of the selection, or of the whole matrix in front, with its numbers":need, run:()=>ijHistDlg(), enabled:ok},
+        {label:"Scale bar…", title:ok?"ImageJ's Scale Bar on the image of the matrix in front":need, run:()=>sbarDlg(), enabled:ok},"-",
         {label:"Analyze particles…", title:ok?ANA_KINDS.ijparticles.help:need, run:()=>anaDlg("ijparticles",{p:ijpaStart()}), enabled:ok},
         {label:"Spots…", title:ok?ANA_KINDS.spots.help:need, run:()=>anaDlg("spots",{p:spxStart()}), enabled:ok},
         {label:"Shift between scans…", title:ok&&matAll().length>1?ANA_KINDS.shift.help:"Two matrices of one size are needed", run:()=>anaDlg("shift",{p:shStart()}), enabled:ok&&matAll().length>1}]; }},
@@ -34295,7 +34491,7 @@ ${DL([["Numbers","equals, does not equal, is less than, is at most, is greater t
 ${DL([["Stack columns","The columns ticked one under another in a column of values, with a column naming where each came from; columns ticked under <em>Kept beside</em> are repeated by each value (wide to long). Empty cells are left out unless you say otherwise."],["Unstack","A column of values into a column per level of a group column (long to wide): by their order within each level, or matched by an identifier column (then an identifier seen twice in a level keeps its first value, said)."],["Split by groups","The rows of each level of a group column, or every n rows, as a block of the columns ticked, side by side."],["Pivot table","The levels of one column down and another's across, each cell the count, sum, mean, SD, minimum, maximum, median or first of a column of values (or the number of rows), with totals."],["Reduce rows","Every nth row kept, every n rows merged (by their mean or another aggregate; X by its mean), or rows put into bins of X a width wide, X then each bin's centre."],["Duplicate rows","Rows whose key columns repeat: the first or the last of each kept, all averaged into one, or only the duplicates kept; numbers within a tolerance count as one."],["A sorted copy","The rows sorted by up to three columns, each up or down: numbers, then text, then empty cells; rows that tie keep their order. The only way rows are really reordered, and it is a copy."],["Transpose","Rows turned into columns, the first column ticked naming them when asked."],["Join two sheets","This sheet's rows beside another sheet's whose key matches: only rows matched in both, every row of this sheet, or every row of both. A row matching several gives one each."],["Append sheets","Other sheets' rows under this one's, columns matched by name or by position, with a column naming each row's sheet."]])}
 <h2>How they behave</h2>
 <p>Each is an ${DA("analyses","analysis")} under ${MP("Data › Reshape")}: it reads the cells as the worksheet holds them (numbers and text, not processed), writes a result sheet that is worked out again when they change, and can be changed, recalculated, cut from its data (the cells kept on an ordinary sheet) or deleted, each one step to undo. Its rows can be limited, and on a filtered sheet it offers the filter's rows as its own. The report says how many rows it read and made, and what it left out.</p>`},
-{id:"matrices", g:"Data", t:"Matrices", kw:"matrix matrices matrix book matrix sheet grid image z values surface 2d two-dimensional measure region roi oval polygon spots spot fit gaussian localisation localization sub-pixel subpixel psf point spread function resolution fwhm emitter nv centre center photon shot noise poisson maximum likelihood split overlap crowded find maxima maximum minima peaks spots prominence noise tolerance strict exclude edges light background profile line profile plot profile makeline line width wide line band edge width 10-90 knife edge line spread error function erf shift drift registration register align alignment cross-correlation phase correlation subpixel back scan forward scan lag hysteresis area intden integrated density centroid centre of mass center of mass histogram imagej fiji tif tiff 32-bit float calibration pixel size qudi confocal scan nv apd counter channel positions depth scan back scan header transpose flip turn rotate rot90 crop resample interpolate bilinear arithmetic set values formula picture png jpeg grey gray channel from columns to columns xyz block heat map contour",
+{id:"matrices", g:"Data", t:"Matrices", kw:"scale bar composite channels merge colors colours histogram matrix matrices matrix book matrix sheet grid image z values surface 2d two-dimensional measure region roi oval polygon spots spot fit gaussian localisation localization sub-pixel subpixel psf point spread function resolution fwhm emitter nv centre center photon shot noise poisson maximum likelihood split overlap crowded find maxima maximum minima peaks spots prominence noise tolerance strict exclude edges light background profile line profile plot profile makeline line width wide line band edge width 10-90 knife edge line spread error function erf shift drift registration register align alignment cross-correlation phase correlation subpixel back scan forward scan lag hysteresis area intden integrated density centroid centre of mass center of mass histogram imagej fiji tif tiff 32-bit float calibration pixel size qudi confocal scan nv apd counter channel positions depth scan back scan header transpose flip turn rotate rot90 crop resample interpolate bilinear arithmetic set values formula picture png jpeg grey gray channel from columns to columns xyz block heat map contour",
  lead:"A grid of values Z with its X along the top and its Y down the side, as Origin's matrix: kept in a book of its own, drawn by a graph as a map.",
  body:`<h2>Making one</h2>
 <p>${MP("Data › Matrix")} has three ways in. <em>New matrix…</em> asks for the rows and columns, X and Y from first to last (evenly spaced), and the values: empty, one number in every cell, or a formula. <em>From columns…</em> reads the block selected in the worksheet: its columns become the matrix's columns and its rows the rows; when its first row and first column are numbers running one way and the corner is empty, they are X and Y. <em>From a picture…</em> reads a PNG or JPEG: its grey values (0 to 255, weighted as ITU-R BT.601), or its red, green, blue or opacity; X counts the pixels from the left and Y from the bottom, so the picture is upright on a graph.</p>
@@ -34308,6 +34504,9 @@ ${DL([["Stack columns","The columns ticked one under another in a column of valu
 <p>The <b>ROI Manager</b> (<em>Selections</em> on the bar) keeps selections with the book, as ImageJ's: a click on one shows it on the image, a double click renames it; Add, Update, Delete, Delete all; <em>Show all</em> draws every one numbered in cyan. <em>Measure</em> (or ${K("M")}) puts a row a selection into the book's <em>Results</em> sheet, ImageJ's columns over a rectangle's, an oval's or a polygon's cells, a line's length, angle and its profile's statistics, each point's value; the Results follow the matrix as any analysis does. What the analyses of a matrix found is drawn over its image in cyan (Find maxima's maxima, Spots' FWHM ellipses, a profile's line, Measure's region); the image's right-click has <em>Results on the image</em> to hide them.</p>
 <p><b>Threshold</b> (the window's Threshold button, its Matrix menu, or ${MP("Analyze › Image › Threshold")}) is ImageJ's Image › Adjust › Threshold: the cells in a range of values drawn in red on the image, the range set by one of ImageJ's sixteen methods (Default, Huang, Intermodes, IsoData, Li, MaxEntropy, Mean, MinError, Minimum, Moments, Otsu, Percentile, RenyiEntropy, Shanbhag, Triangle, Yen), with <em>Dark background</em> for bright objects, or typed. As ImageJ's <code>setAutoThreshold</code> does for a 32-bit image, the values are made 8-bit over their range, the method reads that histogram, and its level is turned back into values, so the range is ImageJ's to the last digit; an empty cell is counted in the lowest bin, as ImageJ counts NaN, unless <em>Leave the empty cells out</em>. The threshold is kept with the matrix (undone with it, never in its record) and stays as numbers when the values change; <em>Auto</em> works it out again. <em>Mask</em> makes a new matrix of 255 in the range and 0 elsewhere (Process › Binary › Convert to mask…, as ImageJ's with a black background), <em>NaN background</em> one with every other value empty; both follow the scan.</p>
 <p><b>Analyze particles</b> (the Threshold panel's <em>Particles…</em>, the Matrix menu, or ${MP("Analyze › Image › Analyze particles…")}) is ImageJ's Analyze › Analyze Particles: each 8-connected region of cells in the threshold's range a particle (the threshold the matrix's own to begin with, by a method so it is worked out again when the values change, or typed), found and traced as ImageJ's Wand traces it, its holes its own or not (<em>Include holes</em>), those touching the edge left out if asked, and those outside a size (in cells or in X and Y's unit squared) or a circularity left out. A row a particle under ImageJ's names: Area, Mean, StdDev, Mode, Min, Max, the centroid X and Y, the centre of mass XM and YM, Perim., the bounding rectangle, the fitted ellipse's Major, Minor and Angle, Circ., Feret's diameter with its angle, start and least width, IntDen, Median, Skew, Kurt, AR, Round and Solidity, each as ImageJ works it out (with cells that are not square, Major and Minor are 0, as ImageJ gives them); and a Summary (the count, total and average area, the share of the matrix, the mean). Its report draws each particle's outline and number on the image in cyan, and counts the areas into a histogram; a matrix of the particles or of their numbers can be made beside it. It follows the scan.</p>
+<p id="scalebar"><b>Scale bar</b> (the Matrix menu, or ${MP("Analyze › Image › Scale bar…")}) is ImageJ's Analyze › Tools › Scale Bar: a bar of a length in X's unit, its height and its text's size in the image's pixels (so it grows with the zoom, as ImageJ's overlay does), white or another of ImageJ's colours, on a box or none, at a corner or the selection, a vertical one too. Its width opens on ImageJ's default, 80 pixels of the screen at the magnification shown rounded down to 1, 2 or 5; the label has the decimals typed. It is kept with the matrix, drawn on the image and into its PNG; <em>Remove the scale bar</em> takes it away, and each change is one Undo.</p>
+<p id="channels"><b>Channels</b> (the window's Channels button, shown when the book holds two matrices or more of one size, or the Matrix menu) shows them together as ImageJ's composite: each cell of each channel through that channel's own table and range (set when it is the one shown, with Contrast), the colours added component by component and kept at 255 (or the brightest, or the darkest of them). <em>Colours: red, green, blue…</em> gives the channels ImageJ's colours in turn and turns the composite on; a channel can be left out. The readout gives each channel's value; the PNG is the composite with its scale bar.</p>
+<p id="histogram"><b>Histogram</b> (${K("H")} on the image, the image's right-click, the Matrix menu's ImageJ, or ${MP("Analyze › Image › Histogram…")}) is ImageJ's Analyze › Histogram of the selection, or of the whole matrix: 256 bins from the least value to the greatest, empty cells left out, with N, Min, Mean, Max, StdDev, Mode (and its count), Bins and Bin width as ImageJ's window writes them. <em>Log</em> draws the counts' logarithms behind, <em>Copy the list</em> gives each bin's start and count, and <em>Plot it</em> makes a Measure analysis of the same cells and its histogram on a graph.</p>
 <p><b>Process</b> (the window's Process button, its Matrix menu, or ${MP("Analyze › Image › Process")}) is ImageJ's Process menu: <em>Smooth</em>, <em>Sharpen</em> and <em>Find edges</em> (its 3 × 3 filters), <em>Gaussian blur</em> (a sigma in cells or, with <em>Scaled units</em>, in X and Y's unit; ticking it turns the sigma typed into the other unit), <em>Unsharp mask</em>, <em>Subtract background</em> (ImageJ's rolling ball of a radius in cells, the image shrunk first for a large one as ImageJ does, or its <em>sliding paraboloid</em>; a light background, smoothing first, or the background itself, as ImageJ's own checkboxes; the paraboloid refuses a matrix with empty cells, on which ImageJ's never finishes), <em>Filters</em> (Mean, Median, Minimum, Maximum and Variance over ImageJ's circle of a radius in cells) and <em>Math</em> (add, subtract, multiply, divide, min, max, gamma, log, exp, square, square root, abs, reciprocal, and NaN background, every value outside a range made empty). Each makes a new matrix, worked out as ImageJ works its 32-bit image to the last bit (its values in single precision, the cells past the edge the edge's own), in a window of its own with the source's lookup table; it follows its source as any analysis does, so a value typed into the scan, or a change of the settings (its result sheet's <em>Change settings…</em>), works it out again, and one processed matrix can be processed again. ImageJ lets an empty cell spread through a blur or a mean (an unfinished scan's last rows empty half the image); <em>Leave the empty cells out</em> works each cell out from the cells with a value about it instead, and keeps the empty ones empty. The method gives the command that does the same in ImageJ.</p>
 <p>The Cells view is the grid with X along the top, Y down the side and row 1 at the top, a tab for each matrix of the book (+ adds one, a double click renames, a right-click has the rest), the cell and its value above, and below the size, whether its values are original data or computed, and the N, mean, minimum and maximum of the cells selected. It is used as the worksheet is: click, drag, Shift and the arrows select; typing, F2 or a double click edits; Delete clears; Ctrl+C and Ctrl+V copy and paste tab-separated blocks. Only what is in view is drawn, so a million cells scroll as easily as a hundred.</p>
 <h2>Original data or computed</h2>

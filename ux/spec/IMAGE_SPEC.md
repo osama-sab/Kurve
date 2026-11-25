@@ -166,6 +166,21 @@ corner rule changed are caught); `tools/img-drive.mjs` I.6 (8 more, 19).
 text); a composite of the book's channels (each its table, added), Analyze › Histogram as a quick look with ImageJ's
 numbers. **Checks**: the bar's length in pixels against its width; the composite's colours.
 
+**Done 25.11.** In MAT `ijScaleBar` (ScaleBar's computeDefaultBarWidth and setElementsPositions: the default width at the
+magnification, the four corners and the selection, a vertical bar, the text hidden or not, a box or none), `ijD2s`/`ijD2sSig`/`ijD2sHist`
+(IJ.d2s, half even as DecimalFormat), `ijRound125`, `ijDigits`, and `ijComposite` (CompositeImage's composite: added and clamped, the
+brightest or the darkest). A sheet's scale bar is kept with it, drawn on the image (in the image's pixels, growing with the zoom as
+ImageJ's overlay) and into its PNG, from Matrix › Scale bar… and Analyze › Image › Scale bar…. A book's matrices of one size are shown as
+a composite (the window's Channels: on, how, each channel, *Colours: red, green, blue…*), each channel's table and range its own, the
+readout giving each value. The histogram (H on the image, Matrix › ImageJ › Histogram…, Analyze › Image › Histogram…) of the selection
+or the whole, with ImageJ's numbers as its window writes them, Log, the list, and a Measure analysis plotted. Past ImageJ: a composite's
+first channel switched off is filled whole (ImageJ's fill skips the first pixel). **Checks**: `tools/ref/ij_scalebar.py` (ScaleBar,
+IJ.d2s through Python's Decimal of the double, updateComposite with Java's int arithmetic, written again from the source) on 1620 numbers,
+92 of the histogram's, 89 roundings, 680 bars and 12 composites, all equal (`ijScaleBar.numbers`, `.bars`, `ijComposite.colours`; a
+tie rounded up, a margin a nineteenth, a clamp at 256 are caught); `tools/img-drive.mjs` I.7 (18: the bar's white run on the screen and
+in the PNG as long as its pixels at the magnification, the composite's cells the colours ijComposite gives, the histogram's numbers).
+IMAGE_SPEC's seven slices are done.
+
 ## The order
 
 I.1 → I.2 → I.3 → I.4 → I.5 → I.6 → I.7, each committed and pushed when its checks pass.

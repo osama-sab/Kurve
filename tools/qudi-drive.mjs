@@ -100,7 +100,7 @@ await page(async p => {
   // the matrix window's Matrix › ImageJ: its four items, then Save as a TIFF (.tif)
   await p.click(".mxwin [data-mxmenu]"); await p.waitForTimeout(150); await p.hover(".menu [role=menuitem]:has-text('ImageJ')"); await p.waitForTimeout(300);
   const subs = await p.evaluate(() => [...[...document.querySelectorAll(".menu.sub")].pop().querySelectorAll("[role=menuitem]")].map(e => (e.querySelector(".mlab") || e).textContent.trim()));
-  check("the matrix window's Matrix › ImageJ: Measure…, Find maxima…, Profile…, Save as a TIFF (.tif)", subs.join("|") === "Measure…|Find maxima…|Profile…|Save as a TIFF (.tif)", subs.join("|"));
+  check("the matrix window's Matrix › ImageJ: Measure…, Find maxima…, Profile…, Histogram… (I.7), Save as a TIFF (.tif)", subs.join("|") === "Measure…|Find maxima…|Profile…|Histogram…|Save as a TIFF (.tif)", subs.join("|"));
   const [dl] = await Promise.all([p.waitForEvent("download", { timeout: 8000 }), p.locator(".menu [role=menuitem]:has-text('Save as a TIFF')").last().click()]);
   const bytes = readFileSync(await dl.path()), name = dl.suggestedFilename();
   const same = await p.evaluate(b => { const s = matOf(matFront()), t = matTiff(s, { xunit: s.xunit, yunit: s.yunit, zunit: s.zunit, name: matBookOf(s.id).name }); return t.bytes.length === b.length && t.bytes.every((v, i) => v === b[i]); }, [...bytes]);

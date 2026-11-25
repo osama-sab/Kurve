@@ -510,6 +510,26 @@ if (fixtures["ij-particles"]) {
     note("ijParticles.cells", bc, `${tag}: ${w.length} particles`); note("ijParticles.shape", ws, `${tag}${at ? ", " + at : ""}`); note("ijParticles.stats", wt, tag); });
 }
 
+/* ---- ImageJ's Scale Bar, its numbers and the composite of channels (IMAGE_SPEC I.7): IJ.d2s (DecimalFormat, half even), the
+   histogram's numbers, Utils.round and getDigits, every bar's width, label and rectangles, each composite's colours, against
+   tools/ref/ij_scalebar.py's port of ImageJ 1.54f (the count that differ) ---- */
+if (fixtures["ij-scalebar"]) {
+  const FX = fixtures["ij-scalebar"], D = get("ijD2s"), DH = get("ijD2sHist"), R = get("ijRound125"), DG = get("ijDigits"), SB = get("ijScaleBar"), CP = get("ijComposite");
+  let bad = 0, at = ""; FX.nums.forEach(([x, d, w]) => { const r = D(x, d); if (r !== w) { bad++; if (!at) at = `d2s(${x}, ${d}): ${r} against ${w}`; } });
+  note("ijScaleBar.numbers", bad, `${FX.nums.length} numbers${at ? ", " + at : ""}`);
+  bad = 0; at = ""; FX.hist.forEach(([x, w]) => { const r = DH(x); if (r !== w) { bad++; if (!at) at = `${x}: ${r} against ${w}`; } });
+  FX.r125.forEach(([x, w, dw]) => { const r = R(x), d = DG(r); if (r !== w || d !== dw) { bad++; if (!at) at = `round(${x}): ${r}, ${d} against ${w}, ${dw}`; } });
+  note("ijScaleBar.numbers", bad, `the histogram's ${FX.hist.length}, ${FX.r125.length} roundings${at ? ", " + at : ""}`);
+  const keys = ["hw", "hd", "vh", "vd", "hLabel", "vLabel", "hPx", "vPx", "hBar", "hText", "vBar", "vText", "hBg", "vBg", "outer", "inner", "auto"];
+  bad = 0; at = ""; FX.bars.forEach(([o, w], k) => { const fs = o.font == null ? 14 : o.font, r = SB(Object.assign({}, o, { tw: t => Math.floor(t.length * fs * 3 / 5) }));
+    const diff = r.fail ? "fail" : keys.find(q => JSON.stringify(r[q]) !== JSON.stringify(w[q])); if (diff) { bad++; if (!at) at = `bar ${k} (${JSON.stringify(o)}): ${diff} ${JSON.stringify(r[diff])} against ${JSON.stringify(w[diff])}`; } });
+  note("ijScaleBar.bars", bad, `${FX.bars.length} bars${at ? ", " + at : ""}`);
+  const L = fixtures["ij-display"] ? fixtures["ij-display"].luts : null;
+  if (L) FX.comps.forEach(c => { const px = CP(c.chs.map(h => ({ z: h.z, lo: h.lo, hi: h.hi, on: h.on, lut: L[h.lut] })), c.n, c.mode); let b = 0, a = "";
+    for (let i = 0; i < c.n; i++) if (px[i] !== c.px[i]) { b++; if (!a) a = `cell ${i}: ${px[i].toString(16)} against ${c.px[i].toString(16)}`; }
+    note("ijComposite.colours", b, `${c.name}, ${c.mode}${a ? ", " + a : ""}`); });
+}
+
 /* ---- NIST's Norris: certified values read from the file itself ---- */
 {
   const txt = readFileSync(join(here, "ref", "nist", "Norris.dat"), "utf8").split(/\r?\n/);
