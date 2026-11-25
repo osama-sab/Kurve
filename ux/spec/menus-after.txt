@@ -180,6 +180,7 @@ Data
   Masks
     Mask points on the graph  ## + the Graph menu's "Mask points" (DS2)
     Restore every masked point  ## ~ "Restore all masked points"
+  Processed values  ## new (25.11, the user's report): the worksheet's Original / Processed switch off its bar; a column's processed values when asked for
   Lock the original data  ## ~ "Lock the raw data"
   Clean
     Crop…  ## + "Crop to the visible range": Crop… opens on the range in view
@@ -200,6 +201,7 @@ Data
     Fourier self-deconvolution…  ## new (FIT2_SPEC 4.7)
   Calibrate  ## new (11.11, the user's request): calibrating where the data are prepared
     Calibrate X on reference peaks…  ## new route: also Analyze › Spectroscopy › X axis
+    Line up with another column…  ## new (25.11, the user's request): Calibrate X on another column's peaks, every shared peak
     Energy calibration…  ## new route: also Analyze › Spectroscopy › X axis
     Scale and offset X…  ## new route: also Transform
     Y by a reference's response…  ## new route: Subtract or divide by another column…, dividing

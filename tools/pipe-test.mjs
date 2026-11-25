@@ -17,7 +17,7 @@ const grab = (tag) => {
 const src = `${grab("NUMERICS")}\n${grab("PEAKS")}\n${grab("PIPE")}\n${grab("STATS")}\n` +
   `return {PIPE_OPS,runPipe,orderWarnings,stepParams,whittaker,alsBaseline,arplsBaseline,airplsBaseline,modpolyBaseline,imodpolyBaseline,
     snipBaseline,rollingBaseline,splineThrough,autoAnchors,despikeY,detectBands,bandWidthPts,suggestLam,sha256,rawText,rawHashJob,rawHashRun,shaNew,shaUpdate,shaDigest,hash32,decimate,
-    interpOnto,trapz,spacing,noiseSigma,fftFilter,serSig,stepPKey};`;
+    interpOnto,trapz,spacing,noiseSigma,fftFilter,serSig,stepPKey,alignPeaks,peakCentreFit};`;
 const N = new Function(src)();
 
 let pass = 0, fail = 0;
@@ -429,6 +429,37 @@ console.log("XPS backgrounds and self-deconvolution");
   let thr2 = ""; try { run(series(xf, yf), "fsd", { fwhm: null }); } catch (e) { thr2 = e.message; }
   check("self-deconvolution: no width is an error in words", /Set the width taken out/.test(thr2), thr2);
   check("self-deconvolution: its width suggested from the bands", N.stepParams("fsd", series(xf, yf)).fwhm > 2 && N.stepParams("fsd", series(xf, yf)).fwhm < 12, N.stepParams("fsd", series(xf, yf)).fwhm);
+}
+
+/* ---------- lining spectra up on their peaks (25.11, the user's report) ---------- */
+console.log("Lining up on peaks");
+{
+  const bands = [[300, 40, 6], [420, 100, 8], [520.7, 200, 4], [640, 70, 10], [780, 120, 7], [900, 50, 9], [1001, 90, 5], [1100, 60, 12]];
+  const spec = (shift, stretch, noise, seed, h = 1) => { const r = rng(seed), x = [], y = []; for (let v = 200; v <= 1200; v += h) { x.push(v); const t = v * (1 + stretch) + shift; let s = 20 + 0.01 * v; bands.forEach(([c, a, w]) => { s += a * Math.exp(-0.5 * ((t - c) / (w / 2.3548)) ** 2); }); y.push(s + noise * gauss(r)); } return series(x, y); };
+  // A centre fitted to a peak's points against the parabola through its top three: over 200 noisy spectra, the fit is nearer.
+  let e3 = [], ef = [];
+  for (let k = 0; k < 200; k++) { const d = spec(1.37, 0, 2, k);
+    e3.push(run(d, "calib", { refs: [{ ref: 520.7 }], centre: "top3" }).extra.shift - 1.37); ef.push(run(d, "calib", { refs: [{ ref: 520.7 }], centre: "fit" }).extra.shift - 1.37); }
+  check("a reference's centre by a fit is nearer than by its top three points (rms over 200)", rms(ef) < 0.75 * rms(e3), `${rms(ef)} vs ${rms(e3)}`);
+  check("a new step centres by a fit, one from before by its top three points", N.stepParams("calib", spec(0, 0, 1, 1)).centre === "fit" && N.PIPE_OPS.calib.defaults.centre === "top3");
+  // With another band inside the window, the top nearest the reference is the one taken.
+  const d2 = spec(0, 0, 0.5, 3), c2 = run(d2, "calib", { refs: [{ ref: 640 }], win: 140, centre: "fit" });
+  check("a stronger band in the window is not taken for the reference's", near(c2.extra.shift, 0, 0.05), c2.extra.shift);
+  // Another column's peaks: every shared peak paired, the shift fitted to them all, its error honest.
+  for (const sh of [1.37, -2.8, 6]) { const errs = [], ses = [];
+    for (let k = 0; k < 40; k++) { const A = N.alignPeaks(spec(sh, 0, 2, k), spec(0, 0, 2, 500 + k), { order: 0 }); errs.push(A.co[0] - sh); ses.push(A.se); }
+    const sd = rms(errs), se = ses.reduce((a, b) => a + b, 0) / ses.length;
+    check(`lined up with a spectrum ${sh} away: the shift within its error, its error the spread over 40 (${sd.toFixed(4)} against ${se.toFixed(4)})`, Math.abs(errs.reduce((a, b) => a + b, 0) / errs.length) < 3 * sd / Math.sqrt(40) + 1e-3 && se > 0.5 * sd && se < 2 * sd, `${sd} ${se}`); }
+  const st = N.alignPeaks(spec(1.1, 4e-4, 1, 9), spec(0, 0, 1, 10), { order: 1 });
+  check("a stretch as well: a line through every shared peak", st.k === 1 && Math.max(...bands.map(([c]) => Math.abs(st.F((c - 1.1) / (1 + 4e-4)) - c))) < 0.08, st.k);
+  const one = N.alignPeaks(spec(1.37, 0, 2, 1), spec(1.37, 0, 2, 2), { order: 2 });
+  check("lined up with itself (another noise): no shift", near(one.F(600) - 600, 0, 0.08), one.F(600) - 600);
+  const c3 = run(spec(1.37, 0, 2, 4), "calib", { mode: "col", col: "r", order: "0", centre: "fit" }, { refData: () => spec(0, 0, 2, 5), name: () => "Ref" });
+  check("the step: 8 shared peaks, the X shifted, its note in words", c3.extra.found.length === 8 && near(c3.d.x[0] - 200, 1.37, 0.06) && /8 shared peaks/.test(c3.note), c3.note);
+  let thrown = ""; try { run(spec(0, 0, 1, 1), "calib", { mode: "col", col: "r" }, { refData: () => Object.assign(spec(0, 0, 1, 2), { xu: "nm" }), name: () => "Ref" }); } catch (e) { thrown = e.message; }
+  check("another column in other X units is refused in words", /convert one first/.test(thrown), thrown);
+  thrown = ""; try { run(spec(0, 0, 1, 1), "calib", { mode: "col", col: null }, {}); } catch (e) { thrown = e.message; }
+  check("no column chosen is said", /Choose the column/.test(thrown), thrown);
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

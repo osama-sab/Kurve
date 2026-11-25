@@ -261,10 +261,22 @@ Excel's and Origin's conventions, unless noted.
   gesture on the first one's cell, as the person meant.
 - **Original and Processed appear when there is something to tell apart.** A first user does
   not know what "raw" or "final" data are, and before any processing step the two are the same:
-  the sheets' switch and the statistics' choice appear with the first step. (The graph's
+  the statistics' choice appears with the first step. (The graph's
   Original / Processed / Both and Data › Show on the graph went on 11.11: a graph shows the
   processed data, a step can go on a new graph, and the History's boxes show any stage.) The exports keep both names, where the
   difference matters.
+- **The worksheet has no Original / Processed switch** (25.11, the user's report: it came back with
+  the first step, a bar of two states to keep track of that nobody asked for). The worksheet holds
+  the original data; a column's processed values are a view asked for from where the column is
+  (its menu, Data › Processed values), and a chip on the bar says whose they are, with ✕ back, as
+  the graph's stage chip does. One state on screen, named, with its way back.
+- **A step goes where the work is** (25.11): spectra worked on together sit on one graph, so the
+  Tool window's *Apply to* offers the curves of the graph in front beside the column and every
+  column, and remembers the choice; the Project Explorer's selection adds *the ones chosen*. A
+  command for several things at once is one undo step, as a command for one is.
+- **Columns move like Excel's** (25.11): the empty columns past the last are a place a column can
+  go, so Right and a drag reach them, leaving an empty column behind; a move never touches
+  another sheet's columns.
 
 ## Plotting
 

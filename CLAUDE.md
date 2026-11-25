@@ -127,7 +127,10 @@ workbook has (tabs under the grid: a click shows one, a double click renames it,
 the right-click menu moves or deletes it; each sheet has its own columns lettered from A, rows,
 X columns and formulas; graphs show columns from any sheet), shown in two views: **Original**
 (the data as typed or imported, editable, every change in the original-data record, unless the
-project locks it) and **Processed** (the active column after processing, read only). An
+project locks it) and **Processed** (the active column after processing, read only), the second
+only when asked for (a column's menu, *Show its processed values*, or Data › Processed values),
+with a chip on the bar that says whose and goes back (`#wsStage`; no switch on the bar since
+25.11, `showProcessed(id)`). An
 import puts every column of the file there (beside data, on a sheet of its own named after the file), as X, Y, error bars or other data (not plotted),
 and plots nothing: columns are plotted when ready, by selecting them and pressing
 **Plot** on the worksheet's bar, or in **Plot setup…** (the kind as pictures, what each column
@@ -294,8 +297,21 @@ graph first, with the taskbar kept at the bottom of the screen.
   high-loss end unless given; `{b, B, lev, U, Ux (U in the input's order), xs}`; 8000 points at most);
   `ends`, `tdir`, `tC`, `tD`); smooth (Savitzky–Golay, moving average, median, Gaussian,
   Whittaker); shift (wavelength to Raman shift), xunit, calib (reference peaks, `CAL_REFS`,
-  Raman standards and gamma lines; a shift, a line, or with `order` "2" and three found a
-  parabola, `extra.co`, flagged when it turns back), ecal (channels to energy: E = a·ch + b + c·ch² from typed
+  Raman standards and gamma lines; a shift (`order` "0", weighted by the centres' errors), a line,
+  or with `order` "2" and three found a parabola, `extra.co`, flagged when it turns back; `centre`
+  "fit" (a new step's, by `init`) or "top3" (the default, so a step from before keeps its numbers):
+  `peakCentreFit(X, Y, j, w, E)` (a Gaussian on a straight baseline fitted by `lmFit` to the points
+  within 1.2 FWHM, in offsets from the top; `{x, se, w, how}`, the parabola through the top three,
+  `peakTop3`, when it cannot), `peakHalfWidth`, and with a fit the top nearest the reference among
+  those highest over three points either side and a fifth of the window's highest; **`mode` "col"**
+  (Data › Calibrate › Line up with another column…, the user's request of 25.11), `col`, `use`
+  (`deps`): `alignPeaks(d, r, {win, order})` (the coarse shift from the cross-correlation of the two
+  on a common grid, each less its running mean, refined by a parabola; each one's peaks by
+  `peakSearch`, the strongest 40 of a tenth of the strongest's prominence or more, centred by
+  `peakCentreFit`; paired nearest first within half the narrower width; `wPolyAbout` a weighted
+  shift, line or parabola of the differences about their mean, scaled by the scatter; paired again by
+  the map, pairs past four robust scales left out; `{F, co, c, k, pairs, s0, se, rms, out, nm, nr}`
+  or `{fail}`), the form's *Shared peaks* table; other X units refused), ecal (channels to energy: E = a·ch + b + c·ch² from typed
   coefficients, or fitted to `pairs` `[{ch, en}]`, each channel refined to its peak's top by
   `peakTopNear`; names X `xn`/`xu`, keV by default), xlin (with an optional new name and unit);
   norm; scale (with an optional new Y name and unit, `yn`/`yu`: Count rate, counts/s), ref (another column, a spectrum or a data column (`refcol`), interpolated onto this X after a
@@ -2150,8 +2166,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   letter of a whole-column selection starts a `colmove` drag (`body.colmoving`, `.wsmovebar`
   where they land, `wsMoveMark(x)`), and the column menu's Move (`colMoveItems`, Left, Right,
   To the start, To the end; `colMenuTargets` is the selection or the column) calls
-  `wsMoveCols(ids, dir)` → `moveColsBefore(ids, beforeId)`: raw columns reordered among
-  `p.cols` (derived spectra keep their slots), a Y whose nearest-left X would change gets its
+  `wsMoveCols(ids, dir)` → `moveColsBefore(ids, beforeId, pad)`: this sheet's raw columns reordered
+  among `p.cols` (other sheets' and derived columns keep their slots: writing the whole list from
+  one sheet's left holes in it and froze the worksheet, the user's report of 25.11), `pad` empty Y
+  columns put before the moved ones when they go past the last column into the empty ones (a drag
+  onto them, `wsMoveMark` no longer stopping at the last; the menu's Right from the last column), a Y whose nearest-left X would change gets its
   `xcol` pinned (and a redundant one dropped), the selection kept, one undo entry,
   `recordRaw` (the order is part of the fingerprint) and a toast with Undo. **Alignment**:
   `p.wsAlign` (`{colId: "l"|"c"|"r"}`, in `UNDO_KEYS`), `wsSetAlign(ids, a, toggle)` (the same
@@ -2256,7 +2275,14 @@ graph first, with the taskbar kept at the bottom of the screen.
   `applyToolNew()`: a derived column made from the column (`src`; `from:"final"` and the step
   alone when it goes last, else `from:"raw"` with copies of the steps before it and the step),
   named "<name>, <step>", on a graph of its own (`newGraphs` with `patch`, `splitInto`,
-  `activateGraph`), the column itself unchanged, one undo step; `applyTool({here:true})` skips it. `stepById`, `colOfStep`,
+  `activateGraph`), the column itself unchanged, one undo step; `applyTool({here:true})` skips it.
+  **Apply to** (25.11, the user's request: spectra worked on together on one graph): `pd.all` is
+  false (this column), `"graph"` (the other curves of the graph in front, `toolGraphOthers(c)`),
+  `"sel"` (`pd.ids`, columns chosen in the Project Explorer, `openTool(op, {ids})`) or true (every
+  column); the Tool window's segmented `[data-tlall]`, remembered as `toolScope()` (`kurve.toolscope`,
+  col, graph or all) and set by `toolScopeSet(pd)`; `toolOthers(pd, c)` the others,
+  `applyStepToAll(id, quiet, {measure, only})`, `stepCopyFor(s, y, at, measure)`; a new graph from
+  `"graph"` or `"sel"` is a new column from each, together on one graph. `stepById`, `colOfStep`,
   `stageOfStep` and `inputOfStep` look steps up by id in any spectrum, pending included, and
   `procWarnings` and the report skip the pending one. A project switch drops it.
 - **Stages**: `S.stage` is the stage the graph shows (`null` = final, 0 = raw, k = after step k,
@@ -2343,7 +2369,19 @@ graph first, with the taskbar kept at the bottom of the screen.
   place (redrawing on the first click would lose the double click); `xOpen` opens (a graph:
   `showGraph`; a sheet: `showSheet`); `xMenu(r)` is each kind's menu with Move to; `xNewFolder`,
   `xRenameFolder`, `xDeleteFolder` (what it held moves up), `xMove` (no folder into itself);
-  F2 and Delete on a sheet are `renameSheet` and `deleteSheet`. `xFile(keys, folder)` files without an undo entry of its own (after a change
+  F2 and Delete on a sheet are `renameSheet` and `deleteSheet`. **Several at once** (25.11, the
+  user's request): `xSelect(key, focus, how)` (`toggle` Ctrl+click, `range` Shift+click and
+  Shift+arrows from `S.xplAnchor`, `keep`; Ctrl+A every row, Esc back to one), `S.xplMany` (`{pid,
+  keys}`, more than one, never the project's row; `xMany()`), `aria-multiselectable`; `xSelRows()`,
+  `xSelWhat(rows)` (graphs, plain ones, sheets, trends, matrix books, folders, and the Y columns of
+  the sheets and the graphs' curves), `xSelWords`, `xMultiMenu(rows)` (the right-click on a selected
+  row and Shift+F10: open, close, side by side, combine, as the panels of a figure, export as one
+  picture (`exportAllSvg(ids)`, `allGraphsSvg(pw, ph, k, only)`), plot their columns together,
+  *Process their columns* (`toolMenuItems({col, ids})`), move, delete), `xMoveMany(keys, folder)`,
+  `xDeleteMany(rows)` (one confirmation, `deleteSheet(sid, {quiet})`, `matDeleteBook(bid, {quiet})`,
+  the first sheet kept); each one undo step through `undoGroup(label, fn)` (`pushUndo` once, the
+  commands' own held by `S.undoHold`); a selection dragged moves together.
+  `xFile(keys, folder)` files without an undo entry of its own (after a change
   that made one); `xNew(keys)` puts what is made while the Explorer is shown into the active
   folder (`xActiveFolder`: the folder selected, or the selected item's): new graphs
   (`plotCols`, `newGraphs`; a duplicate goes beside its source), trend graphs and imports (the
@@ -2649,7 +2687,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   `python` op); nothing can run code.
 - **Preferences** (`openPrefs`, `#prefModal`, the gear `#prefBtn`, File and Edit ›
   Preferences…, Ctrl+,; as the design system's: History, Appearance with Theme Light, Dark,
-  System and Style, Animations, Typing text, After an import, Errors; each switch's explanation
+  System and Style, Animations, Graphs (*Link the X zoom of graphs*, `#prLinkX`, `setLinkX`, off
+  by default; 25.11), Typing text, After an import, Errors; each switch's explanation
   its tooltip, Done alone in the footer): `PREF_DEF` (`history`, `anim`, `flowAuto`), `prefGet(k)`/`prefSet(k, v)`
   under `kurve.pref.<k>`, per browser. **History off** (`histOn()` false) keeps nothing from then
   on: `save` writes no log line (a deferred error line aside), `makeStep` no `t`/`by`,
@@ -5846,7 +5885,20 @@ Minimum, Maximum, Brightness and Contrast as ImageJ's sliders, Auto saturating m
 with the matrix and followed by its graph, its TIFF and a PNG of the image; a Python port of ImageJ's source exact on every number.
 Slice I.4 done 20.11: ImageJ's selection tools on the image (Rectangle, Oval, Polygon, Straight line, Points, the Hand), handles, the
 arrows, M, K and T; the ROI Manager kept with the book and measured into its Results sheet, which follows the matrix; what the analyses
-found drawn over the image in cyan.
+found drawn over the image in cyan. Slice I.5 done 21.11: ImageJ's Process menu (Smooth, Sharpen, Find edges, Gaussian blur, Unsharp
+mask, the rank filters, Math, Subtract background by the rolling ball or the sliding paraboloid), each a new matrix that follows its
+source, exact to ImageJ's source. Slice I.6 done 21.11: Threshold (its sixteen methods, shown in red) and Analyze Particles (outlines,
+ImageJ's measurements, a summary), exact to ImageJ's source.
+
+Then, 25.11, the user's reports, before I.7: a column moved left on a project of several sheets froze the worksheet (the move wrote
+one sheet's columns over every sheet's), and none could move right into the empty columns past the last (now they can, an empty
+column left in their place); the worksheet's Original / Processed switch had come back with the first step (gone from the bar: a
+column's processed values are shown when asked for, with a chip back); Preferences has *Link the X zoom of graphs* (off by default);
+a step goes on a column, the curves of the graph in front, or every column (*Apply to*, remembered), and on a new graph from each;
+spectra are lined up on every peak they share (*Line up with another column…*: a coarse shift by cross-correlation, the peaks paired
+and centred by a fitted Gaussian, a shift, line or parabola fitted to them all by weighted least squares, with its error), and a
+reference peak is centred by a fit rather than its top three points (a step from before keeps three); several graphs and sheets are
+selected at once in the Project Explorer and acted on together, each command one undo step.
 
 ## Known gaps
 
@@ -5874,7 +5926,9 @@ found drawn over the image in cyan.
 - Moving columns moves whole columns of the Original view (not cells within a column, not the Processed
   view's); the colours of the interface follow DESIGN.md's rules, but the graph's own colours
   (data, grid, a colour picked for a label) are the figure's and are not checked
-- Project Explorer: one item moves at a time (no multiple selection); it lists sheets, graphs and
+- Project Explorer: several items are selected in the tree only (not in the taskbar or the windows);
+  their menu acts on graphs, sheets and their columns as above, not trend graphs' or matrices' own
+  commands (they are moved and deleted together); it lists sheets, graphs and
   trend graphs, not columns (the worksheet does), so a column cannot be filed in a folder apart
   from its sheet; folders organise the tree only (they do not hide or
   show windows as Origin's active folder can); dropping on a folder imports and plots with the

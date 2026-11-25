@@ -1024,6 +1024,38 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## The user's reports: columns, the worksheet's bar, steps on a graph, lining spectra up, several at once (2026-11-25)
+
+- **Fixed: a column moved left froze the worksheet** when the project had several sheets: the move
+  wrote one sheet's columns over every sheet's list and left holes in it. Only the sheet's own
+  columns are reordered now.
+- **Columns move right into the empty columns** past the last (the menu's Right, a letter dragged
+  there): an empty column is left where each moved one was.
+- **No Original / Processed switch on the worksheet's bar**: it had come back with the first step.
+  A column's processed values are shown when asked for (its menu, *Show its processed values*, or
+  Data › Processed values), read only, with a chip on the bar that says whose and goes back.
+- **Preferences › Graphs: Link the X zoom of graphs**, off by default (the graph's ⋯ menu and
+  Window › Graphs still switch it).
+- **A step on a graph's curves**: the Tool window's *Apply to* is this column, this graph's curves
+  or every column, remembered; with *Show it on: A new graph*, each curve gives a new column,
+  together on one new graph.
+- **Spectra lined up on every peak they share** (Data › Calibrate › *Line up with another
+  column…*): the shift between the two first from their cross-correlation, then each one's peaks
+  found, centred by a fitted Gaussian and paired, and a shift, a line or a parabola fitted to all
+  the pairs by weighted least squares, with its error; the pairs and what is left over in a table.
+  A reference peak at a known position is centred by a fit too (twice as precise as the top three
+  points on noisy data) and is the top nearest the reference, not the highest in the window; a
+  step made before keeps its three points, so its numbers do not change.
+- **Several graphs and sheets at once** in the Project Explorer: Ctrl+click, Shift+click,
+  Shift+arrows, Ctrl+A; their right-click opens, closes, shows side by side, combines, makes a
+  figure, exports one picture, plots their columns together, processes them (*Apply to: the ones
+  chosen*), moves and deletes them, each one undo step.
+
+Checked: pipe-test (11 new, 164: the fitted centre against three points over 200 spectra, a
+stronger band in the window not taken, the shift's error against its spread over 40 at three
+shifts, a stretch, refusals); review-drive (40 new, 158); the menu crawl against
+`menus-after.txt`; ds-test; a worksheet fuzzer seed.
+
 ## Images, slice I.6, second half: Analyze Particles (2026-11-21)
 
 - **ImageJ's Analyze Particles** (the Threshold panel's *Particles…*, Matrix › Analyze particles…, Analyze › Image › Analyze particles…):

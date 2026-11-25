@@ -350,7 +350,7 @@ await page(async p => {
   check("the fitted scale is said in the step", sn[0] === "ref" && /scaled by .*fitted over 60 points/.test(sn[1]), JSON.stringify(sn));
   // Data › Calibrate.
   const cal = await p.evaluate(() => { const it = menuItems("data").find(i => i && i.label === "Calibrate"); return it ? (typeof it.sub === "function" ? it.sub() : it.sub).map(i => i.label) : null; });
-  check("Data › Calibrate: X on reference peaks, energy, scale X, Y by a reference", cal && cal.length === 4 && /reference/.test(cal[3]), JSON.stringify(cal));
+  check("Data › Calibrate: X on reference peaks, lined up with another column (25.11), energy, scale X, Y by a reference", cal && cal.length === 5 && /reference/.test(cal[4]) && cal[1] === "Line up with another column…", JSON.stringify(cal));
   // Results: three columns, no time, no cramped second lines, no red rows.
   await p.evaluate(async () => { await loadExample("decay"); }); await p.waitForTimeout(800);
   await p.evaluate(() => { S.fitMode = "curve"; showTab("fit"); chooseModel("expdec"); }); await p.waitForTimeout(250);
@@ -446,6 +446,109 @@ await page(async p => {
   const r2 = await p.evaluate(() => [analyzeFile("I\t2θ (deg)\n" + Array.from({ length: 30 }, (_, i) => `${(Math.sin(i) + 2).toFixed(3)}\t${(10 + i * 0.5 + (i % 3 ? 0.9 : -0.9)).toFixed(2)}`).join("\n")).roles.join(), analyzeFile("I\tφ\n2\t3\n1\t1\n3\t2\n1\t5\n").roles.join()]);
   check("2θ and φ name an axis", r2[0] === "y,x" && r2[1] === "y,x", JSON.stringify(r2));
 }, { name: "19.11", timeout: 150000 });
+
+console.log("25.11: a column moved left froze the worksheet, none moved right into empty columns; the Original/Processed bar back; linked zoom a preference; steps on a graph's curves; spectra lined up on all their peaks");
+await page(async p => {
+  const csv3 = (n, k) => "Wavelength,A,B,C\n" + Array.from({ length: n }, (_, i) => `${400 + i},${i * k},${i + k},${i * 2}`).join("\n");
+  await viaDialog(p, "one.csv", csv3(20, 1)); await viaDialog(p, "two.csv", csv3(20, 3));
+  const cols = () => p.evaluate(() => sheetCols().map(c => `${colLetter(c)}:${c.name || "—"}`).join(" "));
+  const other = () => p.evaluate(() => sheetCols(sheetList()[0].id).map(c => `${colLetter(c)}:${c.name || "—"}`).join(" "));
+  const before = await other();
+  const r = await p.evaluate(() => { try { wsMoveCols([sheetCols()[2].id], -1); return "ok"; } catch (e) { return e.message; } });
+  check("a column between two moved left on the second sheet: the move made, every sheet's list whole", r === "ok" && (await cols()) === "A:Wavelength B:B C:A D:C" && await p.evaluate(() => P().cols.every(Boolean)), r + " " + await cols());
+  check("…and the first sheet's columns untouched", (await other()) === before, await other());
+  await p.evaluate(() => { wsMoveCols([sheetCols()[3].id], 1); });
+  check("the last column moved right goes into the empty column past it (an empty one in its place)", (await cols()) === "A:Wavelength B:B C:A D:— E:C", await cols());
+  // A letter dragged into the empty columns, two past the last.
+  const th = L => p.evaluate(L => { const t = [...document.querySelectorAll("#ws th[data-ch]")].find(t => t.textContent.trim().startsWith(L)); const b = t.getBoundingClientRect(); return [b.left, b.top, b.width, b.height]; }, L);
+  await p.evaluate(() => { wsFront(); }); await p.waitForTimeout(250);
+  const [x, y, w, h] = await th("B"); await p.mouse.click(x + w / 2, y + h / 2); await p.waitForTimeout(150);
+  const g = await th("G"); await p.mouse.move(x + w / 2, y + h / 2); await p.mouse.down(); await p.mouse.move(x + w / 2 + 20, y + h / 2, { steps: 3 }); await p.mouse.move(g[0] + 3, y + h / 2, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(400);
+  check("column B dragged to the line between F and G lands at F", (await cols()) === "A:Wavelength B:A C:— D:C E:— F:B", await cols());
+  await p.evaluate(() => undo()); await p.waitForTimeout(300);
+  check("one undo takes the drag back", (await cols()) === "A:Wavelength B:B C:A D:— E:C", await cols());
+  // No Original / Processed switch on the bar; a column's processed values when asked for, with a chip back.
+  await p.evaluate(() => { setActiveCol(sheetCols()[1].id); openTool("smooth"); }); await p.waitForTimeout(300); await p.evaluate(() => { toolDest("here"); applyTool(); }); await p.waitForTimeout(400);
+  const sw = await p.evaluate(() => ({ seg: !$("#wsSheet").hidden || !!$("#wsSheet").offsetParent, chip: $("#wsStage").hidden }));
+  check("with a processing step, no Original / Processed switch on the worksheet's bar", !sw.seg && sw.chip, JSON.stringify(sw));
+  const it = await p.evaluate(() => { const c = activeYCol(), m = colMenuItems(c.id).find(i => i && i.label === "Show its processed values"); if (!m) return null; m.run(); return [S.sheet, $("#wsStage").hidden, $("#wsStage").textContent]; });
+  check("the column's menu shows its processed values, a chip saying whose", it && it[0] === "final" && !it[1] && /Processed: /.test(it[2]), JSON.stringify(it));
+  await p.click("#wsStage [data-wsraw]"); await p.waitForTimeout(250);
+  check("…and the chip's ✕ goes back to the original data", await p.evaluate(() => S.sheet === "raw" && $("#wsStage").hidden));
+  // Linked zoom: a switch in Preferences, off by default.
+  await p.evaluate(() => openPrefs()); await p.waitForTimeout(250);
+  const lk = await p.evaluate(() => { const i = $("#prLinkX"); return i ? i.checked : null; });
+  check("Preferences has Link the X zoom of graphs, off by default", lk === false, lk);
+  await p.click("label:has(#prLinkX)"); await p.waitForTimeout(150);
+  check("…ticked, the graphs' X zoom is linked and kept", await p.evaluate(() => S.linkX === true && localStorage.getItem("kurve.linkX") === "1"));
+  await p.evaluate(() => { $("#prefDone").click(); setLinkX(false); });
+}, { name: "25.11 columns, the bar, Preferences", timeout: 120000 });
+await page(async p => {
+  const bands = [[300, 40, 6], [420, 100, 8], [520.7, 200, 4], [640, 70, 10], [780, 120, 7], [900, 50, 9], [1001, 90, 5], [1100, 60, 12]];
+  const yv = (sh, i) => { const v = 200 + i, t = v + sh; let s = 20 + 0.01 * v; bands.forEach(([c, a, w]) => { s += a * Math.exp(-0.5 * (((t - c) / (w / 2.3548)) ** 2)); }); return (s + Math.sin(i * 7.1) * 1.5).toFixed(3); };
+  const csv = "Raman shift (cm-1),A,B,C\n" + Array.from({ length: 1001 }, (_, i) => `${200 + i},${yv(0, i)},${yv(1.37, i)},${yv(-0.8, i)}`).join("\n");
+  await viaDialog(p, "three.csv", csv);
+  await p.evaluate(() => { plotCols(yCols().map(c => c.id)); }); await p.waitForTimeout(500);
+  // A step on the graph's curves at once.
+  await p.evaluate(() => { toolScope("graph"); toolDest("here"); setActiveCol(yCols()[0].id); openTool("norm"); }); await p.waitForTimeout(350);
+  const seg = await p.evaluate(() => [...document.querySelectorAll("[data-tlall]")].map(b => b.textContent + (b.getAttribute("aria-checked") === "true" ? "*" : "")));
+  check("the Tool window's Apply to: this column, this graph's curves, every column", seg.join("|") === "This column|This graph's 3 curves*|Every column (3)", seg.join("|"));
+  await p.click("#tlOk"); await p.waitForTimeout(400);
+  check("…a step for the graph's curves goes on each of them, one undo", await p.evaluate(() => yCols().every(c => (c.pipe || []).some(s => s.op === "norm"))));
+  await p.evaluate(() => undo()); await p.waitForTimeout(300);
+  await p.evaluate(() => { toolScope("graph"); toolDest("new"); openTool("smooth"); }); await p.waitForTimeout(350);
+  await p.click("#tlOk"); await p.waitForTimeout(600);
+  const ng = await p.evaluate(() => P().graphs.map(g => g.cols.map(id => specName(colById(id))).join(",")));
+  check("on a new graph: a new column from each curve, together on one graph, the curves untouched", ng.length === 2 && ng[1] === "A, smooth,B, smooth,C, smooth" && await p.evaluate(() => yCols().filter(c => !c.src).every(c => !(c.pipe || []).length)), JSON.stringify(ng));
+  await p.evaluate(() => undo()); await p.waitForTimeout(300); await p.evaluate(() => toolScope("col"));
+  // Lined up with another column on every shared peak, from Data › Calibrate.
+  await p.evaluate(() => { toolDest("here"); setActiveCol(yCols()[1].id); const it = menuItems("data").find(i => i && i.label === "Calibrate").sub().find(i => i && i.label === "Line up with another column…"); it.run(); }); await p.waitForTimeout(400);
+  const pr = await p.evaluate(() => ({ mode: S.pending.step.p.mode, col: specName(colById(S.pending.step.p.col)), rows: [...document.querySelectorAll("#pane-tool table.ptab tbody tr")].length }));
+  check("Line up with another column… opens on a column of the same graph, its shared peaks listed", pr.mode === "col" && pr.col === "A" && pr.rows === 8, JSON.stringify(pr));
+  await p.click("#tlOk"); await p.waitForTimeout(400);
+  const sh = await p.evaluate(() => finalOf(yCols()[1]).x[0] - 200);
+  check("B lined up with A on its 8 peaks: shifted by 1.37 within 0.02", Math.abs(sh - 1.37) < 0.02, sh);
+  const nt = await p.evaluate(() => { const r = pipeOf(yCols()[1]); return r.stages[1].note; });
+  check("its note: the pairs, the shift with its error, the residuals", /8 shared peaks/.test(nt) && /±/.test(nt), nt);
+  // A known position, centred by a fit (a new step) or by three points (a step from before keeps them).
+  const k = await p.evaluate(() => { setActiveCol(yCols()[2].id); openTool("calib"); const c = S.pending.step.p.centre; applyTool({ here: true }); return [c, finalOf(yCols()[2]).x[0] - 200]; }); await p.waitForTimeout(300);
+  check("a new reference step centres by a fit, and puts C's silicon peak right (−0.8 within 0.05)", k[0] === "fit" && Math.abs(k[1] + 0.8) < 0.05, JSON.stringify(k));
+}, { name: "25.11 graphs' curves and lining up", timeout: 120000 });
+
+await page(async p => {
+  const csv = k => "X,A,B\n" + Array.from({ length: 60 }, (_, i) => `${i},${(Math.sin(i / 5) * k + 5).toFixed(4)},${(Math.cos(i / 5) * k + 5).toFixed(4)}`).join("\n");
+  for (const n of ["one", "two", "three"]) await viaDialog(p, n + ".csv", csv(n.length));
+  await p.evaluate(() => { sheetList().forEach(s => plotCols(sheetCols(s.id).filter(c => c.role === "y").map(c => c.id))); if (!xplShown()) toggleXpl(true); }); await p.waitForTimeout(500);
+  const sel = () => p.evaluate(() => [...document.querySelectorAll("#xplTree .xr")].filter(e => e.getAttribute("aria-selected") === "true").map(e => e.querySelector(".xn").textContent));
+  const row = t => p.locator("#xplTree .xr", { has: p.locator(".xn", { hasText: new RegExp("^" + t + "$") }) }).first();
+  await row("Graph 1").click(); await row("Graph 3").click({ modifiers: ["Shift"] }); await p.waitForTimeout(150);
+  check("Shift+click selects the graphs between", (await sel()).join(",") === "Graph 1,Graph 2,Graph 3", (await sel()).join(","));
+  await row("Graph 2").click({ modifiers: ["Control"] }); await p.waitForTimeout(150);
+  check("Ctrl+click takes one out", (await sel()).join(",") === "Graph 1,Graph 3", (await sel()).join(","));
+  await row("Graph 1").click({ button: "right" }); await p.waitForTimeout(200);
+  const mi = await p.evaluate(() => [...document.querySelectorAll(".menu [role=menuitem]")].map(e => e.textContent.trim()));
+  check("their right-click: one menu for the two, combine, a figure, export, plot, process, move, delete", ["Combine into one graph", "As the panels of a figure", "Export as one picture", "Process their columns", "Move to"].every(t => mi.includes(t)) && mi.some(t => /^Delete them/.test(t)), mi.join(" | "));
+  await p.keyboard.press("Escape");
+  await p.evaluate(() => { xMultiMenu(xSelRows()).find(i => i && i.label === "Combine into one graph").run(); }); await p.waitForTimeout(500);
+  check("Combine into one graph: their four curves on one graph", JSON.stringify(await p.evaluate(() => P().graphs.map(g => g.cols.length))) === "[2,4]", await p.evaluate(() => JSON.stringify(P().graphs.map(g => g.cols.length))));
+  await p.evaluate(() => undo()); await p.waitForTimeout(300);
+  await row("Sheet 1").click(); await row("three").click({ modifiers: ["Shift"] }); await p.waitForTimeout(150);
+  await p.evaluate(() => { const pr = xMultiMenu(xSelRows()).find(i => i && /^Process/.test(i.label)); pr.sub().flatMap(i => i.sub ? i.sub : [i]).find(i => i.op === "norm").run(); }); await p.waitForTimeout(400);
+  const seg = await p.evaluate(() => [...document.querySelectorAll("[data-tlall]")].map(b => b.textContent + (b.getAttribute("aria-checked") === "true" ? "*" : "")).join("|"));
+  check("Process their columns: the Tool window applies to the 6 chosen", /The 6 chosen\*/.test(seg), seg);
+  await p.evaluate(() => { toolDest("here"); applyTool(); }); await p.waitForTimeout(400);
+  check("…a step on each of the three sheets' columns, one undo", await p.evaluate(() => yCols().every(c => (c.pipe || []).some(s => s.op === "norm"))) && await p.evaluate(() => { undo(); return yCols().every(c => !(c.pipe || []).length); }));
+  await p.waitForTimeout(300);
+  await row("Graph 1").click(); await row("Graph 3").click({ modifiers: ["Shift"] }); await row("Graph 2").press("Delete"); await p.waitForTimeout(500);
+  check("Delete on three graphs selected: all go", await p.evaluate(() => P().graphs.length) === 0);
+  await p.evaluate(() => undo()); await p.waitForTimeout(400);
+  check("…one undo brings the three back", await p.evaluate(() => P().graphs.length) === 3);
+  await row("two").click(); await row("three").click({ modifiers: ["Shift"] }); await p.evaluate(() => { xDeleteMany(xSelRows()); }); await p.waitForTimeout(400);
+  const dlg = await p.evaluate(() => (document.querySelector(".modal:not([hidden])") || {}).innerText || "");
+  check("deleting two sheets with values asks once", /Delete 2 sheets\?/.test(dlg) && /360 values/.test(dlg), dlg.slice(0, 160));
+  await p.click(".modal:not([hidden]) .btn.danger, .modal:not([hidden]) button:has-text('Delete them')"); await p.waitForTimeout(500);
+  check("…and both go, in one undo step", JSON.stringify(await p.evaluate(() => sheetList().map(s => s.name))) === '["Sheet 1"]' && JSON.stringify(await p.evaluate(() => { undo(); return sheetList().map(s => s.name); })) === '["Sheet 1","two","three"]', await p.evaluate(() => sheetList().map(s => s.name).join(",")));
+}, { name: "25.11 several selected", vw: { width: 1700, height: 950 }, timeout: 120000 });
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
