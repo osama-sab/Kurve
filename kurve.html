@@ -7902,6 +7902,60 @@ const NORM_TESTS=[["sw","Shapiro–Wilk","W",swTest,"w"],["lf","Lilliefors","D",
 const normTests=p=>{ const want=Array.isArray(p&&p.tests)?p.tests:["sw"]; const t=NORM_TESTS.map(e=>e[0]).filter(k=>want.includes(k)); return t.length?t:["sw"]; };
 /* ---- Comparing means and spreads (STATS_SPEC 2.3) ---- */
 const finVals=v=>{ const a=[]; for(const x of v||[]) if(x!=null&&Number.isFinite(x)) a.push(x); return a; };
+/* A dot plot's dots across a category (PLOT2_SPEC 7.1): py their places up the screen, r their radius, hw half
+   the room across. "jitter" scattered the same way every time (seed); "swarm" each as near the middle as it can
+   go touching none placed before it, taken in order up the screen (a beeswarm: the forbidden spans of the
+   neighbours within 2r, the nearest end outside them all); "stack" in rows 2r tall, side by side from the middle,
+   each row's dots at its centre. {dx, dy (the row's centre for "stack", else null), squeezed}: squeezed when they
+   needed more room than hw and were pressed in (and then overlap). A swarm far wider than its room (its rows' widest more than
+   1.6 hw) is unreadable and slow to work out: it is laid in rows instead, said by fell "stack". */
+function dotPlace(py,r,kind,hw,seed){ const n=py.length, dx=new Float64Array(n); let dy=null, fell=null;
+  if(kind==="swarm"){ const rows=new Map(); let wide=0; for(let i=0;i<n;i++){ const k=Math.floor(py[i]/(2*r)), m=(rows.get(k)||0)+1; rows.set(k,m); if(m>wide) wide=m; }
+    if((wide-1)*r>1.6*hw){ kind="stack"; fell="stack"; } }
+  if(kind==="swarm"){ const ord=Array.from({length:n},(_,i)=>i).sort((a,b)=>py[a]-py[b]||a-b), d2=4*r*r, placed=[]; let lo=0;
+    for(const i of ord){ while(lo<placed.length&&py[i]-py[placed[lo]]>=2*r) lo++;
+      // The neighbours' forbidden spans, merged: 0 if it is free, else the nearer end of the merged span holding it.
+      const iv=[]; for(let j=lo;j<placed.length;j++){ const q=placed[j], h=py[i]-py[q], w=Math.sqrt(Math.max(0,d2-h*h)); if(w>1e-9) iv.push([dx[q]-w,dx[q]+w]); }
+      let x=0; if(iv.length){ iv.sort((a,b)=>a[0]-b[0]); let a=iv[0][0], b=iv[0][1];
+        for(let k=1;k<=iv.length;k++){ if(k<iv.length&&iv[k][0]<b-1e-9){ if(iv[k][1]>b) b=iv[k][1]; continue; }
+          if(a<-1e-9&&b>1e-9){ x=b<=-a?b:a; break; } if(k<iv.length){ a=iv[k][0]; b=iv[k][1]; } } }
+      dx[i]=x; placed.push(i); } }
+  else if(kind==="stack"){ dy=new Float64Array(n); const rows=new Map(), h=2*r;
+    for(let i=0;i<n;i++){ const k=Math.floor(py[i]/h); if(!rows.has(k)) rows.set(k,[]); rows.get(k).push(i); }
+    rows.forEach((ids,k)=>{ const m=ids.length; ids.forEach((i,j)=>{ dx[i]=(j-(m-1)/2)*h; dy[i]=(k+0.5)*h; }); }); }
+  else for(let i=0;i<n;i++){ const j=((Math.sin((i+1)*12.9898+(seed||0)*78.233)*43758.5453)%1+1)%1-0.5; dx[i]=j*2*hw*0.85; }
+  let m=0; for(let i=0;i<n;i++) if(Math.abs(dx[i])>m) m=Math.abs(dx[i]);
+  const squeezed=kind!=="jitter"&&m>hw; if(squeezed){ const k=hw/m; for(let i=0;i<n;i++) dx[i]*=k; }
+  return {dx,dy,squeezed,fell}; }
+/* A pie's slices (PLOT2_SPEC 7.1): of items {i, v, …} those whose value is above zero (the rest counted in left), in their
+   order or, sort "desc", largest first (ties by row); each its share of the total and its ends a, b as fractions of a turn,
+   from Neumaier's running sums. {slices, tot, left}. */
+function pieSlices(items,sort){ let left=0; const sl=[];
+  for(const z of items){ if(Number.isFinite(z.v)&&z.v>0) sl.push(Object.assign({},z)); else if(z.v!=null) left++; }
+  if(sort==="desc") sl.sort((a,b)=>b.v-a.v||a.i-b.i);
+  const tot=neuSum(sl.map(z=>z.v)); let s0=0, c=0;
+  sl.forEach(z=>{ z.share=z.v/tot; z.a=(s0+c)/tot; const t=s0+z.v; c+=Math.abs(s0)>=Math.abs(z.v)?(s0-t)+z.v:(z.v-t)+s0; s0=t; z.b=Math.min(1,(s0+c)/tot); });
+  if(sl.length) sl[sl.length-1].b=1;
+  return {slices:sl,tot,left}; }
+/* A category's summary for a chart of categories (PLOT2_SPEC 7.1): stat "mean", "median", "sum" or "count"; err "none", or
+   for the mean "sd" (n − 1), "se" (SD/√n) or "ci" (the t interval at conf), for the median "iqr" (the quartiles, R's type 7)
+   or "ci" (the order statistics of the sign test's interval, its level as reached, `level`). {n, v, lo, hi, sd, se, level}
+   with lo and hi null where there is no interval; {n: 0, v: null} with no values. */
+function catSummary(vals,o){ o=o||{}; const x=finVals(vals), n=x.length, stat=o.stat||"mean", err=o.err||"none", conf=o.conf>0&&o.conf<1?o.conf:0.95;
+  const out=(v,lo,hi,more)=>Object.assign({n,v,lo:lo==null||!Number.isFinite(lo)?null:lo,hi:hi==null||!Number.isFinite(hi)?null:hi},more||{});
+  if(!n) return {n:0,v:null,lo:null,hi:null};
+  if(stat==="count") return out(n);
+  if(stat==="sum") return out(neuSum(x));
+  if(stat==="median"){ const s=x.slice().sort((a,b)=>a-b), med=medSorted(s,0,n);
+    if(err==="iqr") return out(med,quantileType(s,0.25,7),quantileType(s,0.75,7));
+    if(err==="ci"){ const a1=(1-conf)/2, B=DIST.binom; let k=0; while(k+1<=n&&B.cdf(k,n,0.5)<=a1) k++;
+      return k>=1?out(med,s[k-1],s[n-k],{level:1-2*B.cdf(k-1,n,0.5)}):out(med,null,null,{level:null}); }
+    return out(med); }
+  const M=msd(x), m=M.m, sd=n>1?M.sd:null, se=n>1?M.sd/Math.sqrt(n):null;
+  if(err==="sd"&&sd!=null) return out(m,m-sd,m+sd,{sd,se});
+  if(err==="se"&&se!=null) return out(m,m-se,m+se,{sd,se});
+  if(err==="ci"&&se!=null){ const t=tCrit(conf,n-1); return out(m,m-t*se,m+t*se,{sd,se,level:conf}); }
+  return out(m,null,null,{sd,se}); }
 // A t's p for the alternative: "two" (the difference either way), "less", "greater".
 const tAltP=(t,df,alt)=>alt==="less"?DIST.t.cdf(t,df):alt==="greater"?DIST.t.sf(t,df):Math.min(1,2*DIST.t.sf(Math.abs(t),df));
 // An estimate's interval at conf: two-sided, or the one bound the alternative gives.
@@ -16565,8 +16619,20 @@ function histCurve(c,kind){
   const u=out.xu?" "+out.xu:"", f=(v,e)=>fmtPM(v,e).replace(/<[^>]+>/g,"");
   const nm=(DIST_KINDS.find(q=>q[0]===kind)||[,kind])[1], ps=fit.names.map((n,i)=>`${n} = ${f(fit.p[i],fit.e[i])}${kind==="normal"?u:""}`).join(", ")+(kind==="exp"?` (mean ${fmt(fit.mean,4)}${u})`:"");
   return m[key]={fit,y,kind,text:`${nm}: ${ps}`,tip:`${nm} fitted to the ${fit.n} values by maximum likelihood: ${ps}. Kolmogorov–Smirnov D = ${fmt(fit.ks,3)}, p ≈ ${fmt(fit.pks,2)}.`}; }
-const LAYOUTS=[["overlay","Overlay"],["offset","Offset (waterfall)"],["stack","Stacked panels"],["dy","Two Y axes"],["heat","Heat map"],["box","Box chart"],["violin","Violin plot"]];
-const isDistLayout=l=>l==="box"||l==="violin";
+const LAYOUTS=[["overlay","Overlay"],["offset","Offset (waterfall)"],["stack","Stacked panels"],["dy","Two Y axes"],["heat","Heat map"],["box","Box chart"],["violin","Violin plot"],["dot","Dot plot"],["mean","Means with intervals"],["catbar","Columns by category"],["pie","Pie chart"]];
+// The charts of categories (PLOT2_SPEC 7.1): every curve, or every group of a column, a category along X.
+const DIST_LAYOUTS=["box","violin","dot","mean","catbar"], isDistLayout=l=>DIST_LAYOUTS.includes(l);
+// Kinds that are not curves against X and Y: the layouts only one curve list can be drawn as.
+const KIND_LAYOUTS=DIST_LAYOUTS.concat(["pie"]), isKindLayout=l=>KIND_LAYOUTS.includes(l);
+/* What a chart of means or of columns by category shows (cfg.distStat, distErr, distConf) and its words. */
+const DIST_STATS=[["mean","Mean"],["median","Median"],["sum","Sum"],["count","Count"]];
+const DIST_ERRS={mean:[["none","None"],["sd","± SD"],["se","± SE"],["ci","Confidence interval"]],median:[["none","None"],["iqr","Quartiles"],["ci","Confidence interval"]],sum:[["none","None"]],count:[["none","None"]]};
+const DOT_KINDS=[["jitter","Scattered"],["swarm","Side by side (a beeswarm)"],["stack","Stacked in rows"]];
+const DOT_LINES=[["none","None"],["mean","The mean"],["median","The median"]];
+function distStatOf(cfg){ const st=DIST_STATS.some(q=>q[0]===cfg.distStat)?cfg.distStat:"mean", er=(DIST_ERRS[st].some(q=>q[0]===cfg.distErr)?cfg.distErr:st==="mean"?"ci":"none");
+  const cf=+cfg.distConf>0&&+cfg.distConf<100?+cfg.distConf:95; return {stat:st,err:er,conf:cf}; }
+function distStatWords(o){ const w=(DIST_STATS.find(q=>q[0]===o.stat)||[,""])[1], e=o.err==="sd"?" ± SD":o.err==="se"?" ± SE":o.err==="iqr"?", quartiles":o.err==="ci"?`, ${fmt(o.conf,4)} % interval`:"";
+  return {w,e}; }
 const LEGENDS=[["auto","Emptiest corner"],["tr","Top right"],["tl","Top left"],["br","Bottom right"],["bl","Bottom left"],["out","Outside, right"],["below","Below the graph"],["off","No legend"]];
 // One spectrum's style: what was set for it, over the defaults (the analysed
 // one in the data colour with the toolbar's plot type, the others as lines in
@@ -17077,14 +17143,44 @@ function mapMenuItems(){
     {label:"Colour map",sub:()=>CMAP_LIST.map(([k,l])=>({label:l,radio:true,checked:(cfg.cmap||"viridis")===k,enabled:!ro,run:()=>setPlotKey("cmap",k,`coloured the map ${l.toLowerCase()}`)}))}]); }
 // The graph menu's Box chart / Violin plot: which, the whiskers, the values shown.
 const DIST_WHISK=[["tukey","To 1.5 IQR, the rest as outliers"],["range","To the smallest and largest"]];
+const DIST_LNAME={box:"a box chart",violin:"a violin plot",dot:"a dot plot",mean:"means with their intervals",catbar:"columns by category"};
+// The levels a confidence interval is offered at.
+const DIST_CONFS=[90,95,99];
 function distMenuItems(){
-  const cfg=plotCfg(), ro=S.readOnly||!P(), w=cfg.distWhisk==="range"?"range":"tukey";
-  return [{group:"Drawn as"},{label:"Box chart",radio:true,checked:cfg.layout==="box",enabled:!ro,run:()=>setPlotKey("layout","box","drew the columns as a box chart")},
-    {label:"Violin plot",radio:true,checked:cfg.layout==="violin",enabled:!ro,run:()=>setPlotKey("layout","violin","drew the columns as a violin plot")},
-    "-",{group:"Whiskers"}].concat(DIST_WHISK.map(([k,l])=>({label:l,radio:true,checked:w===k,enabled:!ro,run:()=>setPlotKey("distWhisk",k,`drew the whiskers ${k==="range"?"to the smallest and largest values":"to 1.5 IQR"}`)})),
-    ["-",{label:"Show the values",checked:!!cfg.distPts,enabled:!ro,title:"Every value as a dot, scattered across the box",run:()=>setPlotKey("distPts",!cfg.distPts,cfg.distPts?"hid the values":"showed the values")},
-      {label:"Notches",checked:!!cfg.distNotch,enabled:!ro&&cfg.layout==="box",title:"Each box narrowed round its median: two boxes whose notches do not overlap have medians that differ at about 95% confidence",run:()=>setPlotKey("distNotch",!cfg.distNotch,cfg.distNotch?"drew the boxes without notches":"notched the boxes")},
-      {label:"Grouped by",note:distByName(),sub:()=>distByItems()}]); }
+  const cfg=plotCfg(), ro=S.readOnly||!P(), w=cfg.distWhisk==="range"?"range":"tukey", L=cfg.layout, so=distStatOf(cfg);
+  const out=[{group:"Drawn as"}].concat(DIST_LAYOUTS.map(k=>({label:(LAYOUTS.find(q=>q[0]===k)||[,k])[1],radio:true,checked:L===k,enabled:!ro,run:()=>setPlotKey("layout",k,`drew the columns as ${DIST_LNAME[k]}`)})));
+  if(L==="box"||L==="violin") out.push("-",{group:"Whiskers"},...DIST_WHISK.map(([k,l])=>({label:l,radio:true,checked:w===k,enabled:!ro,run:()=>setPlotKey("distWhisk",k,`drew the whiskers ${k==="range"?"to the smallest and largest values":"to 1.5 IQR"}`)})));
+  if(L==="dot") out.push("-",{label:"Dots",note:(DOT_KINDS.find(q=>q[0]===(cfg.dotKind||"jitter"))||DOT_KINDS[0])[1].replace(/ \(.*/,""),sub:()=>DOT_KINDS.map(([k,l])=>({label:l,radio:true,checked:(cfg.dotKind||"jitter")===k,enabled:!ro,run:()=>setPlotKey("dotKind",k,`set the dots ${l.toLowerCase()}`)}))},
+    {label:"A line at",note:(DOT_LINES.find(q=>q[0]===(cfg.dotLine||"none"))||DOT_LINES[0])[1].toLowerCase(),sub:()=>DOT_LINES.map(([k,l])=>({label:l,radio:true,checked:(cfg.dotLine||"none")===k,enabled:!ro,run:()=>setPlotKey("dotLine",k==="none"?null:k,k==="none"?"took the line off the dots":`drew a line at each category's ${k}`)}))});
+  if(L==="mean"||L==="catbar") out.push("-",...distStatItems(cfg,ro));
+  if(L!=="dot") out.push("-",{label:"Show the values",checked:!!cfg.distPts,enabled:!ro&&(L==="box"||L==="violin"||so.stat==="mean"||so.stat==="median"),title:"Every value as a dot, scattered across its category",run:()=>setPlotKey("distPts",!cfg.distPts,cfg.distPts?"hid the values":"showed the values")});
+  if(L==="box") out.push({label:"Notches",checked:!!cfg.distNotch,enabled:!ro,title:"Each box narrowed round its median: two boxes whose notches do not overlap have medians that differ at about 95% confidence",run:()=>setPlotKey("distNotch",!cfg.distNotch,cfg.distNotch?"drew the boxes without notches":"notched the boxes")});
+  if(L==="mean") out.push({label:"Join the means",checked:!!cfg.distJoin,enabled:!ro,title:"A line through each curve's means, across the groups",run:()=>setPlotKey("distJoin",!cfg.distJoin,cfg.distJoin?"took the line off the means":"joined the means")});
+  if(L==="catbar") out.push({label:"Columns",note:(COL_STACK.find(q=>q[0]===(cfg.colStack||"side"))||COL_STACK[0])[1],title:"With several curves grouped by a column: side by side, or stacked at each group",sub:()=>COL_STACK.map(([k,l])=>({label:l,radio:true,checked:(cfg.colStack==="stack"||cfg.colStack==="pct"?cfg.colStack:"side")===k,enabled:!ro,run:()=>setPlotKey("colStack",k==="side"?null:k,k==="side"?"put the columns side by side":k==="stack"?"stacked the columns":"stacked the columns to 100 %")}))});
+  out.push({label:"Grouped by",note:distByName(),sub:()=>distByItems()}); return out; }
+// What means and columns by category show: the statistic, its interval, the interval's level.
+/* A pie's own settings (cfg.pie…): what the labels say and where, where the first slice starts and which way round,
+   a doughnut's hole, the slices' order; and every slice put back. Each one undo step. */
+const PIE_STARTS=[[90,"At the top"],[0,"At the right"],[270,"At the bottom"],[180,"At the left"]], PIE_HOLES=[[0,"None (a pie)"],[0.35,"Small"],[0.5,"Half the radius"],[0.65,"Large"]];
+function pieMenuItems(){ const cfg=plotCfg(), ro=S.readOnly||!P(), o=pieOpts(cfg), hasPull=graphCols().some(c=>Object.keys(((cfg.series||{})[c.id]||{}).pull||{}).length);
+  const togLab=k=>{ const a=o.labs.includes(k)?o.labs.filter(q=>q!==k):PIE_LABS.map(q=>q[0]).filter(q=>q===k||o.labs.includes(q)); setPlotKey("pieLab",a,a.length?`labelled the slices with ${andList(a.map(q=>(PIE_LABS.find(z=>z[0]===q)||[,q])[1].toLowerCase()))}`:"took the labels off the slices"); };
+  return [{group:"Labels"},...PIE_LABS.map(([k,l])=>({label:l,checked:o.labs.includes(k),enabled:!ro,run:()=>togLab(k)})),
+    {label:"Placed",note:(PIE_POS.find(q=>q[0]===o.pos)||[,""])[1].toLowerCase(),sub:()=>PIE_POS.map(([k,l])=>({label:l,radio:true,checked:o.pos===k,enabled:!ro,run:()=>setPlotKey("pieLabPos",k==="auto"?null:k,k==="none"?"took the labels off the slices":`put the slices' labels ${l.toLowerCase()}`)}))},
+    {label:"Decimals of the percentage",note:String(o.dec),sub:()=>[0,1,2,3].map(v=>({label:String(v),radio:true,checked:o.dec===v,enabled:!ro,run:()=>setPlotKey("pieDec",v===1?null:v,`gave the percentages ${v} decimal${v===1?"":"s"}`)}))},
+    "-",{label:"The first slice starts",note:((PIE_STARTS.find(q=>q[0]===o.start)||[,fmt(o.start,4)+"°"])[1]).toLowerCase(),sub:()=>PIE_STARTS.map(([v,l])=>({label:l,radio:true,checked:o.start===v,enabled:!ro,run:()=>setPlotKey("pieStart",v===90?null:v,`started the first slice ${l.toLowerCase()}`)}))},
+    {label:"Clockwise",checked:o.cw,enabled:!ro,run:()=>setPlotKey("pieCw",o.cw?false:null,o.cw?"laid the slices anticlockwise":"laid the slices clockwise")},
+    {label:"Largest slice first",checked:o.sort==="desc",enabled:!ro,title:"Off: the slices in the order of the rows",run:()=>setPlotKey("pieSort",o.sort==="desc"?null:"desc",o.sort==="desc"?"put the slices in the order of the rows":"put the largest slice first")},
+    {label:"Hole",note:(PIE_HOLES.find(q=>q[0]===o.hole)||[,fmt(o.hole*100,3)+" %"])[1].replace(" (a pie)","").toLowerCase(),title:"A doughnut: the middle left empty",sub:()=>PIE_HOLES.map(([v,l])=>({label:l,radio:true,checked:Math.abs(o.hole-v)<1e-9,enabled:!ro,run:()=>setPlotKey("pieHole",v||null,v?`made the pie a doughnut`:`filled the doughnut's hole`)}))},
+    "-",{label:"Put every slice back",enabled:!ro&&hasPull,run:()=>{ pushUndo("putting the slices back"); const series=Object.assign({},GP().series||{}); Object.keys(series).forEach(k=>{ if(series[k]&&series[k].pull){ series[k]=Object.assign({},series[k]); delete series[k].pull; } }); savePlot({series},"put every slice back"); renderPlot(); }}]; }
+// A pie's slice of a row pulled out by an eighth of the radius, or put back: one undo step.
+function pieTogglePull(id,row){ const p=P(), c=colById(id); if(!p||!c||S.readOnly||!Number.isInteger(row)) return;
+  const cur=Object.assign({},(((GP().series||{})[id]||{}).pull)||{}), on=!(+cur[row]>0), r=pieRings(plotCfg(),[{c,pts:seriesPoints(finalOf(c),false)}]).rings[0], z=r&&r.slices.find(q=>q.i===row), nm=z?z.name:`row ${row+1}`;
+  if(on) cur[row]=0.12; else delete cur[row];
+  setSeriesStyle(id,{pull:Object.keys(cur).length?cur:null},on?`pulled out the slice ${nm} of ${specName(c)}`:`put back the slice ${nm} of ${specName(c)}`); }
+function distStatItems(cfg,ro){ const so=distStatOf(cfg);
+  return [{label:"Shows",note:(DIST_STATS.find(q=>q[0]===so.stat)||[,""])[1].toLowerCase(),sub:()=>DIST_STATS.map(([k,l])=>({label:l,radio:true,checked:so.stat===k,enabled:!ro,run:()=>setPlotKey("distStat",k,`showed the ${k} of each category`)}))},
+    {label:"Interval",note:(DIST_ERRS[so.stat].find(q=>q[0]===so.err)||[,""])[1],enabled:DIST_ERRS[so.stat].length>1,sub:()=>DIST_ERRS[so.stat].map(([k,l])=>({label:l,radio:true,checked:so.err===k,enabled:!ro,run:()=>setPlotKey("distErr",k,k==="none"?"took the intervals off":`drew ${l==="Quartiles"?"the quartiles":k==="ci"?"confidence intervals":l.replace("± ","± the ")} as the intervals`)}))},
+    so.err==="ci"?{label:"Level",note:fmt(so.conf,4)+" %",sub:()=>DIST_CONFS.map(v=>({label:v+" %",radio:true,checked:so.conf===v,enabled:!ro,run:()=>setPlotKey("distConf",v===95?null:v,`drew ${v} % intervals`)}))}:null]; }
 // What a box or violin chart can be grouped by: a column of the active curve's sheet with numbers,
 // not a curve drawn; one with too many different values is offered greyed, with the reason.
 function distByName(){ const c=colById(plotCfg().distBy||""); return c?(c.name||colLetter(c)):""; }
@@ -18022,6 +18118,120 @@ function x2Layout(F,SX,len,o){
 }
 /* opt.inset {x0, x1, y0, y1} draws the graph over that range as a still picture
    in the screen's colours: an inset inside another graph. */
+/* A pie or doughnut chart (PLOT2_SPEC 7.1): each curve a ring (the table's order, the first outermost), each of its
+   points a slice whose size is its value's share of the ring (a value of zero or below, or a masked point, left out and
+   counted); a slice named by its row's X when X is text or categorical, else by the curve's labels column, else by its X
+   value, else by its row. cfg: pieStart (degrees, where the first slice starts; 90 the top), pieCw (clockwise), pieHole
+   (the hole, a fraction of the radius), pieLab (name, value, pct), pieLabPos (inside, outside, auto), pieDec (the share's
+   decimals), pieSort (data, desc); series[id].pull {row: fraction of the radius}. Slices of one name share a colour. */
+const PIE_LABS=[["name","Name"],["value","Value"],["pct","Percentage"]], PIE_POS=[["auto","Inside, or outside when thin"],["inside","Inside"],["outside","Outside"],["none","None"]];
+// What the labels say, as the Format pane offers it (a list kept as "name,pct").
+const PIE_LAB_SETS=[["name,pct","Name and percentage"],["name","Name"],["pct","Percentage"],["value","Value"],["name,value","Name and value"],["value,pct","Value and percentage"],["name,value,pct","Name, value and percentage"]];
+function pieOpts(cfg){ const raw=Array.isArray(cfg.pieLab)?cfg.pieLab:typeof cfg.pieLab==="string"?cfg.pieLab.split(","):null, labs=raw?PIE_LABS.map(q=>q[0]).filter(k=>raw.includes(k)):["name","pct"];
+  const st=+cfg.pieStart, h=+cfg.pieHole, d=+cfg.pieDec;
+  return {start:Number.isFinite(st)?((st%360)+360)%360:90,cw:cfg.pieCw!==false,hole:Number.isFinite(h)?Math.max(0,Math.min(0.8,h)):0,labs,
+    pos:PIE_POS.some(q=>q[0]===cfg.pieLabPos)?cfg.pieLabPos:"auto",dec:Number.isFinite(d)?Math.max(0,Math.min(6,Math.round(d))):1,sort:cfg.pieSort==="desc"||cfg.pieSort===true?"desc":"data"}; }
+// A slice's name: its row's X when X is text or categorical, the curve's labels column, its X value, or its row.
+function pieName(c,q,cfg){ const xc=xColFor(c); if(xc&&isCatCol(xc)){ const v=catVal(xc,q.i); if(v!=null&&v!=="") return typeof v==="number"?fmt(v,8):String(v); }
+  const lc=colById(curveUse(c.id,cfg).lab); if(lc){ const v=catVal(lc,q.i); if(v!=null&&v!=="") return typeof v==="number"?(lc.tfmt?tfmtText(v,lc.tfmt):fmt(v,8)):String(v); }
+  if(xc) return xc.tfmt?tfmtText(q.x,xc.tfmt):fmt(q.x,8); return "Row "+(q.i+1); }
+// The rings of a pie: {rings: [{c, tot, slices: [{i, name, v, share, a, b}], left}], names} (a, b the slice's ends as fractions of a turn).
+function pieRings(cfg,curves){ const o=pieOpts(cfg), names=[];
+  const rings=curves.map(({c,pts})=>{ const m=new Set(maskOf(c)), it=[];
+    pts.forEach(q=>{ if(!m.has(q.i)) it.push({i:q.i,v:q.y,name:pieName(c,q,cfg)}); });
+    const r=pieSlices(it,o.sort); r.slices.forEach(z=>{ if(!names.includes(z.name)) names.push(z.name); });
+    return {c,tot:r.tot,slices:r.slices,left:r.left}; }).filter(r=>r.slices.length);
+  return {rings,names,o}; }
+// Words on a filled colour: dark on a light one, white on a dark one (WCAG's relative luminance against 0.18).
+function inkOn(col,pal){ const m=/^#?([0-9a-f]{6})$/i.exec(String(col||"").trim()); if(!m) return pal.ink; const v=parseInt(m[1],16), ch=k=>{ const c=((v>>k)&255)/255; return c<=0.03928?c/12.92:((c+0.055)/1.055)**2.4; };
+  return 0.2126*ch(16)+0.7152*ch(8)+0.0722*ch(0)>0.18?"#111820":"#ffffff"; }
+// A point of a pie at radius r and a fraction f of a turn from the start, on the screen (y down).
+function pieAt(cx,cy,r,f,o){ const th=(o.start-(o.cw?1:-1)*f*360)*Math.PI/180; return [cx+r*Math.cos(th),cy-r*Math.sin(th)]; }
+function pieSvg(o){ const {W,H,pal,colEx,cfg,TS,ps,forExport,tk}=o, f1=v=>(+v).toFixed(1), f2=v=>(+v).toFixed(2);
+  const R0=pieRings(cfg,o.curves), po=R0.o, rings=R0.rings, sc=cfg.scheme||"kurve";
+  const colOf=name=>tintAt(Math.max(0,R0.names.indexOf(name)),!!colEx,sc);
+  let s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><rect width="${W}" height="${H}" fill="${pal.bg}"/>`;
+  const ed=k=>forExport?"":` data-axtitle="${k}" style="cursor:move"`;
+  let T=10, L=10, R=10, B=10;
+  if(cfg.title){ const ta=TS.title.align||"center"; T+=TS.title.size*1.25+6;
+    s+=richText(cfg.title,{attrs:ed("title"),x:(ta==="left"?L:ta==="right"?W-R:W/2)+numOr(cfg.titleDx,0),y:6+TS.title.size*0.95+numOr(cfg.titleDy,0),anchor:ta==="left"?"start":ta==="right"?"end":"middle",st:TS.title,fill:pal.ink}); }
+  // The legend: the slices' names, listed when the labels do not already say them.
+  const LS=TS.legend, lfs=LS.size, lh=lfs*numOr(cfg.legendSp,1)+5, lpad=6, legTitle=cfg.legendTitle||"";
+  const ents=R0.names.map(n=>({label:n,color:colOf(n)})), legOn=cfg.legend!=="off"&&ents.length>0&&(cfg.legend!=="auto"&&cfg.legend!=null||!po.labs.includes("name")||po.pos==="none");
+  const labOf=t=>t.length>60?t.slice(0,59)+"…":t, colW=ents.reduce((m,e)=>Math.max(m,richW(labOf(e.label),LS)),20)+18+6;
+  const below=cfg.legend==="below"; let legNc=Math.max(1,Math.min(ents.length||1,Math.round(numOr(cfg.legendCols,1))));
+  if(below&&(cfg.legendCols==null||cfg.legendCols==="")) legNc=Math.max(1,Math.min(ents.length||1,Math.floor((W-40)/(colW+10+lpad))));
+  const legRows=Math.ceil(ents.length/legNc), legW=Math.max(legTitle?richW(legTitle,Object.assign({},LS,{b:true}))+lpad*2:0,lpad*2+legNc*colW+(legNc-1)*10), legH=legRows*lh+lpad+(legTitle?lh:0);
+  const side=legOn&&(cfg.legend==="out"||cfg.legend==="auto"||cfg.legend==null);
+  if(side) R+=legW+14; if(legOn&&below) B+=legH+10;
+  const pw=Math.max(40,W-L-R), mh=Math.max(40,H-T-B), cx=L+pw/2, cy=T+mh/2, LB=TS.labels, ll=LB.size*1.15;
+  const textOf=z=>po.labs.map(k=>k==="name"?z.name:k==="value"?fmt(z.v,6):`${(z.share*100).toFixed(po.dec)} %`).filter(Boolean);
+  // Room for labels outside the outer ring.
+  const outer=rings[0], outerOut=po.pos==="outside"||po.pos==="auto";
+  const lwMax=outer&&outerOut&&po.labs.length?outer.slices.reduce((m,z)=>Math.max(m,...textOf(z).map(t=>richW(t,LB))),0):0;
+  const maxPull=Math.max(0,...rings.map(r=>Object.values(((cfg.series||{})[r.c.id]||{}).pull||{}).map(v=>Math.max(0,Math.min(0.3,+v||0))).reduce((a,b)=>Math.max(a,b),0)));
+  const padX=outerOut&&lwMax?lwMax+26:6, padY=(outerOut&&lwMax?ll*po.labs.length+10:6)+(rings.length>1?ll+6:0);
+  const Rr=Math.max(16,Math.min((pw-2*padX)/2,(mh-2*padY)/2)/(1+maxPull)), rIn=Rr*po.hole, nR=Math.max(1,rings.length), ringW=(Rr-rIn)/nR;
+  const geo={L,pw,T,mh,v:{x0:0,x1:1,y0:0,y1:1,xu:null},full:!!colEx,logY:false,logX:false,W,H,X:x=>L+x*pw,Y:y=>T+mh-y*mh,revX:false,handles:[],heat:true,dist:true,pie:{cx,cy,o:po,rings:[]},axes:null};
+  if(!forExport){ S.geo=geo; S.shownPts=[]; S.ps=ps; }
+  const annoCtx={cfg,pal,X:geo.X,Y:geo.Y,ps,forExport,colEx,fs:o.fs,sans:o.sans,L,pw,T,mh,heat:true,dist:true,TS,ptsAll:[],tk};
+  s+=annoSvg("under",annoCtx);
+  const out=[];
+  rings.forEach((rg,k)=>{ const r1=Rr-k*ringW, r0=r1-ringW, pull=((cfg.series||{})[rg.c.id]||{}).pull||{}, gr={id:rg.c.id,r0,r1,slices:[]};
+    let g=`<g data-ser="${rg.c.id}" data-ring="${k}">`;
+    rg.slices.forEach(z=>{ const pf=Math.max(0,Math.min(0.3,+pull[z.i]||0)), mid=(z.a+z.b)/2, [mx,my]=pieAt(0,0,1,mid,po), dx=mx*pf*Rr, dy=my*pf*Rr, col=colOf(z.name);
+      const P=(r,f)=>pieAt(cx+dx,cy+dy,r,f,po), sw=po.cw?1:0, big=z.b-z.a>0.5?1:0; let d;
+      if(z.b-z.a>=1-1e-12){ const a=P(r1,0), b=P(r1,0.5); d=`M${f2(a[0])},${f2(a[1])}A${f2(r1)},${f2(r1)} 0 1 ${sw} ${f2(b[0])},${f2(b[1])}A${f2(r1)},${f2(r1)} 0 1 ${sw} ${f2(a[0])},${f2(a[1])}Z`;
+        if(r0>0.5){ const c=P(r0,0), e=P(r0,0.5); d+=`M${f2(c[0])},${f2(c[1])}A${f2(r0)},${f2(r0)} 0 1 ${1-sw} ${f2(e[0])},${f2(e[1])}A${f2(r0)},${f2(r0)} 0 1 ${1-sw} ${f2(c[0])},${f2(c[1])}Z`; } }
+      else { const a=P(r1,z.a), b=P(r1,z.b);
+        d=`M${f2(a[0])},${f2(a[1])}A${f2(r1)},${f2(r1)} 0 ${big} ${sw} ${f2(b[0])},${f2(b[1])}`;
+        if(r0>0.5){ const c=P(r0,z.b), e=P(r0,z.a); d+=`L${f2(c[0])},${f2(c[1])}A${f2(r0)},${f2(r0)} 0 ${big} ${1-sw} ${f2(e[0])},${f2(e[1])}Z`; } else d+=`L${f2(cx+dx)},${f2(cy+dy)}Z`; }
+      const tip=`${z.name}: ${fmt(z.v,6)}${finalOf(rg.c).yu?" "+finalOf(rg.c).yu:""}, ${(z.share*100).toFixed(Math.max(po.dec,1))} % of ${specName(rg.c)}${pf?" (pulled out)":""}`;
+      g+=`<path data-slice="${z.i}" d="${d}" fill="${col}" fill-opacity="0.92" stroke="${pal.bg}" stroke-width="1.2" stroke-linejoin="round">${forExport?"":`<title>${esc(tip)}</title>`}</path>`;
+      gr.slices.push({i:z.i,name:z.name,v:z.v,share:z.share,a:z.a,b:z.b,dx,dy});
+      // Its label: inside when it fits (or asked), else outside the outer ring with a leader.
+      const lines=po.pos==="none"?[]:textOf(z); if(!lines.length) return;
+      const w=Math.max(...lines.map(t=>richW(t,LB))), hgt=ll*lines.length, rm=r0>0.5?(r0+r1)/2:r1*0.62, [lx,ly]=P(rm,mid);
+      // It fits when every corner of its box (and a little more) is inside the slice.
+      const inSl=(px,py)=>{ const u=px-cx-dx, v=-(py-cy-dy), r=Math.hypot(u,v); if(r<r0||r>r1) return false; if(z.b-z.a>=1-1e-12) return true;
+        const th=Math.atan2(v,u)*180/Math.PI, f=((((po.start-th)*(po.cw?1:-1))%360)+360)%360/360; return f>=z.a&&f<=z.b; };
+      const fits=[[-1,-1],[1,-1],[1,1],[-1,1]].every(([a,b])=>inSl(lx+a*(w/2+3),ly+b*(hgt/2+2)));
+      if(po.pos==="inside"||(po.pos==="auto"&&(fits||k>0))){ if(po.pos==="auto"&&!fits) return;
+        lines.forEach((t,j)=>{ g+=richText(t,{x:lx,y:ly-hgt/2+ll*(j+0.78),anchor:"middle",st:Object.assign({},LB,{color:LB.color||null}),fill:inkOn(col,pal),attrs:` pointer-events="none"`}); }); }
+      else if(k===0) out.push({z,lines,w,hgt,mid,dx,dy,r1}); });
+    s+=g+`</g>`; geo.pie.rings.push(gr); });
+  // Labels outside: on each side in order down the page, pushed apart so none overlap, a leader back to the slice.
+  [1,-1].forEach(sd=>{ const L0=out.filter(q=>(Math.cos((po.start-(po.cw?1:-1)*q.mid*360)*Math.PI/180)>=0?1:-1)===sd).map(q=>{ const e=pieAt(cx+q.dx,cy+q.dy,q.r1,q.mid,po), m=pieAt(cx+q.dx,cy+q.dy,q.r1+10,q.mid,po); return Object.assign(q,{e,m,y:m[1]}); }).sort((a,b)=>a.y-b.y);
+    for(let i=1;i<L0.length;i++){ const need=L0[i-1].y+(L0[i-1].hgt+L0[i].hgt)/2+2; if(L0[i].y<need) L0[i].y=need; }
+    const lim=T+mh-6; for(let i=L0.length-1;i>=0;i--){ const mx=i===L0.length-1?lim-L0[i].hgt/2:L0[i+1].y-(L0[i+1].hgt+L0[i].hgt)/2-2; if(L0[i].y>mx) L0[i].y=mx; }
+    L0.forEach(q=>{ const tx=cx+sd*(Rr*(1+maxPull)+16), col=pal.muted;
+      s+=`<path data-pielead="1" d="M${f1(q.e[0])},${f1(q.e[1])}L${f1(q.m[0])},${f1(q.m[1])}L${f1(tx-sd*4)},${f1(q.y)}" fill="none" stroke="${col}" stroke-width="0.9" pointer-events="none"/>`;
+      q.lines.forEach((t,j)=>{ s+=richText(t,{x:tx,y:q.y-q.hgt/2+ll*(j+0.78),anchor:sd>0?"start":"end",st:LB,fill:pal.ink,attrs:` pointer-events="none"`}); }); }); });
+  if(!rings.length) s+=`<text x="${f1(cx)}" y="${f1(cy)}" text-anchor="middle"${tAt(TS.labels,pal.muted)}>No values above zero to make slices of</text>`;
+  // Several rings: which is which, under the pie.
+  if(rings.length>1) s+=`<text data-pierings="1" x="${f1(cx)}" y="${f1(Math.min(T+mh-3,cy+Rr*(1+maxPull)+(outerOut&&lwMax?ll*po.labs.length+8:0)+ll+2))}" text-anchor="middle"${tAt(LB,pal.muted)}>${esc("Rings, outside in: "+rings.map(r=>specName(r.c)).join(", "))}</text>`;
+  geo.pie.left=rings.reduce((t,r)=>t+r.left,0)+o.curves.filter(z=>!rings.some(r=>r.c===z.c)).reduce((t,z)=>t+z.pts.filter(q=>q.y!=null).length,0);
+  s+=annoSvg("lines",annoCtx)+annoSvg("top",annoCtx);
+  if(legOn){ const tl=legTitle?lh:0, frame=cfg.legendFrame!==false; let bx=W-legW-8, by=T;
+    const corners={tr:[L+pw-legW-8,T+8],tl:[L+8,T+8],br:[L+pw-legW-8,T+mh-legH-8],bl:[L+8,T+mh-legH-8]};
+    if(cfg.legend==="custom"&&cfg.legendPos){ bx=Math.max(2,Math.min(W-legW-2,L+cfg.legendPos.fx*pw)); by=Math.max(2,Math.min(H-legH-2,T+cfg.legendPos.fy*mh)); }
+    else if(below){ bx=Math.max(2,Math.min(W-legW-2,L+pw/2-legW/2)); by=H-legH-6; } else if(corners[cfg.legend]) [bx,by]=corners[cfg.legend];
+    if(!forExport) geo.legend={x:bx,y:by,w:legW,h:legH};
+    s+=`<g class="legend"${forExport?"":` data-legbox="1" style="cursor:move"`}>`;
+    const blw=numOr(cfg.legendLw,1);
+    if(frame) s+=`<rect x="${f1(bx)}" y="${f1(by)}" width="${f1(legW)}" height="${f1(legH)}" fill="${esc(cfg.legendFill||pal.bg)}" fill-opacity="${numOr(cfg.legendOp,0.85)}"${blw>0?` stroke="${esc(cfg.legendBd||pal.grid)}" stroke-width="${blw}"`:""} rx="${numOr(cfg.legendR,3)}"/>`;
+    else if(!forExport) s+=`<rect x="${f1(bx)}" y="${f1(by)}" width="${f1(legW)}" height="${f1(legH)}" fill="transparent"/>`;
+    if(legTitle) s+=richText(legTitle,{attrs:forExport?"":` data-legtitle="1"`,x:bx+lpad,y:by+lpad/2+lh/2+lfs*0.35,st:Object.assign({},LS,{b:true}),fill:pal.ink});
+    ents.forEach((e,i)=>{ const r=below?Math.floor(i/legNc):i%legRows, ci=below?i%legNc:Math.floor(i/legRows), sx=bx+lpad+ci*(colW+10), yy=by+lpad/2+tl+lh*r+lh/2;
+      s+=`<g data-legslice="${i}"><rect x="${f1(sx+2)}" y="${f1(yy-5)}" width="12" height="10" rx="2" fill="${e.color}"/>`+richText(labOf(e.label),{x:sx+18+6,y:yy+lfs*0.35,st:LS,fill:cfg.legendText==="match"?e.color:pal.ink})+`</g>`; });
+    s+=`</g>`; }
+  if(cfg.figLetter){ const ls=Math.round(TS.title.size); s+=`<text x="${(L+7).toFixed(1)}" y="${(T+ls+3).toFixed(1)}"${tAt(Object.assign({},TS.title,{size:ls,b:true,i:false,u:false}),pal.ink)} stroke="${pal.bg}" stroke-width="3" stroke-linejoin="round" paint-order="stroke" pointer-events="none">${esc(cfg.figLetter)}</text>`; }
+  return s+`</svg>`; }
+// The slice of a pie under a point of the screen: {ring, z} or null.
+function pieHit(g,x,y){ const P=g&&g.pie; if(!P) return null; const o=P.o;
+  for(const rg of P.rings) for(const z of rg.slices){ const u=x-P.cx-z.dx, v=-(y-P.cy-z.dy), r=Math.hypot(u,v); if(r<rg.r0-0.5||r>rg.r1+0.5) continue;
+    const th=Math.atan2(v,u)*180/Math.PI, f=((((o.start-th)*(o.cw?1:-1))%360)+360)%360/360; if(f>=z.a-1e-12&&f<z.b+1e-12) return {ring:rg,z}; }
+  return null; }
 function buildPlot(W,H,pal,colEx,opt){
   const ins=opt&&opt.inset||null, forExport=colEx||!!ins;
   const p=P(), cfg=plotCfg(), logY=!!cfg.logY, logX=!!cfg.logX;
@@ -18060,6 +18270,9 @@ function buildPlot(W,H,pal,colEx,opt){
   // An X column of dates or times numbers its axis as dates or times, unless the axis is told otherwise.
   { const xc=act&&xColFor(act), ax=cfg.ax.x||{}; if(xc&&xc.tfmt&&!fX&&!logX&&(!ax.fmt||ax.fmt==="auto")&&(ps.d.xn||"")===(xc.name||"")&&(ps.d.xu||"")===(xc.unit||"")) cfg.ax.x=Object.assign({},ax,{fmt:xc.tfmt}); }
   const XA=axisCfg(cfg,"x"), YA=axisCfg(cfg,"y"), Y2A=axisCfg(cfg,"y2"), X2=axisCfg(cfg,"x2"), FR=frameOf(cfg);
+  // A pie or doughnut chart: no axes, each curve a ring (PLOT2_SPEC 7.1).
+  if(layout==="pie"&&!ins&&!MAT&&act){ const curves=yCols().filter(c=>c===act||oser.some(o=>o.c===c)).map(c=>({c,pts:c===act?pts:oser.find(o=>o.c===c).pts}));
+    return pieSvg({W,H,pal,colEx,cfg,TS,ps,forExport,fs,sans,tk,curves}); }
   // The offset between traces of a waterfall: a fraction of the tallest one.
   let offStep=0;
   if(layout==="offset"&&oser.length){ const span=q=>{ let a=Infinity,b=-Infinity; q.forEach(z=>{ if(z.y<a)a=z.y; if(z.y>b)b=z.y; }); return b>a?b-a:0; };
@@ -18114,22 +18327,36 @@ function buildPlot(W,H,pal,colEx,opt){
   /* A box or violin chart: each spectrum's values (its masked points left out)
      at a category of its own, in the table's order, X numbered by their names. */
   const dist=distL&&ps.final, distC=dist?yCols().filter(c=>c===act||oser.some(o=>o.c===c)):null;
-  let distV=null, distK=null, distG=null, distBy=null;
+  let distV=null, distK=null, distG=null, distBy=null, distS=null, distSO=null, distStk=null;
   if(dist){ const raw=distC.map(c=>{ const src=c===act?pts:((oser.find(o=>o.c===c)||{}).pts||[]), m=new Set(maskOf(c)); return src.filter(q=>Number.isFinite(q.y)&&!m.has(q.i)&&(!logY||q.y>0)); });
     // Grouped by another column (cfg.distBy): each curve's values split by that column's value in
     // their row, a cluster per group along X with a box per curve side by side, in its colour.
     distBy=cfg.distBy?colById(cfg.distBy):null; if(distBy&&!Array.isArray(distBy.data)) distBy=null;
     if(distBy){ const go={text:true,order:catOrderKeys(distBy)}, gs=raw.map(a=>distGroups(a.map(q=>q.y),a.map(q=>catVal(distBy,q.i)),null,go)), ks=distKeySort([...new Set([].concat(...gs.map(g=>g.keys||[])))],go.order);
       if(gs.some(g=>g.fail)||ks.length>DIST_GMAX||!ks.length) distBy=null; else distG={keys:ks,gs}; }
-    const nC=distC.length, sl=distG&&nC>1?0.8/nC:1;
-    distK=distG?[].concat(...distG.keys.map((g,j)=>distC.map((c,k)=>{ const gi=distG.gs[k].keys.indexOf(g); return {c,k,j,g,x:j+1+(k-(nC-1)/2)*sl,w:sl,vals:gi<0?[]:distG.gs[k].by[gi]}; })))
+    const nC=distC.length;
+    // Columns by category, grouped by a column, several curves: side by side, or stacked (cfg.colStack) at each group.
+    distStk=layout==="catbar"&&distG&&nC>1&&!logY&&(cfg.colStack==="stack"||cfg.colStack==="pct")?cfg.colStack:null;
+    const sl=distStk?1:distG&&nC>1?0.8/nC:1;
+    distK=distG?[].concat(...distG.keys.map((g,j)=>distC.map((c,k)=>{ const gi=distG.gs[k].keys.indexOf(g); return {c,k,j,g,x:distStk?j+1:j+1+(k-(nC-1)/2)*sl,w:sl,vals:gi<0?[]:distG.gs[k].by[gi]}; })))
       :distC.map((c,k)=>({c,k,j:k,g:null,x:k+1,w:1,vals:raw[k].map(q=>q.y)}));
     distV=distK.map(q=>q.vals);
-    let lo=Infinity, hi=-Infinity; distV.forEach(a=>a.forEach(y=>{ if(y<lo) lo=y; if(y>hi) hi=y; }));
+    // Means and columns: each category's statistic and interval (catSummary), stacked where asked.
+    if(layout==="mean"||layout==="catbar"){ distSO=distStatOf(cfg); distS=distK.map(q=>catSummary(q.vals,{stat:distSO.stat,err:distSO.err,conf:distSO.conf/100}));
+      if(distStk){ const up={}, dn={}, tot={}; if(distStk==="pct") distK.forEach((q,i)=>{ const v=distS[i].v; if(v!=null) tot[q.j]=(tot[q.j]||0)+Math.abs(v); });
+        distK.forEach((q,i)=>{ const v0=distS[i].v; if(v0==null) return; const v=distStk==="pct"?(tot[q.j]>0?v0/tot[q.j]*100:0):v0, M=v>=0?up:dn, b=M[q.j]||0; M[q.j]=b+v; distS[i]=Object.assign({},distS[i],{from:b,to:b+v,lo:null,hi:null}); }); } }
+    let lo=Infinity, hi=-Infinity; const see=y=>{ if(y!=null&&Number.isFinite(y)&&(!logY||y>0)){ if(y<lo) lo=y; if(y>hi) hi=y; } };
+    if(distS){ distS.forEach(z=>{ see(z.v); see(z.lo); see(z.hi); if(z.from!=null){ see(z.from); see(z.to); } });
+      // the values beside a mean or a median, which are in their units.
+      if(cfg.distPts&&(distSO.stat==="mean"||distSO.stat==="median")&&!distStk) distV.forEach(a=>a.forEach(see)); }
+    else distV.forEach(a=>a.forEach(see));
+    const zeroBase=layout==="catbar"&&!logY; if(zeroBase){ see(0); }
     if(!(hi>=lo)){ lo=logY?1:0; hi=logY?10:1; } if(hi===lo){ const d=Math.abs(lo)*0.1||1; lo=logY?lo/2:lo-d; hi=logY?hi*2:hi+d; }
     // A violin reaches past the values by its kernel.
     if(layout==="violin"&&!logY){ const ext=distV.reduce((m,a)=>Math.max(m,a.length>1?2*kdeBandwidth(a):0),0); lo-=ext; hi+=ext; }
     let y0, y1; if(logY){ const a=Math.log10(lo), b=Math.log10(hi), d=(b-a)*0.06||0.3; y0=10**(a-d); y1=10**(b+d); } else { const d=(hi-lo)*0.06; y0=lo-d; y1=hi+d; }
+    // Columns stand on zero.
+    if(zeroBase){ if(lo>=0) y0=0; if(hi<=0) y1=0; }
     const ay=cfg.ax.y||{}; if(ay.min!=null&&ay.min!=="") y0=+ay.min; if(ay.max!=null&&ay.max!=="") y1=+ay.max;
     v={x0:0.5,x1:(distG?distG.keys.length:distC.length)+0.5,y0,y1,xu:null}; }
   // Breaks: ranges left out of X (every layout but the heat map) and of Y (overlaid or offset spectra).
@@ -18146,7 +18373,7 @@ function buildPlot(W,H,pal,colEx,opt){
   if(act&&!heat&&!dist) entries.push(Object.assign({},actSt,{id:act.id,label:(actSt.label||act.name||"Y")+(ps.final?"":` (${stageName(ps)})`)+(dy?" (left)":"")}));
   if(!heat&&!dist) oser.forEach(o=>{ const st=serStyle(o.c.id,false,pal,colEx,cfg); entries.push(Object.assign({},st,{id:o.c.id,label:(st.label||o.c.name||"column")+(dy?onR(o)?" (right)":" (left)":"")})); });
   // Grouped boxes of several curves: the legend says which colour is which curve.
-  if(dist&&distG&&distC.length>1) distC.forEach(c=>{ const st=serStyle(c.id,c===act,pal,colEx,cfg); entries.push({type:"column",color:st.color,label:st.label||c.name||"column",id:c.id,leg:st.leg}); });
+  if(dist&&distG&&distC.length>1) distC.forEach(c=>{ const st=serStyle(c.id,c===act,pal,colEx,cfg); entries.push({type:layout==="mean"||layout==="dot"?"scatter":"column",sym:layout==="mean"?st.sym:"circle",color:st.color,label:st.label||c.name||"column",id:c.id,leg:st.leg}); });
   if(!forExport&&!heat&&!dist) stageLegend(ps,pal).forEach(e=>{ if(showGhost||e.color!==pal.muted) entries.push({type:"line",color:e.color,lw:e.thin?1.3:2.2,dash:e.dash?"dash":"solid",label:e.label}); });
   // Distributions over histograms: each curve's, in the legend after its histogram.
   const distOn=(!heat&&!dist&&(!layout||layout==="overlay"))?[act].concat(oser.map(o=>o.c)).filter(c=>c&&((cfg.series||{})[c.id]||{}).dist).map(c=>({c,h:histCurve(c,cfg.series[c.id].dist)})).filter(q=>q.h&&!q.h.fail):[];
@@ -18407,7 +18634,40 @@ function buildPlot(W,H,pal,colEx,opt){
   // Boxes: the quartiles, the median, whiskers to the furthest values within 1.5 IQR (or to the
   // extremes), the rest as outliers, the mean as a diamond. Violins: each spectrum's kernel
   // density, mirrored, with a thin box and the median inside. The values themselves, if asked.
-  if(dist){ const range=cfg.distWhisk==="range", notch=!!cfg.distNotch&&layout==="box", byName=distBy?(distBy.name||colLetter(distBy)):"";
+  /* Dot plots, means with their intervals, columns by category (PLOT2_SPEC 7.1): each category at its place, in
+     its curve's colour; the statistic and its interval from catSummary, said in its tooltip. */
+  if(dist&&layout!=="box"&&layout!=="violin"){ const byName=distBy?(distBy.name||colLetter(distBy)):"", sw=distSO?distStatWords(distSO):null, num=v=>fmt(v,5);
+    const zeroY=logY?T+mh:Math.max(T,Math.min(T+mh,Y(0))), clipY=y=>Math.max(T-2,Math.min(T+mh+2,y));
+    // The values as dots behind a mean or a column, scattered the same way every time.
+    const valDots=(vals,cx,hw,col,k)=>{ let d=""; vals.slice(0,5000).forEach((y,i)=>{ const j=((Math.sin((i+1)*12.9898+k*78.233)*43758.5453)%1+1)%1-0.5, yy=Y(y); if(Number.isFinite(yy)&&(!logY||y>0)) d+=`M${f1(cx+j*hw*1.1)},${f1(yy)}h0`; });
+      return d?`<path d="${d}" stroke="${col}" stroke-opacity="0.45" stroke-width="3" stroke-linecap="round" fill="none"/>`:""; };
+    // A line through each curve's means, across the groups.
+    if(layout==="mean"&&cfg.distJoin&&distS) distC.forEach(c=>{ const st=serStyle(c.id,c===act,pal,colEx,cfg), q=distK.map((z,i)=>[z,distS[i]]).filter(([z,m])=>z.c===c&&m.v!=null&&(!logY||m.v>0)).sort((a,b)=>a[0].x-b[0].x), ds=DASHES[st.dash];
+      if(q.length>1&&ds!==null) s+=`<path data-distjoin="${c.id}" d="M${q.map(([z,m])=>f1(X(z.x))+","+f1(Y(m.v))).join("L")}" fill="none" stroke="${st.color}" stroke-width="${st.lw}"${ds?` stroke-dasharray="${ds}"`:""}/>`; });
+    distK.forEach((q,k)=>{ const vals=q.vals, c=q.c, st=serStyle(c.id,c===act,pal,colEx,cfg), col=st.color, cx=X(q.x), hw=Math.max(3,Math.abs(X(1+0.34*q.w)-X(1)));
+      const where=q.g!=null?` where ${byName} is ${typeof q.g==="number"?fmt(q.g,6):q.g}`:""; let g="", tip=`${specName(c)}${where}: `;
+      if(layout==="dot"){ const r=st.ss!=null?Math.max(1,+st.ss):3, kind=DOT_KINDS.some(z=>z[0]===cfg.dotKind)?cfg.dotKind:"jitter", ys=[], yv=[];
+        vals.forEach(y=>{ const yy=Y(y); if(Number.isFinite(yy)&&(!logY||y>0)){ ys.push(yy); yv.push(y); } });
+        const pl=dotPlace(ys,r,kind,Math.max(hw,r),k); let d="";
+        for(let i=0;i<ys.length;i++) d+=`M${f1(cx+pl.dx[i])},${f1(pl.dy?pl.dy[i]:ys[i])}h0`;
+        if(d) g+=`<path d="${d}" stroke="${col}" stroke-opacity="${Math.max(0.25,Math.min(1,st.op)).toFixed(2)}" stroke-width="${f1(2*r)}" stroke-linecap="round" fill="none"/>`;
+        const ln=DOT_LINES.some(z=>z[0]===cfg.dotLine)?cfg.dotLine:"none";
+        if(ln!=="none"&&yv.length){ const z=catSummary(yv,{stat:ln}); if(z.v!=null) g+=`<path data-dotline="${ln}" d="M${f1(cx-hw)},${f1(Y(z.v))}H${f1(cx+hw)}" stroke="${pal.ink}" stroke-width="2"/>`; }
+        tip+=`${yv.length} values${pl.fell?", too many to set side by side: laid in rows, pressed together":pl.squeezed?", too many to set side by side: some overlap":""}`; }
+      else { const m=distS[k];
+        if(m.v==null||(logY&&!(m.v>0))) tip+="no values";
+        else { const yv=Y(m.v), cap=Math.min(hw*0.45,7), ebw=st.ebLw||1;
+          tip+=`${m.n} values, ${sw.w.toLowerCase()} ${num(m.v)}`+(distSO.err==="sd"&&m.sd!=null?` ± ${fmt(m.sd,4)} (SD)`:distSO.err==="se"&&m.se!=null?` ± ${fmt(m.se,4)} (SE)`:distSO.err==="iqr"&&m.lo!=null?`, quartiles ${num(m.lo)} to ${num(m.hi)}`:distSO.err==="ci"&&m.lo!=null?`, ${fmt(m.level!=null?m.level*100:distSO.conf,4)} % interval ${num(m.lo)} to ${num(m.hi)}`:distSO.err!=="none"&&!m.from?", no interval (too few values)":"");
+          if(layout==="catbar"){ const a=m.from!=null?clipY(Y(m.from)):zeroY, b=clipY(Y(m.to!=null?m.to:m.v)), bw=Math.max(2,Math.abs(X(1+0.4*q.w)-X(1)));
+            if(m.from!=null) tip+=distStk==="pct"?`, ${fmt(m.to-m.from,4)} % of the column`:`, stacked from ${num(m.from)} to ${num(m.to)}`;
+            g+=`<path data-catbar="${k}" d="M${f1(cx-bw)},${f1(a)}V${f1(b)}H${f1(cx+bw)}V${f1(a)}Z" fill="${col}" fill-opacity="${(Math.max(0.15,Math.min(1,0.85*st.op))).toFixed(2)}" stroke="${pal.bg}" stroke-width="0.9"/>`; }
+          if(cfg.distPts&&!m.from&&(distSO.stat==="mean"||distSO.stat==="median")) g+=valDots(vals,cx,hw,col,k);
+          if(m.lo!=null&&m.hi!=null){ const a=clipY(Y(m.lo)), b=clipY(Y(m.hi));
+            g+=`<path data-distci="${k}" d="M${f1(cx)},${f1(a)}V${f1(b)}M${f1(cx-cap)},${f1(a)}H${f1(cx+cap)}M${f1(cx-cap)},${f1(b)}H${f1(cx+cap)}" stroke="${layout==="catbar"?pal.ink:col}" stroke-width="${ebw}" fill="none"/>`; }
+          if(layout==="mean"){ const rr=st.ss!=null?Math.max(1.5,+st.ss):4, op=symOpen(st.sym);
+            g+=`<path data-distmean="${k}" d="${symD(st.sym,cx,yv,rr)}" fill="${op?(/^o/.test(st.sym)?pal.bg:"none"):col}" stroke="${op?col:pal.bg}" stroke-width="${op?1.4:0.8}"/>`; } } }
+      s+=`<g data-dist="${k}"${q.g!=null?` data-distg="${esc(String(q.g))}"`:""}>${forExport?"":`<title>${esc(tip)}</title>`}${g}</g>`; }); }
+  if(dist&&(layout==="box"||layout==="violin")){ const range=cfg.distWhisk==="range", notch=!!cfg.distNotch&&layout==="box", byName=distBy?(distBy.name||colLetter(distBy)):"";
     distK.forEach((q,k)=>{ const vals=q.vals, c=q.c; if(!vals.length) return; const hw=Math.max(3,Math.abs(X(1+0.34*q.w)-X(1))), st=serStyle(c.id,c===act,pal,colEx,cfg), col=st.color, b=boxStats(vals), cx=X(q.x);
       const lo=range?b.min:b.lo, hi=range?b.max:b.hi, Yq=y=>Y(y), tip=`${specName(c)}${q.g!=null?` where ${byName} is ${fmt(q.g,6)}`:""}: ${b.n} values, median ${fmt(b.med,4)}${notch?` (its notch ${fmt(b.notch[0],4)} to ${fmt(b.notch[1],4)})`:""}, quartiles ${fmt(b.q1,4)} to ${fmt(b.q3,4)}, mean ${fmt(b.mean,4)} ± ${fmt(b.sd,3)} (SD)${!range&&b.out.length?`, ${b.out.length} beyond the whiskers`:""}`;
       let g=`<g data-dist="${k}"${q.g!=null?` data-distg="${esc(String(q.g))}"`:""}>${forExport?"":`<title>${esc(tip)}</title>`}`;
@@ -18742,7 +19002,11 @@ function buildPlot(W,H,pal,colEx,opt){
     s+=f; }
   // The axis titles, beside their numbers, wherever the axes went.
   // A box or violin chart is titled by what its values are: one name and unit, or one unit, or "Value".
-  const distYl=dist?(()=>{ const ds=distC.map(finalOf), nm=new Set(ds.map(d=>d.yn0||d.yn||"")), un=new Set(ds.map(d=>d.yu||"")); return axisLabel(nm.size===1&&distC.length===1?[...nm][0]:"Value",un.size===1?[...un][0]:"","Value"); })():"";
+  const distYl=dist?(()=>{ const ds=distC.map(finalOf), nm=new Set(ds.map(d=>d.yn0||d.yn||"")), un=new Set(ds.map(d=>d.yu||"")), one=nm.size===1&&distC.length===1?[...nm][0]:"", u=un.size===1?[...un][0]:"";
+    // Means and columns are titled by what they show: "Mean of Yield (t/ha), 95 % interval".
+    if(distSO){ const sw=distStatWords(distSO); if(distStk==="pct") return "Share (%)"; if(distSO.stat==="count") return "Count";
+      return axisLabel(one?`${sw.w} of ${one}`:sw.w,u,sw.w)+(distStk?"":sw.e); }
+    return axisLabel(one||"Value",u,"Value"); })():"";
   const yl=cfg.ax.y.title||(MAT?axisLabel(MAT.yname||"Y",MAT.yunit||"","Y"):heat?(mapS?seriesLabel():"Column"):dist?distYl:colStk&&colStk.mode==="pct"?"Share (%)":autoYTitle(ps.d,others,layout)), xl=cfg.ax.x.title||(dist?(distG?axisLabel(distBy.name||colLetter(distBy),distBy.unit,colLetter(distBy)):""):axisLabel(ps.d.xn,ps.d.xu,"X"));
   if(YA.tshow){ const ys0=drawn.ySide, wy=ypM==="left"&&!YA.off?Math.max(drawn.yW,drawn.pW):drawn.yW, band=tkOut(YA.dir,YA.len)+5+(wy?wy+6:1);
     const tx=(ys0<0?drawn.yAx-band-AT("y").size*0.22:drawn.yAx+band+AT("y").size*0.22)+YA.tdx, al=axAlign(YA,AT("y"));
@@ -18776,7 +19040,9 @@ function buildPlot(W,H,pal,colEx,opt){
     else if(below){ bx=Math.max(2,Math.min(W-boxW-2,L+pw/2-boxW/2)); by=H-boxH-6; }
     else if(corners[cfg.legend]) [bx,by]=corners[cfg.legend];
     else { const step=Math.max(1,Math.floor(pts.length/1500)); let fewest=Infinity;
-      const all=dist?[].concat(...distK.map(q=>{ const b=boxStats(q.vals); return b?[b.min,b.q1,b.med,b.q3,b.max].flatMap(y=>[-0.34,0,0.34].map(d=>({x:q.x+d*q.w,y}))):[]; }))
+      const all=dist&&distS?[].concat(...distK.map((q,i)=>{ const z=distS[i]; if(z.v==null) return []; const a=z.from!=null?z.from:layout==="catbar"?0:z.v, b=z.to!=null?z.to:z.v;
+          return Array.from({length:9},(_,j)=>a+(b-a)*j/8).concat([z.lo,z.hi].filter(y=>y!=null)).flatMap(y=>[-0.4,0,0.4].map(d=>({x:q.x+d*q.w,y}))); }))
+        :dist?[].concat(...distK.map(q=>{ const b=boxStats(q.vals); return b?[b.min,b.q1,b.med,b.q3,b.max].flatMap(y=>[-0.34,0,0.34].map(d=>({x:q.x+d*q.w,y}))):[]; }))
         :colStk?(()=>{ const xs=[...new Set([].concat(...Object.values(colStk.m).map(mm=>[...mm.keys()])))].sort((a,b)=>a-b), gs=xs.slice(1).map((x,i)=>x-xs[i]).sort((a,b)=>a-b), hw=(gs.length?gs[gs.length>>1]:1)*0.4;
           return [].concat(...Object.values(colStk.m).map(mm=>[...mm].flatMap(([x,r])=>[-hw,0,hw].flatMap(d=>Array.from({length:9},(_,i)=>({x:x+d,y:r[0]+(r[1]-r[0])*i/8})))))); })()
         :pts.concat(...oser.map((o,k)=>layout==="offset"?shiftPts(o.pts,k+1):layout==="overlay"&&!onR(o)?o.pts:[]));
@@ -19098,6 +19364,12 @@ function addAnno(a,log){
   // on a matrix's map the units are the matrix's, not the active column's
   const mg=GID()&&matGraph(GID()), d=mg?{xu:mg.xunit||"",yu:mg.yunit||""}:plotState().d;
   a=Object.assign({id:annoId()},a); if(GID()&&!a.grp) a.g=GID(); if(a.t!=="h") a.xu=d.xu||""; if(a.t==="h"||a.t==="text"||a.t==="label"||twoEnds(a)||a.t==="inset"||a.t==="poly") a.yu=d.yu||"";
+  // On a pie, or a chart of categories along X, a text, an arrow, a shape or a polygon has no data X to sit at: it is pinned
+  // to the plot where it was put (it was not drawn at all on a box chart before).
+  { const g=S.geo; if(g&&g.dist&&a.pin!=="plot"&&g.pw>0&&g.mh>0){ const fr=(x,y)=>[+((g.X(x)-g.L)/g.pw).toFixed(4),+((g.Y(y)-g.T)/g.mh).toFixed(4)];
+    if(a.t==="text"&&Number.isFinite(+a.x)&&Number.isFinite(+a.y)){ const [fx,fy]=fr(+a.x,+a.y); Object.assign(a,{pin:"plot",fx,fy}); }
+    else if(twoEnds(a)&&[a.x,a.y,a.x2,a.y2].every(v=>Number.isFinite(+v))){ const [fx,fy]=fr(+a.x,+a.y), [fx2,fy2]=fr(+a.x2,+a.y2); Object.assign(a,{pin:"plot",fx,fy,fx2,fy2}); }
+    else if(a.t==="poly"&&Array.isArray(a.pts)) Object.assign(a,polyPin(a,g,true)); } }
   pushUndo("adding "+ANNO_KINDS[a.t].toLowerCase());
   S.annoSel=a.id;
   saveAnnos((p.annos||[]).concat([a]),log||`added ${annoDesc(a)}`);
@@ -19703,8 +19975,15 @@ function graphMenuItems(id,at){
   if(at&&at.pt&&at.pt.inside&&S.geo&&S.geo.heat&&!S.geo.dist&&!S.geo.mat){ const x=+(+at.pt.x).toPrecision(6), near=mapNearest(at.pt.y), xu=finalOf(act).xu||"";
     items.push("-",{group:"Cut the map here"},{label:`The profile at X = ${fmt(x,5)}${xu?" "+xu:""}, against ${S.geo.mapSeries?seriesLabel():"the series"}`,enabled:!ro,run:()=>mapCutX(x)},
       near?{label:S.geo.mapSeries?`The curve nearest ${fmt(at.pt.y,4)}: ${specName(near.c)} (${fmt(near.v,5)})`:`The curve ${specName(near.c)}, on a graph of its own`,enabled:!ro,run:()=>mapCutY(near)}:null); }
+  // A pie: the slice clicked pulled out or put back, and the chart's own settings.
+  if(cfg.layout==="pie"&&S.geo&&S.geo.pie&&at){ const h=pieHit(S.geo,at.px,at.py);
+    if(h&&!ro){ const pulled=+((((cfg.series||{})[h.ring.id]||{}).pull||{})[h.z.i])>0;
+      items.unshift({group:`${h.z.name}: ${(h.z.share*100).toFixed(1)} %`,plain:true},{label:pulled?"Put the slice back":"Pull the slice out",kbd:"Double-click",run:()=>pieTogglePull(h.ring.id,h.z.i)},"-"); } }
   // What can be added where the click was: a submenu on a curve, the menu itself on the empty plot.
   const add=[];
+  if(at&&at.pt&&!ro&&S.geo&&S.geo.dist) add.push({label:"Text here…",run:()=>addTextAt(at.pt)},
+      {label:"An arrow (drag on the graph)",run:()=>{ setMode("arrow"); toast("Drag from where the arrow starts to what it points at."); }},
+      {label:"A box (drag on the graph)",run:()=>{ pickShape("rect"); toast("Drag from one corner of the box to the other. Shift makes a square."); }});
   if(at&&at.pt&&at.pt.inside&&!ro&&!(S.geo&&S.geo.heat)){ const hit=peakNear(at.px,at.py), n6=v=>+(+v).toPrecision(6);
     if(hit&&looksLikeSpectrum(colById(hit.id)||activeYCol())) add.push({label:`Label the peak at ${fmt(hit.x,6)}…`,run:()=>addPeakLabel(hit,{type:true})});
     add.push({label:`Vertical line at x = ${fmt(at.pt.x,5)}`,run:()=>addAnno({t:"v",x:n6(at.pt.x)})},
@@ -19721,13 +20000,17 @@ function graphMenuItems(id,at){
   if(!c&&id!=="__fit") items.push({label:"Show all the data",kbd:"Double-click",run:()=>{ S.view=null; renderPlot(); renderFit(); },enabled:has});
   items.push("-",
     cfg.layout==="heat"?{label:"Map",sub:mapMenuItems}:null,
-    isDistLayout(cfg.layout)?{label:cfg.layout==="box"?"Box chart":"Violin plot",sub:()=>distMenuItems()}:null,
+    isDistLayout(cfg.layout)?{label:(LAYOUTS.find(q=>q[0]===cfg.layout)||[,"Chart"])[1],sub:()=>distMenuItems()}:null,
+    cfg.layout==="pie"?{label:"Pie chart",sub:()=>pieMenuItems()}:null,
     {label:"What it plots…",run:()=>plotsOf(),enabled:!ro&&!!GID(),title:"Its curves: add, replace, take off and order them, and what each draws"},
     {label:"Format graph…",run:()=>openPlotDetails(id||(act&&act.id),id&&id!=="__fit"?"series":"frame")},
     {label:"Copy the graph as a picture",run:copyGraphPicture,enabled:has,title:"A PNG on the clipboard, to paste into a document or slides"},
     {label:"Export",sub:exportItems});
+  // A pie draws no lines, symbols or axes: what styles them is not offered there.
+  if(cfg.layout==="pie") return items.filter(it=>!(it&&(it.swatches||PIE_DROP.has(it.label))));
   return items;
 }
+const PIE_DROP=new Set(["Line, symbols and colour…","Plot type","Symbol…","Map","Columns","Connect","Join the points","Fill between it and","Error bars","Right axis","Group","Show all the data","Histogram of its values","Histogram bins…","Distribution over it"]);
 // A region of X (a shaded range, a band to integrate): look at it, fit in it, integrate it.
 function regionItems(lo,hi,xu,opt){
   const c=activeYCol(), d=c?finalOf(c):null, ro=S.readOnly, same=!!d&&(d.xu||"")===(xu||"");
@@ -20260,8 +20543,17 @@ function renderPlotDetails(o){
       +(cfg.layout==="offset"?`<label for="pdOff">Offset</label>${cmb("pdOff",cfg.offset,"offset",0,2,CMB.offs)}`:"")
       +(cfg.layout==="heat"?`<label for="pdCm">Colour map</label>${sel("pdCm",CMAP_LIST,cfg.cmap,"cmap")}<label for="pdMy">Up the side</label>${sel("pdMy",MAP_Y,cfg.mapY||"index","mapY")}<label for="pdMk">Drawn as</label>${sel("pdMk",MAP_KINDS,cfg.mapKind||"image","mapKind")}`
         +((cfg.mapKind||"image")!=="image"?`<label for="pdMl">Levels</label>${cmb("pdMl",numOr(cfg.mapLevels,8),"mapLevels",3,30,CMB.lev)}`+chk("pdMlb","mapLab",cfg.mapLab!==false,"Number the contour lines"):""):"")
-      +(isDistLayout(cfg.layout)?`<label for="pdDw">Whiskers</label>${sel("pdDw",DIST_WHISK,cfg.distWhisk==="range"?"range":"tukey","distWhisk")}`+chk("pdDp","distPts",!!cfg.distPts,"Show the values")+(cfg.layout==="box"?chk("pdDn","distNotch",!!cfg.distNotch,"Notches"):"")
+      +(cfg.layout==="box"||cfg.layout==="violin"?`<label for="pdDw">Whiskers</label>${sel("pdDw",DIST_WHISK,cfg.distWhisk==="range"?"range":"tukey","distWhisk")}`:"")
+      +(cfg.layout==="dot"?`<label for="pdDk">Dots</label>${sel("pdDk",DOT_KINDS,cfg.dotKind||"jitter","dotKind")}<label for="pdDl">A line at</label>${sel("pdDl",DOT_LINES,cfg.dotLine||"none","dotLine")}`:"")
+      +(cfg.layout==="mean"||cfg.layout==="catbar"?(()=>{ const so=distStatOf(cfg); return `<label for="pdDs">Shows</label>${sel("pdDs",DIST_STATS,so.stat,"distStat")}<label for="pdDe">Interval</label>${sel("pdDe",DIST_ERRS[so.stat],so.err,"distErr")}`
+        +(so.err==="ci"?`<label for="pdDc">Level (%)</label>${cmb("pdDc",so.conf,"distConf",50,99.99,[90,95,99])}`:"")+(cfg.layout==="mean"?chk("pdDj","distJoin",!!cfg.distJoin,"Join the means"):"")
+        +(cfg.layout==="catbar"?`<label for="pdDcs">Columns</label>${sel("pdDcs",COL_STACK,cfg.colStack==="stack"||cfg.colStack==="pct"?cfg.colStack:"side","colStack")}`:""); })():"")
+      +(isDistLayout(cfg.layout)?(cfg.layout!=="dot"?chk("pdDp","distPts",!!cfg.distPts,"Show the values"):"")+(cfg.layout==="box"?chk("pdDn","distNotch",!!cfg.distNotch,"Notches"):"")
         +`<label for="pdDb">Grouped by</label>${sel("pdDb",[["","Nothing"]].concat(distByOpts().filter(o=>!o.why).map(o=>[o.c.id,`${colLetter(o.c)} ${o.c.name||""}`.trim()])),colById(cfg.distBy||"")?cfg.distBy:"","distBy")}`:"")
+      +(cfg.layout==="pie"?(()=>{ const o=pieOpts(cfg); return `<label for="pdPl">Labels</label>${sel("pdPl",PIE_LAB_SETS,PIE_LAB_SETS.some(q=>q[0]===o.labs.join(","))?o.labs.join(","):"name,pct","pieLab")}<label for="pdPp">Placed</label>${sel("pdPp",PIE_POS,o.pos,"pieLabPos")}`
+        +`<label for="pdPd">Decimals of the percentage</label>${sel("pdPd",[["0","0"],["1","1"],["2","2"],["3","3"]],String(o.dec),"pieDec")}<label for="pdPs">The first slice starts</label>${sel("pdPs",PIE_STARTS.map(q=>[String(q[0]),q[1]]).concat(PIE_STARTS.some(q=>q[0]===o.start)?[]:[[String(o.start),fmt(o.start,4)+"°"]]),String(o.start),"pieStart")}`
+        +`<label for="pdPh">Hole</label>${sel("pdPh",PIE_HOLES.map(q=>[String(q[0]),q[1]]).concat(PIE_HOLES.some(q=>Math.abs(q[0]-o.hole)<1e-9)?[]:[[String(o.hole),fmt(o.hole*100,3)+" % of the radius"]]),String(PIE_HOLES.find(q=>Math.abs(q[0]-o.hole)<1e-9)?PIE_HOLES.find(q=>Math.abs(q[0]-o.hole)<1e-9)[0]:o.hole),"pieHole")}`
+        +chk("pdPcw","pieCw",o.cw,"Clockwise")+chk("pdPsort","pieSort",o.sort==="desc","Largest slice first"); })():"")
       +(cfg.layout==="overlay"||!cfg.layout?`<label for="pdCs">Columns</label>${sel("pdCs",COL_STACK,cfg.colStack==="stack"||cfg.colStack==="pct"?cfg.colStack:"side","colStack")}`:"")
       +chk("pdAxM","axisMatch",cfg.axisMatch!==false,"On two Y axes, colour each axis like its curve"));
     { const cur=cfg.scheme||"kurve", schs=Object.entries(SCHEMES).filter(([k,v])=>!v.hide||k===cur);
@@ -20380,7 +20672,7 @@ function pdAnnoEditor(a,o){
 }
 // Every graph takes this one's frame, axes, text, legend and colours; data,
 // ranges, titles and annotations stay their own.
-const FMT_KEYS=["frame","frameLw","frameColor","grid","gridMinor","gridColor","gridLw","gridDash","gridX","gridY","plotBg","mL","mR","mT","mB","txt","font","fontFam","fontName","titleItalic","legend","legendPos","legendText","legendFrame","legendCols","legendLine","legendSp","legendFill","legendOp","legendBd","legendLw","legendR","scheme","peakScheme","peakLab","peakLabRot","peakLabDec","peakLabShow","peakLabTpl","peakLabErr","peakLabUnit","peakLabSep","peakLabPos","peakLabMk","peakLabCol","peakLabBox","axisMatch","resid","bandConf","bandPred","sizeLeg","distWhisk","distPts","distNotch","colStack"];
+const FMT_KEYS=["frame","frameLw","frameColor","grid","gridMinor","gridColor","gridLw","gridDash","gridX","gridY","plotBg","mL","mR","mT","mB","txt","font","fontFam","fontName","titleItalic","legend","legendPos","legendText","legendFrame","legendCols","legendLine","legendSp","legendFill","legendOp","legendBd","legendLw","legendR","scheme","peakScheme","peakLab","peakLabRot","peakLabDec","peakLabShow","peakLabTpl","peakLabErr","peakLabUnit","peakLabSep","peakLabPos","peakLabMk","peakLabCol","peakLabBox","axisMatch","resid","bandConf","bandPred","sizeLeg","distWhisk","distPts","distNotch","colStack","distStat","distErr","distConf","distJoin","dotKind","dotLine","pieStart","pieCw","pieHole","pieLab","pieLabPos","pieDec","pieSort"];
 const FMT_AX=["tst","ticks","tlen","mlen","tw","mirror","mticks","mlabs","labs","lrot","color","lw","pos","at","off","talign","line","fmt","dec","minor","tshow"];
 /* A graph's settings with another's format laid over them: frame, grid, text,
    legend, colours and each axis's style; a key the format lacks goes back to
@@ -20747,6 +21039,8 @@ function onGraphDouble(tg){ tg=tg||$("#plot"); const an=tg.closest&&tg.closest("
     const axt=tg.closest&&tg.closest("[data-axtitle]"); if(axt){ inlineEditTitle(axt.dataset.axtitle); return; }
     const axz=tg.closest&&tg.closest("[data-axis]"); if(axz){ openPlotDetails(null,"ax:"+axz.dataset.axis); return; }
     if(tg.closest&&tg.closest("[data-legbox]")) return;
+    // A pie's slice is pulled out, or put back.
+    const sl=tg.closest&&tg.closest("[data-slice]"), rg=sl&&sl.closest("[data-ser]"); if(sl&&rg){ pieTogglePull(rg.dataset.ser,+sl.dataset.slice); return; }
     if(tg.closest&&tg.closest("[data-h]")) return; S.view=null; renderPlot(); afterView();
 }
 function setupGraph(){
@@ -20789,6 +21083,8 @@ function setupGraph(){
     if(lgb&&canMove&&S.geo.legend){ ev.preventDefault(); svg.setPointerCapture(ev.pointerId); const le=ev.target.closest("[data-leg]");
       S.lgdrag={x0:x,y0:y,box:Object.assign({},S.geo.legend),moved:false,hit:le?"leg:"+le.dataset.leg:ev.target.closest("[data-legtitle]")?"title":"box"}; return; }
     const pan=S.mode==="pan"||ev.button===1;
+    // A pie has no axes to zoom, pan or mask along: a press there selects its curve, through the click.
+    if(S.geo.pie&&(pan||S.mode==="zoom"||S.mode==="mask"||S.mode==="range"||S.mode==="reader"||S.mode==="cross")) return;
     drag={x0:x,y0:y,x1:x,y1:y,moved:false,pan,v:Object.assign({},S.geo.v),rx:S.geo.rx,ry:S.geo.ry,brk:S.geo.brk};
     if(pan){ ev.preventDefault(); svg.classList.add("panning"); }
     svg.setPointerCapture(ev.pointerId);
@@ -20798,7 +21094,9 @@ function setupGraph(){
     const d=toData(x,y);
     const ro=$("#readout"); if(ro){ const [xu,yu]=dataUnits(), g=S.geo; S.sbHover=true; ro._sig=null;
       // On a map: X, where up the side (the series value, or the spectrum), and the value there.
-      if(g.dist&&d&&d.inside){ const q=(g.distK||[]).reduce((b,q)=>Math.abs(q.x-d.x)<=q.w/2&&(!b||Math.abs(q.x-d.x)<Math.abs(b.x-d.x))?q:b,null), c=q&&q.c;
+      if(g.pie){ const h=pieHit(g,x,y), c=h&&colById(h.ring.id), u=c?finalOf(c).yu||"":"";
+        ro.textContent=h?`${h.z.name}   ${fmt(h.z.v,6)}${u?" "+u:""}   ${(h.z.share*100).toFixed(Math.max(1,g.pie.o.dec))} % of ${c?specName(c):"the ring"}`:""; }
+      else if(g.dist&&d&&d.inside){ const q=(g.distK||[]).reduce((b,q)=>Math.abs(q.x-d.x)<=q.w/2&&(!b||Math.abs(q.x-d.x)<Math.abs(b.x-d.x))?q:b,null), c=q&&q.c;
         ro.textContent=c?`${specName(c)}${q.g!=null&&g.distBy?`   ${g.distBy.name||colLetter(g.distBy)} ${typeof q.g==="number"?fmt(q.g,6):q.g}`:""}   y ${fmt(d.y,5)}${yu?" "+yu:""}`:""; }
       else if(g.mat&&d&&d.inside){ const m=matOf(g.mat), c=g.matCell?g.matCell(d.x,d.y):null;
         ro.textContent=c?`x ${fmt(c.x,6)}${xu?" "+xu:""}   y ${fmt(c.y,6)}${yu?" "+yu:""}   ${m&&m.zname||"value"} ${c.v==null?"empty":fmt(c.v,6)}${m&&m.zunit?" "+m.zunit:""}   (row ${c.i+1}, column ${c.j+1})`:`x ${fmt(d.x,6)}   y ${fmt(d.y,6)}`; }
@@ -20936,7 +21234,7 @@ function setupGraph(){
   // calls this, and the event stays as a fallback.
   svg.addEventListener("dblclick",ev=>{ if(Date.now()-(S.noDbl||0)<600) return; onGraphDouble(downEl&&document.contains(downEl)?downEl:ev.target); });
   svg.addEventListener("contextmenu",ev=>{ const an=ev.target.closest&&ev.target.closest("[data-anc]"); if(an&&anchorStep()&&!S.readOnly){ ev.preventDefault(); removeAnchor(+an.dataset.anc); return; } hideTip(); openGraphMenu(ev); });
-  svg.addEventListener("wheel",ev=>{ if(!S.geo||!P()) return; ev.preventDefault(); const [x,y]=localXY(ev); const c=toData(x,y); const v=S.geo.v; const k=ev.deltaY>0?1.18:1/1.18;
+  svg.addEventListener("wheel",ev=>{ if(!S.geo||!P()||S.geo.pie) return; ev.preventDefault(); const [x,y]=localXY(ev); const c=toData(x,y); const v=S.geo.v; const k=ev.deltaY>0?1.18:1/1.18;
     if(S.geo.fx||S.geo.fy){ const g=S.geo, sx=axScale(v.x0,v.x1,g.fx||g.logX,[],0), sy=axScale(v.y0,v.y1,g.fy||g.logY,[],0), tx=sx.f(c.x), ty=sy.f(c.y);
       const nx=[sx.inv(tx-tx*k),sx.inv(tx+(1-tx)*k)], ny=[sy.inv(ty-ty*k),sy.inv(ty+(1-ty)*k)], okx=nx.every(q=>Number.isFinite(q)&&(!g.fx||g.fx.ok(q))), oky=ny.every(q=>Number.isFinite(q)&&(!g.fy||g.fy.ok(q)));
       if(!(nx[1]>nx[0])||!(ny[1]>ny[0])) return;
@@ -34750,6 +35048,22 @@ ${DL([["The profile at one X","A trend graph of every column's value at that X a
 <p>The status bar reads X, the series value and the value under the pointer.</p>
 <h2 id="xyz">A map from scattered X, Y and Z</h2>
 <p>Measurements taken at scattered places (a hardness at each indent, a thickness at each spot on a wafer) are three columns: X, Y and the value. In ${MP("Plot setup…")} choose <em>Map from X, Y, Z</em>, the Y column as a curve and the value column as its <em>Z</em> (a column of its errors as <em>Z error</em>: the readout gives a point's value with it); or give any curve a colour column and pick <em>Map from X, Y and its colour column</em> from its right-click › Plot type. The points are joined into triangles (Delaunay's, worked out with X and Y each scaled to their range, so different units weigh alike), the value is interpolated in a straight line across each triangle, and the result is drawn in the colour map with its colour bar; nothing is drawn outside the points' outline. A curve's right-click › <em>Map</em> draws it as an image, an image with contour lines, or contour lines alone, with the levels and colour map of the Maps above. The status bar reads the value under the pointer. Up to 20 000 points; points on one line make no map, and the Map menu says so.</p>`},
+{id:"cats", g:"Graph", t:"Charts of categories: dots, means, columns and pies", kw:"category categories categorical dot plot dotplot strip chart column scatter beeswarm swarm jitter mean means interval error bar standard deviation standard error confidence interval median quartiles sum count bar chart grouped stacked trellis panels facet facets small multiples pie chart pie doughnut donut ring rings slice slices share percentage explode exploded pull out wedge",
+ lead:"Values summed up by category: every value as a dot, each category's mean with its interval, columns of a statistic, or a pie of shares; a category is a curve, or a value of a column of text.",
+ body:`<h2>Making one</h2>
+<p>Select the columns of values and choose ${MP("Plot › Plot the selected columns")} › <em>Dot plot</em>, <em>Means with intervals</em>, <em>Columns by category</em> or <em>Pie chart</em>, or pick its card in <em>Plot setup…</em> under <em>Categories</em>. Each curve is a category of its own along X; <em>Grouped by</em> (the graph's right-click, or the Format pane's Layout page) splits every curve by the values of a column, text or numbers (in a categorical column's own order, else numbers rising, then text in its natural order), so a long table (a value, a category, a group) becomes a grouped chart without being rearranged.</p>
+<h2 id="dot">Dot plots</h2>
+<p>Every value a dot in its category's place. <em>Dots</em>: <em>Scattered</em> (the same way every time), <em>Side by side</em> (a beeswarm: each dot as near the middle as it can go touching none drawn before it; when a category has more dots than fit, they are pressed in and overlap, and its tooltip says so), or <em>Stacked in rows</em> (rows a dot tall, the dots of a row side by side). <em>A line at</em> the mean or the median of each category, if asked. The dots' size is the curve's symbol size.</p>
+<h2 id="mean">Means with intervals, and columns by category</h2>
+<p>Each category's statistic as a point, or as a column standing on zero, with its interval as a bar with caps:</p>
+${DL([["Shows","The mean, the median, the sum or the count of the category's values."],["Interval","For the mean: ± SD (with n − 1), ± SE (SD over √n) or a confidence interval (Student's t, at 95 % unless another level is chosen). For the median: the quartiles (R's type 7) or a confidence interval from the order statistics (the sign test's: its level is the one reached, at least the one asked for, and the tooltip says which). None for a sum or a count."],["Show the values","Every value as a faint dot behind its mean or median."],["Join the means","A line through each curve's means across the groups (means only)."],["Columns","With several curves grouped by a column: side by side, or stacked at each group (to 100 % if asked, each column its share of the stack; no intervals then)."]])}
+<p>The Y axis says what is drawn (<em>Mean of Yield (t/ha), 95 % interval</em>); each category's tooltip gives its count, its statistic and its interval's ends.</p>
+<h2 id="trellis">A panel for each value</h2>
+<p>In <em>Plot setup…</em>, <em>Group by</em> a column of text and set <em>Each value</em> to <em>A panel of a figure</em>: each value's curves on a graph of its own, named after it, these graphs in panels of one figure sharing X and Y (a trellis, or small multiples), in the column's order. A curve keeps one colour in all the panels of the figure.</p>
+<h2 id="pie">Pie and doughnut charts</h2>
+<p>Each point of a curve is a slice, its size its value's share of the curve's total; a value of zero or below, a masked point and an empty cell are left out (the status bar says what is under the pointer). A slice is named by its row's X when X is a column of text, else by the curve's <em>Labels from</em> column, else by its X value, else by its row number. Several curves on the graph are concentric rings, the first outside, and slices of one name have one colour in every ring; the rings are named under the chart.</p>
+${DL([["Labels","The name, the value and the percentage, in any mix; inside the slice when the label fits in it, else outside with a leader line (or always inside, always outside, or none). The legend lists the slices when the labels do not name them."],["Pull a slice out","Double-click it, or right-click › <em>Pull the slice out</em>; again puts it back. <em>Put every slice back</em> is in the chart's menu."],["The first slice","Starts at the top (or the right, the bottom, the left) and the slices go clockwise or anticlockwise, in the rows' order or largest first."],["A doughnut","<em>Hole</em>: none, or a small, half or large hole in the middle."]])}
+<p>These are in the graph's right-click menu under <em>Pie chart</em> and in the Format pane's Layout page. A pie has no axes: zooming, panning and the readers do nothing on it, and a text or a shape put on it is pinned to the plot where it was put.</p>`},
 {id:"dists", g:"Graph", t:"Distributions: histograms, boxes and violins", kw:"histogram bins bin width frequency count probability density percent cumulative distribution stacked stack bar bars category categories names labels grouped group groups notch notched normal gaussian log-normal lognormal exponential maximum likelihood kolmogorov smirnov goodness distfit box chart box plot boxplot whisker whiskers quartile quartiles median interquartile iqr outlier outliers tukey violin kernel density kde bandwidth silverman column chart bar chart columns bars categories",
  lead:"How a column's values are spread: counted into bins as a histogram, or summed up per column as boxes or violins side by side.",
  body:`<h2>Histograms</h2>
@@ -37606,7 +37920,11 @@ function plotItems(cids){
     .concat(PLOT_TYPES.map(([k,l])=>({label:l, enabled:!ro, run:()=>plotCols(cids,{type:k})})));
   out.push("-",{label:many?"Histogram of each":"Histogram", enabled:!ro, title:"The distribution of the values, as a column of its own on a graph of its own", run:()=>histogramCols(ys.map(c=>c.id))},
     {label:"Box chart", enabled:!ro, title:"Each column's values as a box: median, quartiles, whiskers and outliers", run:()=>plotCols(cids,{layout:"box"})},
-    {label:"Violin plot", enabled:!ro, title:"Each column's values as the shape of their distribution", run:()=>plotCols(cids,{layout:"violin"})});
+    {label:"Violin plot", enabled:!ro, title:"Each column's values as the shape of their distribution", run:()=>plotCols(cids,{layout:"violin"})},
+    {label:"Dot plot", enabled:!ro, title:"Every value of each column a dot", run:()=>plotCols(cids,{layout:"dot"})},
+    {label:"Means with intervals", enabled:!ro, title:"Each column's mean with its confidence interval", run:()=>plotCols(cids,{layout:"mean"})},
+    {label:"Columns by category", enabled:!ro, title:"A column for each column of values: its mean, with its interval", run:()=>plotCols(cids,{layout:"catbar"})},
+    {label:"Pie chart", enabled:!ro, title:"Each value a slice, its share of the whole; several columns concentric rings", run:()=>plotCols(cids,{layout:"pie"})});
   if(many) out.push("-",{label:"Stacked panels", enabled:!ro, run:()=>plotCols(cids,{layout:"stack"})},{label:"Offset (waterfall)", enabled:!ro, run:()=>plotCols(cids,{layout:"offset"})},{label:"Contour map against the series", enabled:!ro, title:"Each column at its value of the series variable, with contour lines over the colours", run:()=>plotCols(cids,{layout:"heat",plot:{mapKind:"both",mapY:"series"}})},{label:"Heat map", enabled:!ro, run:()=>plotCols(cids,{layout:"heat"})});
   const gs=drawGraphIds(), shut=id=>{ const f=figOf(id); return graphShut(f?f.id:id); };
   if(gs.length) out.push("-",{label:"Add to a graph", enabled:!ro, sub:()=>gs.map(id=>({label:graphTitle(id), note:shut(id)?"closed":"", run:()=>plotCols(cids,{into:id})}))});
@@ -37620,7 +37938,10 @@ function plotItems(cids){
 const PLOT_DLG_KINDS=[
   ["line","Line","type"],["scatter","Symbols","type"],["linesym","Line + symbols","type"],["column","Columns","type"],["area","Area","type"],["step","Steps","type"],["stick","Drop lines","type"],
   ["stack","Stacked panels","layout"],["offset","Offset (waterfall)","layout"],["dy","Two Y axes","layout"],["heat","Heat map","layout"],["box","Box chart","layout"],["violin","Violin plot","layout"],["hist","Histogram","hist"],
-  ["bubble","Bubbles","more","Symbols sized by a column"],["cmap","Colour by value","more","Symbols coloured by a column, with a colour bar"],["labels","Labelled points","more","Each point labelled with a column's value in its row"],["errbox","Error boxes","more","X and Y errors drawn as a box round each point"],["tmap","Map from X, Y, Z","more","A colour map between the points, of a column's values at each, by triangles"]];
+  ["bubble","Bubbles","more","Symbols sized by a column"],["cmap","Colour by value","more","Symbols coloured by a column, with a colour bar"],["labels","Labelled points","more","Each point labelled with a column's value in its row"],["errbox","Error boxes","more","X and Y errors drawn as a box round each point"],["tmap","Map from X, Y, Z","more","A colour map between the points, of a column's values at each, by triangles"],
+  ["dot","Dot plot","layout","Every value a dot, in a column for each curve or each group of a column"],["mean","Means with intervals","layout","Each curve's or group's mean with its SD, SE or confidence interval"],["catbar","Columns by category","layout","A column for each curve or group: its mean, median, sum or count"],["pie","Pie chart","layout","Each value a slice: its share of the whole, named by its row's X or labels"]];
+// Where the gallery's kinds start a new row, and its heading.
+const PLOT_DLG_SEP={stack:"With several columns",bubble:"With another column",dot:"Categories"};
 // What each kind that needs another column draws, and what it needs beside every curve.
 const MORE_KINDS={bubble:{need:"scol",words:"bubbles",say:"Bubbles take their size from a column: mark one as Size beside each curve, and Add."},
   cmap:{need:"zcol",words:"symbols coloured by a column",say:"The colour comes from a column: mark one as Colour beside each curve, and Add."},
@@ -37648,6 +37969,10 @@ function plotKindIcon(k){
     dy:`<path d="M4 4V32H36V4" fill="none" stroke="currentColor" stroke-width="1"/><path d="M6 26 L14 18 L22 20 L34 8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M6 10 L14 16 L22 14 L34 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="3 2"/>`,
     heat:[0,1,2,3].map(r=>[0,1,2,3,4].map(c=>`<rect x="${4+c*6.4}" y="${4+r*7}" width="6.4" height="7" fill="currentColor" opacity="${(0.15+0.85*Math.abs(Math.sin((r+1)*(c+2)*0.7))).toFixed(2)}"/>`).join("")).join(""),
     box:`<path d="M10 6V12M10 26V31M7 6H13M7 31H13M27 4V10M27 22V28M24 4H30M24 28H30" stroke="currentColor" stroke-width="1.5"/><rect x="6" y="12" width="8" height="14" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 19H14" stroke="currentColor" stroke-width="2.4"/><rect x="23" y="10" width="8" height="12" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M23 15H31" stroke="currentColor" stroke-width="2.4"/>`,
+    dot:[[8,8],[6,13],[10,13],[8,18],[5,22],[11,22],[8,26],[27,12],[25,17],[29,17],[27,22],[24,26],[30,26],[27,30]].map(([x,y])=>`<circle cx="${x}" cy="${y}" r="1.9" fill="currentColor"/>`).join(""),
+    mean:`<path d="M10 9V23M7 9H13M7 23H13M27 6V18M24 6H30M24 18H30" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="16" r="3" fill="currentColor"/><circle cx="27" cy="12" r="3" fill="currentColor"/>`,
+    catbar:`<rect x="5" y="16" width="10" height="16" fill="currentColor" fill-opacity=".55"/><rect x="23" y="9" width="10" height="23" fill="currentColor" fill-opacity=".55"/><path d="M10 11V20M8 11H12M28 4V13M26 4H30" stroke="currentColor" stroke-width="1.4"/>`,
+    pie:`<path d="M20 18L20 4A14 14 0 0 1 33.3 22.3Z" fill="currentColor"/><path d="M20 18L33.3 22.3A14 14 0 0 1 9.8 27.6Z" fill="currentColor" fill-opacity=".55"/><path d="M20 18L9.8 27.6A14 14 0 0 1 20 4Z" fill="currentColor" fill-opacity=".25"/>`,
     violin:`<path d="M10 4 C14 10 15 14 12 18 C16 22 14 28 10 32 C6 28 4 22 8 18 C5 14 6 10 10 4Z" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.4"/><path d="M27 6 C29 12 33 15 30 20 C33 25 30 29 27 31 C24 29 21 25 24 20 C21 15 25 12 27 6Z" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.4"/>`,
     hist:[[4,6],[10,14],[16,22],[22,18],[28,9],[34,4]].map(([x,h])=>`<rect x="${x}" y="${32-h}" width="6" height="${h}" fill="currentColor" fill-opacity=".55" stroke="currentColor" stroke-width="1"/>`).join(""),
     bubble:[[7,26,2],[14,18,4],[22,22,3],[29,10,5.5],[35,20,2.5]].map(([x,y,r])=>`<circle cx="${x}" cy="${y}" r="${r}" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.2"/>`).join(""),
@@ -37672,6 +37997,17 @@ function plotDraw(ser,kind,L,T,pw,ph,max){
   if(kind==="hist"){ const b=histBins(ser[0].Y,{rule:"fd"}); if(b.fail) return "";
     const K=b.counts.length, top=Math.max(...b.counts)||1, w=pw/K;
     out.push(`<path d="${b.counts.map((n,i)=>`M${f1(L+i*w+w*0.08)},${f1(T+ph)}V${f1(T+ph-n/top*ph*0.92)}`).join("")}" stroke="${ser[0].col}" stroke-width="${f1(Math.max(1,w*0.84))}"/>`); return out.join(""); }
+  if(kind==="pie"){ const v=ser[0].Y.filter(y=>y>0).slice(0,8), tot=v.reduce((a,b)=>a+b,0); if(!(tot>0)) return ""; const cx=L+pw/2, cy=T+ph/2, r=Math.min(pw,ph)*0.42; let acc=0;
+    v.forEach((y,i)=>{ const a0=acc/tot, a1=(acc+=y)/tot, P=f=>[cx+r*Math.sin(f*2*Math.PI),cy-r*Math.cos(f*2*Math.PI)], A=P(a0), B=P(a1);
+      out.push(`<path d="M${f1(cx)},${f1(cy)}L${f1(A[0])},${f1(A[1])}A${f1(r)},${f1(r)} 0 ${a1-a0>0.5?1:0} 1 ${f1(B[0])},${f1(B[1])}Z" fill="${tintAt(i,false)}" stroke="${pal.bg}" stroke-width="0.8"/>`); });
+    return out.join(""); }
+  if(kind==="dot"||kind==="mean"||kind==="catbar"){ const n=Math.min(ser.length,8), cw=pw/n, z0=kind==="catbar"?Math.min(0,lo):lo, sp=Math.max(hi,0)-z0||1, Y=v=>T+ph-((v-z0)/sp)*ph*0.9-ph*0.05;
+    ser.slice(0,n).forEach((s,k)=>{ const cx=L+cw*(k+0.5), m=catSummary(s.Y,{stat:"mean",err:"ci"}); if(m.v==null) return;
+      if(kind==="dot"){ const ys=s.Y.slice(0,400).map(Y), pl=dotPlace(ys,1.6,"swarm",cw*0.4,k); out.push(`<path d="${ys.map((y,i)=>`M${f1(cx+pl.dx[i])},${f1(y)}h0`).join("")}" stroke="${s.col}" stroke-width="3.2" stroke-linecap="round"/>`); return; }
+      if(kind==="catbar") out.push(`<rect x="${f1(cx-cw*0.32)}" y="${f1(Math.min(Y(m.v),Y(0)))}" width="${f1(cw*0.64)}" height="${f1(Math.abs(Y(m.v)-Y(0)))}" fill="${s.col}" fill-opacity=".8"/>`);
+      if(m.lo!=null) out.push(`<path d="M${f1(cx)},${f1(Y(m.lo))}V${f1(Y(m.hi))}M${f1(cx-4)},${f1(Y(m.lo))}h8M${f1(cx-4)},${f1(Y(m.hi))}h8" stroke="${kind==="catbar"?pal.ink:s.col}" stroke-width="1.3" fill="none"/>`);
+      if(kind==="mean") out.push(`<circle cx="${f1(cx)}" cy="${f1(Y(m.v))}" r="3.2" fill="${s.col}"/>`); });
+    return out.join(""); }
   if(kind==="box"||kind==="violin"){ const n=Math.min(ser.length,8), cw=pw/n, Y=v=>T+ph-((v-lo)/span)*ph*0.9-ph*0.05;
     ser.slice(0,n).forEach((s,k)=>{ const cx=L+cw*(k+0.5), b=boxStats(s.Y); if(!b) return; const hw=Math.min(cw*0.3,24);
       if(kind==="violin"){ const ys=Array.from({length:32},(_,i)=>b.min+(b.max-b.min)*i/31), d=kdeAt(s.Y,ys,kdeBandwidth(s.Y)), m=Math.max(...d)||1;
@@ -37723,7 +38059,7 @@ const PSU_USES=[["","—"],["x","X"],["y","Y"],["e:y","Y error ±"],["e:y+","Y e
    its tooltip, in the grid's order. Z is the colour column of a map from X, Y, Z, so the two are one use. */
 const PSU_ROLE={x:["X","x","What the curves after it are plotted against"],y:["Y","y","A curve"],ey:["Y error","e:y","Error bars in Y, of the nearest Y to its left"],ex:["X error","e:x","Error bars in X, of the nearest Y to its left"],
   lab:["Labels","lab","Each point labelled with its value in the row"],size:["Size","size","The symbols sized by its values"],col:["Colour","col","The symbols coloured by its values"],z:["Z","col","The map's values"],ez:["Z error","e:z","The error of the map's values"]};
-const PSU_KROLES={tmap:["x","y","z","ez"],bubble:["x","y","size","ey","ex"],cmap:["x","y","col","ey","ex"],labels:["x","y","lab"],errbox:["x","y","ey","ex"],box:["y"],violin:["y"],hist:["y"],heat:["x","y"]};
+const PSU_KROLES={tmap:["x","y","z","ez"],bubble:["x","y","size","ey","ex"],cmap:["x","y","col","ey","ex"],labels:["x","y","lab"],errbox:["x","y","ey","ex"],box:["y"],violin:["y"],dot:["y"],mean:["y"],catbar:["y"],pie:["x","y","lab"],hist:["y"],heat:["x","y"]};
 const useRole=(u,tm)=>!u?"":u==="x"||u==="y"||u==="lab"||u==="size"?u:u.startsWith("e:y")?"ey":u.startsWith("e:x")?"ex":u==="e:z"?"ez":u==="col"?(tm?"z":"col"):"";
 const roleUse=(k,u)=>k==="ey"||k==="ex"?(u&&u.startsWith("e:"+k[1])?u:"e:"+k[1]):PSU_ROLE[k][1];
 // The grid's roles: the kind's, and any a column shown is marked with besides (so nothing marked is hidden).
@@ -37884,7 +38220,7 @@ async function openPlotDlg(cids,o){
       <div id="psuNeed"></div>
       <div class="psu-cur" id="psuCur"></div>
       <div class="psu-det" id="psuDet"></div>
-      ${g0?"":(()=>{ const bys=psuByOpts(st); return bys.length?`<div class="grid2 psu-by"><label for="psuBy" title="A curve for each value of a column of categories, each named after its value, the curves of one column a group">Group by</label><select id="psuBy"><option value="">Nothing</option>${bys.map(o=>`<option value="${o.c.id}"${o.why?" disabled":""} title="${esc(o.why||o.n+" values")}">${esc(colRef(o.c)+(o.c.name?" "+o.c.name:""))}</option>`).join("")}</select></div>`:""; })()}
+      ${g0?"":(()=>{ const bys=psuByOpts(st); return bys.length?`<div class="grid2 psu-by"><label for="psuBy" title="A curve for each value of a column of categories, each named after its value, the curves of one column a group">Group by</label><select id="psuBy"><option value="">Nothing</option>${bys.map(o=>`<option value="${o.c.id}"${o.why?" disabled":""} title="${esc(o.why||o.n+" values")}">${esc(colRef(o.c)+(o.c.name?" "+o.c.name:""))}</option>`).join("")}</select><label for="psuByAs" title="Each value's curves on one graph, or each value a panel of a figure, the panels sharing X and Y (a trellis)">Each value</label><select id="psuByAs"><option value="curves">Curves on one graph</option><option value="panels">A panel of a figure</option></select></div>`:""; })()}
     </div>
     <div class="psu-pvp"><div class="pdlg-sk psu-sk" id="pdlgSk" role="img" aria-label="The graph as it will be"></div></div></div>`;
   const sh=$("#formModal .sheet"); sh.classList.remove("small"); sh.classList.add("plotdlg","psuw");
@@ -37925,7 +38261,7 @@ async function openPlotDlg(cids,o){
   const curHtml=()=>{ const cur=st.curves;
     $("#psuN").textContent=cur.length?`${cur.length}`:"";
     if(!cur.length) return `<p class="lab">Mark a column as Y and press Add.</p>`;
-    const noX=st.kind==="box"||st.kind==="violin"||st.kind==="hist", anySym=cur.some(drawsSym);
+    const noX=isDistLayout(st.kind)||st.kind==="hist", anySym=cur.some(drawsSym);
     return `<table class="ptab psu-c"><tbody>${cur.map(q=>{ const y=q.y, sym=st.sym[y.id]||"circle";
       const xs=y.src?[]:[...new Set(sheetCols(sheetOf(y)).filter(c=>c.role==="x"||st.use[c.id]==="x").concat(q.x&&sheetOf(q.x)===sheetOf(y)?[q.x]:[]))];
       const against=noX?"":y.src?`<span class="psu-p"><span class="lab">against</span> <span title="A column made from another takes its X">${q.x?`<b>${ro(colRef(q.x))}</b> ${ro(q.x.name||"")}`:"the row number"}</span></span>`
@@ -37957,7 +38293,7 @@ async function openPlotDlg(cids,o){
   // The kind: the gallery in the pickers' slot, cards drawn with the curves; hovering or focusing one previews it.
   const kbtn=box.querySelector("#psuKind");
   const openKinds=()=>{ closeFontPicker(); const el=document.createElement("div"); el.className="fpick kindpick"; el.setAttribute("role","dialog"); el.setAttribute("aria-label","Kind of plot");
-    el.innerHTML=`<div class="fp-l"><div class="pdlg-kinds pgal" role="radiogroup" aria-label="Kind of plot">${PLOT_DLG_KINDS.map(([k,l],i)=>{ const off=g0&&k==="hist", K=PLOT_DLG_KINDS[i]; return `${i===7?`<div class="pdlg-sep" role="presentation">With several columns</div>`:i===14?`<div class="pdlg-sep" role="presentation">With another column</div>`:""}<button type="button" role="radio" data-pk="${k}" aria-checked="${k===st.kind}" title="${esc(off?"A histogram is a column of its own: Plot setup… makes one":K[3]||l)}"${off?" disabled":""}><span class="pgt"></span><span class="pgl">${esc(l)}</span></button>`; }).join("")}</div></div>`;
+    el.innerHTML=`<div class="fp-l"><div class="pdlg-kinds pgal" role="radiogroup" aria-label="Kind of plot">${PLOT_DLG_KINDS.map(([k,l],i)=>{ const off=g0&&k==="hist", K=PLOT_DLG_KINDS[i]; return `${PLOT_DLG_SEP[k]?`<div class="pdlg-sep" role="presentation">${PLOT_DLG_SEP[k]}</div>`:""}<button type="button" role="radio" data-pk="${k}" aria-checked="${k===st.kind}" title="${esc(off?"A histogram is a column of its own: Plot setup… makes one":K[3]||l)}"${off?" disabled":""}><span class="pgt"></span><span class="pgl">${esc(l)}</span></button>`; }).join("")}</div></div>`;
     document.body.appendChild(el); const cur=st.curves, ser=cur.length?plotDlgSer({x:cur[0].x?cur[0].x.id:"",ys:cur.map(q=>q.y.id)}):[]; el.querySelectorAll("[data-pk]").forEach(b=>{ b.querySelector(".pgt").innerHTML=plotDlgCard(b.dataset.pk,ser); });
     placePop(el,kbtn); kbtn.setAttribute("aria-expanded","true");
     const bs=[...el.querySelectorAll("[data-pk]:not(:disabled)")];
@@ -38014,7 +38350,7 @@ async function openPlotDlg(cids,o){
     const it=box.querySelector("#pdlgInto"); if(it) it.onchange=()=>{ st.into=it.value; sk(); }; }
   refresh(true); setTimeout(()=>{ const b=g0?box.querySelector(`#psuCur [data-pcur]`):kbtn; if(b) b.focus(); },0);
   let r; try{ r=await pr; } finally{ sh.classList.remove("plotdlg","psuw"); sh.classList.add("small"); clearTimeout(pvT); if(fpOpen&&fpOpen.btn&&box.contains(fpOpen.btn)) closeFontPicker(); }
-  if(r) psuApply(st,{into:r.pdlgInto||undefined,g0,by:r.psuBy||null});
+  if(r) psuApply(st,{into:r.pdlgInto||undefined,g0,by:r.psuBy||null,byAs:r.psuByAs==="panels"&&!r.pdlgInto?"panels":"curves"});
 }
 /* What OK does, from the dialog or from Plot like the last time: the columns' own changes, then a
    new graph (or one added to) through plotCols, or the graph's own list through psuSetGraph. */
@@ -38037,6 +38373,7 @@ function psuApply(st,o){ const g0=o.g0||null, into=o.into;
   if(by&&!g0){ const sp=psuSplit(curves,by,use,series); if(sp){ ids2=sp.ids; grps=Object.assign({},st.grps||{},sp.grps); split=`${andList(curves.map(q=>specName(q.y)))} split by ${by.name||colRef(by)} into ${sp.ids.length} curves`; } }
   const say=(said.length?`${capFirst(andList(said))}, on every graph.`:"")+(split?(said.length?" ":"")+capFirst(split)+".":"");
   if(split) said.push(split);
+  if(split&&o.byAs==="panels"&&!into){ psuTrellis(curves,{ids:ids2,lv:(()=>{ const lv=catLevels(by,by.cat||{order:"first"}); return lv.map(q=>typeof q.v==="number"?fmt(q.v,8):String(q.v)); })()},use,series,st.kind,by); return; }
   plotCols(ids2,Object.assign({into,noUndo:true,use,series,grps,say,note:said.length?andList(said):""},psuType(st.kind)?{type:psuType(st.kind)}:{layout:st.kind},st.kind==="heat"?{plot:{mapKind:"both",mapY:"series"}}:{}));
 }
 // The columns Group by can split by: text or categorical columns of the curves' sheets, each with
@@ -38054,7 +38391,18 @@ function psuSplit(curves,by,use,series){ const p=P(), lv=catLevels(by,by.cat||{o
       const n=makeCol("y",nm,y.unit||"",[]); n.src=y.id; n.from="final"; n.mask=[]; n.pipe=[makeStep("where",{col:by.id,lv:t})]; p.cols.push(n); ids.push(n.id);
       use[n.id]=Object.assign({},use[y.id]||{},{grp:g}); if(series[y.id]) series[n.id]=Object.assign({},series[y.id]); });
     delete use[y.id]; delete series[y.id]; });
-  migrate(p); return {ids,grps}; }
+  migrate(p); return {ids,grps,lv:lv.map(o=>typeof o.v==="number"?fmt(o.v,8):String(o.v))}; }
+/* A trellis (PLOT2_SPEC 7.1): Group by's curves as the panels of one figure, a panel per value (named after it, in the
+   column's order) holding that value's curve of each curve chosen, X and Y shared; a curve keeps one colour in every
+   panel. After pushUndo and psuSplit; one save, then the figure. */
+function psuTrellis(curves,sp,use,series,kind,by){ const p=P(); if(!p) return; const nl=sp.lv.length, nc=curves.length, graphs=(p.graphs||[]).slice(), base=graphBase(GID()), made=[], typ=psuType(kind);
+  sp.lv.forEach((nm,li)=>{ const ids=curves.map((q,qi)=>sp.ids[qi*nl+li]).filter(Boolean), pl=clone(base), u={}, se={};
+    ids.forEach((k,qi)=>{ if(use[k]){ u[k]=Object.assign({},use[k]); delete u[k].grp; } se[k]=Object.assign({},series[k]||{},typ?{type:typ}:{},nc>1&&!(series[k]&&series[k].color)?{color:yTint(curves[qi].y.id,true)}:{}); });
+    pl.use=u; pl.series=se; delete pl.grps; if(!typ&&kind) pl.layout=kind; if(typ) pl.style=typ==="tmap"?"scatter":typ;
+    const g={id:newGid(),name:uniqueGraphName(graphs,nm),cols:ids,plot:pl}; graphs.push(g); made.push(g.id); });
+  save({cols:p.cols,graphs},`plotted ${andList(curves.map(q=>specName(q.y)))} for each value of ${by.name||colRef(by)}, ${nl} graphs`);
+  makeFigure(made,{noUndo:true,shareX:true,shareY:true,log:`put the ${nl} values of ${by.name||colRef(by)} in panels of a figure`}); }
+function uniqueGraphName(graphs,nm){ nm=String(nm||"Graph").slice(0,60); let k=1, out=nm; while(graphs.some(g=>g.name===out)) out=`${nm} (${++k})`; return out; }
 /* What Plot setup changes of the columns themselves, which every graph sees: a data column made
    an X or error bars, an error column given to another column or made another kind, a column's
    X (xcol; "row" for the row number), the other columns of the sheet kept on the X they had.
@@ -38410,7 +38758,7 @@ function plotMenu(){
     {label:"New graph", sub:()=>newGraphItems(), enabled:edit},
     "-",
     {label:"Plot type", sub:()=>plotTypeItems(act,!edit), enabled:g},
-    {label:"Several curves", sub:()=>LAYOUTS.filter(([k])=>!isDistLayout(k)).map(([k,l])=>({label:l, radio:true, checked:cfg.layout===k, enabled:edit&&!cfg.mat, run:()=>setPlotKey("layout",k,`laid the curves out as ${l.toLowerCase()}`)})), enabled:g},
+    {label:"Several curves", sub:()=>LAYOUTS.filter(([k])=>!isKindLayout(k)).map(([k,l])=>({label:l, radio:true, checked:cfg.layout===k, enabled:edit&&!cfg.mat, run:()=>setPlotKey("layout",k,`laid the curves out as ${l.toLowerCase()}`)})), enabled:g},
     "-",
     {label:"View", sub:()=>[tool("zoom","Zoom"), tool("pan","Pan"), tool("reader","Reader"),
       {label:"X–Y lines", sub:()=>XH_MODES.map(([k,l,t])=>({label:l, note:t, radio:true, checked:m==="cross"&&xhMode()===k, enabled:has&&g, run:()=>setXhMode(k)}))},

@@ -1024,6 +1024,29 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Plots, wave 7, slice 7.1: charts of categories (2026-11-26)
+
+`ux/spec/PLOT2_SPEC.md` (wave 7, plots; its spec written this day) slice 7.1.
+- **Pie and doughnut charts** (Plot › Plot the selected columns › Pie chart, Plot setup's *Categories* row): each point a slice of
+  its share, named by its row's text X, the curve's labels column, its X or its row; labels of the name, value and percentage
+  inside when they fit, else outside with leaders that do not overlap; the first slice's start and direction, largest first, a
+  hole; several curves concentric rings, named under the chart, one colour a name in every ring; a slice pulled out by a
+  double-click or its right-click; values of zero or below and masked points left out and counted; the status bar names the slice.
+- **Dot plots, means with intervals, columns by category** (beside the box and violin): every value a dot (scattered, a beeswarm,
+  or in rows); each category's mean, median, sum or count with ± SD, ± SE, a t interval, the quartiles or the median's interval,
+  as a point or a column, the values beside it, the means joined; columns side by side or stacked. Each takes *Grouped by* a
+  column of text, and the Y axis says what is drawn.
+- **A panel for each value**: Plot setup's *Group by* has *Each value: A panel of a figure*, a trellis sharing X and Y.
+- A text, arrow or box added on a chart of categories is pinned to the plot (on a box chart it was not drawn at all).
+
+Checked: `tools/ref/plot2_fixtures.py` (the means, SDs, SEs and t intervals against exact rationals and SciPy, the order statistics,
+the pies' shares and slice ends against exact sums) through ref-test (8.5e-16, 2.2e-16, 2.2e-16); a new drive,
+`tools/plot2-drive.mjs` 7.1 (56: every slice's angles read back from the drawing, labels, the readout, pulling out and undo, the
+right-click, legends, zeros, masks and thin slices with no label overlapping, rings and their colours, the Format pane, SVG and PDF
+exports, junk from storage; each mean and interval at its place, the axis title, a categorical order, the statistic and interval
+changed and undone, joined means, stacked columns' sums, a beeswarm with no dot overlapping, a reload; the trellis and its undo,
+the gallery; a pie of 200 slices in 9 ms and a beeswarm of 50 000 values in 42 ms).
+
 ## Images, slice I.7: scale bar, channels, histogram (2026-11-25)
 
 - **Scale bar** (Matrix › Scale bar…, Analyze › Image › Scale bar…): ImageJ's Scale Bar on the image and its PNG, its width

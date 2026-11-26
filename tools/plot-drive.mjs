@@ -342,8 +342,8 @@ await page(async p => {
   const id = await six(p);
   await p.evaluate(id => { openPlotDlg([id.B, id.D]); }, id); await p.waitForTimeout(400);
   await p.click("#psuKind"); await p.waitForTimeout(150);
-  let r = await p.evaluate(() => { const cs = [...document.querySelectorAll(".kindpick .pgal [data-pk]")]; return { n: cs.length, more: cs.slice(14).map(b => b.dataset.pk), sep: [...document.querySelectorAll(".kindpick .pdlg-sep")].map(e => e.textContent), drawn: cs.slice(14).every(b => b.querySelector(".pgt svg circle, .pgt svg rect")) }; });
-  check("five kinds that need another column, after the others, drawn with the data", r.n === 19 && r.more.join() === "bubble,cmap,labels,errbox,tmap" && r.sep.includes("With another column") && r.drawn, JSON.stringify(r));
+  let r = await p.evaluate(() => { const cs = [...document.querySelectorAll(".kindpick .pgal [data-pk]")]; return { n: cs.length, more: cs.slice(14, 19).map(b => b.dataset.pk), sep: [...document.querySelectorAll(".kindpick .pdlg-sep")].map(e => e.textContent), drawn: cs.slice(14, 19).every(b => b.querySelector(".pgt svg circle, .pgt svg rect")) }; });
+  check("five kinds that need another column, after the others, drawn with the data", r.n === 23 && r.more.join() === "bubble,cmap,labels,errbox,tmap" && r.sep.includes("With another column") && r.drawn, JSON.stringify(r));
   await p.click('.kindpick [data-pk="bubble"]'); await p.waitForTimeout(150);
   r = await p.evaluate(() => ({ ok: !$("#formOk").disabled, need: $("#psuNeed").textContent }));
   check("Bubbles with no size: Plot off, and the note says what to mark", !r.ok && /mark one as Size beside each curve/.test(r.need), JSON.stringify(r));
@@ -523,7 +523,7 @@ await page(async p => {
   // Violins grouped the same way.
   await p.evaluate(() => { setPlotKey("layout", "violin"); }); await p.waitForTimeout(400);
   r = await p.evaluate(() => ({ n: document.querySelectorAll("#plot g[data-distg]").length, notchOn: (distMenuItems().find(i => i && i.label === "Notches") || {}).enabled }));
-  check("violins are grouped the same way (notches are a box's only)", r.n === 6 && r.notchOn === false, JSON.stringify(r));
+  check("violins are grouped the same way (notches are a box's only, not offered for violins)", r.n === 6 && r.notchOn === undefined, JSON.stringify(r));
   // The Format pane offers the same.
   await p.evaluate(() => { setPlotKey("layout", "box"); openPlotDetails(null, "layout"); }); await p.waitForTimeout(500);
   r = await p.evaluate(id => { const s = document.querySelector("#pdDb"); return s ? { v: s.value, opts: [...s.options].map(o => o.value), notch: !!document.querySelector("#pdDn") } : null; }, id);

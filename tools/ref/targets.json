@@ -87,6 +87,15 @@
  "kProfile.truth": {
   "tol": 1e-12
  },
+ "catSummary.values": {
+  "tol": 1e-14
+ },
+ "catSummary.order": {
+  "tol": 1e-15
+ },
+ "pieSlices": {
+  "tol": 1e-15
+ },
  "regShift.shift": {
   "tol": 1e-12
  },

@@ -439,6 +439,27 @@ if (fixtures.profile) {
   }
 }
 
+/* ---- Charts of categories and pies (PLOT2_SPEC 7.1): catSummary and pieSlices against exact rationals, NumPy and SciPy
+   (tools/ref/plot2_fixtures.py). The mean, SD, SE and t interval relative to the values' scale; the order statistics exactly; a
+   pie's shares and the ends of its slices relative to a turn. ---- */
+if (fixtures["plot2-cats"]) {
+  const CS = get("catSummary"), PS = get("pieSlices");
+  for (const c of fixtures["plot2-cats"].cases) { const sc = Math.max(...c.vals.map(Math.abs)) || 1, lab = `${c.name} at ${c.conf}`;
+    const m = CS(c.vals, { stat: "mean", err: "ci", conf: c.conf }), sd = CS(c.vals, { stat: "mean", err: "sd" }), md = CS(c.vals, { stat: "median", err: "iqr" }), mc = CS(c.vals, { stat: "median", err: "ci", conf: c.conf });
+    let e = Math.abs(m.v - c.mean) / sc;
+    if (c.n > 1) e = Math.max(e, Math.abs(m.sd - c.sd) / c.sd, Math.abs(m.se - c.se) / c.se, Math.abs(m.lo - c.ci[0]) / sc, Math.abs(m.hi - c.ci[1]) / sc, Math.abs(sd.hi - (c.mean + c.sd)) / sc);
+    else e = Math.max(e, m.lo === null && m.hi === null ? 0 : Infinity);
+    e = Math.max(e, Math.abs(CS(c.vals, { stat: "sum" }).v - c.sum) / (sc * c.n), CS(c.vals, { stat: "count" }).v === c.n ? 0 : Infinity);
+    note("catSummary.values", e, lab);
+    let o = Math.max(Math.abs(md.v - c.median), Math.abs(md.lo - c.q1), Math.abs(md.hi - c.q3)) / sc;
+    if (c.mci) o = Math.max(o, mc.lo === c.mci[0] && mc.hi === c.mci[1] ? 0 : Infinity, Math.abs(mc.level - c.mlevel)); else o = Math.max(o, mc.lo === null && mc.hi === null ? 0 : Infinity);
+    note("catSummary.order", o, lab); }
+  for (const c of fixtures["plot2-cats"].pies) { const r = PS(c.vals.map((v, i) => ({ i, v })), c.sort); let e = r.left === c.left && r.slices.length === c.slices.length ? 0 : Infinity, at = c.name;
+    r.slices.forEach((z, k) => { const w = c.slices[k]; if (!w || z.i !== w.i) { e = Infinity; at = `${c.name}: slice ${k} is row ${z.i}`; return; }
+      const d = Math.max(Math.abs(z.share - w.share) / w.share, Math.abs(z.a - w.a), Math.abs(z.b - w.b)); if (d > e) { e = d; at = `${c.name}, slice ${k}`; } });
+    note("pieSlices", e, at); }
+}
+
 /* ---- The shift between two scans (QUDI_SPEC Q.8): Guizar-Sicairos, Thurman and Fienup's registration written again in NumPy,
    tools/ref/shift_fixtures.py; the shift the same grid point, the correlation at it to the rounding ---- */
 if (fixtures.shift) {

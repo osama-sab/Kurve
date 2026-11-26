@@ -3376,7 +3376,37 @@ graph first, with the taskbar kept at the bottom of the screen.
   `distGroups`' refusal as `why`), `distByItems()` (*Grouped by*, Nothing first), `distByName()`.
   `cfg.distNotch` (in `FMT_KEYS`; boxes only): `path[data-notch]`, narrowed to 0.55 of the box at
   the median over the notch kept within the quartiles, the median line as narrow; the tooltip
-  gives the notch. The Format pane's layout page has Notches (`#pdDn`) and Grouped by (`#pdDb`). **Columns** (`PLOT_TYPES` `column`): bars from zero, as wide as
+  gives the notch. The Format pane's layout page has Notches (`#pdDn`) and Grouped by (`#pdDb`).
+  **Charts of categories** (PLOT2_SPEC 7.1): `LAYOUTS` grows `dot`, `mean`, `catbar` and `pie`; `DIST_LAYOUTS` (box, violin, dot,
+  mean, catbar: `isDistLayout`) and `KIND_LAYOUTS` (those and the pie, `isKindLayout`: left out of *Several curves*). In the ANA
+  block, pure: `dotPlace(py, r, kind, hw, seed)` (a dot plot's offsets: `jitter` the same every time, `swarm` each dot at the
+  nearest free place to the middle beside the neighbours within 2r, their forbidden spans merged, `stack` rows 2r tall; a swarm
+  whose rows would pass 1.6 hw laid in rows, `fell:"stack"`; past the room pressed in, `squeezed`), `pieSlices(items, sort)` (the
+  values above zero, `left` the rest, shares and ends a, b as fractions of a turn from Neumaier's running sums), `catSummary(vals,
+  {stat, err, conf})` (mean with sd, se or the t interval, the median with the quartiles or the sign test's order-statistic interval
+  and its `level`, sum, count; `{n, v, lo, hi, sd, se, level}`). `DIST_STATS`, `DIST_ERRS`, `distStatOf(cfg)` (cfg.`distStat`,
+  `distErr`, `distConf`, junk read as the mean's 95 % interval), `distStatWords`, `DOT_KINDS` (cfg.`dotKind`), `DOT_LINES`
+  (cfg.`dotLine`), cfg.`distJoin`; in `buildPlot` `distS` (each category's summary), `distSO`, `distStk` (catbar grouped with
+  several curves and cfg.`colStack`: each category `from`/`to` at its group's place, `pct` of the stack's absolute sum), the view
+  over the summaries (catbar from zero), `g[data-dist]` with `[data-distmean]`, `[data-distci]`, `[data-catbar]`, `[data-dotline]`,
+  `[data-distjoin]`; the Y title `Mean of Yield (t/ha), 95 % interval` (`distYl`); `distMenuItems` (every kind, then each one's
+  settings; `distStatItems(cfg, ro)`), the Format pane's Layout page (`#pdDk`, `#pdDl`, `#pdDs`, `#pdDe`, `#pdDc`, `#pdDj`, `#pdDcs`).
+  **Pies** (`pieSvg(o)`, called by `buildPlot` for the layout `pie` before the margins: no axes; `pieOpts(cfg)` reads cfg.`pieStart`
+  (degrees, 90 the top), `pieCw`, `pieHole` (0 to 0.8), `pieLab` (a list or "name,pct", `PIE_LABS`, `PIE_LAB_SETS`), `pieLabPos`
+  (`PIE_POS`), `pieDec`, `pieSort`; `pieName(c, q, cfg)` (the row's text X, the labels column, its X, its row), `pieRings(cfg,
+  curves)` (a ring a curve with values, masked points out), `pieAt`, `inkOn(col, pal)` (dark or white words by luminance), a ring
+  `g[data-ser][data-ring]`, a slice `path[data-slice=row]` with its `<title>`, labels inside when their box's corners are in the
+  slice else outside on each side pushed apart (`[data-pielead]`), the rings named under the chart (`[data-pierings]`), its own
+  legend of the slices (`[data-legslice]`, only when the labels do not name them); `S.geo.pie {cx, cy, o, rings [{id, r0, r1,
+  slices [{i, name, v, share, a, b, dx, dy}]}], left}` with `heat` and `dist` true, so only pinned annotations draw and `addAnno`
+  pins a text, an arrow, a box or a polygon on any chart of categories). `pieHit(g, x, y)` (the readout, the right-click's *Pull the
+  slice out*), `pieTogglePull(id, row)` (series[id].`pull` {row: 0.12}, a double-click on a slice; one undo step),
+  `pieMenuItems()` (the graph menu's *Pie chart*), `PIE_STARTS`, `PIE_HOLES`, `PIE_DROP` (the curve menu's items a pie leaves out);
+  the wheel, zoom, pan, mask and readers do nothing on a pie. Plot setup's `PLOT_DLG_KINDS` has a *Categories* row (`PLOT_DLG_SEP`),
+  `PSU_KROLES` for each, `plotKindIcon` and `plotDraw` sketches; `plotItems` lists them. **A trellis**: Plot setup's *Group by* has
+  `#psuByAs` (*Each value*: Curves on one graph, A panel of a figure), `psuTrellis(curves, sp, use, series, kind, by)` (a graph per
+  level named after it, `uniqueGraphName`, a curve one colour in every panel, then `makeFigure` sharing X and Y; one undo step);
+  `psuSplit` returns `lv`. **Columns** (`PLOT_TYPES` `column`): bars from zero, as wide as
   a histogram's bins (`histOf(id)`, the step's `bins.w`) or 0.8 of the median spacing, several
   spectra as columns side by side (`colGrp`, `cgk`/`cgn` through `zSt`); a graph of columns
   stands on zero and is widened to whole columns when nothing is typed or zoomed. **Stacked**
@@ -5870,7 +5900,9 @@ Next, in order:
    cross-validation, coefficients, VIP, predictions for the rows and curves with none; scikit-learn and 40 digits agreeing to
    1e-14), done 19.11: wave 6's five slices are done, and its end (SIMPLS's score taken from X₀ itself, found by the fuzzer 8e-8 off
    on unscaled columns and now as NIPALS; the measured-against-predicted curves renamed, found by the screenshots; every dialog of
-   the wave at 1024 and 390 px; a 40-minute lab day with the wave's dialogs, 1 123 actions, memory and listeners flat; every sheet shown no longer drawn twice, found measuring the analyses' time on the page)
+   the wave at 1024 and 390 px; a 40-minute lab day with the wave's dialogs, 1 123 actions, memory and listeners flat; every sheet shown no longer drawn twice, found measuring the analyses' time on the page). Wave 7's plan is `ux/spec/PLOT2_SPEC.md`
+   (plots, eight slices 7.1 to 7.8 in that order; its nine decisions, 26.11); slice 7.1, charts of categories (pies and doughnuts,
+   dot plots, means with intervals, columns by category, a panel for each value of a column), done 26.11
 
 Then, 19.11, the user's request: qudi's confocal files read with their positions, and ImageJ's statistics on them; the plan is
 `ux/spec/QUDI_SPEC.md` (eight decisions, four slices: Q.1 reading qudi's files, Q.2 a TIFF ImageJ opens with its calibration, Q.3
@@ -6121,6 +6153,11 @@ selected at once in the Project Explorer and acted on together, each command one
   values are of each curve's own values, not of the stack. Names along X are typed per graph
   (the worksheet has no text cells), 60 X values at most, and are not drawn on a log or curved
   axis
+- Charts of categories: a pie's slices take the scheme's colours by name (a slice has no colour of its own), its labels are one
+  style, it has no 3D look and no slice dragged out by the pointer (a double-click pulls it by an eighth of the radius); a dot plot's
+  dots are circles of the curve's symbol size; means, medians, sums and counts only (no geometric mean, no weighted mean), the
+  median's interval from the order statistics at the level reached; a trellis is made once from Group by (a new level typed later is
+  no new panel)
 - Box and violin charts: one box per spectrum on the graph, in the table's order, or each split
   by a column of groups on the active curve's sheet (60 groups at most, numbers only, in
   ascending order: the worksheet has no text cells to name them; the grouping is set on the

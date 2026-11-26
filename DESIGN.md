@@ -910,6 +910,24 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-26: Charts of categories (PLOT2_SPEC 7.1)
+
+- **New kinds are layouts.** A pie, a dot plot, means and columns by category are a graph's layout, as the box chart is, so the
+  Format pane, saved styles, figures, every export, undo and the History treat them as any graph; the curves keep their data.
+- **A pie says what it can about each slice, and no more.** Labels go inside a slice only when their whole box fits in it (a
+  test of the box's corners, not of the arc's length), else outside with a leader, the labels on each side pushed apart so none
+  overlap; the legend is shown only when the labels do not name the slices (information hygiene: the same names twice are noise).
+  Several rings are named under the chart, since nothing else says which is which. Words on a slice are dark or white by the
+  slice's luminance, with no halo.
+- **A slice is pulled out by a double-click**, the gesture that edits in place everywhere else on the graph; its right-click says
+  so. A pie has no axes, so the zoom, pan, mask and the readers do nothing on it rather than something odd.
+- **What is aggregated is said.** A chart of means or columns names its statistic and interval on the Y axis ("Mean of Yield
+  (t/ha), 95 % interval") and in each tooltip; an interval that cannot be had (one value) is said, not drawn as nothing.
+- **A beeswarm that cannot fit is not a beeswarm.** Past 1.6 times its room a swarm is unreadable and slow to work out; it is laid
+  in rows, pressed together, and its tooltip says so.
+- **Text on a chart without a data X is pinned.** Adding a text, an arrow or a box to a pie or a chart of categories pins it to the
+  plot where it was put; before, on a box chart, it was saved and never drawn.
+
 ### 2026-11-25: Scale bar, channels, histogram (IMAGE_SPEC I.7)
 
 - **A scale bar in the image's pixels.** ImageJ's bar is an overlay sized in the image's pixels, so it is the same part of the
