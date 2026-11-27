@@ -5,3 +5,5 @@ ux/logs/
 ux/downloads/
 ux/profiles/
 __pycache__/
+# tools/suite.sh run output
+.suite-logs/
