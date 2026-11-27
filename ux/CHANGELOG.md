@@ -1024,6 +1024,30 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## The user's reports of 27.11, and a new way of working (2026-11-27)
+
+**Reproduced first**, each through the interface as reported (the file picker, clicks, the menus), before any code was read; their
+causes and what they have in common are in `spec/QUALITY_SPEC.md` §1 and §2.
+
+**What changed:**
+- A sheet made with + (or any sheet, graph, trend graph or matrix book) goes into the folder selected; an import no longer moves the
+  sheet it adds to; a folder's menu has New sheet here and Import files here… (`xFileRule`, in `save`).
+- The first import keeps sheets, folders and graphs made before it (`projBlank`, the one test of a blank project, in the four
+  import paths), and the dialog offers its choices.
+- One click in the Project Explorer opens a sheet, a graph, a matrix book or a trend graph.
+- The menus act on the column selected in the worksheet (`wsHandCol`, `syncHandCol`, `menuHand`); a press on the menus or the
+  toolbar no longer counts as leaving the worksheet.
+- Two Y columns of one name are named apart: "Intensity (s2!B)" (`specName`, `specDup`).
+- Combine graphs…, onto a new graph: every graph ticked.
+- Preferences › Messages, off by default: what only reports an action goes to the status bar with its button (`toastKind`,
+  `sbSay`, `#sbMsg`); warnings, refusals and errors pop up.
+
+**Checked:** `tools/review-drive.mjs` 27.11, twenty checks through the interface (149 in the drive, every one passing); the suite.
+
+**Not yet:** the sheets of different folders still share one worksheet window, as a project has one workbook (QUALITY_SPEC S.3,
+workbooks); several files are still put on sheets by one rule for all of them (S.4); a hard limit of three graphs combined was not
+reproduced (the dialog's unticked graph and the desk's two or three graph windows were found).
+
 ## Plots, wave 7, slice 7.5: vectors and radar charts (2026-11-27)
 
 `ux/spec/PLOT2_SPEC.md` slice 7.5. Plot › Plot the selected columns › Vectors: angle and length, Vectors to a point, and Radar; Plot

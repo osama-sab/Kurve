@@ -550,6 +550,82 @@ await page(async p => {
   check("…and both go, in one undo step", JSON.stringify(await p.evaluate(() => sheetList().map(s => s.name))) === '["Sheet 1"]' && JSON.stringify(await p.evaluate(() => { undo(); return sheetList().map(s => s.name); })) === '["Sheet 1","two","three"]', await p.evaluate(() => sheetList().map(s => s.name).join(",")));
 }, { name: "25.11 several selected", vw: { width: 1700, height: 950 }, timeout: 120000 });
 
+console.log("27.11: folders and sheets, the Explorer's one click, messages, same-named columns on other sheets, combining every graph");
+await page(async p => {
+  const W = ms => p.waitForTimeout(ms || 300);
+  const row = n => p.locator("#xplTree .xr").filter({ has: p.locator(".xn", { hasText: new RegExp("^" + n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$") }) }).first();
+  const where = () => p.evaluate(() => { const t = treeOf(); return Object.fromEntries(sheetList().map(s => [s.name, t.at["ws:" + s.id] ? xFolderName(t.at["ws:" + s.id]) : "top"])); });
+  const spec = (n, x0, k) => "Wavenumber,Intensity\n" + Array.from({ length: n }, (_, i) => `${x0 + i},${(200 + 0.3 * i + 900 * k * Math.exp(-(((i - n / 2) / 9) ** 2))).toFixed(3)}`).join("\n");
+  const pick = async (name, text) => { await p.setInputFiles("#fileIn", [{ name, mimeType: "text/csv", buffer: Buffer.from(text) }]); await W(700); };
+  const importAs = async mode => { const r = p.locator(`#impModal input[name="impmode"][value="${mode}"]`); const n = await r.count(); if (n) await r.check(); await p.click("#impGo"); await W(800); return n > 0; };
+  await p.evaluate(() => { if (!xplShown()) toggleXpl(true); }); await W();
+  await p.click("#xplNew"); await W(); await p.fill("#fdXf", "Run 1"); await p.keyboard.press("Enter"); await W();
+  for (const sub of ["Raw", "Processed"]) { await row("Run 1").click({ button: "right" }); await W(); await p.locator(".menu [role=menuitem]", { hasText: "New folder inside" }).click(); await W(); await p.fill("#fdXf", sub); await p.keyboard.press("Enter"); await W(); }
+  await row("Raw").click(); await W();
+  await p.click("[data-wstnew]"); await W();
+  let w = await where();
+  check("a sheet made with + while a subfolder is selected goes into it", w["Sheet 2"] === "Raw", JSON.stringify(w));
+  await p.evaluate(() => undo()); await W(400);
+  check("…one undo takes it away, folder and all as they were", !("Sheet 2" in await where()) && await p.evaluate(() => treeOf().folders.length) === 3);
+  await row("Processed").click({ button: "right" }); await W(); await p.locator(".menu [role=menuitem]", { hasText: "New sheet here" }).click(); await W();
+  w = await where();
+  check("a folder's right-click has New sheet here: the sheet goes into it", Object.entries(w).some(([n, f]) => n !== "Sheet 1" && f === "Processed"), JSON.stringify(w));
+  // One click opens.
+  const made = Object.keys(w).find(n => w[n] === "Processed");
+  await row("Sheet 1").click(); await W();
+  check("one click on a sheet in the Explorer shows it", await p.evaluate(() => sheetName(curSheet())) === "Sheet 1");
+  check("…and the keys stay in the tree", await p.evaluate(() => !!document.activeElement.closest("#xplTree")));
+  await row(made).click({ modifiers: ["Control"] }); await W();
+  check("a Ctrl+click builds a selection and opens nothing", await p.evaluate(() => sheetName(curSheet())) === "Sheet 1" && await p.evaluate(() => xMany().size) === 2);
+  await row("Raw").click(); await W();
+  check("one click on a folder selects it, its sheets still where they were", await p.evaluate(() => S.xplSel.startsWith("d:")) && await p.evaluate(() => sheetName(curSheet())) === "Sheet 1");
+  // The first import keeps the sheets and folders made before it.
+  await pick("a.csv", spec(500, 400, 1)); const offered = await importAs("sheet");
+  w = await where();
+  check("the first import, sheets and folders made before it: the dialog offers New sheet, and they all stay", offered && "Sheet 1" in w && made in w && await p.evaluate(() => treeOf().folders.length) === 3, JSON.stringify(w));
+  check("…the new sheet in the folder selected", w.a === "Raw", JSON.stringify(w));
+  await row("Processed").click(); await W();
+  await pick("b.csv", spec(800, 100, 2)); await importAs("sheet");
+  await row("Raw").click(); await W();
+  await p.evaluate(() => showSheet(sheetList().find(s => s.name === "b").id)); await W();
+  await pick("c.csv", spec(300, 900, 3)); await importAs("add");
+  w = await where();
+  check("a file added to a sheet in another folder: that sheet stays where it was (it followed the folder selected)", w.b === "Processed" && w.a === "Raw", JSON.stringify(w));
+  // Messages: off by default.
+  check("Preferences' Messages are off by default", await p.evaluate(() => prefGet("notify")) === false);
+  const quiet = await p.evaluate(() => ({ toast: !document.getElementById("toast").hidden, sb: !document.getElementById("sbMsg").hidden, text: document.getElementById("sbMsg").textContent }));
+  check("…after an import no message pops up; the status bar says it", !quiet.toast && quiet.sb && /Added/.test(quiet.text), JSON.stringify(quiet));
+  await p.evaluate(() => toast("This sheet cannot be deleted: a project keeps one.")); await W(100);
+  check("…a refusal still pops up", await p.evaluate(() => !document.getElementById("toast").hidden));
+  await p.evaluate(() => { hideToast(); openPrefs(); }); await W(300);
+  check("…Preferences has the switch, unticked", await p.evaluate(() => { const b = document.getElementById("prNotify"); return !!b && !b.checked; }));
+  await p.locator("#prNotify").check(); await W(200); await p.keyboard.press("Escape"); await W(200);
+  await p.evaluate(() => toast("Plotted Intensity in Graph 9.")); await W(100);
+  check("…ticked, a message after an action pops up again", await p.evaluate(() => !document.getElementById("toast").hidden));
+  await p.evaluate(() => { prefSet("notify", false); hideToast(); });
+  // Same-named columns on other sheets: what is selected is what is worked on.
+  const ys = await p.evaluate(() => yCols().filter(c => hasVals(c)).map(c => specName(c)));
+  check("three columns called Intensity are named apart by where they are", new Set(ys).size === ys.length && ys.every(n => /^Intensity \(.+!.\)$/.test(n)), JSON.stringify(ys));
+  await p.evaluate(() => showSheet(sheetList().find(s => s.name === "a").id)); await W(400);
+  await p.locator('#ws th.ch[data-ch="1"]').click(); await W(300);
+  await p.click('.mb[data-menu="data"]'); await W(250); await p.locator(".menu:visible [role=menuitem]", { hasText: "Baseline" }).last().hover(); await W(350);
+  await p.locator(".menu:visible [role=menuitem]", { hasText: "Subtract baseline" }).last().click(); await W(700);
+  const on = await p.evaluate(() => { const c = colById(S.pending && S.pending.col); return c ? sheetName(sheetOf(c)) + "!" + colLetter(c) : null; });
+  check("column B of sheet a selected, Data › Baseline › Subtract baseline…: the Tool window works on a!B (it took the column analysed before, on another sheet)", on === "a!B", on);
+  await p.locator("#w-tool button", { hasText: /^OK$/ }).click(); await W(800);
+  const steps = await p.evaluate(() => yCols().filter(c => hasVals(c)).map(c => `${sheetName(sheetOf(c))}!${colLetter(c)}:${(c.pipe || []).length}`).join(" "));
+  check("…the step on a!B and nowhere else", /a!B:1/.test(steps) && (steps.match(/:1/g) || []).length === 1, steps);
+  // Combining every graph onto a new graph.
+  await p.evaluate(() => { yCols().filter(c => hasVals(c)).forEach(c => plotCols([c.id], {})); }); await W(700);
+  const n = await p.evaluate(() => drawGraphIds().length);
+  await p.evaluate(() => combineDlg()); await W(400);
+  await p.selectOption("#formBody #cgInto", "new"); await W(200);
+  const ticked = await p.evaluate(() => [...document.querySelectorAll(".cglist input[type=checkbox]")].filter(b => b.checked).length);
+  check("Combine graphs…, Go on: A new graph ticks every graph, the one in front too (it stayed unticked)", ticked === n, `${ticked} of ${n}`);
+  await p.click("#formOk"); await W(800);
+  check("…and the new graph has every curve", await p.evaluate(() => drawGraphIds().length === 1 && graphCols(drawGraphIds()[0]).length) === n, await p.evaluate(() => drawGraphIds().map(id => graphName(id) + ":" + graphCols(id).length).join(" ")));
+}, { name: "27.11 folders and sheets", vw: { width: 1700, height: 1000 }, timeout: 150000 });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

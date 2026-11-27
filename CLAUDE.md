@@ -1013,6 +1013,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   the data… (`replaceData`: `confirmDlg` first, then `pickFile(true)`, which sets
   `S.impReplace`; `openImport` takes it as `im.mode` "replace" and clears it, and any other
   `pickFile` clears it too), and the dialog then says so in a note instead of the choices.
+  Only a blank project (`projBlank(p)`: no values, one sheet never named or added to, no folders,
+  graphs, matrices or analyses) is replaced by an import (`doImport`, `doBatchImport`, `autoImport`,
+  `importBook`; 27.11: sheets and folders made before the first file went with it).
   `impBuild` makes the columns in the file's order (an X of row numbers when none is X; the
   fixes as steps on every spectrum; √N columns), `doImport` puts them in a new project, beside
   the project's (the first X shared with the last X column when `sameAxis`), or in place of
@@ -1288,7 +1291,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   raw input or final output (`src`, `from`), for a derivative beside the spectrum or a second
   route to compare. `p.activeY` is the one being analysed. Helpers: `xCol`, `yCols`,
   `activeYCol`, `errColFor`, `colById`, `makeCol`, `colLabel`, `colLetter` (letters count raw
-  columns only), `specName`. **Inside a render** (`inRender(fn)`: `renderAll`, after its
+  columns only), `specName` (with another Y column of the same name, `specDup`, counted once per list of columns, the name and
+  where it is: "Intensity (s2!B)"). **What a command acts on** (27.11): `wsHandCol()` (while the worksheet is the last place
+  worked in, `S.wsTouch`, which a press on the title bar, toolbar, menus, dialogs or status bar leaves as it was, the one Y
+  column its selection holds), `syncHandCol()` (makes it the active column quietly: no undo step, log line or message),
+  called by `openTool` and by every menu item's run (`menuItems` wraps `menuItems0` by `menuHand`). **Inside a render** (`inRender(fn)`: `renderAll`, after its
   `normalize`; `renderPlot`, `renderWs`, `renderWin`, `runSnaps`) the answers about the columns
   are worked out once (`colMemo()`, `CM`, valid while `S.proj`, its `cols` and their length are
   the memo's; `save` and `onProjects` drop it): `colById` (a map), `yCols`/`yCount`/`yIndex(id)`
@@ -2445,9 +2452,15 @@ graph first, with the taskbar kept at the bottom of the screen.
   commands' own held by `S.undoHold`); a selection dragged moves together.
   `xFile(keys, folder)` files without an undo entry of its own (after a change
   that made one); `xNew(keys)` puts what is made while the Explorer is shown into the active
-  folder (`xActiveFolder`: the folder selected, or the selected item's): new graphs
-  (`plotCols`, `newGraphs`; a duplicate goes beside its source), trend graphs and imports (the
-  sheet they went on, `ws:<id>`; `autoImport` returns `{sheets}`).
+  folder (`xActiveFolder`: the folder selected, or the selected item's). **Since 27.11 that is one
+  rule, `xFileRule(p, patch)` in `save`**: a save that makes a sheet, a graph, a trend graph or a
+  matrix book files what is new (its keys against the store's copy, `S.projSrc`, by `xKeysOf`;
+  commands change the page's copy before they save) into the active folder, and a save carrying the
+  tree (an undo) is left alone; an import never refiles the sheet it adds to. The calls to `xNew`
+  that remain are harmless (a duplicate goes beside its source by `xFile`). A folder's menu: *New
+  sheet here*, *Import files here…* (a new sheet in it, then the picker). One click opens a sheet,
+  graph, matrix book or trend graph (`wireXpl`'s click, `e.detail` 1, the keys kept in the tree); a
+  folder or the project's row is selected by a click and opened by a double click.
   `wireXpl()`: keys (arrows, Home/End, Enter, F2, Delete, the menu key), HTML5 drag within the
   tree (`text/x-kurve-node`, `S.xdrag`; a drag counts only when its `dataTransfer` carries that
   type, since the row dragged can be redrawn away before its `dragend`) onto folders, and a
@@ -2751,7 +2764,7 @@ graph first, with the taskbar kept at the bottom of the screen.
   Preferences…, Ctrl+,; as the design system's: History, Appearance with Theme Light, Dark,
   System and Style, Animations, Graphs (*Link the X zoom of graphs*, `#prLinkX`, `setLinkX`, off
   by default; 25.11), Typing text, After an import, Errors; each switch's explanation
-  its tooltip, Done alone in the footer): `PREF_DEF` (`history`, `anim`, `flowAuto`), `prefGet(k)`/`prefSet(k, v)`
+  its tooltip, Done alone in the footer): `PREF_DEF` (`history`, `anim`, `flowAuto`, `notify`), `prefGet(k)`/`prefSet(k, v)`
   under `kurve.pref.<k>`, per browser. **History off** (`histOn()` false) keeps nothing from then
   on: `save` writes no log line (a deferred error line aside), `makeStep` no `t`/`by`,
   `fitHistory` no new entry, `recordRaw` keeps the fingerprint but no record entry (so
@@ -2760,7 +2773,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   record (confirmed, one undo entry). **Errors** are kept either way: `noteError` (the
   browser's list, `kurve.errors`, the last 50, shown in Preferences with Copy and Clear),
   `logError` (that, and a project log entry `{err:true}`), and the window's `error` and
-  `unhandledrejection` listeners. **Animations**: `animOn()` (the preference and not the
+  `unhandledrejection` listeners. **Messages** (27.11, `notify`, off): `toastKind(msg, opt)` (`opt.kind` "done" or "say", else
+  `TOAST_SAY`, a warning or refusal's words, then `TOAST_DONE`, a report's), and a "done" message with Messages off goes to
+  `sbSay(msg, opt)` (`#sbMsg` in place of the status bar's hint, six seconds, ten with its button; `#toastMsg` keeps the text)
+  instead of the toast. **Animations**: `animOn()` (the preference and not the
   system's reduced motion), `applyAnim()` sets `data-noanim` on the root, which every CSS
   animation is guarded by. *Open the Overview* is `kurve.ovAuto`.
 - **Discussion** (`threadIndex`, `threadHtml`, `wireThreads`, `threadAct`, `renderThread`,
@@ -5384,6 +5400,19 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   answer while NIPALS kept 1e-14. A vector is computed by the operator that will use it (t = X₀r, kept orthogonal with r
   following), and an algorithm is judged on the tables that defeat it, not on the ones it was written against.
 
+- **A rule written at call sites is a habit, not a rule.** "What is made goes into the active folder" was fifteen calls to `xNew`;
+  the sixteenth command (the worksheet's +) had none, and one call filed the wrong thing (the sheet an import added to, which then
+  moved). "A fresh project" was decided four times, each too narrowly. A policy is written once, where everything passes (the
+  save), and a bug in one copy is fixed by removing the copies (QUALITY_SPEC §3.5).
+- **A test that calls the code skips the path the person takes.** 2 910 `evaluate` calls against 1 328 clicks: `openTool(op)`
+  with the column wanted can never find that the menu takes another. Every 27.11 report was between a person's action and the
+  function. Flow tests drive the interface and only read state (QUALITY_SPEC §3.1).
+- **A test project is blank; a person's is lived in.** Folders made before files, a dozen files whose columns all have one name,
+  ten graphs: none of the drives started there, and four of the seven reports need it (QUALITY_SPEC §3.2).
+- **Two notions of "what I am working on" disagree.** The worksheet's selection and the active column were different things, and
+  a command took the one the person could not see. What is selected is what is worked on.
+- **A name shown must name one thing.** "Intensity" three times in a list is no choice at all.
+
 ## Roadmap
 
 Done, the user's choice of 26.10: the app brought up to the Kurve design system (a claude.ai
@@ -6091,7 +6120,23 @@ and centred by a fitted Gaussian, a shift, line or parabola fitted to them all b
 reference peak is centred by a fit rather than its top three points (a step from before keeps three); several graphs and sheets are
 selected at once in the Project Explorer and acted on together, each command one undo step.
 
+Then, 27.11, the user's reports (a sheet made in a subfolder at the top, an import moving the other sheets, the first import losing
+the sheets made before it, a double click needed in the Explorer, a step going on another sheet's column of the same name, a graph
+left out when combining, the message after every import, sheets in different folders sharing one window) and the question of why an
+app whose suite passed missed them. Fixed the same day through one rule each (`xFileRule`, `projBlank`, `wsHandCol`, `specDup`,
+`toastKind`), with `tools/review-drive.mjs` 27.11 driving them as reported. The answer and the new way of working are
+`ux/spec/QUALITY_SPEC.md`: stories through the interface first (flow tests that only read state), lived-in projects, invariants
+checked after every action, one rule in one place, a bug fixed as a class, bug bashes before features, the model as a layer of its
+own, done meaning used. **Features stop** (wave 7 at 7.6, its code kept, its documents to come) for its stabilisation: S.2
+invariants and the lived-in projects, S.3 workbooks (books of sheets, a window and a folder each, as Origin's and Excel's), S.4 an
+import of many files that puts each in a folder, book and sheet of its own choosing, S.5 one subject for every command, S.6 a bug
+bash on all of it.
+
 ## Known gaps
+
+- A project has one workbook (QUALITY_SPEC S.3): the sheets of different folders share one worksheet window and its tabs, a folder
+  files sheets and not books, and a formula reads any sheet of the project. Several files are put on sheets by one rule for all of
+  them (S.4)
 
 - Two displays: a graph (not a figure) and five tool windows (Results, Statistics, Help, the
   Overview, Discussion) can go into a window of their own; the worksheet, the History and the

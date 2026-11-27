@@ -284,6 +284,10 @@ input[type=range]:disabled{opacity:.45;cursor:not-allowed}
 
 .statusbar{display:flex;align-items:center;height:24px;padding:0 var(--sp-2) 0 var(--sp-5);background:var(--chrome);border-top:1px solid var(--rule);font-size:var(--fs-tab);color:var(--ink-2);min-width:0;overflow:hidden}
 .sb-hint{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.sb-msg{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:var(--sp-3);overflow:hidden;color:var(--ink)}
+.sb-msg[hidden]{display:none}.sb-msg:not([hidden])+.sb-hint{display:none}
+.sb-msg .sbm-t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sb-msg .sbm-a{flex:none;font:inherit;color:var(--ink);font-weight:600;background:none;border:0;padding:0 var(--sp-1);text-decoration:underline;cursor:pointer}
 .sb-cell{flex:0 0 auto;padding:0 var(--sp-4);border-left:1px solid var(--rule);white-space:nowrap;display:flex;align-items:center;gap:var(--sp-3)}
 .sb-cell:empty{display:none}
 .sb-cell .ic{width:13px;height:13px}
@@ -2574,6 +2578,7 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
   </div>
 
   <footer class="statusbar" aria-label="Status">
+    <span class="sb-msg" id="sbMsg" role="status" hidden></span>
     <span class="sb-hint" id="hint"></span>
     <span class="sb-cell" id="readout" aria-live="off"></span>
     <span class="sb-cell" id="sbPts"></span>
@@ -15269,7 +15274,18 @@ function activeYCol(){ const p=P(); if(!p) return null; return colById(p.activeY
 const xCol=()=>xColFor(activeYCol());
 function colLabel(c,fallback){ if(!c) return fallback; return axisLabel(c.name,c.unit,fallback); }
 function makeCol(role,name,unit,data,of){ return {id:newColId(), role, name:name||"", unit:unit||"", of:of||undefined, data:data||[]}; }
-function specName(c){ if(!c) return "a spectrum"; return c.name||(c.src?"derived column":"column "+(colRef(c)||"?")); }
+// A column's own name, as stored: what a new column made from it is named after, and what an analysis reads as its name.
+// specName (below) is how it is shown, told apart from another of the same name.
+function ownName(c){ if(!c) return "a spectrum"; return c.name||(c.src?"derived column":"column "+(colRef(c)||"?")); }
+function specName(c){ if(!c) return "a spectrum"; if(!c.name) return c.src?"derived column":"column "+(colRef(c)||"?");
+  return specDup(c)?`${c.name} (${colRef(c)||sheetName(sheetOf(c))})`:c.name; }
+/* Two Y columns of one name (27.11, the user's report: files of one instrument, each on a sheet of its own, every column
+   "Intensity"; the Tool window listed Intensity three times and said a step went on "Intensity") are told apart by where
+   they are: "Intensity (s2!B)". Counted once per list of columns and project. */
+const SPN={cols:null,n:-1,pid:null,m:null};
+function specDup(c){ const p=P(); if(!p||!p.cols) return false; const cs=p.cols;
+  if(SPN.cols!==cs||SPN.n!==cs.length||SPN.pid!==S.pid||SPN.dirty){ const m=new Map(); for(const o of cs) if(o&&o.role==="y"&&o.name) m.set(o.name,(m.get(o.name)||0)+1); SPN.cols=cs; SPN.n=cs.length; SPN.pid=S.pid; SPN.m=m; SPN.dirty=false; }
+  return (SPN.m.get(c.name)||0)>1; }
 
 // The analysed spectrum is always drawn in the data colour. The others take the
 // rest of the palette in order, so an overlay never shares the analysed
@@ -16196,8 +16212,16 @@ const $=s=>document.querySelector(s);
 let toastT;
 /* A toast can carry one action, usually Undo, so the way back is where the
    eye already is rather than in a keyboard shortcut the message has to teach. */
+/* Messages (27.11, the user's request: the message after every import was in the way). A message that only reports what was
+   just done (an import, a plot, a step recorded, graphs merged) is a "done" one: with Preferences › Messages off, the default,
+   it is not popped up but written in the status bar for a few seconds, its button (Undo, Plot…) beside it. A warning, a
+   refusal or an error always pops up. A caller may say which (opt.kind "done" or "say"); else the words decide. */
+const TOAST_SAY=/warning|could not|cannot|can't|not saved|failed|refus|is not |are not |isn't|no longer|too (large|many|few|long)|at most|first\b/i;
+const TOAST_DONE=/^(Imported|Added|Plotted|Merged|Moved|Deleted|Removed|Saved|Replaced|Filled|Cleared|Renamed|Masked|Marked|Pasted|Opened|Named|Labelled|Restored|Undid|Redid|Copied|Made|Applied|Combined|Recorded|Exported|Now analysing|Found \d)|recorded as step \d| is now on \d+ other column| (is|are) in the worksheet| (is|are) plotted in | is on the desk| back on the desk| worked out( again)?\.$| peaks? marked|^\d+ peaks? ready to fit|: \d+ panels?\. Click a panel|^\d+ columns, \d+ graphs| imported\.$| (is )?deleted\.$| backed up in | restored from /;
+function toastKind(msg,opt){ if(opt&&(opt.kind==="done"||opt.kind==="say")) return opt.kind; const m=String(msg||""); return TOAST_SAY.test(m)?"say":TOAST_DONE.test(m)?"done":"say"; }
 function toast(msg,opt){
   const t=$("#toast"); if(!t) return;
+  if(toastKind(msg,opt)==="done"&&!prefGet("notify")){ sbSay(msg,opt); return; }
   const a=$("#toastAct");
   if(t._out){ t._out.cancel(); t._out=null; } t.style.pointerEvents="";
   t.hidden=false; $("#toastMsg").textContent=msg;
@@ -16207,6 +16231,14 @@ function toast(msg,opt){
   else { a.hidden=true; a.onclick=null; }
   clearTimeout(toastT); toastT=setTimeout(hideToast,opt&&opt.action?7000:4500);
 }
+// A message said quietly: in the status bar, in place of the hint, for six seconds (ten with a button), and in the toast's text
+// (hidden) so what reads the last message still finds it.
+let sbSayT=null;
+function sbSay(msg,opt){ const b=$("#sbMsg"); const tm=$("#toastMsg"); if(tm) tm.textContent=msg; if(!b){ return; }
+  b.hidden=false; b.title=msg; b.innerHTML=`<span class="sbm-t"></span>`; b.firstChild.textContent=msg;
+  if(opt&&opt.action&&opt.run){ const a=document.createElement("button"); a.type="button"; a.className="sbm-a"; a.textContent=opt.action; a.onclick=()=>{ sbUnsay(); opt.run(); }; b.appendChild(a); }
+  clearTimeout(sbSayT); sbSayT=setTimeout(sbUnsay,opt&&opt.action?10000:6000); }
+function sbUnsay(){ clearTimeout(sbSayT); const b=$("#sbMsg"); if(b){ b.hidden=true; b.innerHTML=""; } }
 function hideToast(){ const t=$("#toast"); clearTimeout(toastT); if(!t||t.hidden) return;
   // It fades out, taking no clicks while it does.
   if(!animOn()||t._out){ if(!t._out) t.hidden=true; return; }
@@ -16225,7 +16257,7 @@ function writeErr(e){
   if(e&&e.code==="revoked"){ setStatus("Access changed. Reload to continue.",true); return; }
   toast(S.store&&S.store.mode==="local"?"This browser would not store that change.":"Couldn't save that change. Check your connection and try again.");
 }
-async function save(patch, logText){ CM=null;
+async function save(patch, logText){ CM=null; SPN.dirty=true;
   if(!S.pid||S.readOnly||S.gone.has(S.pid)) return;
   // An edit still waiting to be saved (saveSoon) goes with this save, first:
   // saved later on its own, it would write back values older than these.
@@ -16233,7 +16265,8 @@ async function save(patch, logText){ CM=null;
   // takes the waiting edit's line with it: that edit is what is being undone.
   let pendLog=null;
   if(Object.keys(wsPatch).length&&wsPid===S.pid){ clearTimeout(wsTimer); pendLog=patch&&"log" in patch?null:wsLog; patch=Object.assign({},wsPatch,patch); wsPatch={}; wsLog=null; }
-  const p=S.proj; Object.assign(p,patch); p.updated=Date.now(); patch.updated=p.updated;
+  const p=S.proj, fileNew=xFileRule(p,patch); Object.assign(p,patch); p.updated=Date.now(); patch.updated=p.updated;
+  if(fileNew) fileNew();
   if(patch.cols) recalcFx(p);         // formula columns follow the columns they use
   else if(("fit" in patch||"batch" in patch)&&p.cols.some(c=>c.fx&&c.fx.fit)&&recalcFx(p)) patch.cols=p.cols;   // and the fit's, a new fit
   if((logText||pendLog)&&histOn()){ const add=[pendLog,logText].filter(Boolean).map(text=>({t:Date.now(),uid:S.uid||"",text}));
@@ -20940,7 +20973,10 @@ function renderCtx(){
   renderSbStats();
 }
 function setupCtx(){
-  window.addEventListener("pointerdown",e=>{ const t=e.target, inWs=!!(t&&t.closest&&t.closest("#ws")); S.wsTouch=inWs; if(!inWs&&t&&t.closest&&t.closest("#plot")) S.ctxFromWs=false; },true);
+  // The menus, the toolbar, dialogs and the status bar are where a command is chosen, not a place worked in: a press there
+  // leaves the worksheet the last place worked in, so the command acts on what is selected there (wsHandCol).
+  window.addEventListener("pointerdown",e=>{ const t=e.target; if(t&&t.closest&&t.closest(".titlebar,.toolbar,.menu,.modal,#toast,.statusbar,.fpick,.cpick,.sympick")) return;
+    const inWs=!!(t&&t.closest&&t.closest("#ws")); S.wsTouch=inWs; if(!inWs&&t&&t.closest&&t.closest("#plot")) S.ctxFromWs=false; },true);
   window.addEventListener("keydown",e=>{ const t=e.target; if(t&&t.closest&&t.closest("#ws")) S.wsTouch=true; },true);
 }
 // A click (or a right-click) on the graph chooses what is selected; announced for a screen reader.
@@ -24311,7 +24347,7 @@ function anaInputs(a,cs,by,notes,K){ if(K&&K.cells) return anaCells(a,cs,notes);
   if(list){ let common=null; rd.forEach(d=>{ const s=new Set(d.rows.filter(i=>i>=0)); common=common?new Set([...common].filter(i=>s.has(i))):s; });
     let out=0; rd.forEach(d=>{ out+=keepRows(d,i=>common.has(i)); });
     if(out) notes.push(`Listwise: the ${common.size} row${common.size===1?"":"s"} with a value in every column chosen; ${out} value${out===1?"":"s"} in other rows left out.`); }
-  return rd.map(d=>{ const c=d.c, r=d.r, q={id:c.id,name:specName(c),ref:colRef(c),unit:c.unit||"",vals:d.vals,rows:d.rows,nMasked:r.nMasked,groups:null,missing:d.missing,cats:null};
+  return rd.map(d=>{ const c=d.c, r=d.r, q={id:c.id,name:ownName(c),label:specName(c),ref:colRef(c),unit:c.unit||"",vals:d.vals,rows:d.rows,nMasked:r.nMasked,groups:null,missing:d.missing,cats:null};
     if(r.nMasked) notes.push(`${r.nMasked} masked point${r.nMasked===1?"":"s"} of ${q.name} left out.`);
     if(d.lev){ q.cats={keys:d.keys,order:catOrderKeys(c)}; return q; }
     if(r.rowsKind==="dep") notes.push(`${q.name} is read after ${r.steps.join(", ").toLowerCase()}: neighbouring values depend on each other.`);
@@ -24342,7 +24378,7 @@ function anaSeriesOf(a,cs){ if(a.kind!=="pls"||mvLayout(a.p)!=="curves") return 
 function anaPts(a,cs,notes){ const SV=anaSeriesOf(a,cs); return cs.map((c,ci)=>{ const d=finalOf(c), mk=new Set(a.in.masked?[]:(c.mask||[])), x=[], y=[], e=[], rows=[]; let nm=0;
     for(let k=0;k<d.x.length;k++){ const X=d.x[k], Y=d.y[k], i=d.idx?d.idx[k]:k; if(!Number.isFinite(X)||!Number.isFinite(Y)) continue; if(i>=0&&mk.has(i)){ nm++; continue; } x.push(X); y.push(Y); e.push(d.e&&d.e[k]!=null?d.e[k]:null); rows.push(i); }
     if(nm) notes.push(`${nm} masked point${nm===1?"":"s"} of ${specName(c)} left out.`);
-    return {id:c.id,name:specName(c),ref:colRef(c),unit:c.unit||"",xn:d.xn||"",xu:d.xu||"",pts:{x,y,e,rows},nMasked:nm,gv:a.p&&a.p.meta?((c.meta||{})[a.p.meta]??null):null,
+    return {id:c.id,name:ownName(c),label:specName(c),ref:colRef(c),unit:c.unit||"",xn:d.xn||"",xu:d.xu||"",pts:{x,y,e,rows},nMasked:nm,gv:a.p&&a.p.meta?((c.meta||{})[a.p.meta]??null):null,
       sv:SV?SV.v[ci]:undefined,svn:SV?SV.lab:undefined,svu:SV?SV.unit:undefined}; }); }
 /* A reshaping kind's inputs (SHEET_SPEC 3.5): every column's cells as the worksheet holds them (numbers and text,
    the original data or a formula's values, not processed), rows aligned across the columns; the rows chosen and a
@@ -24359,7 +24395,7 @@ function anaCells(a,cs,notes){ const rr=anaRowsOf(a.in), W=a.in.where&&typeof a.
   const sn={}; sheetList().forEach(s=>{ sn[s.id]=s.name; });
   const other=new Map(); cs.forEach(c=>{ const s=sheetOf(c); if(s===home) return; other.set(s,Math.max(other.get(s)||0,(c.data||[]).length,txtLen(c))); });
   return cs.map(c=>{ const s=sheetOf(c), rows=s===home?kept:Array.from({length:other.get(s)},(_,i)=>i);
-    return {id:c.id,name:specName(c),ref:colRef(c),unit:c.unit||"",role:c.role,sheet:s,sheetName:sn[s]||"",cells:rows.map(i=>catVal(c,i)),rows,order:isCatCol(c)&&c.cat?catOrderKeys(c):null}; }); }
+    return {id:c.id,name:ownName(c),label:specName(c),ref:colRef(c),unit:c.unit||"",role:c.role,sheet:s,sheetName:sn[s]||"",cells:rows.map(i=>catVal(c,i)),rows,order:isCatCol(c)&&c.cat?catOrderKeys(c):null}; }); }
 // Work it out: the inputs read, the kind run, the result sheet's columns written. Mutates p.cols and a.
 function runAna(a,p,o){ o=o||{}; const K=ANA_KINDS[a.kind]; p=p||P(); if(!K||!p) return false; const sig=anaSig(a);
   const cs=(a.in.cols||[]).map(colById), gone=cs.filter(c=>!c).length, by=a.in.by?colById(a.in.by):null, wg=Object.keys(a.in.where||{}).filter(id=>!colById(id)).length;
@@ -25298,7 +25334,7 @@ function graphSummary(cid){ const p=P(); if(!p||S.readOnly) return;
   if(!c||!(c.role==="y"||c.role==="ignore")||!(c.src||anyVal(c.data))){ toast("Choose a column of numbers for a graphical summary."); return; }
   pushUndo("a graphical summary");
   if(c.role==="ignore"){ c.role="y"; c.pipe=c.pipe||[]; c.mask=c.mask||[]; }
-  const h=makeCol("y",`Histogram of ${specName(c)}`,"",[]); h.src=c.id; h.from="final"; h.mask=[]; h.pipe=[makeStep("hist",Object.assign({},PIPE_OPS.hist.defaults))]; p.cols.push(h); migrate(p);
+  const h=makeCol("y",`Histogram of ${ownName(c)}`,"",[]); h.src=c.id; h.from="final"; h.mask=[]; h.pipe=[makeStep("hist",Object.assign({},PIPE_OPS.hist.defaults))]; p.cols.push(h); migrate(p);
   const base=graphBase(GID()), graphs=(p.graphs||[]).slice();
   const gh={id:newGid(),name:nextGraphName({graphs}),cols:[h.id],plot:Object.assign(clone(base),{series:{[h.id]:{dist:"normal"}}})}; graphs.push(gh);
   const gb={id:newGid(),name:nextGraphName({graphs}),cols:[c.id],plot:Object.assign(clone(base),{layout:"box"})}; graphs.push(gb);
@@ -26252,6 +26288,16 @@ function setErrOf(id,yid){
   pushUndo("the error bar column");
   c.of=yid; save({cols:p.cols},`used ${c.name||"a column"} as the error bars of ${y.name||"a column"}`); renderAll();
 }
+/* What a command acts on is what is selected (27.11, the user's report: column B of one sheet selected, Subtract baseline
+   went on the column analysed before, on another sheet, under the same name, again and again). While the worksheet is the
+   last place worked in and its selection holds one Y column (or its error bars), that column; else none. */
+function wsHandCol(){ const p=P(), m=S.wsm, w=S.ws; if(!p||!S.wsTouch||S.sheet==="final"||!m||!m.cols||!w) return null;
+  const a=Math.min(w.c,w.ac==null?w.c:w.ac), b=Math.max(w.c,w.ac==null?w.c:w.ac), ys=[];
+  for(let i=Math.max(0,a);i<=b&&i<m.cols.length;i++){ let c=m.cols[i]&&m.cols[i].col; if(c&&c.role==="e") c=colById(c.of); if(c&&c.role==="y"&&!ys.includes(c)) ys.push(c); }
+  return ys.length===1&&(hasVals(ys[0])||ys[0].src)?ys[0]:null; }
+// Makes it the active column, quietly: no undo step, no log line, no message (choosing what to work on is not a change).
+function syncHandCol(){ const p=P(), c=wsHandCol(); if(!p||!c||c.id===p.activeY||S.readOnly) return false;
+  S.draft=null; S.pdraft=null; S.view=null; S.selPeak=null; S.stage=null; S.selStep=null; p.activeY=c.id; save({activeY:c.id}); return true; }
 function setActiveCol(id,quiet){
   const p=P(), c=colById(id); if(!p||!c||c.role!=="y"||p.activeY===id||S.readOnly) return;
   pushUndo("changing the active column"); S.draft=null; S.pdraft=null; S.view=null; S.selPeak=null; S.stage=null; S.selStep=null;
@@ -28100,7 +28146,7 @@ function copyPipeToAll(){
 function newDerived(from,opt){
   const c=(opt&&opt.src&&colById(opt.src))||activeYCol(), p=P(); if(!c||S.readOnly) return null;
   if(!(opt&&opt.noUndo)) pushUndo("making a new column");
-  const n=makeCol("y",(opt&&opt.name)||`${specName(c)} ${from==="raw"?"(copy)":"(processed)"}`,c.unit,[]);
+  const n=makeCol("y",(opt&&opt.name)||`${ownName(c)} ${from==="raw"?"(copy)":"(processed)"}`,c.unit,[]);
   n.src=c.id; n.from=from; n.mask=maskOf(c).slice();
   n.pipe=from==="raw"&&!(opt&&opt.bare)?(c.pipe||[]).map(s=>Object.assign(makeStep(s.op,JSON.parse(JSON.stringify(s.p||{}))),{on:s.on})):[];
   if(opt&&opt.steps) n.pipe=n.pipe.concat(opt.steps);
@@ -28119,7 +28165,7 @@ function histogramCols(cids){
   pushUndo(cs.length===1?"making a histogram":"making histograms");
   const made=[];
   cs.forEach(c=>{ if(c.role==="ignore"){ c.role="y"; c.pipe=c.pipe||[]; c.mask=c.mask||[]; }
-    const n=makeCol("y",`Histogram of ${specName(c)}`,"",[]); n.src=c.id; n.from="final"; n.mask=[]; n.pipe=[makeStep("hist",Object.assign({},PIPE_OPS.hist.defaults))]; p.cols.push(n); made.push(n.id); });
+    const n=makeCol("y",`Histogram of ${ownName(c)}`,"",[]); n.src=c.id; n.from="final"; n.mask=[]; n.pipe=[makeStep("hist",Object.assign({},PIPE_OPS.hist.defaults))]; p.cols.push(n); made.push(n.id); });
   migrate(p); p.activeY=made[0];
   const gids=newGraphs(made.map(id=>[id]),{noUndo:true,from:GID(),patch:{cols:p.cols,activeY:made[0]},log:`made ${made.length===1?"a histogram":made.length+" histograms"} of ${andList(cs.map(specName))}`});
   renderAll();
@@ -28790,7 +28836,8 @@ function renderImport(){
     ${sq.length?`<span></span><label class="chk"><input type="checkbox" id="impSqrt"${im.sqrt?" checked":""}> √N error bars for the counts${ys.length>1?` in ${sq.map(impLetter).join(", ")}`:""}</label>`:""}
   </div>`;
 
-  const hasData=S.pid&&allCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null));
+  // Not only beside data: sheets and folders made before the first import are a project too.
+  const hasData=S.pid&&!projBlank();
   if(hasData){
     // A spectrum that shares no X range with this project cannot be lined up
     // with it, so the default becomes a project of its own.
@@ -28888,7 +28935,7 @@ async function doImport(){
   const {cols,ys,base,rows,stepNote}=impBuild(), ids=ys.map(c=>c.id), what=impWhat(cols,ys,rows), nPts=Math.max(0,...cols.map(c=>c.data.length));
   if(!cols.some(c=>hasVals(c))){ toast("Every column is left out: there is nothing to import."); return; }
   const hadData=S.pid&&allCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null));
-  const mode=hadData?(im.mode||"add"):"replace";
+  const mode=S.pid&&!projBlank()?(im.mode||"add"):"replace";
   closeImport();
 
   if(!S.pid||mode==="new"){
@@ -28923,7 +28970,6 @@ async function doImport(){
     const raw=recordRaw(`added ${what} from ${im.fname}`);
     if(mode==="sheet"){ S.sheetAt=S.sheetAt||{}; S.sheetAt[S.pid]=sid; S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.wsm=null; S.wsSort=null; }
     await save(Object.assign({cols:p.cols,activeY:p.activeY,meta:p.meta,graphs:p.graphs},mode==="sheet"?{sheets:p.sheets}:{},raw?{raw}:{}),`added ${what} from ${im.fname}${mode==="sheet"?` on the sheet ${sheetName(sid)}`:""}${stepNote}${own?", with its own X column because it was measured on a different axis":""}${how==="none"?", not plotted yet":""}`);
-    if(cols[0]) xNew(["ws:"+sheetOf(cols[0])]);
     afterImport(how,ids,made,mode==="sheet"?`Added ${what} on the sheet ${sheetName(sid)}.`:own?`Added ${what}. ${ys.length===1?"It was":"They were"} measured on a different X axis, so ${ys.length===1?"it has":"they have"} an X column of ${ys.length===1?"its":"their"} own. Nothing was interpolated.`:`Added ${what}.`,true);
     return;
   }
@@ -28939,7 +28985,6 @@ async function doImport(){
   Object.assign(p,patch);
   const raw=recordRaw(`replaced all the original data with ${im.fname}`); if(raw) patch.raw=raw;
   await save(patch,`replaced the data with ${what} from ${im.fname}${stepNote}${how==="none"?", not plotted yet":""}`);
-  if(cols[0]) xNew(["ws:"+sheetOf(cols[0])]);
   afterImport(how,ids,made,hadData?`Imported ${what}. The previous original data is in the undo history and its check code in the record.`:`Imported ${what}.`,true);
 }
 // After an import: the worksheet comes forward when nothing was plotted, with
@@ -29060,7 +29105,7 @@ async function batchImport(items,o){
   await doBatchImport(good,skip,{into:hasData?r.biInto:"here",graphs:"none",src:o.fname||`${o.files||good.length} files`});
 }
 async function doBatchImport(good,skip,o){
-  const p0=P(), intoNew=o.into==="new"||!S.pid, keep=!intoNew&&allCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null));
+  const p0=P(), intoNew=o.into==="new"||!S.pid, keep=!intoNew&&!projBlank();
   let cols=keep?p0.cols.slice():[]; const newY=[];
   // Into a project with data on the sheet shown, the files go on a sheet of their own.
   const own=keep&&sheetCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null)), sid=own?newSheetId():keep?curSheet():SHEET0.id;
@@ -29090,7 +29135,6 @@ async function doBatchImport(good,skip,o){
     if(own){ patch.sheets=p.sheets=sheetList(p).concat([{id:sid,name:sheetNameFor(batchProjName(names))}]); S.sheetAt=S.sheetAt||{}; S.sheetAt[S.pid]=sid; S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.wsm=null; S.wsSort=null; }
     if(!keep&&isUntitled(p.name)) patch.name=uniqueProjName(batchProjName(names),S.pid);
     await save(patch,lg);
-    xNew([...new Set(cols.filter(c=>!c.src).map(c=>"ws:"+sheetOf(c)))]);
     renderAll();
   }
   const mks=metaKeys(cols.filter(c=>newY.includes(c.id)));
@@ -29136,7 +29180,7 @@ async function autoImport(files,o){
   if(!S.pid){ await createProject(blankProject(built[0].base),null); await new Promise(r=>whenOpen(r)); }
   const p=P(); if(!p) return null;
   if(S.ws&&S.ws.edit) wsCommit(0,0,true);
-  const fresh=!allCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null));
+  const fresh=projBlank();
   pushUndo(built.length===1?`importing ${built[0].fname}`:`importing ${built.length} files`);
   S.view=null; S.draft=null; S.pdraft=null; S.stage=null; S.selStep=null;
   // Spectra measured on the same X share its column; a file on another axis brings its own.
@@ -29171,7 +29215,7 @@ async function autoImport(files,o){
   const raw=recordRaw(fresh?`recorded from ${what}`:`added ${what}`); if(raw) patch.raw=raw;
   await save(patch,`${fresh?"imported":"added"} ${what}, dropped on the window${bad.length?`; skipped ${bad.map(s=>s.split(",")[0]).join(", ")}`:""}`);
   const sks=[...new Set(cols.filter(c=>built.some(b=>b.cols.includes(c))).map(c=>"ws:"+sheetOf(c)))];
-  if(o.folder) xFile(sks,o.folder); else xNew(sks);
+  if(o.folder) xFile(sks,o.folder);
   if(!ids.length){ renderAll(); sheetForward(); toast(`Imported ${what}: no column is a Y column, so nothing was plotted. The columns are in the worksheet.`,{action:"Undo",run:undo}); return {sheets:sks}; }
   // Dropped anywhere but on a graph, the columns go into the worksheet and nothing is
   // plotted: a graph is made when it is asked for (Plot, or a drop on a graph).
@@ -29236,12 +29280,28 @@ function saveTree(t,log,o){ o=o||{}; if(!P()||S.readOnly) return false; if(!o.no
   save({tree:{folders:t.folders,at}},log||null); renderXpl(); return true; }
 // Every item the tree can hold, by its key.
 function xKeys(p){ const s=new Set(sheetList(p).map(q=>"ws:"+q.id)); graphIds().forEach(id=>s.add("g:"+id)); trendList().forEach(t=>s.add("t:"+t.id)); matBooks(p).forEach(b=>s.add("mx:"+b.id)); return s; }
+// The same of any copy of a project.
+function xKeysOf(q){ const s=new Set(sheetList(q).map(x=>"ws:"+x.id)); graphIds(q).forEach(id=>s.add("g:"+id)); (Array.isArray(q.trends)?q.trends:[]).forEach(t=>s.add("t:"+t.id)); matBooks(q).forEach(b=>s.add("mx:"+b.id)); return s; }
 // Puts items in a folder (null: the project's top level). No undo entry of its own:
 // it follows a change that made one.
 function xFile(keys,folder,o){ const t=treeOf(), v=folder&&xFolder(t,folder)?folder:null, at=Object.assign({},t.at); let ch=false;
   keys.forEach(k=>{ if((at[k]||null)!==v){ if(v) at[k]=v; else delete at[k]; ch=true; } }); if(ch) saveTree({folders:t.folders,at},null,Object.assign({noUndo:true},o)); }
 // What is made while a folder is active goes into it.
 function xNew(keys){ if(!xplShown()) return; const f=xActiveFolder(); if(f) xFile(keys,f); }
+/* The rule behind it, in one place (27.11, the user's report: a sheet made with + while a subfolder was selected went to the
+   top, as only the commands that called xNew filed what they made, and an import filed the sheet it added to, so a sheet
+   already in one folder moved to another). A save that makes a sheet, a graph, a trend graph or a matrix book files what
+   is new, and only what is new, into the folder selected; one that carries the tree (an undo, a redo) is left as it is. */
+function xFileRule(p,patch){ if(!p||!patch||"tree" in patch||S.readOnly) return null;
+  if(!("sheets" in patch||"graphs" in patch||"trends" in patch||"mats" in patch)||!xplShown()) return null;
+  // What was there before is the store's copy (S.projSrc): commands change the page's copy before they save.
+  const f=xActiveFolder(); if(!f) return null; const src=S.projSrc&&S.projSrc.id===S.pid?S.projSrc:null; if(!src) return null; const before=xKeysOf(src);
+  return ()=>{ const nw=[...xKeysOf(p)].filter(k=>!before.has(k)); if(!nw.length) return; const t=treeOf(p), at=Object.assign({},t.at); nw.forEach(k=>{ at[k]=f; });
+    p.tree=patch.tree={folders:t.folders,at}; xExp()["d:"+f]=true; }; }
+/* A project that holds nothing anyone made: no values, one sheet never named or added to, no folders, graphs, matrices or
+   analyses. Only such a project is replaced by an import (27.11: sheets and folders made before the first import went with it). */
+function projBlank(p){ p=p||P(); if(!p) return true; const t=p.tree||{};
+  return !(p.cols||[]).some(c=>c.role!=="x"&&hasVals(c))&&!(p.sheets&&p.sheets.length)&&!((t.folders||[]).length)&&!((p.graphs||[]).length)&&!((p.mats||[]).length)&&!((p.ana||[]).length); }
 function xActiveFolder(){ const t=treeOf(), k=S.xplSel; if(!k) return null; if(k.startsWith("d:")) return xFolder(t,k.slice(2))?k.slice(2):null;
   return t.at[k]||null; }
 function xExp(){ S.xplExp=S.xplExp||{}; return S.xplExp[S.pid]=S.xplExp[S.pid]||{}; }
@@ -29387,7 +29447,9 @@ function xMenu(r){
   if(r.kind==="root") return [{group:projName(p),plain:true},{label:"New folder…",enabled:!ro,run:()=>xNewFolder(null)},{label:"Rename the project…",enabled:!ro,run:renameProject},
     {label:"Copy from another project…",enabled:!ro&&otherProjects().length>0,run:()=>bringInDlg()},
     "-",{label:"Expand everything",run:()=>xExpandAll(true)},{label:"Collapse everything",run:()=>xExpandAll(false)}];
-  if(r.kind==="folder") return [{group:r.name,plain:true},{label:"New folder inside…",enabled:!ro,run:()=>xNewFolder(r.fid)},{label:"Rename…",kbd:"F2",enabled:!ro,run:()=>xRenameFolder(r.fid)},move,
+  // What is made from a folder's menu goes into it (the rule in save, xFileRule, with the folder selected).
+  const here=f=>()=>{ S.xplSel="d:"+r.fid; xSelect(S.xplSel); f(); };
+  if(r.kind==="folder") return [{group:r.name,plain:true},{label:"New sheet here",enabled:!ro,run:here(()=>newSheet())},{label:"Import files here…",enabled:!ro,title:"A new sheet in this folder, and the files on it",run:here(()=>{ newSheet(); pickFile(); })},"-",{label:"New folder inside…",enabled:!ro,run:()=>xNewFolder(r.fid)},{label:"Rename…",kbd:"F2",enabled:!ro,run:()=>xRenameFolder(r.fid)},move,
     "-",{label:"Delete the folder",kbd:"Delete",title:"What it holds moves up a level",danger:true,enabled:!ro,run:()=>xDeleteFolder(r.fid)}];
   if(r.kind==="graph"){ const on=graphWinItems(r.gid).find(i=>i&&i.label==="Curves on it"), shut=graphShut(r.gid);
     return [{group:r.name,plain:true},{label:shut?"Open":"Bring to the front",kbd:"Enter",run:()=>showGraph(r.gid)},{label:"Close (hide it)",enabled:!ro&&!shut,run:()=>closeGraph(r.gid)},
@@ -29407,8 +29469,12 @@ const xDragKind=k=>{ const r=xRow(k); return r?r.kind:null; };
 function wireXpl(){
   const box=$("#xplTree"), a=$("#xpl"); if(!box) return;
   box.addEventListener("click",e=>{ const el=e.target.closest(".xr"); if(!el) return; const k=el.dataset.xk;
-    if(e.target.closest("[data-xtw]")){ xSelect(k); xToggle(k); return; } xSelect(k,true,e.ctrlKey||e.metaKey?"toggle":e.shiftKey?"range":null); });
-  box.addEventListener("dblclick",e=>{ const el=e.target.closest(".xr"); if(!el||e.target.closest("[data-xtw]")) return; xOpen(xRow(el.dataset.xk)); });
+    if(e.target.closest("[data-xtw]")){ xSelect(k); xToggle(k); return; } const how=e.ctrlKey||e.metaKey?"toggle":e.shiftKey?"range":null; xSelect(k,true,how);
+    /* One click opens what it names (27.11, the user's report: a sheet highlighted by a click was not the sheet shown, and a
+       double click was needed, which no other list in Kurve asks for). A folder or the project's row only selects (a double
+       click or its arrow opens and closes it); Ctrl or Shift builds a selection and opens nothing. The keys stay in the tree. */
+    const r=xRow(k); if(how||!r||r.kind==="folder"||r.kind==="root"||e.detail>1) return; xOpen(r); if(!xplDrawer()) xSelect(k,true); });
+  box.addEventListener("dblclick",e=>{ const el=e.target.closest(".xr"); if(!el||e.target.closest("[data-xtw]")) return; const r=xRow(el.dataset.xk); if(r&&(r.kind==="folder"||r.kind==="root")) xOpen(r); });
   box.addEventListener("contextmenu",e=>{ const el=e.target.closest(".xr"); if(!el) return; e.preventDefault(); const k=el.dataset.xk, m=xMany();
     if(m.size>1&&m.has(k)){ S.xplSel=k; openMenu(pointerAnchor(e.clientX,e.clientY),xMultiMenu(xSelRows()),{label:"Project Explorer"}); return; }
     xSelect(k,true); openMenu(pointerAnchor(e.clientX,e.clientY),xMenu(xRow(k)),{label:"Project Explorer"}); });
@@ -29541,7 +29607,7 @@ async function importBook(book,fname,idx,o){
   if(!S.pid){ await createProject(blankProject(base),null); await new Promise(r=>whenOpen(r)); }
   const p=P(); if(!p) return null;
   if(S.ws&&S.ws.edit) wsCommit(0,0,true);
-  const fresh=!allCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null));
+  const fresh=projBlank();
   pushUndo(`importing ${fname}`);
   S.view=null; S.draft=null; S.pdraft=null; S.stage=null; S.selStep=null;
   if(!fresh) stampSheets(p);
@@ -29559,7 +29625,7 @@ async function importBook(book,fname,idx,o){
   const raw=recordRaw(fresh?`recorded from ${what}`:`added ${what}`); if(raw) patch.raw=raw;
   S.sheetAt=S.sheetAt||{}; S.sheetAt[S.pid]=sids[0]; S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.wsm=null; S.wsSort=null;
   await save(patch,`${fresh?"imported":"added"} ${what} (${built.map(b=>b.sname).join(", ")}), each on a sheet of its own${bad.length?`; skipped ${bad.map(s=>s.split(",")[0]).join(", ")}`:""}`);
-  const sks=sids.map(s=>"ws:"+s); if(o.folder) xFile(sks,o.folder); else xNew(sks);
+  const sks=sids.map(s=>"ws:"+s); if(o.folder) xFile(sks,o.folder);
   const again={action:"Read it differently",run:()=>{ undo(); xlsxOpen(book,fname); }};
   if(o.gid&&ids.length&&(fresh||graphOf(o.gid))){ plotCols(ids,{into:fresh?null:o.gid,noUndo:true,quiet:true});
     toast(`${ids.length===1?specName(colById(ids[0])):ids.length+" columns"} from ${what} ${ids.length===1?"is":"are"} plotted in ${graphName(S.gid)}${bad.length?`. Skipped: ${bad.join("; ")}`:""}.`,again); return {sheets:sks,gid:S.gid}; }
@@ -31956,6 +32022,8 @@ function openPrefs(){
       ${screensApi()?`<section aria-labelledby="prD"><h3 class="gh" id="prD">Displays</h3>
         ${S.screens&&S.screens.length>1?`<div class="prow"><span class="tipd" title="Where a graph made from Plot opens: on the desk, or in a window of its own on another display">New graphs</span>${seg("Displays",String(prefGet("newGraphsOn")||"here"),[["here","This display"]].concat(S.screens.filter(s=>!s.primary||S.screens.length>1).map(s=>[String(s.n),`Display ${s.n}`])))}</div>`:`<div class="actions" style="margin-left:0"><button type="button" class="btn sm" id="prScr" title="The browser asks once to see the screens">Find the displays…</button></div>`}
         ${sw("prAway",prefGet("awayReopen"),"Offer to reopen detached windows with the project","When a project is opened, the windows that were in windows of their own are offered back")}</section>`:""}
+      <section aria-labelledby="prM"><h3 class="gh" id="prM">Messages</h3>
+        ${sw("prNotify",prefGet("notify"),"Show a message after each action","After an import, a plot, a step and the like. Off (the default), those messages are written in the status bar for a few seconds instead, with their button (Undo, Plot…). Warnings, refusals and errors always show")}</section>
       <section aria-labelledby="prG"><h3 class="gh" id="prG">Graphs</h3>
         ${sw("prLinkX",!!S.linkX,"Link the X zoom of graphs","Zooming one graph zooms the others to the same X range. Off (the default), each graph keeps its own zoom. A graph's ⋯ menu and Window › Graphs switch it too")}</section>
       <section aria-labelledby="prT"><h3 class="gh" id="prT">Typing text</h3>
@@ -31972,6 +32040,7 @@ function openPrefs(){
     on("prOv",v=>{ try{ localStorage.setItem("kurve.ovAuto",v?"1":"0"); }catch(e){} });
     on("prAway",v=>prefSet("awayReopen",v));
     on("prLinkX",v=>setLinkX(v));
+    on("prNotify",v=>prefSet("notify",v));
     $("#prefBody").querySelectorAll("[data-pref-displays]").forEach(b=>b.onclick=()=>{ prefSet("newGraphsOn",b.dataset.prefDisplays); render(); });
     { const sb=$("#prScr"); if(sb) sb.onclick=async()=>{ await loadScreens(); render(); }; }
     $("#prefBody").querySelectorAll("[data-pref-theme]").forEach(b=>b.onclick=()=>{ applyTheme(b.dataset.prefTheme); render(); });
@@ -33135,6 +33204,7 @@ function openTool(op,opt){
   opt=opt||{};
   const def=PIPE_OPS[op]; if(!def||S.readOnly||!P()) return;
   if(S.pending) cancelTool(true);
+  if(!opt.col) syncHandCol();
   const c=opt.col?colById(opt.col):activeYCol();
   if(!c){ toast("Import or paste some data first."); return; }
   if(c!==activeYCol()){ P().activeY=c.id; S.draft=null; S.pdraft=null; S.selPeak=null; }
@@ -33243,7 +33313,7 @@ function applyToolNew(){ const pd=S.pending, p=P(); if(!pd||!p||S.readOnly) retu
   // Each column's step, at the place the Tool window chose for the column it was set up on, else where its kind goes.
   const plan=list.map((y,k)=>{ const pipe=y.pipe||[], at=k===0?Math.min(pd.at,pipe.length):insertAt(pipe,s.op); return {y,at,st:k===0?s:stepCopyFor(s,y,at,pd.measure)}; });
   pushUndo(`${stepShort(s).toLowerCase()} on a new graph`);
-  const made=plan.map(({y,at,st})=>{ const pipe=y.pipe||[], n=makeCol("y",`${specName(y)}, ${lcFirst(stepShort(st))}`,y.unit||"",[]); n.src=y.id; n.mask=[];
+  const made=plan.map(({y,at,st})=>{ const pipe=y.pipe||[], n=makeCol("y",`${ownName(y)}, ${lcFirst(stepShort(st))}`,y.unit||"",[]); n.src=y.id; n.mask=[];
     if(at===pipe.length){ n.from="final"; n.pipe=[st]; }
     else { n.from="raw"; n.pipe=pipe.slice(0,at).map(q=>Object.assign(makeStep(q.op,clone(q.p||{})),{on:q.on!==false})).concat([st]); }
     p.cols.push(n); return n; });
@@ -33385,7 +33455,7 @@ function analyzeMenu(){
       {label:"Wavelets", sub:()=>[{label:"Decompose (DWT)…", title:ANA_KINDS.dwt.help, run:()=>anaDlg("dwt"), enabled:!S.readOnly&&!!P()}, t("wden"),
         {label:"Continuous (CWT)…", title:ANA_KINDS.cwt.help, run:()=>anaDlg("cwt"), enabled:!S.readOnly&&!!P()}]}]},
     {label:"Calculus", sub:()=>[t("deriv"),
-      {label:"Derivative, as a new column…", title:"Keeps this column and adds its derivative beside it", run:()=>{ const id=newDerived("final",{quiet:true,name:`d/dx ${specName(activeYCol())}`}); if(id) openTool("deriv",{col:id}); }, enabled:edit&&has},
+      {label:"Derivative, as a new column…", title:"Keeps this column and adds its derivative beside it", run:()=>{ const id=newDerived("final",{quiet:true,name:`d/dx ${ownName(activeYCol())}`}); if(id) openTool("deriv",{col:id}); }, enabled:edit&&has},
       t("cumint"), "-",
       {label:"Integrate as an analysis…", title:ANA_KINDS.integ.help, run:()=>anaDlg("integ"), enabled:!S.readOnly&&!!P()},
       {label:"Area between two curves…", title:yCols().length>1?ANA_KINDS.between.help:"Two columns are needed: the area is between two", run:()=>anaDlg("between",{two:true}), enabled:!S.readOnly&&!!P()&&yCols().length>1},
@@ -35627,10 +35697,10 @@ ${DL([["Import, Export","Bring a file in; save the graph, data or a report."],["
 <h2 id="items">What is in it</h2>
 ${DL([["The project","The top of the tree, with the project's name. Right-click it for a new folder, to rename the project, or to switch to another."],["Folders","Yours, nested as deep as you like. They only organise: nothing is deleted with a folder, and what it held moves up a level."],["Worksheet, sheets","The worksheet, or with several sheets each sheet by its name; a file imported beside data has a sheet of its own, named after it. Its tooltip says how many columns hold values. The columns themselves are in the worksheet, which shows them; the tree does not list them again."],["Graphs","Every graph, closed ones too, marked <em>hidden</em> with a crossed-out eye; the one in front is in bold. A tooltip lists what each shows."],["Trend graphs","From the "+DA("batch","Batch window")+"."]])}
 <h2 id="use">Using it</h2>
-${DL([["Open","Double-click or "+K("Enter")+": a graph comes onto the desk (a hidden one too), a sheet is shown in the worksheet, a folder opens or closes."],["Menu","Right-click, "+K("Shift","F10")+" or the menu key: what can be done with that item, and <em>Move to</em> any folder."],["Move","Drag an item or a folder onto a folder, or onto the project at the top."],["Plot","Drag a sheet onto a graph window: its Y columns with values are plotted there."],["Import","Drop files from your computer onto a folder: they are read, plotted and filed there. "+DA("import#drop","Dropping files")],["Rename, delete",K("F2")+" and "+K("Delete")+". Deleting a sheet takes its columns out of the project, after asking when it holds values (the original-data record notes it); Undo brings everything back."],["Filter","Type in the box above the tree to show only what is called that, and where it is."]])}
+${DL([["Open","One click or "+K("Enter")+": a graph comes onto the desk (a hidden one too), a sheet is shown in the worksheet, a matrix book or a trend graph opens. A folder is selected by a click and opened or closed by a double click, its arrow, "+K("→")+" or "+K("←")+"; the keys stay in the tree."],["Menu","Right-click, "+K("Shift","F10")+" or the menu key: what can be done with that item, and <em>Move to</em> any folder."],["Move","Drag an item or a folder onto a folder, or onto the project at the top."],["Plot","Drag a sheet onto a graph window: its Y columns with values are plotted there."],["Import","Drop files from your computer onto a folder: they are read, plotted and filed there. "+DA("import#drop","Dropping files")],["Rename, delete",K("F2")+" and "+K("Delete")+". Deleting a sheet takes its columns out of the project, after asking when it holds values (the original-data record notes it); Undo brings everything back."],["Filter","Type in the box above the tree to show only what is called that, and where it is."]])}
 <h2 id="many">Several at once</h2>
 <p>${K("Ctrl")}+click adds an item to the selection or takes it out, ${K("Shift")}+click (or ${K("Shift")}+${K("↑")} ${K("↓")}) selects a run, ${K("Ctrl","A")} everything, ${K("Esc")} goes back to one. Right-click the selection for one menu: open or close the graphs, show them side by side, combine them into one graph, make them the panels of a figure, export them as one picture; plot their columns together, or <em>Process their columns</em>, which opens a step set up on the first with <em>Apply to: the ones chosen</em>, so it goes on every column the sheets and graphs hold; move everything to a folder; delete everything (asked once when sheets hold values). Each is one Undo; a dragged selection moves together.</p>
-<p>The folder selected, or the folder of the item selected, is the <strong>active folder</strong>: graphs, trend graphs and files made while the Explorer is open go into it, as Origin puts new windows in the active folder. ${K("↑")} ${K("↓")} move, ${K("→")} opens and ${K("←")} closes or goes up a level. Folders are kept with the project, so a colleague who opens it sees them, and every change to them is one Undo.</p>`},
+<p>The folder selected, or the folder of the item selected, is the <strong>active folder</strong>: sheets (the worksheet's <strong>+</strong> too), graphs, trend graphs, matrix books and files made while the Explorer is open go into it, as Origin puts new windows in the active folder; a folder's right-click has <em>New sheet here</em> and <em>Import files here…</em>. What is made goes there and nothing else moves: a file added to a sheet in another folder leaves that sheet where it is. ${K("↑")} ${K("↓")} move, ${K("→")} opens and ${K("←")} closes or goes up a level. Folders are kept with the project, so a colleague who opens it sees them, and every change to them is one Undo.</p>`},
 {id:"import", g:"Basics", t:"Importing data", kw:"import open file csv tsv txt dat qudi confocal delimiter decimal comma header metadata paste drop wizard add replace many several files batch columns role use as data not a spectrum leave out plot not yet worksheet only pairs excel xlsx xlsm workbook spreadsheet sheets frozen html table web page",
  lead:"Text exports from almost any instrument work. Drop a file on the window and it is read and plotted at once; use Import to see how it is read and choose what each column becomes, and nothing is plotted until you ask.",
  body:`<h2>Three ways in</h2>
@@ -35675,7 +35745,7 @@ ${DL([["X column","<em>Channel number</em>: each line's position, counted from <
 <h2>What is refused</h2>
 <p>Binary files of other kinds are refused with a reason. Export them as text from the instrument software first.</p>
 <p>After an import that plots one column the ${DA("overview","Overview")} opens. Its <em>Show the overview after every import</em> box turns that off.</p>`},
-{id:"prefs", g:"Basics", t:"Preferences", kw:"preferences settings options history log track tracking privacy record off animation animations motion theme dark light style errors overview",
+{id:"prefs", g:"Basics", t:"Preferences", kw:"preferences settings options history log track tracking privacy record off animation animations motion theme dark light style errors overview messages notifications toast pop-up popup quiet",
  lead:"Whether Kurve keeps a history of your changes, how it looks and moves, and the errors it has met. Kept in this browser.",
  body:`<p>Open it from the gear at the right of the title bar, ${MP("File › Preferences…")}, ${MP("Edit › Preferences…")} or ${K("Ctrl",",")}. Every switch takes effect at once.</p>
 <h2 id="history">History</h2>
@@ -35683,6 +35753,8 @@ ${DL([["Keep a history of changes","On (the default), Kurve keeps the log of eve
 <p>The switch belongs to this browser, not to the project: a colleague who opens a shared project keeps their own. Turning it on again starts a new history from that moment.</p>
 <h2>Appearance</h2>
 ${DL([["Theme","Light, Dark, or System: as the system is."],["Style","Bench (blue for everything you can change) or Graphite (black and white). Neither changes the graph's colours."],["Animations","Windows, menus, dialogs and the worksheet's cursor move briefly; off, everything changes at once. "+DA("desk#motion","Animations")]])}
+<h2 id="messages">Messages</h2>
+${DL([["Show a message after each action","Off (the default), what only says that something was done (an import, a plot, a step recorded, graphs merged) is written in the status bar for a few seconds, its button beside it (Undo, Plot…); on, it pops up over the desk as well. A warning, a refusal or an error pops up either way."]])}
 <h2>Typing text</h2>
 <p><em>Text input</em>: <em>Formatted</em> (raised and lowered characters and symbols shown as they are, as in a word processor) or <em>LaTeX</em> (the source, with a preview), for titles, labels and the legend. ${DA("latex","Text: formatted or LaTeX")}</p>
 <h2>Displays</h2>
@@ -39462,7 +39534,7 @@ function psuByOpts(st){ const sids=new Set(st.curves.filter(q=>!q.y.src).map(q=>
 function psuSplit(curves,by,use,series){ const p=P(), lv=catLevels(by,by.cat||{order:"first"}); if(!p||!Array.isArray(lv)||!lv.length||lv.length>DIST_GMAX) return null;
   const ids=[], grps={};
   curves.forEach(q=>{ const y=q.y, g=newGrpId(); grps[g]={step:"color"};
-    lv.forEach(o=>{ const t=typeof o.v==="number"?String(o.v):o.v, nm=`${specName(y)} (${typeof o.v==="number"?fmt(o.v,8):o.v})`;
+    lv.forEach(o=>{ const t=typeof o.v==="number"?String(o.v):o.v, nm=`${ownName(y)} (${typeof o.v==="number"?fmt(o.v,8):o.v})`;
       const n=makeCol("y",nm,y.unit||"",[]); n.src=y.id; n.from="final"; n.mask=[]; n.pipe=[makeStep("where",{col:by.id,lv:t})]; p.cols.push(n); ids.push(n.id);
       use[n.id]=Object.assign({},use[y.id]||{},{grp:g}); if(series[y.id]) series[n.id]=Object.assign({},series[y.id]); });
     delete use[y.id]; delete series[y.id]; });
@@ -39696,6 +39768,11 @@ function combineDlg(into){
     valid:v=>ids.some(id=>v["cgG_"+id]&&id!==v.cgInto)}).then(r=>{
     if(!r||!P()) return; const pick=ids.filter(id=>r["cgG_"+id]&&id!==r.cgInto&&graphOf(id));
     combineGraphs(pick,r.cgInto,{keep:r.cgKeep==="keep",layout:r.cgLay||null}); });
+  // Onto a new graph every graph can go, the one in front too (27.11: it stayed unticked, so one graph was always left out);
+  // onto a graph, that graph is not one of those merged.
+  const sel=$("#formBody #cgInto"); if(sel) sel.addEventListener("change",()=>{ const v=sel.value;
+    ids.forEach(id=>{ const b=document.getElementById("cgG_"+id); if(!b) return; if(v==="new"){ if(!b.checked) b.checked=true; } else if(id===v) b.checked=false; });
+    const ok=$("#formOk"), cs=ids.filter(id=>{ const b=document.getElementById("cgG_"+id); return b&&b.checked&&id!==v; }); if(ok) ok.disabled=!cs.length; });
 }
 
 /* ---- Spectra from another project ---------------------------------------------------
@@ -39901,7 +39978,13 @@ function publishMenu(){
     {label:"Copy the graph as a picture", title:"A PNG on the clipboard, to paste into a document or slides", run:copyGraphPicture, enabled:has&&!!(p&&GID())},
     {label:"Copy the results table", run:copyResults, enabled:!!f}]);
 }
-function menuItems(which){
+// Every menu's commands act on what is selected: each item's run first makes the worksheet's selected column the active one.
+function menuItems(which){ return menuHand(menuItems0(which)); }
+function menuHand(items){ (items||[]).forEach(it=>{ if(!it||typeof it!=="object") return;
+    if(typeof it.run==="function"&&!it._hand){ const f=it.run; it.run=function(){ syncHandCol(); return f.apply(this,arguments); }; it._hand=true; }
+    if(Array.isArray(it.sub)) menuHand(it.sub); else if(typeof it.sub==="function"&&!it._hsub){ const g=it.sub; it.sub=function(){ return menuHand(g.apply(this,arguments)); }; it._hsub=true; } });
+  return items; }
+function menuItems0(which){
   if(which==="ctx"){ const c=ctxOf(); return c?c.items():[]; }
   if(which==="curves") return curveVisItems();
   const p=P(), f=p?activeFit():null, ro=S.readOnly, edit=!!p&&!ro, can=!ro&&!!S.store, has=!!(p&&pointsAll().length);
@@ -40006,7 +40089,7 @@ function setupDrop(){
    kept either way: they make the processed data. anim: windows, menus and the
    worksheet's cursor move instead of jumping. flowAuto: the History window opens
    with a column's first processing step (never while history is off). */
-const PREF_DEF={history:true, anim:true, flowAuto:true, texLatex:false, awayReopen:true, newGraphsOn:"here"};
+const PREF_DEF={history:true, anim:true, flowAuto:true, texLatex:false, awayReopen:true, newGraphsOn:"here", notify:false};
 function prefGet(k){ try{ const v=localStorage.getItem("kurve.pref."+k); return v==null?PREF_DEF[k]:v==="1"; }catch(e){ return PREF_DEF[k]; } }
 function prefSet(k,v){ try{ localStorage.setItem("kurve.pref."+k,v?"1":"0"); }catch(e){} }
 function histOn(){ return prefGet("history"); }

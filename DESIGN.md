@@ -910,6 +910,31 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-27: the user's reports: folders, one click, messages, what a command acts on
+
+- **What is made goes into the folder selected, and nothing else moves.** One rule in the save, not a call in each command: a
+  sheet made by the worksheet's +, a graph, a trend graph, a matrix book or a file's sheet goes into the folder selected in the
+  Explorer (or the folder of the item selected), as Origin's new windows go into the active folder. An import adds to a sheet
+  without moving it: a sheet is where its user put it. A folder's right-click has *New sheet here* and *Import files here…*.
+- **An import replaces only a blank project.** Sheets, folders, graphs or an analysis made before the first file are the user's
+  plan for it; the file goes into them, and the dialog offers New sheet, Add to and New project as beside data.
+- **One click opens.** A sheet, a graph, a matrix book or a trend graph opens on one click in the Explorer, as in every other list
+  of Kurve and in a file manager's tree; the keys stay in the tree. A folder is selected by a click and opened or closed by a double
+  click or its arrow; Ctrl and Shift build a selection and open nothing.
+- **A command acts on what is selected.** While the worksheet is the last place worked in and its selection holds one Y column, the
+  menus' commands act on that column (it becomes the active one, quietly: choosing is not a change, so no undo step and no message).
+  A press on the menus, the toolbar or a dialog does not count as working somewhere else.
+- **Two columns of one name are named apart by where they are.** "Intensity (s2!B)" wherever a column is named (lists, the legend,
+  messages, the log), only when another Y column has the same name: files of one instrument all call their columns the same.
+- **Messages after an action are quiet by default** (Preferences › Messages). What only reports that something was done (an import,
+  a plot, a step recorded, graphs merged) is written in the status bar for a few seconds with its button (Undo, Plot…); a warning,
+  a refusal or an error pops up as before. The user found the message after every import in the way; a refusal that went to the
+  status bar would leave a command that did nothing looking as if it had.
+- **Combine onto a new graph takes every graph**, the one in front too.
+- And the way of working changes (ux/spec/QUALITY_SPEC.md): stories through the interface first, lived-in projects, invariants
+  after every action, one rule in one place, done meaning used; then workbooks (S.3) and an import of many files that puts each
+  where it belongs (S.4).
+
 ### 2026-11-27: Vectors and radar charts (PLOT2_SPEC 7.5)
 
 - **Arrows are a way of drawing a curve.** A curve's arrows come from two more columns read in its rows (an angle and a length, or

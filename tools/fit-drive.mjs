@@ -337,8 +337,9 @@ await page(async p => {
   // Deleted, with Undo in the toast.
   await p.evaluate(() => deleteFitSet(fitSetLib()[0], "lib")); await p.waitForTimeout(100);
   r = await p.evaluate(() => fitSetLib().length);
-  await p.evaluate(() => { const b = $("#toastAct"); if (b) b.click(); }); await p.waitForTimeout(100);
-  check("deleted from the browser, and back with the toast's Undo", r === 0 && await p.evaluate(() => fitSetLib().length === 1));
+  // The message's Undo: in the toast, or with Preferences › Messages off (the default) in the status bar.
+  await p.evaluate(() => { const t = $("#toast"), b = t && !t.hidden ? $("#toastAct") : document.querySelector("#sbMsg .sbm-a"); if (b) b.click(); }); await p.waitForTimeout(100);
+  check("deleted from the browser, and back with the message's Undo", r === 0 && await p.evaluate(() => fitSetLib().length === 1));
   // Following: the fit is made again when the processing changes, with a log line and no undo step of its own.
   await p.evaluate(() => { const d = ensureDraft(); d.cons = ""; d.initFx = null; runFit(); }); await p.waitForTimeout(500);
   await p.evaluate(() => { showTab("fit"); renderFit(); }); await p.waitForTimeout(100);
