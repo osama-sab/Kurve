@@ -910,6 +910,20 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-27: Polar graphs (PLOT2_SPEC 7.3)
+
+- **A layout, not a kind of axis.** A polar graph is a graph's layout, as a pie is, so any curve (or a matrix) can be drawn in it
+  and back, its curves keep their colours, symbols, lines and error bars, and the Format pane's Layout page has its settings. Origin's
+  polar plot is its own template; here it is the same graph seen in other coordinates.
+- **The circles and spokes are the axes.** They are drawn by their own switches (*Circles*, *Spokes*), not the toolbar's Grid,
+  which is off by default: a polar graph without them cannot be read.
+- **The radius's numbers make room.** They go along a spoke between two (along a sector's first edge), and one that would sit on
+  the last kept or on an angle's label is left out, so a small graph shows fewer numbers rather than a pile of them.
+- **The pointer's tools keep their meaning.** The wheel zooms (here the radius at the rim, the only range a circle has), the Pan
+  tool moves (here it turns the circle, the zero with it), a double-click shows everything; the status bar reads θ and r.
+- **A line goes the short way round.** Points at 350° and 10° are neighbours: their line crosses the zero, never the whole circle,
+  and every line is drawn in pieces of 3° at most, so a constant radius is an arc, in an export too.
+
 ### 2026-11-27: Statistical charts (PLOT2_SPEC 7.2)
 
 - **A chart is an analysis that draws.** A control chart, a Pareto chart, a Bland–Altman plot, a forest plot and a Q–Q plot are each

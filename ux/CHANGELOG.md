@@ -1024,6 +1024,32 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Plots, wave 7, slice 7.3: polar graphs (2026-11-27)
+
+`ux/spec/PLOT2_SPEC.md` slice 7.3. Plot › Plot the selected columns › Polar, Plot setup's *Coordinates* row, or the Format pane's
+Layout page for a graph already drawn.
+- **A polar graph**: each curve's X as the angle and its values as the radius (or the other way round), in degrees, radians (the rim
+  then says π/6, π/3…) or gradians, the zero to the east, north, west or south, anticlockwise or clockwise; lines joined along the
+  angle the short way round (350° to 10° crosses the zero), symbols, areas to the centre, error bars along the radius.
+- **Its circle**: a hole in the middle, a radial range typed or automatic, a sector of the circle (points outside it not drawn, and
+  counted); circles and spokes with their own switches; the radius's numbers along a spoke, thinned where they would crowd; the
+  angles round the rim. All in the graph's right-click menu under *Polar* and in the Format pane.
+- **Moving it**: the wheel changes the radius at the rim, the Pan tool turns the circle, a double-click shows it all; the status bar
+  reads θ and r.
+- **A matrix as a polar map**: its X the angle and its Y the radius, each pixel the cell it falls in, with its colour bar and the
+  cell's value in the readout (the map's menu › *A polar map*, and back).
+
+Checked: `tools/ref/plot2_polar.py` (the definition in mpmath at 40 digits with complex numbers: 34 frames of every unit, zero and
+direction, holes, sectors across the zero, a turned zero, a box too small; 2 329 points, 2 779 inversions, 12 joins) through ref-test
+(the frame 7.5e-14 px, each place 4.0e-13 px, the inverse 1.4e-15 of the radius, the joins 1.4e-16 of a turn); the fuzzer's `polarFlat`
+(random frames up to a radius of 10⁵ px: 2.8e-15 of the largest coordinate over thirteen seeds); `tools/plot2-drive.mjs` 7.3 (33: every
+point of two curves where the definition puts it for each zero and direction, read from the SVG, the seam, a hole, a sector from its
+dialog, the readout, the wheel, the pan, undo, the menus and the Format pane, X as the radius, an export to PDF with ° and π, junk
+settings, a reload, a matrix's polar map cell by cell and its readout, Plot setup's card, 390 px). Found on the way: an angle of several
+turns, or the zero turned, lost digits in its cosine (3e-12 px), and a narrow sector's frame 5e-15 of its radius, both now reduced by a
+whole turn with `%` (exact) first; the circles and spokes followed the toolbar's Grid, off by default, so a new polar graph had none;
+a sector's or a radius's range passed to the next graph made from it.
+
 ## Plots, wave 7, slice 7.2: statistical charts (2026-11-27)
 
 `ux/spec/PLOT2_SPEC.md` slice 7.2. Analyze › Statistics › Statistical charts; each chart is an analysis with a result sheet and a

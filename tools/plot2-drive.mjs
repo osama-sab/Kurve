@@ -496,6 +496,162 @@ if (section("7.2")) {
   }, { name: "7.2 at 390 px", vw: { width: 390, height: 800 } });
 }
 
+/* 7.3 Polar: three curves (a cardioid and a rose against an angle every 5°, and four points across the seam on an X of their own). */
+const polarData = async p => {
+  await p.evaluate(async () => {
+    const th = [], c = [], r = []; for (let i = 0; i < 72; i++) { const t = i * 5; th.push(t); c.push(+(1 + Math.cos(t * Math.PI / 180)).toFixed(6)); r.push(+(1.5 * Math.abs(Math.cos(3 * t * Math.PI / 180))).toFixed(6)); }
+    const X = makeCol("x", "Angle", "°", th), A = Object.assign(makeCol("y", "Cardioid", "m", c), { pipe: [], mask: [] }), B = Object.assign(makeCol("y", "Rose", "m", r), { pipe: [], mask: [] });
+    const X2 = makeCol("x", "Bearing", "°", [340, 350, 10, 20]), C = Object.assign(makeCol("y", "Seam", "m", [1.5, 1.6, 1.7, 1.8]), { pipe: [], mask: [] });
+    await createProject(Object.assign(blankProject("Polar"), { cols: [X, A, B, X2, C], activeY: A.id }), "test"); await new Promise(r => setTimeout(r, 100)); renderAll();
+  });
+  await p.waitForTimeout(400);
+  return p.evaluate(() => yCols().map(c => c.id));
+};
+// Every vertex of each curve's line on the SVG, with the frame, and the places the definition gives its points.
+const polRead = p => p.evaluate(() => { const F = S.geo.polar.F, o = S.geo.polar.po, out = {}, ln = {};
+  document.querySelectorAll("#plot g[data-polser]").forEach(g => { const d = (g.querySelector("[data-polline]") || { getAttribute: () => "" }).getAttribute("d") || "";
+    out[g.dataset.ser] = ln[g.dataset.ser] = [...d.matchAll(/[ML]([-\d.]+),([-\d.]+)/g)].map(m => [+m[1], +m[2]]);
+    // a symbol's circle is "Mx−r,y a r,r …": its centre r to the right of where it starts
+    const sd = (g.querySelector("[data-polsym]") || { getAttribute: () => "" }).getAttribute("d") || "";
+    out[g.dataset.ser] = out[g.dataset.ser].concat([...sd.matchAll(/M([-\d.]+),([-\d.]+)a([\d.]+),/g)].map(m => [+m[1] + +m[3], +m[2]])); });
+  return { F: { cx: F.cx, cy: F.cy, R: F.R, hole: F.hole }, o, lines: out, ln, left: S.geo.polar.left, ang: [...document.querySelectorAll("#plot [data-polang]")].map(e => +e.dataset.polang) }; });
+const polDef = (F, o, th, r) => { const turn = { deg: 360, rad: 2 * Math.PI, grad: 400 }[o.unit], z = { e: 0, n: 90, w: 180, s: 270 }[o.zero] + (o.rot || 0), sg = o.cw ? -1 : 1;
+  const ph = (z + sg * th * 360 / turn) * Math.PI / 180, rho = F.hole + (1 - F.hole) * (r - o.r0) / (o.r1 - o.r0); return [F.cx + F.R * rho * Math.cos(ph), F.cy - F.R * rho * Math.sin(ph)]; };
+// The farthest a point of the data lies from the nearest vertex drawn (the SVG keeps two decimals: 0.005 px each way).
+const polOff = (R, ths, rs, id) => { const V = R.lines[id] || []; let worst = 0;
+  ths.forEach((t, i) => { if (rs[i] == null) return; const [x, y] = polDef(R.F, R.o, t, rs[i]); let m = Infinity; for (const v of V) m = Math.min(m, Math.hypot(v[0] - x, v[1] - y)); worst = Math.max(worst, m); }); return worst; };
+
+if (section("7.3")) {
+  console.log("7.3 Polar");
+  await page(async p => {
+    const ids = await polarData(p), TH = [...Array(72).keys()].map(i => i * 5);
+    const vals = await p.evaluate(ids => ids.map(id => colById(id).data.slice()), ids);
+    // From the worksheet's Plot menu: Polar.
+    const item = await p.evaluate(ids => { const it = plotItems(ids.slice(0, 2)).find(q => q && q.label === "Polar"); if (it) it.run(); return !!it; }, ids);
+    await p.waitForTimeout(600);
+    let r = await p.evaluate(() => ({ lay: plotCfg().layout, n: document.querySelectorAll("#plot g[data-polser]").length, grid: !!document.querySelector("#plot [data-polgrid]"), frame: !!document.querySelector("#plot [data-polframe]"), ang: [...document.querySelectorAll("#plot [data-polang]")].map(e => e.textContent).join(" "), rad: [...document.querySelectorAll("#plot [data-polr]")].map(e => e.textContent) }));
+    check("Plot's menu has Polar, and it draws both curves in a circle with circles, spokes and the angles round the rim", item && r.lay === "polar" && r.n === 2 && r.grid && r.frame && r.ang === "0° 30° 60° 90° 120° 150° 180° 210° 240° 270° 300° 330°" && r.rad.length >= 3, JSON.stringify(r));
+    await p.evaluate(id => { toggleColVis(id); savePlot({ series: Object.assign({}, plotCfg().series, { [id]: { type: "linesym" } }) }, "t"); }, ids[2]); await p.waitForTimeout(400);
+    // Every point at r cos θ, r sin θ, for every zero and both directions.
+    const offs = [];
+    for (const z of ["e", "n", "w", "s"]) for (const cw of [false, true]) {
+      await p.evaluate(({ z, cw }) => { savePlot({ polZero: z === "e" ? null : z, polCw: cw || null }, "t"); renderPlot(); }, { z, cw }); await p.waitForTimeout(150);
+      const R = await polRead(p); offs.push([z, cw, Math.max(polOff(R, TH, vals[0], ids[0]), polOff(R, TH, vals[1], ids[1])).toExponential(2), R.o.zero, R.o.cw]); }
+    check("every point of both curves where the definition puts it, for the zero east, north, west and south, either way round (within the SVG's 0.005 px)", offs.every(q => +q[2] <= 0.0072 && q[3] === q[0] && q[4] === q[1]), JSON.stringify(offs));
+    // The angle in radians and gradians: the same circle, read in another unit.
+    await p.evaluate(ids => { savePlot({ polZero: null, polCw: null, polUnit: "rad" }, "t"); renderPlot(); }, ids); await p.waitForTimeout(150);
+    let R = await polRead(p); const ang = R.ang;
+    check("in radians the rim says multiples of π, and the spokes are at sixths of π", ang.length === 12 && Math.abs(ang[1] - Math.PI / 6) < 1e-7 && await p.evaluate(() => [...document.querySelectorAll("#plot [data-polang]")].map(e => e.textContent).slice(0, 4).join(" ")) === "0 π/6 π/3 π/2", JSON.stringify(ang));
+    await p.evaluate(() => { savePlot({ polUnit: null }, "t"); renderPlot(); }); await p.waitForTimeout(150);
+    // The seam: 340°, 350°, 10°, 20° joined the short way, never round the far side.
+    R = await polRead(p); const S3 = R.ln[ids[2]] || [], phs = S3.map(([x, y]) => Math.atan2(-(y - R.F.cy), x - R.F.cx) * 180 / Math.PI);
+    check("a line from 350° to 10° crosses the seam the short way: every vertex within 20° of the zero, in pieces of 3° at most", S3.length >= 14 && phs.every(a => Math.abs(a) <= 20.01) && phs.slice(1).every((a, i) => Math.abs(a - phs[i]) <= 3.01), JSON.stringify(phs.map(a => +a.toFixed(2))));
+    check("…and its four points at their places", polOff(R, [340, 350, 10, 20], [1.5, 1.6, 1.7, 1.8], ids[2]) <= 0.0072);
+    // A hole: the smallest radius a ring; the cardioid's 0 at 180° on it.
+    await p.evaluate(() => { pushUndo("t"); savePlot({ polHole: 0.3 }, "t"); renderPlot(); }); await p.waitForTimeout(150);
+    R = await polRead(p);
+    const bg = await p.evaluate(() => { const d = document.querySelector("#plot [data-polbg]").getAttribute("d"), F = S.geo.polar.F; return [...d.matchAll(/[ML]([-\d.]+),([-\d.]+)/g)].map(m => Math.hypot(+m[1] - F.cx, +m[2] - F.cy) / F.R); });
+    check("a hole of 0.3: the region a ring from 0.3 to 1 of the radius, the cardioid's zero on its inner edge", Math.abs(Math.min(...bg) - 0.3) < 1e-4 && Math.abs(Math.max(...bg) - 1) < 1e-4 && polOff(R, TH, vals[0], ids[0]) <= 0.0072, JSON.stringify([Math.min(...bg), Math.max(...bg)]));
+    await p.evaluate(() => undo()); await p.waitForTimeout(200);
+    check("one undo closes the hole", await p.evaluate(() => polarOpts(plotCfg()).hole === 0 && S.geo.polar.F.hole === 0));
+    // A sector, through the Range and sector dialog.
+    await p.evaluate(() => { polRangeDlg(); }); await p.waitForSelector("#prT0"); await p.fill("#prR1", "2.5"); await p.fill("#prT0", "0"); await p.fill("#prT1", "180"); await p.click("#formOk"); await p.waitForTimeout(300);
+    R = await polRead(p);
+    const outN = TH.filter(t => t > 180).length * 2 + 2;
+    check("a sector 0° to 180° from the dialog: the angles 0° to 180° alone, the radius to 2.5, the points outside left out and counted", R.ang.join() === "0,30,60,90,120,150,180" && R.o.r1 === 2.5 && R.left === outN && polOff(R, TH.filter(t => t <= 180), vals[0].slice(0, 37), ids[0]) <= 0.0072, JSON.stringify({ ang: R.ang, r1: R.o.r1, left: R.left, outN }));
+    const fitd = await p.evaluate(() => { const F = S.geo.polar.F, g = S.geo; return { dx: F.cx - (g.L + g.pw / 2), dy: (F.cy - F.R / 2) - (g.T + g.mh / 2) }; });
+    check("…the half disc fitted into the plot and centred both ways", Math.abs(fitd.dx) < 0.5 && Math.abs(fitd.dy) < 0.5, JSON.stringify(fitd));
+    await p.evaluate(() => undo()); await p.waitForTimeout(200);
+    check("one undo puts the whole circle back", await p.evaluate(() => polarOpts(plotCfg()).t0 === null && polarOpts(plotCfg()).r1 === null));
+    // The readout: θ and r of the place under the pointer.
+    const at = await p.evaluate(() => { const F = S.geo.polar.F, q = polarFwd(F, 60, 1.2), svg = document.querySelector("#plot"), bb = svg.getBoundingClientRect(), k = bb.width / svg.viewBox.baseVal.width; return { x: bb.left + q[0] * k, y: bb.top + q[1] * k, k }; });
+    await p.mouse.move(at.x, at.y); await p.waitForTimeout(150);
+    const ro = await p.evaluate(() => document.querySelector("#readout").textContent), m = ro.match(/θ\s*([-\d.]+)°\s+r\s*([-\d.]+)/);
+    check("the readout says θ and r under the pointer (within its pixel)", m && Math.abs(+m[1] - 60) < 0.5 && Math.abs(+m[2] - 1.2) < 0.02, ro);
+    // The wheel zooms the radius; a double-click shows it all again.
+    await p.mouse.wheel(0, 300); await p.waitForTimeout(250);
+    const v1 = await p.evaluate(() => S.geo.v.y1);
+    await p.mouse.dblclick(at.x, at.y); await p.waitForTimeout(300);
+    const v2 = await p.evaluate(() => S.geo.v.y1);
+    check("the wheel changes the radial range (the rim's radius), a double-click shows it all again", v1 !== 2 && v2 === 2, JSON.stringify([v1, v2]));
+    // The Pan tool turns the zero: a drag a quarter round.
+    await p.evaluate(() => setMode("pan"));
+    const c = await p.evaluate(() => { const svg = document.querySelector("#plot"), bb = svg.getBoundingClientRect(), F = S.geo.polar.F, k = bb.width / svg.viewBox.baseVal.width; return { x: bb.left + F.cx * k, y: bb.top + F.cy * k, R: F.R * k }; });
+    await p.mouse.move(c.x + c.R * 0.7, c.y); await p.mouse.down(); await p.mouse.move(c.x, c.y - c.R * 0.7, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(250);
+    R = await polRead(p);
+    check("the Pan tool turns the zero with the drag (a quarter turn), every point turned with it", Math.abs(R.o.rot - 90) < 1 && polOff(R, TH, vals[0], ids[0]) <= 0.0072, JSON.stringify(R.o.rot));
+    await p.evaluate(() => { setMode("zoom"); S.view = null; renderPlot(); }); await p.waitForTimeout(150);
+    // The Polar menu and the Format pane.
+    const menu = await p.evaluate(() => { const it = graphMenuItems().find(q => q && q.label === "Polar"); return it ? (typeof it.sub === "function" ? it.sub() : it.sub).filter(q => q && q.label).map(q => q.label) : null; });
+    check("the graph's menu has Polar: coordinates, angle unit, zero, direction, hole, range and sector, circles, spokes", menu && ["Coordinates", "Angle in", "Zero at", "Clockwise", "Hole", "Range and sector…", "Circles", "Spokes"].every(l => menu.includes(l)), JSON.stringify(menu));
+    await p.evaluate(() => { const it = polMenuItems().find(q => q && q.label === "Clockwise"); it.run(); }); await p.waitForTimeout(200);
+    const lg = await p.evaluate(() => ({ cw: polarOpts(plotCfg()).cw, log: (P().log || []).slice(-1)[0].text }));
+    check("Clockwise from the menu, said in the log", lg.cw === true && /clockwise/.test(lg.log), JSON.stringify(lg));
+    await p.evaluate(() => undo()); await p.waitForTimeout(150);
+    await p.evaluate(() => openPlotDetails(null, "layout")); await p.waitForTimeout(250);
+    const f = await p.evaluate(() => ["pdQm", "pdQu", "pdQz", "pdQh", "pdQcw", "pdQgr", "pdQgt"].map(id => !!document.getElementById(id)));
+    check("the Format pane's Layout page has the coordinates, unit, zero, hole, direction, circles and spokes", f.every(Boolean), JSON.stringify(f));
+    await p.selectOption("#pdQz", "n"); await p.waitForTimeout(600); await p.evaluate(() => { pdCommit && pdCommit(); closePlotDetails(); }); await p.waitForTimeout(200);
+    check("a zero chosen there is the graph's, one undo step", await p.evaluate(() => polarOpts(plotCfg()).zero === "n"));
+    await p.evaluate(() => undo()); await p.waitForTimeout(150);
+    check("…undone", await p.evaluate(() => polarOpts(plotCfg()).zero === "e"));
+    // X as r and Y as θ: the other mapping.
+    await p.evaluate(() => { savePlot({ polMap: "r-theta" }, "t"); renderPlot(); }); await p.waitForTimeout(150);
+    R = await polRead(p);
+    check("X as r and Y as θ: each point at its X's radius and its value's angle", polOff(R, vals[0], TH, ids[0]) <= 0.0072, polOff(R, vals[0], TH, ids[0]));
+    await p.evaluate(() => { savePlot({ polMap: null }, "t"); renderPlot(); }); await p.waitForTimeout(150);
+    // Exports: the SVG at its size, the PDF drawing every line, no character missing.
+    const ex = await p.evaluate(async () => { const svg = buildPlot(640, 480, readPalette(true), true); const v = await svgToVector(svg, { kind: "pdf", wPt: 400, hPt: 300, title: "polar", embed: false }); const t = await v.blob.text();
+      return { lines: (svg.match(/data-polline/g) || []).length, deg: (svg.match(/°/g) || []).length, pdf: t.slice(0, 5), miss: v.miss || [], size: v.blob.size }; });
+    check("an export draws the curves and the rim's angles, and its PDF misses no character (°, π)", ex.lines === 3 && ex.deg >= 12 && ex.pdf === "%PDF-" && ex.miss.length === 0, JSON.stringify(ex));
+    // Junk from storage reads as the defaults.
+    await p.evaluate(() => { const g = graphOf(GID()); g.plot = Object.assign({}, g.plot, { polUnit: "x", polZero: 5, polHole: "junk", polCw: "?", polR0: "a", polR1: {}, polT0: 3, polMap: 9 }); renderPlot(); });
+    const o = await p.evaluate(() => polarOpts(plotCfg()));
+    check("junk settings read as the defaults (a sector with one end is the whole turn)", o.unit === "deg" && o.zero === "e" && o.hole === 0 && o.r0 === null && o.r1 === null && o.map === "theta-r" && await p.evaluate(() => S.geo.polar && S.geo.polar.F.R > 50), JSON.stringify(o));
+    // After a reload it is still polar.
+    await p.evaluate(() => { const g = graphOf(GID()); ["polUnit", "polZero", "polHole", "polCw", "polR0", "polR1", "polT0", "polMap"].forEach(k => delete g.plot[k]); savePlot({ polZero: "s" }, "t"); });
+    await p.reload(); await ready(p); await p.waitForTimeout(600);
+    check("after a reload the graph is polar, its zero south", await p.evaluate(() => plotCfg().layout === "polar" && polarOpts(plotCfg()).zero === "s" && document.querySelectorAll("#plot g[data-polser]").length === 3));
+  }, { name: "7.3 polar curves", timeout: 120000 });
+
+  await page(async p => {
+    // A matrix drawn as a polar map: its X the angle, its Y the radius.
+    await p.evaluate(() => { const nx = 36, ny = 20, z = []; for (let i = 0; i < ny; i++) for (let j = 0; j < nx; j++) z.push(+(Math.sin(j * 20 * Math.PI / 180) * (i + 1)).toFixed(6));
+      const s = matSheetNew({ nx, ny, x: { a: 5, b: 355 }, y: { a: 0.5, b: 10 }, z }, "Field", { xname: "Angle", xunit: "°", yname: "Radius", yunit: "cm", zname: "Field" }), bk = matBookNew(s, "Field"); save({ mats: matBooks().concat([bk]) }, "made"); });
+    await p.waitForTimeout(300);
+    await p.evaluate(() => plotMatrix(matAll().slice(-1)[0].s.id, "image")); await p.waitForTimeout(500);
+    const it = await p.evaluate(() => { const m = mapMenuItems().find(q => q && /polar/i.test(q.label || "")); if (m) m.run(); return m && m.label; }); await p.waitForTimeout(500);
+    const r = await p.evaluate(() => { const g = S.geo.polar, s = matAll().slice(-1)[0].s; const X = matXYOf(s).X, Y = matXYOf(s).Y; const at = []; for (const [i, j] of [[0, 0], [5, 9], [19, 35], [12, 20]]) at.push([g.z(X[j], Y[i]), s.z[i * s.nx + j]]);
+      return { lay: plotCfg().layout, img: !!document.querySelector("#plot [data-polmap]"), bar: document.querySelectorAll("#plot image").length, at, title: [...document.querySelectorAll("#plot text")].map(t => t.textContent).filter(t => /Radius/.test(t)) }; });
+    check("a matrix's map menu draws it polar: the image, its colour bar, the radius titled by its Y", it && r.lay === "polar" && r.img && r.bar >= 2 && r.title.length === 1, JSON.stringify(r));
+    check("…each cell's value where its angle and radius are", r.at.every(([a, b]) => a === b), JSON.stringify(r.at));
+    const at = await p.evaluate(() => { const F = S.geo.polar.F, q = polarFwd(F, 185, 6.2), svg = document.querySelector("#plot"), bb = svg.getBoundingClientRect(), k = bb.width / svg.viewBox.baseVal.width; return { x: bb.left + q[0] * k, y: bb.top + q[1] * k }; });
+    await p.mouse.move(at.x, at.y); await p.waitForTimeout(150);
+    const ro = await p.evaluate(() => document.querySelector("#readout").textContent), want = await p.evaluate(() => { const s = matAll().slice(-1)[0].s, X = matXYOf(s).X, Y = matXYOf(s).Y; return s.z[matCellAt(Y, 6.2) * s.nx + matCellAt(X, 185)]; });
+    check("the readout names the cell's value under the pointer", ro.includes(fmtNum(want)), `${ro} against ${want}`);
+    function fmtNum(v) { return String(+v.toPrecision(6)); }
+    const back = await p.evaluate(() => { const m = polMenuItems().find(q => q && q.label === "As a rectangular map"); if (m) m.run(); return !!m && plotCfg().layout === "heat"; });
+    check("As a rectangular map draws it as before", back);
+  }, { name: "7.3 a matrix as a polar map" });
+
+  await page(async p => {
+    const ids = await polarData(p);
+    // Plot setup's gallery has Polar in a Coordinates row; OK draws it.
+    await p.evaluate(ids => { openPlotDlg(ids.slice(0, 2)); }, ids); await p.waitForTimeout(300);
+    await p.click("#psuKind"); await p.waitForTimeout(250);
+    const card = await p.evaluate(() => ({ sep: [...document.querySelectorAll(".kindpick .pdlg-sep")].map(e => e.textContent), n: (document.querySelector('.kindpick [data-pk="polar"] .pgt') || { innerHTML: "" }).innerHTML.length }));
+    check("Plot setup's gallery has a Coordinates row with Polar, drawn with the data", card.sep.includes("Coordinates") && card.n > 200, JSON.stringify(card));
+    await p.click('.kindpick [data-pk="polar"]'); await p.waitForTimeout(200); await p.click("#formOk"); await p.waitForTimeout(500);
+    check("OK draws them polar, one undo step", await p.evaluate(() => plotCfg().layout === "polar" && document.querySelectorAll("#plot g[data-polser]").length === 2));
+    const w = await p.evaluate(() => { const svg = document.querySelector("#plot"), r = svg.getBoundingClientRect(); return { w: r.width, R: S.geo.polar.F.R, over: [...document.querySelectorAll("#plot text")].filter(t => { const b = t.getBoundingClientRect(); return b.width && (b.right > r.right + 1 || b.left < r.left - 1); }).length }; });
+    check("at 390 px the circle fits the graph and no number or angle runs off it", w.R > 60 && w.over === 0, JSON.stringify(w));
+    await p.evaluate(() => { polRangeDlg(); }); await p.waitForSelector("#prR0"); await p.waitForTimeout(150);
+    const fit = await p.evaluate(() => [...document.querySelectorAll("#formBody *")].filter(e => e.getBoundingClientRect().right > innerWidth + 1).length);
+    check("the range dialog fits a phone's width", fit === 0, fit);
+    await p.keyboard.press("Escape");
+  }, { name: "7.3 Plot setup and 390 px", vw: { width: 390, height: 800 } });
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

@@ -126,6 +126,12 @@ fitted at 30 digits (SciPy's fits, a few parts in 10⁵ short, a check), the qua
 (the constants kept as they come in `fixtures/.ctrl-const2.json`, so a run cut short starts where it stopped); ref-test's `ctrlConst`,
 `ctrlChart.limits`, `.rules`, `paretoOf`, `blandAltman`, `metaAnalysis`, `qqData.quantiles` and `.fit`.
 
+`tools/ref/plot2_polar.py` (PLOT2_SPEC 7.3) is the polar graphs': a point (θ, r) as ρ·e^{iφ} from the definition in mpmath at 40 digits
+(not Kurve's sines and cosines), every unit (degrees, radians, gradians), zero and direction, holes, sectors (across the zero too), a
+turned zero and a box too small; the region fitted into the box from its arcs' extremes; the inverse by arg and |z|; the joins the
+short way round in pieces of 3°. `fixtures/plot2-polar.json`; ref-test's `polarFrame`, `polarFwd` (pixels), `polarInv` (the arc off
+in units of the radius, r along R(1 − hole) less its last bit), `polarJoin`; the fuzzer's `polarFlat` imports its functions.
+
 ImageJ's own readout, where its jar may be run:
 
 ```sh

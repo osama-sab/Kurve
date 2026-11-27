@@ -276,6 +276,11 @@ error); undo; a reload.
 
 ## 7.3 Polar
 
+Done 27.11, as below, with these changes of plan: the circles and spokes are the graph's own switches, not the toolbar's Grid; the
+angular axis's title is not drawn (the rim's units say it); the polar map is a matrix's only (a series of spectra keeps the heat
+map). Measured: every place within 4.0e-13 px of 40-digit mpmath (the target was 1e-9 of a pixel), the inverse 1.4e-15 of the radius;
+an angle of several turns reduced first, exactly.
+
 **What.** Layout `polar`: each curve's X and Y as θ and r (or r and θ), in degrees, radians or
 gradians, zero at the east, north, west or south, clockwise or not, a radial range with its start
 and a hole, a sector of the circle; lines (joined along θ, across the 360° seam the short way),

@@ -500,7 +500,7 @@ await page(async p => {
   await p.click("#psuKind"); await p.waitForTimeout(200);
   let r = await p.evaluate(() => { const cs = [...document.querySelectorAll(".kindpick .pgal [data-pk]")];
     return { n: cs.length, drawn: cs.every(b => b.querySelector(".pgt svg path, .pgt svg rect, .pgt svg circle")), lab: cs.map(b => b.querySelector(".pgl").textContent), sel: cs.filter(b => b.getAttribute("aria-checked") === "true").map(b => b.dataset.pk) }; });
-  check("Plot setup's kinds are a gallery of cards drawn with the data, opened from the Kind button", r.n === 23 && r.drawn && r.lab[0] === "Line" && r.sel.length === 1, JSON.stringify(r));
+  check("Plot setup's kinds are a gallery of cards drawn with the data, opened from the Kind button", r.n === 24 && r.drawn && r.lab[0] === "Line" && r.sel.length === 1, JSON.stringify(r));
   const sk0 = await p.evaluate(() => $("#pdlgSk").innerHTML);
   await p.hover('.kindpick [data-pk="hist"]'); await p.waitForTimeout(100); const sk1 = await p.evaluate(() => $("#pdlgSk").innerHTML);
   await p.mouse.move(4, 4); await p.waitForTimeout(100); const sk2 = await p.evaluate(() => $("#pdlgSk").innerHTML);

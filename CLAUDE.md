@@ -3448,7 +3448,30 @@ graph first, with the taskbar kept at the bottom of the screen.
   `PSU_KROLES` for each, `plotKindIcon` and `plotDraw` sketches; `plotItems` lists them. **A trellis**: Plot setup's *Group by* has
   `#psuByAs` (*Each value*: Curves on one graph, A panel of a figure), `psuTrellis(curves, sp, use, series, kind, by)` (a graph per
   level named after it, `uniqueGraphName`, a curve one colour in every panel, then `makeFigure` sharing X and Y; one undo step);
-  `psuSplit` returns `lv`. **Columns** (`PLOT_TYPES` `column`): bars from zero, as wide as
+  `psuSplit` returns `lv`. **Polar graphs** (PLOT2_SPEC 7.3): the layout `polar` (`LAYOUTS`, `KIND_LAYOUTS`; a matrix's graph keeps it, as
+  heat). In the ANA block, pure: `POL_UNITS`, `POL_TURN` (360, 2π, 400), `POL_ZEROS`, `POL_ZDEG`, `polarFrame(o, L, T, pw, mh)` (`o` {unit,
+  zero, rot (the pan's turn, degrees), cw, hole, r0, r1, t0, t1}; the region (a disc, a ring, a sector of either) fitted into the box and
+  centred, its extent from the arcs' ends and the compass directions between them; `{cx, cy, R, z0, sg, turn, hole, o}`), `polarFwd(F, θ,
+  r)` (φ = z0 + sg·θ·360/turn, ρ = hole + (1 − hole)(r − r0)/(r1 − r0); θ less its whole turns first and the screen angle reduced, each
+  by `%`, exact, so an angle of several turns keeps its digits; null outside [r0, r1] or the sector), `polarInv(F, x, y)` (`{th, r,
+  rho}`, θ in [0, turn) or from the sector's lower end), `polarJoin(pts, turn, maxDeg)` (each step the short way round, in pieces of
+  3° at most), `polarFlat` (the bench's). The page: `POL_MAPS`, `numKey`, `polarOpts(cfg)` (cfg.`polMap` theta-r | r-theta, `polUnit`,
+  `polZero`, `polCw`, `polHole` 0 to 0.8, `polR0`, `polR1`, `polT0`, `polT1` (a sector needs both), `polGridR`, `polGridT`; junk read
+  as the defaults; the ranges are data, left out by `plotBase`), `polAngText` (radians as multiples of π), `polarSvg(o)` (called by
+  `buildPlot` for the layout with a column or a matrix: the title, the legend, a matrix's colour bar, the region `[data-polbg]`, a
+  matrix's map `image[data-polmap]` (each pixel inverted, `matCellAt`), the circles and spokes `[data-polgrid]` (their own switches,
+  not the toolbar's Grid), the frame, the angles `[data-polang]`, the radius's numbers `[data-polr]` along a spoke between two
+  (a sector's first edge), each a line and a half from the last kept and clear of the angles, the radius's title the Y axis's
+  (`autoYTitle`), the curves `g[data-ser][data-polser]` (`[data-polline]` joined by `polarJoin`, an area to r0, `[data-polerr]` error
+  bars along the radius, `[data-polsym]`); `S.geo.polar {F, po, mat, z(θ, r), left (points with no place)}`, `S.geo.v {x0: 0, x1: turn,
+  y0: r0, y1: r1, pol, rot}`). The radial range typed, else the view's (`S.view.pol`: the wheel scales r1 by 1.18), else the data's
+  from 0 (from the smallest below 0); the Pan tool's drag turns `S.view.rot`; the readout θ and r (and a matrix's value). Menus:
+  `polMenuItems()` (the graph menu's *Polar*: Coordinates, Angle in, Zero at, Clockwise, Hole (`POL_HOLES`), Range and sector…
+  (`polRangeDlg`: `#prR0`, `#prR1`, `#prT0`, `#prT1`, one undo step), Circles, Spokes, As a rectangular map), `mapMenuItems`' *A polar
+  map*, `plotItems`' *Polar*, Plot setup's *Coordinates* row, the Format pane's Layout page (`#pdQm`, `#pdQu`, `#pdQz`, `#pdQh`, `#pdQcw`,
+  `#pdQgr`, `#pdQgt`); Help `polar` (F1 on a polar graph). `tools/ref/plot2_polar.py` (mpmath at 40 digits from the definition, with
+  complex numbers) → `fixtures/plot2-polar.json`; ref-test's `polarFrame`, `polarFwd` (pixels), `polarInv` (the arc off, r along
+  R(1 − hole), less its last bit), `polarJoin`; the fuzzer's `polarFlat` (relative to the largest coordinate). **Columns** (`PLOT_TYPES` `column`): bars from zero, as wide as
   a histogram's bins (`histOf(id)`, the step's `bins.w`) or 0.8 of the median spacing, several
   spectra as columns side by side (`colGrp`, `cgk`/`cgn` through `zSt`); a graph of columns
   stands on zero and is widened to whole columns when nothing is typed or zoomed. **Stacked**
@@ -5295,6 +5318,10 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   at the reference's precision, and a closed form checked inside the reference script itself. The same day SciPy's t.isf(0.005, 6)
   was found 7e-15 off (Kurve's 3e-16), and a Q–Q band's top 1.5e-13 off in Kurve (1 − p near 1 taken from p): every quantile a
   reference or Kurve needs near 1 is taken from the upper tail, and Student's t in a reference at 30 digits.
+- **An angle of many turns is a number of many digits.** A polar graph took cos and sin of θ as given; at three turns, or with the
+  zero turned by the pan, the angle's last bit is three times coarser and a place moved by 3e-12 px, and a narrow sector's frame,
+  from its ends' angles, by 5e-15 of its radius (the fuzzer). θ less its whole turns, and the screen angle less its, are taken by
+  `%`, which is exact, before any trigonometry. Reduce an angle where it is exact to, not after it has been rounded.
 - **1 − r is not computed as 1 − r.** The fuzzer's suite seed found hierarchical clustering's heights 3e-12 off SciPy's, and 50
   digits found both off: rows on an offset of 1000 lose the mean's rounding in every deviation, and 1 − d/(‖a‖‖b‖) cancels near
   r = 1. With the mean's rounding taken out and 1 − r as half the squared distance between the unit rows, Kurve is within 1e-14;
@@ -5954,7 +5981,9 @@ Next, in order:
    (plots, eight slices 7.1 to 7.8 in that order; its nine decisions, 26.11); slice 7.1, charts of categories (pies and doughnuts,
    dot plots, means with intervals, columns by category, a panel for each value of a column), done 26.11; slice 7.2, statistical
    charts (control charts with Western Electric's and Nelson's rules, Pareto, Bland–Altman and forest plots, Q–Q plots against five
-   distributions with a band, a heat map with dendrograms), done 27.11
+   distributions with a band, a heat map with dendrograms), done 27.11; slice 7.3, polar graphs (θ and r in degrees, radians or
+   gradians, any zero and direction, a hole, a sector, lines the short way round, a matrix as a polar map; every place within 6e-13 px
+   of 40-digit mpmath), done 27.11
 
 Then, 19.11, the user's request: qudi's confocal files read with their positions, and ImageJ's statistics on them; the plan is
 `ux/spec/QUDI_SPEC.md` (eight decisions, four slices: Q.1 reading qudi's files, Q.2 a TIFF ImageJ opens with its calibration, Q.3
@@ -6210,6 +6239,10 @@ selected at once in the Project Explorer and acted on together, each command one
   dots are circles of the curve's symbol size; means, medians, sums and counts only (no geometric mean, no weighted mean), the
   median's interval from the order statistics at the level reached; a trellis is made once from Group by (a new level typed later is
   no new panel)
+- Polar graphs: one radial axis and one angular axis (no second radius, no log radius, no radial axis turned to another angle than
+  between two spokes), spokes every 30° (π/6, 50 gradians) whatever the zoom, the radius zoomed at the rim only (not about a point),
+  a matrix's map by its nearest cell (no smoothing between cells); no annotations at a data place on it (pinned ones only), no
+  wind rose (stacked bars by direction), no Smith chart
 - Statistical charts: control charts with 3σ limits only (no CUSUM, EWMA, moving average or Hotelling's T² chart, no limits other than
   3σ, no phase I and II, no runs restarted after a change), the rules Western Electric's or Nelson's (not chosen one by one); a Pareto
   chart of one column of categories (no second level, no "Other" gathered); Bland–Altman without a regression of the differences on

@@ -500,6 +500,26 @@ if (fixtures["plot2-stats"]) {
     note("qqData.quantiles", e, at); note("qqData.fit", ep, c.name); }
 }
 
+/* ---- Polar graphs (PLOT2_SPEC 7.3): polarFrame, polarFwd and polarInv against mpmath at 40 digits from the definition with complex
+   numbers (tools/ref/plot2_polar.py), every unit, zero and direction, holes, sectors (across the seam too) and a turned zero; the frame
+   and each place in pixels, a point with no place none; θ as the arc it is off by (in units of the radius, so the centre's angle, which is none, counts nothing), r relative to its range as drawn (R(1 − hole) pixels), less its own last bit; polarJoin's pieces. ---- */
+if (fixtures["plot2-polar"]) {
+  const FR = get("polarFrame"), FW = get("polarFwd"), IV = get("polarInv"), JN = get("polarJoin");
+  for (const c of fixtures["plot2-polar"].cases) { const [L, T, pw, mh] = c.box, F = FR(c.o, L, T, pw, mh), w = c.want;
+    note("polarFrame", Math.max(Math.abs(F.cx - w.cx), Math.abs(F.cy - w.cy), Math.abs(F.R - w.R)), c.name);
+    let e = 0, at = c.name;
+    c.pts.forEach(([th, r], i) => { const q = FW(F, th, r), wq = c.xy[i]; const d = wq == null ? (q == null ? 0 : Infinity) : q == null ? Infinity : Math.hypot(q[0] - wq[0], q[1] - wq[1]);
+      if (!(d <= e)) { e = d; at = `${c.name}: θ ${th}, r ${r}${wq == null ? " (has no place)" : ""}`; } });
+    note("polarFwd", e, at);
+    let ei = 0, ai = c.name; const sp = Math.abs(c.o.r1 - c.o.r0);
+    c.inv.forEach(([x, y, th, r]) => { const q = IV(F, x, y); let dt = Math.abs(q.th - th) % c.turn; dt = Math.min(dt, c.turn - dt) / c.turn * 2 * Math.PI * q.rho; const d = Math.max(dt, Math.max(0, Math.abs(q.r - r) - Math.abs(r) * 2 ** -52) / sp * (1 - c.o.hole));
+      if (!(d <= ei)) { ei = d; ai = `${c.name}: (${x}, ${y})`; } });
+    note("polarInv", ei, ai); }
+  for (const c of fixtures["plot2-polar"].joins) { const r = JN(c.pts, c.turn, 3); let e = r.length === c.want.length ? 0 : Infinity;
+    if (e === 0) r.forEach((q, i) => { e = Math.max(e, Math.abs(q[0] - c.want[i][0]) / c.turn, Math.abs(q[1] - c.want[i][1]) / 5); });
+    note("polarJoin", e, `${c.name}: ${r.length} pieces against ${c.want.length}`); }
+}
+
 /* ---- The shift between two scans (QUDI_SPEC Q.8): Guizar-Sicairos, Thurman and Fienup's registration written again in NumPy,
    tools/ref/shift_fixtures.py; the shift the same grid point, the correlation at it to the rounding ---- */
 if (fixtures.shift) {

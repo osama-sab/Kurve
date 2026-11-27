@@ -120,6 +120,18 @@
  "qqData.fit": {
   "tol": 1e-13
  },
+ "polarFrame": {
+  "tol": 3e-13
+ },
+ "polarFwd": {
+  "tol": 2e-12
+ },
+ "polarInv": {
+  "tol": 1e-13
+ },
+ "polarJoin": {
+  "tol": 1e-15
+ },
  "regShift.shift": {
   "tol": 1e-12
  },
@@ -1258,5 +1270,6 @@
   "plsFlat.vip": {"tol": 1e-12},
   "plsFlat.r2x": {"tol": 1e-13},
   "plsFlat.fail": {"tol": 0},
-  "plsCvFlat.pred": {"tol": 1e-12}
+  "plsCvFlat.pred": {"tol": 1e-12},
+  "polarFlat": {"tol": 4e-15}
 }

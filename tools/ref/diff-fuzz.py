@@ -1543,6 +1543,43 @@ def qq_post(c, out):
     return e, f"quantiles {e:.2e} of the largest |value|"
 POST["qqData"] = qq_post
 
+# Polar graphs (PLOT2_SPEC 7.3): a random frame (unit, zero, direction, hole, sector, turn of the pan, radial range far from 0 or not,
+# a box of any shape), random points and screen points; the places and the inverse against plot2_polar.py's mpmath, relative to the
+# largest coordinate (a narrow sector's radius runs to 10^5 px, its centre as far off the box, where a double's last bit is 10^-11 px).
+@gen("polarFlat", 4e-15, 0.3)
+def _():
+    import plot2_polar as PP
+    unit = str(rng.choice(["deg", "rad", "grad"])); turn = PP.TURN_D[unit]
+    r0 = float(edge([0.0, -3.0], lambda: float(rng.uniform(-1, 1) * lognum(-3, 6)))); r1 = r0 + float(lognum(-4, 4))
+    sec = rng.random() < 0.5; t0 = float(rng.uniform(-turn, turn)) if sec else None; t1 = (t0 + float(rng.uniform(0.002, 0.999)) * turn) if sec else None
+    o = dict(unit=unit, zero=str(rng.choice(["e", "n", "w", "s"])), cw=bool(rng.random() < 0.5), hole=float(rng.choice([0.0, rng.uniform(0, 0.8)])),
+             r0=r0, r1=r1, t0=t0, t1=t1, rot=float(rng.choice([0.0, rng.uniform(-720, 720)])))
+    box = [float(rng.uniform(0, 80)), float(rng.uniform(0, 80)), float(lognum(1, 3.5)), float(lognum(1, 3.5))]
+    F = PP.frame(o, box); n = int(rng.integers(1, 60))
+    pts = [[float(rng.uniform(-2 * turn, 3 * turn)), float(rng.uniform(r0 - 0.1 * (r1 - r0), r1 + 0.1 * (r1 - r0)))] for _ in range(n)]
+    xy = []
+    for t, r in pts:
+        q = PP.fwd(F, t, r); xy.append(None if q is None else [float(q[0]), float(q[1])])
+    scr = [[float(F["cx"] + F["R"] * rng.uniform(-1, 1)), float(F["cy"] + F["R"] * rng.uniform(-1, 1))] for _ in range(20)]
+    iv = [[float(v) for v in PP.inv(F, x, y)] for x, y in scr]
+    return [o, box, pts, scr], {"F": [float(F["cx"]), float(F["cy"]), float(F["R"])], "xy": xy, "iv": iv, "turn": turn, "sp": r1 - r0, "R": float(F["R"])}
+def polar_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or "xy" not in out: return float("inf"), f"refused: {str(out)[:80]}"
+    e = max(abs(val(out[k]) - v) for k, v in zip(("cx", "cy", "R"), w["F"])); at = "the frame"
+    for q, wq in zip(out["xy"], w["xy"]):
+        if (q is None) != (wq is None): return float("inf"), f"a point has a place in one and none in the other: {q} against {wq}"
+        if q is not None:
+            d = math.hypot(val(q[0]) - wq[0], val(q[1]) - wq[1])
+            if d > e: e, at = d, "a place"
+    for q, wq in zip(out["iv"], w["iv"]):
+        dt = abs(val(q[0]) - wq[0]) % w["turn"]; dt = min(dt, w["turn"] - dt) / w["turn"] * 2 * math.pi * wq[2] * w["R"]
+        d = max(dt, max(0.0, abs(val(q[1]) - wq[1]) - math.ulp(wq[1])) / w["sp"] * w["R"] * (1 - c["args"][0]["hole"]))  # r's span is R(1 - hole) px; r far from 0: its own last bit allowed
+        if d > e: e, at = d, "an inverse"
+    sc = max(abs(w["F"][0]), abs(w["F"][1])) + w["R"]  # the largest coordinate: its last bit is what the doubles can do
+    return e / sc, f"{at}: {e:.2e} px, {e / sc:.2e} of the largest coordinate"
+POST["polarFlat"] = polar_post
+
 cases = []
 ONLY = os.environ.get("ONLY")  # ONLY=name,name: those generators alone
 for name, (f, tol) in GEN.items():
