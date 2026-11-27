@@ -1048,6 +1048,28 @@ causes and what they have in common are in `spec/QUALITY_SPEC.md` §1 and §2.
 workbooks); several files are still put on sheets by one rule for all of them (S.4); a hard limit of three graphs combined was not
 reproduced (the dialog's unticked graph and the desk's two or three graph windows were found).
 
+## Stabilisation S.2: the document's rules and the lived-in projects (2026-11-27)
+
+**What changed:**
+- **The document's rules, written once** (`projCheck`): column, sheet and graph ids unique, sheet names unique, every error column's
+  owner, every derived column's source, the active column a Y column that is there, every graph's curves and panels there, every
+  annotation's graph, every folder's parent and none inside itself, everything filed in a folder that is there and is in the
+  project, no two Y columns shown under one name. Structure only, so it costs nothing on a million rows.
+- **Checked after every save** wherever the page is served from 127.0.0.1 (every drive, the fuzzers, the lab day) or
+  `kurve.check` is set: a rule broken is a console error, which every drive already counts as a page error.
+- **The folder rule cleans up after itself**: a save that makes something drops the tree's entries of what has gone, so a sheet
+  made afresh under an old id never finds an old folder.
+- **Flows** (`tools/flows/`): a person's task through the interface alone, the state only read (`read()`, whose body may call only
+  the functions that look, `lib.mjs`'s READ, checked by `lint.mjs`). The first, `week.mjs`, opens last week's project from a
+  project file and carries on with it: a folder and its files imported into it, a sheet shown by one click, a background
+  subtracted from the column selected among six of one name, every graph combined, a reload.
+- **A lived-in project** (`tools/flows/fixtures/lived-in.kurve`, made by `make-fixtures.mjs`): four folders, one inside another,
+  six files of one instrument whose columns share their names, graphs filed with their sheets, a figure, a step, an analysis.
+- **The suite** runs the lint and every flow.
+
+**Checked:** the whole suite with the rules checked after every save: no rule broken anywhere (the timing checks that fail only
+when the drives run side by side pass alone).
+
 ## Plots, wave 7, slice 7.5: vectors and radar charts (2026-11-27)
 
 `ux/spec/PLOT2_SPEC.md` slice 7.5. Plot › Plot the selected columns › Vectors: angle and length, Vectors to a point, and Radar; Plot

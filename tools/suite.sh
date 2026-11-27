@@ -58,6 +58,9 @@ run qudidrive 600 node tools/qudi-drive.mjs "$html"
 run imgdrive 600 node tools/img-drive.mjs "$html"
 run sheetdrive 900 node tools/sheet-drive.mjs "$html"
 run sheetfuzz 900 node tools/sheet-fuzz.mjs "$html" 9 150
+# The flows (QUALITY_SPEC §3.1): a person's work through the interface only; the lint first, so a flow that acts through the code fails.
+node tools/flows/lint.mjs > "$logs/flowlint.log" 2>&1; echo $? > "$logs/flowlint.code"; names+=("flowlint")
+for f in tools/flows/*.mjs; do b=$(basename "$f" .mjs); case "$b" in lib|lint|make-fixtures) continue ;; esac; run "flow-$b" 900 node "$f" "$html"; done
 if command -v python3.13 > /dev/null; then
   run menus 900 bash -c "PYTHONPATH=${PYREF:-} PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers python3.13 tools/ux/crawl.py '$html' > '$logs/crawl.json' 2>/dev/null && python3.13 tools/ux/menucheck.py '$logs/crawl.json'"
   if [ -n "${PYREF:-}" ]; then run diff-fuzz 900 python3.13 -I tools/ref/diff-fuzz.py 1 1000

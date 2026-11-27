@@ -4082,6 +4082,19 @@ or a name (`n + " spectra"`) (`--list term` shows where); it
 reads 0, and a new string should keep it there. Help's search words (`kw`) keep the old words
 so either finds the article.
 
+**Flows first** (`ux/spec/QUALITY_SPEC.md` §3): a change that a person will use is checked by a flow in `tools/flows/`, a
+person's task done through the interface alone (clicks, keys, the file picker, drops, the menus: `lib.mjs`'s `menu`, `row`,
+`ctxItem`, `pickFiles`, `openProjectFile`), the state only read with `read()`, whose body may call only the functions that look
+(`READ`; `node tools/flows/lint.mjs` refuses anything else and any `evaluate`). A flow starts from a lived-in project
+(`tools/flows/fixtures/*.kurve`, made by `node tools/flows/make-fixtures.mjs`, which may use the app's internals): folders inside
+folders, several files whose columns share their names, graphs filed with their sheets, a figure, steps, analyses. `week.mjs` is
+the first (last week's project carried on). **The document's rules** (`projCheck(p)`: ids unique, sheet names unique, every
+error column's owner, every derived column's source, the active column a Y there, graphs' curves and panels there, annotations'
+graphs, folders' parents and no circle, every tree entry's folder and item, no two Y columns shown under one name) are checked
+after every save on a page served from 127.0.0.1 or with `kurve.check` set (`projCheckOn`, `projCheckAfter`, `S.checkFails`): a
+rule broken is a console error, so every drive, fuzzer and the lab day fail on it. A new kind of thing in the document adds its
+rules there.
+
 `node tools/ds-test.mjs [path]` (Playwright) checks what each slice of the design system
 (`ux/spec/DS_SPEC.md`) changed: the taskbar, the dock's strip, the tooltips, the absent
 identifiers, the real superscripts, the fields' widths; run it after touching the frame.
@@ -4171,7 +4184,7 @@ typed, draw, zoomed draw, worksheet, saved to a project file and opened from one
 values and Tukey's 45 pairs; rank tests of a million values; 2000 columns:
 save, worksheet, History, Statistics) against
 budgets of about three times what was measured. `tools/suite.sh [--snap] [path]` runs everything
-(the node tests, the bench, the drives in parallel, a fuzzer seed, the menu crawl, then the budgets
+(the node tests, the bench, the flows' lint and the flows, the drives in parallel, a fuzzer seed, the menu crawl, then the budgets
 alone) and prints one line a test; with `--snap` on a copy of the files git knows (stage new ones
 first), so editing goes on while it runs. A new numeric function gets its fixture, target and
 fuzz generator before it is used.

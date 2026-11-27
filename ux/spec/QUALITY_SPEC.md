@@ -131,7 +131,8 @@ bar with its button; warnings, refusals and errors still pop up). `tools/review-
 
 **S.2 Invariants and the lived-in projects.** `projCheck`, the flows' folder, the lint, the
 fixtures; `projCheck` run in every drive's `page()` after each step, in the fuzzer and the lab day.
-What it finds is fixed before S.3.
+What it finds is fixed before S.3. Done 27.11: `projCheck` after every save on 127.0.0.1, `tools/flows/` with `week.mjs` and its lint,
+`fixtures/lived-in.kurve`; the suite ran with it and found no rule broken.
 
 **S.3 Workbooks.** The model Origin and Excel have:
 

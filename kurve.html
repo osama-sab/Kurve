@@ -16274,6 +16274,7 @@ async function save(patch, logText){ CM=null; SPN.dirty=true;
   setStatus("Saving…");
   // This window's own save is told back at once (S.selfEmit); anything else that arrives came from elsewhere.
   let pr; S.selfEmit=true; try{ pr=S.store.save(S.pid,patch); }catch(e){ pr=Promise.reject(e); } finally{ S.selfEmit=false; }
+  projCheckAfter(logText||Object.keys(patch).filter(k=>k!=="updated").join(", ")||"a save");
   try{ await pr; setStatus(S.store.mode==="db"?"Shared":"Saved",false); }
   catch(e){ setStatus("Not saved",true); writeErr(e); }
 }
@@ -29293,11 +29294,38 @@ function xNew(keys){ if(!xplShown()) return; const f=xActiveFolder(); if(f) xFil
    already in one folder moved to another). A save that makes a sheet, a graph, a trend graph or a matrix book files what
    is new, and only what is new, into the folder selected; one that carries the tree (an undo, a redo) is left as it is. */
 function xFileRule(p,patch){ if(!p||!patch||"tree" in patch||S.readOnly) return null;
-  if(!("sheets" in patch||"graphs" in patch||"trends" in patch||"mats" in patch)||!xplShown()) return null;
+  if(!("sheets" in patch||"graphs" in patch||"trends" in patch||"mats" in patch)) return null;
   // What was there before is the store's copy (S.projSrc): commands change the page's copy before they save.
-  const f=xActiveFolder(); if(!f) return null; const src=S.projSrc&&S.projSrc.id===S.pid?S.projSrc:null; if(!src) return null; const before=xKeysOf(src);
-  return ()=>{ const nw=[...xKeysOf(p)].filter(k=>!before.has(k)); if(!nw.length) return; const t=treeOf(p), at=Object.assign({},t.at); nw.forEach(k=>{ at[k]=f; });
-    p.tree=patch.tree={folders:t.folders,at}; xExp()["d:"+f]=true; }; }
+  const f=xplShown()?xActiveFolder():null, src=S.projSrc&&S.projSrc.id===S.pid?S.projSrc:null, before=f&&src?xKeysOf(src):null;
+  return ()=>{ const t=treeOf(p), have=xKeysOf(p), at={}; let ch=false;
+    // What has gone takes its place in a folder with it: an id used again (a sheet made afresh as s1) must not find an old folder.
+    Object.keys(t.at).forEach(k=>{ if(have.has(k)) at[k]=t.at[k]; else ch=true; });
+    if(before){ const nw=[...have].filter(k=>!before.has(k)); nw.forEach(k=>{ at[k]=f; ch=true; }); if(nw.length) xExp()["d:"+f]=true; }
+    if(ch) p.tree=patch.tree={folders:t.folders,at}; }; }
+/* The document's rules, written once (QUALITY_SPEC S.2): what must hold after every action, each broken one a sentence.
+   Structure only, no values read, so it costs nothing on a million rows. The tests run it after every save (projCheckOn: a page
+   served from 127.0.0.1, or kurve.check set), and a rule broken is a console error, which every drive counts as a page error. */
+function projCheck(p){ p=p||P(); const out=[]; if(!p) return out; const bad=s=>{ if(out.length<20) out.push(s); };
+  const cols=Array.isArray(p.cols)?p.cols:[], ids=new Set();
+  cols.forEach(c=>{ if(!c||typeof c.id!=="string"){ bad("a column without an id"); return; } if(ids.has(c.id)) bad(`two columns with the id ${c.id}`); ids.add(c.id); });
+  const ss=sheetList(p), sids=new Set(), snm=new Set();
+  ss.forEach(s=>{ if(sids.has(s.id)) bad(`two sheets with the id ${s.id}`); sids.add(s.id); if(snm.has(s.name)) bad(`two sheets called ${s.name}`); snm.add(s.name); });
+  cols.forEach(c=>{ if(!c) return; if(c.role==="e"&&!ids.has(c.of)) bad(`the error column ${c.name||c.id} belongs to a column not there`);
+    if(c.src&&!ids.has(c.src)) bad(`${c.name||c.id} is made from a column not there`); });
+  if(p.activeY!=null){ const a=cols.find(c=>c&&c.id===p.activeY); if(!a) bad("the active column is not in the project"); else if(a.role!=="y") bad(`the active column ${a.name||a.id} is not a Y column`); }
+  const gs=Array.isArray(p.graphs)?p.graphs:[], gids=new Set(gs.map(g=>g.id)); if(gids.size!==gs.length) bad("two graphs with one id");
+  gs.forEach(g=>{ (g.cols||[]).forEach(k=>{ if(!ids.has(k)) bad(`${g.name||g.id} draws a column not there`); });
+    if(g.fig) (g.fig.cells||[]).forEach(c=>{ if(!gids.has(c.gid)) bad(`the figure ${g.name||g.id} holds a graph not there`); }); });
+  (Array.isArray(p.annos)?p.annos:[]).forEach(a=>{ if(a&&a.g&&!a.grp&&!gids.has(a.g)) bad("an annotation of a graph not there"); });
+  const t=p.tree||{}, fs=Array.isArray(t.folders)?t.folders:[], fids=new Set(fs.map(f=>f&&f.id)), byId=new Map(fs.map(f=>[f&&f.id,f]));
+  fs.forEach(f=>{ if(!f) return; if(f.parent&&!fids.has(f.parent)) bad(`the folder ${f.name} is in a folder not there`);
+    let q=f; const seen=new Set(); while(q&&q.parent){ if(seen.has(q.id)){ bad(`the folder ${f.name} is inside itself`); break; } seen.add(q.id); q=byId.get(q.parent); } });
+  const keys=xKeysOf(p); Object.keys(t.at||{}).forEach(k=>{ if(k==="ws") return; if(!fids.has(t.at[k])) bad(`${k} is filed in a folder not there`); if(!keys.has(k)) bad(`${k} is filed but not in the project`); });
+  if(p===P()){ const nm=new Map(); cols.forEach(c=>{ if(c&&c.role==="y"&&c.name){ const n=specName(c); if(nm.has(n)) bad(`two columns are both shown as ${n}`); nm.set(n,1); } }); }
+  return out; }
+const projCheckOn=()=>{ try{ return location.hostname==="127.0.0.1"||localStorage.getItem("kurve.check")==="1"; }catch(e){ return false; } };
+function projCheckAfter(what){ if(!projCheckOn()) return; let v; try{ v=projCheck(); }catch(e){ v=["the check itself threw: "+e.message]; }
+  if(v.length){ S.checkFails=(S.checkFails||[]).concat([{t:Date.now(),what,v}]).slice(-50); console.error("Kurve check after "+what+": "+v.join("; ")); } }
 /* A project that holds nothing anyone made: no values, one sheet never named or added to, no folders, graphs, matrices or
    analyses. Only such a project is replaced by an import (27.11: sheets and folders made before the first import went with it). */
 function projBlank(p){ p=p||P(); if(!p) return true; const t=p.tree||{};
