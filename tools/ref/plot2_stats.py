@@ -29,17 +29,33 @@ mp.mp.dps = 20
 rng = np.random.default_rng(7202611)
 
 # ---- the constants
-# Gauss-Legendre in panels, the nodes from NumPy, the integrand at 24 digits. P(R <= w) = n int phi(x) (Phi(x + w) - Phi(x))^(n-1) dx over
+# Gauss-Legendre in panels, the nodes refined to 40 digits by Newton's method on the Legendre polynomial (NumPy's, in doubles, left
+# n int phi Phi^(n-1) some 1e-16 above 1, so 1 - F(w) integrated against 2w up to 16 was 2e-14 off, in both orders alike), the
+# integrand at 24 digits. P(R <= w) = n int phi(x) (Phi(x + w) - Phi(x))^(n-1) dx over
 # [-10, 10] whatever w (the integrand is below phi(x), which is 8e-23 at 10), so phi and Phi at the inner nodes are worked out once and each
 # point costs one Phi. E[R^2] = int_0^16 2w P(R > w) dw. Every constant at two orders (32 and 48 panels of 32 nodes, inside and out),
-# which must agree to 1e-17 of E[R^2] (they agree to some 4e-18).
+# whose d3 must agree to 5e-16 (E[R^2] agrees to 1e-18 to 1e-17; the sums are kept in fixtures/.ctrl-m2.json).
 from numpy.polynomial.legendre import leggauss
-XG, WG = leggauss(32)
+def gl_nodes(G):
+    xs, ws = [], []
+    with mp.workdps(40):
+        for x0 in leggauss(G)[0]:
+            x = mp.mpf(float(x0))
+            for it in range(10):
+                p0, p1 = mp.mpf(1), x
+                for k in range(2, G + 1): p0, p1 = p1, ((2 * k - 1) * x * p1 - (k - 1) * p0) / k
+                dp = G * (x * p1 - p0) / (x * x - 1)
+                if it == 9: break
+                x -= p1 / dp
+            xs.append(x); ws.append(2 / ((1 - x * x) * dp * dp))
+        assert abs(mp.fsum(ws) - 2) < mp.mpf(10) ** -35, mp.fsum(ws)
+    return xs, ws
+XG, WG = gl_nodes(32)
 def nodes(a, b, panels):
     a, b = mp.mpf(a), mp.mpf(b); h = (b - a) / panels; xs, ws = [], []
     for k in range(panels):
         c = a + (k + mp.mpf(1) / 2) * h
-        for x, w in zip(XG, WG): xs.append(c + h / 2 * mp.mpf(float(x))); ws.append(mp.mpf(float(w)) * h / 2)
+        for x, w in zip(XG, WG): xs.append(c + h / 2 * x); ws.append(w * h / 2)
     return xs, ws
 NS = list(range(3, 13)) + [15, 20, 25]
 def m2_part(job):
@@ -72,14 +88,23 @@ def c4_of(n):
 if any(n not in const for n in [2] + NS):
     mp.mp.dps = 24
     const[2] = {"n": 2, "d2": float(2 / mp.sqrt(mp.pi)), "d3": float(mp.sqrt(2 - 4 / mp.pi)), "c4": float(c4_of(2))}
-    cores = min(4, os.cpu_count() or 1); A = m2_all(32, cores); B = m2_all(48, cores)
+    cores = min(4, os.cpu_count() or 1); M2C = os.path.join(here, "fixtures", ".ctrl-m2.json")
+    if os.path.exists(M2C): A, B = ({int(k): mp.mpf(v) for k, v in q.items()} for q in json.load(open(M2C)))
+    else:
+        A = m2_all(32, cores); B = m2_all(48, cores)
+        json.dump([{n: mp.nstr(A[n], 30) for n in NS}, {n: mp.nstr(B[n], 30) for n in NS}], open(M2C, "w"))
     for n in NS:
-        # the two orders agree to some 1e-18 of E[R^2]; d3 = sqrt(E[R^2] - d2^2) loses at most a factor of ten of that
-        assert abs(A[n] - B[n]) < 1e-17 * B[n], (n, A[n], B[n])
+        # the two orders agree to some 1e-18 to 1e-17 of E[R^2]; d3 = sqrt(E[R^2] - d2^2) loses a factor of up to 30 of that
+        # (n = 25), so it is d3 from each order that must agree, to 5e-16
         d2 = mp.quad(lambda x: 1 - mp.ncdf(x) ** n - mp.ncdf(-x) ** n, [-mp.inf, -4, -2, 0, 2, 4, mp.inf])
-        const[n] = {"n": n, "d2": float(d2), "d3": float(mp.sqrt(B[n] - d2 * d2)), "c4": float(c4_of(n)), "agree": float(abs(A[n] - B[n]) / B[n])}
+        dA, dB = mp.sqrt(A[n] - d2 * d2), mp.sqrt(B[n] - d2 * d2)
+        assert abs(dA - dB) < 5e-16 * dB, (n, dA, dB)
+        const[n] = {"n": n, "d2": float(d2), "d3": float(dB), "c4": float(c4_of(n)), "agree": float(abs(dA - dB) / dB)}
         print("n", n, const[n], flush=True)
     json.dump(const, open(CACHE, "w"))
+# n = 3 has a closed form, E[R^2] = 2 + 3 sqrt(3)/pi with E[R] = 3/sqrt(pi): the reference's own check
+with mp.workdps(30):
+    d3_3 = mp.sqrt(2 + 3 * mp.sqrt(3) / mp.pi - 9 / mp.pi); assert abs(const[3]["d3"] - float(d3_3)) <= 2 ** -52 * float(d3_3), (const[3], d3_3)
 TABLE = {2: (1.128, 0.853, 0.7979), 3: (1.693, 0.888, 0.8862), 4: (2.059, 0.880, 0.9213), 5: (2.326, 0.864, 0.9400), 10: (3.078, 0.797, 0.9727), 25: (3.931, 0.708, 0.9896)}  # Montgomery, Appendix VI
 for n, (a, b, c) in TABLE.items():
     k = const[n]; assert abs(k["d2"] - a) < 6e-4 and abs(k["d3"] - b) < 6e-4 and abs(k["c4"] - c) < 6e-5, (n, k)

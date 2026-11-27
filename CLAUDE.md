@@ -5286,6 +5286,11 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   `autoImport`, and three `return {fids}` further down threw on every dropped file; the syntax
   check passes a reference to a name that does not exist. `review-drive`'s drop caught it. After
   deleting a declaration, grep its name.
+- **A reference's quadrature nodes are numbers too.** The control charts' d₃ was first worked out at 24 digits with Gauss–Legendre
+  nodes and weights from NumPy, in doubles: the inner integral of a density came out some 1e-16 above 1, and 1 − F(w) integrated
+  against 2w out to 16 made the reference 1e-14 high, the same in both orders, which therefore agreed. Kurve was blamed, and its d₃
+  nearly rewritten, before the closed form for n = 3 (E[R²] = 2 + 3√3/π) showed Kurve right to the last digit and the reference wrong. Nodes
+  at the reference's precision, and a closed form checked inside the reference script itself.
 - **1 − r is not computed as 1 − r.** The fuzzer's suite seed found hierarchical clustering's heights 3e-12 off SciPy's, and 50
   digits found both off: rows on an offset of 1000 lose the mean's rounding in every deviation, and 1 − d/(‖a‖‖b‖) cancels near
   r = 1. With the mean's rounding taken out and 1 − r as half the squared distance between the unit rows, Kurve is within 1e-14;
