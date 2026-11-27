@@ -61,9 +61,9 @@ console.log("Slice 1: what each curve of a graph uses");
 await page(async p => {
   const id = await three(p);
   // The right axis for one curve of an overlay.
-  let r = await p.evaluate(id => { const items = graphMenuItems(id.C), ra = items.find(i => i && i.label === "Right axis"), rg = items.find(i => i && i.label === "Range…"), lb = items.find(i => i && i.label === "Labels from"); return { ra: ra && [ra.enabled, !!ra.checked], rg: !!rg, lb: !!lb, act: (graphMenuItems(id.B).find(i => i && i.label === "Right axis") || {}).enabled }; }, id);
-  check("a curve's right-click has Range…, Right axis and Labels from; the active curve stays on the left", r.ra && r.ra[0] && !r.ra[1] && r.rg && r.lb && r.act === false, JSON.stringify(r));
-  await p.evaluate(id => { graphMenuItems(id.C).find(i => i && i.label === "Right axis").run(); }, id); await p.waitForTimeout(200);
+  let r = await p.evaluate(id => { const items = graphMenuItems(id.C), ra = items.find(i => i && i.label === "Y axis"), rg = items.find(i => i && i.label === "Range…"), lb = items.find(i => i && i.label === "Labels from"); return { ra: ra && [ra.enabled, !!ra.checked], rg: !!rg, lb: !!lb, act: (graphMenuItems(id.B).find(i => i && i.label === "Y axis") || {}).enabled }; }, id);
+  check("a curve's right-click has Range…, Y axis and Labels from; the active curve stays on the left", r.ra && r.ra[0] && !r.ra[1] && r.rg && r.lb && r.act === false, JSON.stringify(r));
+  await p.evaluate(id => { graphMenuItems(id.C).find(i => i && i.label === "Y axis").sub().find(q => q.label === "Right").run(); }, id); await p.waitForTimeout(200);
   r = await p.evaluate(id => { const svg = $("#plot").innerHTML, g = S.geo, leg = [...document.querySelectorAll("#plot text")].map(t => t.textContent);
     return { use: curveUse(id.C).ax, right: hasRight(plotCfg()), y1: g.v.y1, leg: leg.filter(t => /\((left|right)\)/.test(t)), nav: (() => { openPlotDetails(null, "ax:y"); const s = $("#fmtSel"); const o = s ? [...s.options].map(o => o.textContent) : []; closePlotDetails(); return o; })() }; }, id);
   check("Right axis: the large curve on its own axis, the left axis fitted to the small ones", r.use === "r" && r.right && r.y1 < 5, JSON.stringify(r));

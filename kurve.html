@@ -16567,7 +16567,8 @@ function plotCfg(){
   // S.hoverPv: a gallery's card on the graph while it is hovered (hoverPreview); S.plotPreview: the Format pane's burst.
   const p=P(), id=GID(), pv=S.hoverPv||S.plotPreview, src=pv||GP()||{};
   const o=Object.assign({},PLOT_DEF,src);
-  o.ax={x:Object.assign({},(src.ax||{}).x),y:Object.assign({},(src.ax||{}).y),y2:Object.assign({},(src.ax||{}).y2),x2:Object.assign({},(src.ax||{}).x2),yo:Object.assign({},(src.ax||{}).yo),ta:Object.assign({},(src.ax||{}).ta),tb:Object.assign({},(src.ax||{}).tb),tc:Object.assign({},(src.ax||{}).tc)};
+  /* every axis the settings name, not a list of them: a key left out of a list was dropped (ax.ta, then ax.y3) */
+  { const sa=src.ax&&typeof src.ax==="object"?src.ax:{}; o.ax={}; for(const k of ["x","y","y2","x2","yo"]) o.ax[k]=Object.assign({},sa[k]); for(const k of Object.keys(sa)) if(!(k in o.ax)&&sa[k]&&typeof sa[k]==="object"&&!Array.isArray(sa[k])) o.ax[k]=Object.assign({},sa[k]); }
   o.series=src.series||{}; o.hidden=src.hidden||[];
   // On a graph of its own, a spectrum not on it counts as hidden.
   const g=pv?null:graphOf(id), on=g?g.cols:pv?null:[]; if(on) o.hidden=o.hidden.concat(yCols().filter(c=>!on.includes(c.id)).map(c=>c.id));
@@ -16632,11 +16633,11 @@ function projAnnos(q){ return (q&&(q.annos||(q.plot&&q.plot.annos)))||[]; }
 const USE0=Object.freeze({rng:null,ax:null,lab:null,grp:null});
 const rngOk=r=>!!r&&typeof r==="object"&&(r.by==="row"||r.by==="x")&&r.a!==""&&r.b!==""&&r.a!=null&&r.b!=null&&Number.isFinite(+r.a)&&Number.isFinite(+r.b);
 function curveUse(id,pl){ const u=id&&((pl||GP()||{}).use||{})[id]; if(!u||typeof u!=="object") return USE0;
-  return {rng:rngOk(u.rng)?{by:u.rng.by,a:+u.rng.a,b:+u.rng.b}:null, ax:u.ax==="r"?"r":null, lab:typeof u.lab==="string"&&colById(u.lab)?u.lab:null, grp:grpOk(u.grp)?u.grp:null}; }
+  return {rng:rngOk(u.rng)?{by:u.rng.by,a:+u.rng.a,b:+u.rng.b}:null, ax:u.ax==="r"||u.ax==="y3"||u.ax==="y4"?u.ax:null, lab:typeof u.lab==="string"&&colById(u.lab)?u.lab:null, grp:grpOk(u.grp)?u.grp:null}; }
 // What storage gave back, kept only where it reads: curves on the graph, a range of two numbers, the right axis, a column that is there.
 function useClean(use,cols,allCols){ if(!use||typeof use!=="object") return null; const out={}, have=new Set(allCols.map(c=>c.id));
   for(const id of Object.keys(use)){ if(!cols.includes(id)) continue; const u=use[id]; if(!u||typeof u!=="object") continue; const o={};
-    if(rngOk(u.rng)) o.rng={by:u.rng.by,a:+u.rng.a,b:+u.rng.b}; if(u.ax==="r") o.ax="r"; if(typeof u.lab==="string"&&have.has(u.lab)) o.lab=u.lab; if(grpOk(u.grp)) o.grp=u.grp;
+    if(rngOk(u.rng)) o.rng={by:u.rng.by,a:+u.rng.a,b:+u.rng.b}; if(u.ax==="r"||u.ax==="y3"||u.ax==="y4") o.ax=u.ax; if(typeof u.lab==="string"&&have.has(u.lab)) o.lab=u.lab; if(grpOk(u.grp)) o.grp=u.grp;
     if(Object.keys(o).length) out[id]=o; }
   return Object.keys(out).length?out:null; }
 function setCurveUse(ids,patch,log){ const p=P(); if(!p||S.readOnly||!GID()) return; const use=Object.assign({},GP().use||{});
@@ -16697,6 +16698,7 @@ function groupItems(c,ro){ const g=graphOf(GID()); if(!g||!c) return []; const g
 function useRange(id,pts,pl){ const r=curveUse(id,pl).rng; if(!r) return pts; const a=Math.min(r.a,r.b), b=Math.max(r.a,r.b);
   return r.by==="row"?pts.filter(q=>q.i+1>=a&&q.i+1<=b):pts.filter(q=>q.x>=a&&q.x<=b); }
 // Curves on the right Y axis: every other curve with two Y axes, or those set so on overlaid curves (not the active one).
+const hasYk=(cfg,k)=>cfg.layout==="overlay"&&Object.entries(cfg.use||{}).some(([id,u])=>u&&u.ax===k&&id!==((activeYCol()||{}).id)&&!(cfg.hidden||[]).includes(id));
 const hasRight=cfg=>cfg.layout==="dy"||(cfg.layout==="overlay"&&Object.entries(cfg.use||{}).some(([id,u])=>u&&u.ax==="r"&&id!==((activeYCol()||{}).id)&&!(cfg.hidden||[]).includes(id)));
 const rngText=(r,c)=>{ if(!r) return "all of it"; const a=Math.min(r.a,r.b), b=Math.max(r.a,r.b), u=c?(finalOf(c).xu||""):""; return r.by==="row"?`rows ${fmt(a,8)} to ${fmt(b,8)}`:`x ${fmt(a,6)} to ${fmt(b,6)}${u?" "+u:""}`; };
 // The Range dialog: all, rows from and to, or X from and to (X rising or falling steadily); the axes fitted to it; this curve or every curve of the graph.
@@ -18991,7 +18993,9 @@ function buildPlot(W,H,pal,colEx,opt){
   const others=ps.final&&act?yCols().filter(c=>c.id!==act.id&&!cfg.hidden.includes(c.id)&&(finalOf(c).xu||"")===(ps.d.xu||"")):[];
   const oser=others.map(c=>({c,pts:useRange(c.id,inDom(seriesPoints(finalOf(c),logY)),cfg)}));
   // On the right Y axis: every other curve with two Y axes, or the overlaid curves set so.
-  const onR=o=>layout==="dy"||(layout==="overlay"&&curveUse(o.c.id,cfg).ax==="r"), oR=oser.filter(onR), oL=oser.filter(o=>!onR(o));
+  const onR=o=>layout==="dy"||(layout==="overlay"&&curveUse(o.c.id,cfg).ax==="r"), oR=oser.filter(onR);
+  // More Y axes (PLOT2_SPEC 7.6): overlaid curves on a third or fourth axis, each with its own range, on its side, set off outward.
+  const onYk=(o,k)=>layout==="overlay"&&curveUse(o.c.id,cfg).ax===k, oY3=oser.filter(o=>onYk(o,"y3")), oY4=oser.filter(o=>onYk(o,"y4")), oL=oser.filter(o=>!onR(o)&&!onYk(o,"y3")&&!onYk(o,"y4"));
   const fam=fontStack(cfg.fontFam,cfg.fontName), serif=fam||KSERIF, sans=fam||KSANS;
   // opt.k scales every text, for an export whose numbers must be a given size in print.
   const tk=+(opt&&opt.k)||1, fs=((cfg.figSmall!=null?cfg.figSmall:W<480)?11.5:13)*Math.max(0.5,Math.min(3,+cfg.font||1))*tk;
@@ -19114,6 +19118,9 @@ function buildPlot(W,H,pal,colEx,opt){
   const brX=!heat&&!dist&&!ins&&!fX?brkList((cfg.ax.x||{}).brk,v.x0,v.x1,logX):[], brY=!heat&&!stack&&!dy&&!ins&&!fY&&(layout==="overlay"||layout==="offset")?brkList((cfg.ax.y||{}).brk,v.y0,v.y1,logY):[];
   // The right axis's range, before the margins, which must fit its numbers.
   let yR=null;
+  // The third and fourth axes: each its curves' range over the X in view (or typed), its side (a third on the right, a fourth on the left).
+  const yX=ps.final&&!ins?[["y3",oY3],["y4",oY4]].filter(q=>q[1].length).map(([k,cs])=>{ const a=cfg.ax[k]||{}, lg=!!a.log, r=yRangeFor([].concat(...cs.map(q=>q.pts)),v.x0,v.x1,lg);
+    let y0=a.min!=null&&a.min!==""?+a.min:r[0], y1=a.max!=null&&a.max!==""?+a.max:r[1]; [y0,y1]=saneRange(y0,y1,lg); return {k,cs,y0,y1,log:lg,side:a.side==="l"||a.side==="r"?a.side:(k==="y3"?"r":"l"),A:axisCfg(cfg,k)}; }):[];
   if(dy){ const all=[].concat(...oR.map(q=>q.pts)), r2=yRangeFor(all,v.x0,v.x1,logY), a2=cfg.ax.y2||{};
     yR={y0:a2.min!=null&&a2.min!==""?+a2.min:r2[0],y1:a2.max!=null&&a2.max!==""?+a2.max:r2[1]}; [yR.y0,yR.y1]=saneRange(yR.y0,yR.y1,logY); }
   // An axis on its edge, at zero or at a value; stacked panels and the right axis keep theirs on the edges.
@@ -19121,8 +19128,9 @@ function buildPlot(W,H,pal,colEx,opt){
   // Legend entries first: an outside legend takes its width from the plot.
   const entries=[];
   const actSt=act?serStyle(act.id,true,pal,colEx,cfg):null;
-  if(act&&!heat&&!dist) entries.push(Object.assign({},actSt,{id:act.id,label:(actSt.label||act.name||"Y")+(ps.final?"":` (${stageName(ps)})`)+(dy?" (left)":"")}));
-  if(!heat&&!dist) oser.forEach(o=>{ const st=serStyle(o.c.id,false,pal,colEx,cfg); entries.push(Object.assign({},st,{id:o.c.id,label:(st.label||o.c.name||"column")+(dy?onR(o)?" (right)":" (left)":"")})); });
+  const axTag=o=>dy||yX.length?(o&&onR(o)?" (right)":o&&onYk(o,"y3")?" (axis 3)":o&&onYk(o,"y4")?" (axis 4)":" (left)"):"";
+  if(act&&!heat&&!dist) entries.push(Object.assign({},actSt,{id:act.id,label:(actSt.label||act.name||"Y")+(ps.final?"":` (${stageName(ps)})`)+axTag(null)}));
+  if(!heat&&!dist) oser.forEach(o=>{ const st=serStyle(o.c.id,false,pal,colEx,cfg); entries.push(Object.assign({},st,{id:o.c.id,label:(st.label||o.c.name||"column")+axTag(o)})); });
   // Grouped boxes of several curves: the legend says which colour is which curve.
   if(dist&&distG&&distC.length>1) distC.forEach(c=>{ const st=serStyle(c.id,c===act,pal,colEx,cfg); entries.push({type:layout==="mean"||layout==="dot"?"scatter":"column",sym:layout==="mean"?st.sym:"circle",color:st.color,label:st.label||c.name||"column",id:c.id,leg:st.leg}); });
   if(!forExport&&!heat&&!dist) stageLegend(ps,pal).forEach(e=>{ if(showGhost||e.color!==pal.muted) entries.push({type:"line",color:e.color,lw:e.thin?1.3:2.2,dash:e.dash?"dash":"solid",label:e.label}); });
@@ -19231,6 +19239,9 @@ function buildPlot(W,H,pal,colEx,opt){
   if(cfg.title) T+=TS.title.size*1.25+6;
   if(dy&&yR){ const t2=axisTicks(yR.y0,yR.y1,Math.max(60,H-110)/(55*tkDen),cfg.ax.y2||{},logY); let w2=0; if(Y2A.labs) t2.ticks.forEach(t=>{ w2=Math.max(w2,labW(t.lab,TK)); });
     R+=Y2A.off+tkOut(Y2A.dir,Y2A.len)+5+(Y2A.labs?w2+6:1)+(Y2A.tshow?AT("y2").size+2:0)+6; }
+  // Each further axis takes a block of margin on its side, beyond what is there (e.d its distance from the plot's edge).
+  yX.forEach(e=>{ const t=axisTicks(e.y0,e.y1,Math.max(60,H-110)/(55*tkDen),cfg.ax[e.k]||{},e.log); let w=0; if(e.A.labs) t.ticks.forEach(q=>{ w=Math.max(w,labW(q.lab,TK)); });
+    e.blk=8+e.A.off+tkOut(e.A.dir,e.A.len)+5+(e.A.labs?w+6:1)+(e.A.tshow?AT(e.k).size+2:0)+6; if(e.side==="r"){ e.d=R; R+=e.blk; } else { e.d=L; L+=e.blk; } });
   if(heat) R+=70+(MAT&&((cfg.ax.y2&&cfg.ax.y2.title)||MAT.zname||MAT.zunit)?TS.axis.size*1.5:0);
   // Symbols coloured by a column: a colour bar on the right, for the first series that has one.
   const zb=heat||dist||ins?null:(()=>{ for(const z of [{c:act,pts}].concat(oser)){ if(!z.c) continue; const st=serStyle(z.c.id,z.c===act,pal,colEx,cfg);
@@ -19266,6 +19277,7 @@ function buildPlot(W,H,pal,colEx,opt){
   const mkY=(y0,y1,top,h,lg)=>y=>lg?top+h-(ly(y)-ly(y0))/(ly(y1)-ly(y0))*h:top+h-(y-y0)/(y1-y0)*h;
   let SY=axScale(v.y0,v.y1,fY||logY,brY,brY.length?10/mh:0), Y=brY.length||fY?(y=>T+mh-SY.f(y)*mh):mkY(v.y0,v.y1,T,mh,logY);
   if(yR) yR.Y=mkY(yR.y0,yR.y1,T,mh,logY);
+  yX.forEach(e=>{ e.Y=mkY(e.y0,e.y1,T,mh,e.log); });
   if(heat&&!MAT){ v=Object.assign({},v,mapS?{y0:mapS.lo,y1:mapS.hi}:{y0:-0.5,y1:oser.length+0.5}); Y=mkY(v.y0,v.y1,T,mh,false); SY=axScale(v.y0,v.y1,false,[],0); }
   else if(MAT){ Y=mkY(v.y0,v.y1,T,mh,false); SY=axScale(v.y0,v.y1,false,[],0); }
   const geo={L,pw,T,mh,v,full:!!colEx,logY:heat?false:logY,logX:dist?false:logX,W,H,X,Y,revX,handles:[],heat:heat||dist,colStk:colStk?{mode:colStk.mode,ids:colStk.ids}:null,dist,distC,distK:distK?distK.map(q=>({x:q.x,w:q.w,c:q.c,g:q.g})):null,distBy,axes:null,sx:SX,sy:SY,rx:SX.rate/pw,ry:SY.rate/mh,brk:SX.gaps.length+SY.gaps.length,fx:fX,fy:fY};
@@ -19523,6 +19535,9 @@ function buildPlot(W,H,pal,colEx,opt){
   // The other spectra, behind the analysed one.
   if(!heat&&!dist&&!stack) oser.forEach((o,k)=>{
     const st=zSt(serStyle(o.c.id,false,pal,colEx,cfg),o.pts,o.c.id), eg=errGeom(o.c,finalOf(o.c));
+    const ex=yX.find(e=>e.cs.includes(o));
+    if(ex){ const ee=errSvg(eg,o.pts,st,X,ex.Y,pal,null,{logY:false,full:!!colEx});
+      s+=`<g data-ser="${o.c.id}" data-yax="${ex.k}">${ee.under}${seriesSvg(o.pts,st,X,ex.Y,geo,pal,null)}${ee.over}</g>`+labSvg(o.c.id,o.pts,ex.Y,st.color); return; }
     if(dy&&onR(o)){ const ee=errSvg(eg,o.pts,st,X,yR.Y,pal,null,{logY:false,full:!!colEx});
       s+=`<g data-ser="${o.c.id}">${ee.under}${seriesSvg(o.pts,st,X,yR.Y,geo,pal,null)}${ee.over}</g>`+labSvg(o.c.id,o.pts,yR.Y,st.color); return; }
     const q=layout==="offset"?shiftPts(o.pts,k+1):o.pts, ee=errSvg(eg,q,st,X,Y,pal,null,{logY,yMin:v.y0*1e-3,full:!!colEx});
@@ -19683,6 +19698,20 @@ function buildPlot(W,H,pal,colEx,opt){
     if(Y2A.tshow){ const o0=oR[0], d0=o0?finalOf(o0.c):null, t2=(cfg.ax.y2||{}).title||(d0?axisLabel(oR.length===1?(serStyle(o0.c.id,false,pal,colEx,cfg).label||d0.yn):"Other curves",d0.yu,"Y"):"");
       const al=axAlign(Y2A,AT("y2")), tx=ax2+o2+(Y2A.labs?w2:0)+6+AT("y2").size*0.22+Y2A.tdx, ty=(al==="start"?T+mh:al==="end"?T:T+mh/2)+Y2A.tdy;
       s+=richText(t2,{attrs:ed("y2"),tf:`translate(${f1(tx)},${f1(ty)}) rotate(90)`,anchor:al==="start"?"end":al==="end"?"start":"middle",st:AT("y2"),fill:Y2A.col||axR||pal.ink}); } }
+  // The third and fourth axes: a line, ticks and numbers outward, a title, in their curve's colour when they have one curve.
+  yX.forEach(e=>{ const A=e.A, sg=e.side==="r"?1:-1, ax=e.side==="r"?L+pw+e.d+8+A.off:L-e.d-8-A.off, yt=axisTicks(e.y0,e.y1,mh/(55*tkDen),cfg.ax[e.k]||{},e.log), sp=tkSpan(A.dir,A.len), msp=tkSpan(A.dir,A.mlen), o2=tkOut(A.dir,A.len)+5;
+    const c1=e.cs.length===1?serStyle(e.cs[0].c.id,false,pal,colEx,cfg).color:null, col=esc(A.col||c1||fcol), lab=TK.color||A.col||c1||pal.ink;
+    let g=`<g data-yaxis="${e.k}">`; if(A.line) g+=`<path d="M${f1(ax)},${f1(T)}V${f1(T+mh)}" stroke="${col}" stroke-width="${A.lw}" fill="none"/>`;
+    let d="", dm="", w=0; yt.ticks.forEach(t=>{ const y=e.Y(t.v); if(y<T-0.5||y>T+mh+0.5) return; if(sp) d+=`M${f1(ax+sg*sp[0])},${f1(y)}H${f1(ax+sg*sp[1])}`;
+      if(A.labs){ g+=tLab(t.lab,ax+sg*o2,y+TK.size*0.35,sg>0?"start":"end",TK,lab); w=Math.max(w,labW(t.lab,TK)); } });
+    if(msp) yt.minor.forEach(v0=>{ const y=e.Y(v0); if(y<T||y>T+mh) return; dm+=`M${f1(ax+sg*msp[0])},${f1(y)}H${f1(ax+sg*msp[1])}`; });
+    if(d) g+=`<path d="${d}" stroke="${col}" stroke-width="${A.tw}" fill="none"/>`; if(dm) g+=`<path d="${dm}" stroke="${col}" stroke-width="${(A.tw*0.8).toFixed(2)}" fill="none"/>`;
+    if(!forExport){ const by=Math.max(10,o2+(w?w+2:0)); g+=`<rect data-axis="${e.k}" x="${f1(sg>0?ax:ax-by)}" y="${f1(T)}" width="${f1(by)}" height="${f1(mh)}" fill="transparent" style="cursor:context-menu"/>`; }
+    if(A.tshow){ const o0=e.cs[0], d0=finalOf(o0.c), tt=(cfg.ax[e.k]||{}).title||axisLabel(e.cs.length===1?(serStyle(o0.c.id,false,pal,colEx,cfg).label||d0.yn):"Other curves",d0.yu,"Y"), al=axAlign(A,AT(e.k));
+      const tx=ax+sg*(o2+(A.labs?w:0)+6+AT(e.k).size*(sg>0?0.22:0.78))+A.tdx, ty=(al==="start"?T+mh:al==="end"?T:T+mh/2)+A.tdy;
+      g+=richText(tt,{attrs:ed(e.k),tf:`translate(${f1(tx)},${f1(ty)}) rotate(${sg>0?90:-90})`,anchor:sg>0?(al==="start"?"end":al==="end"?"start":"middle"):(al==="start"?"start":al==="end"?"end":"middle"),st:AT(e.k),fill:A.col||c1||pal.ink}); }
+    s+=g+`</g>`; });
+  if(!forExport) geo.yAxes=yX.map(e=>({k:e.k,y0:e.y0,y1:e.y1,log:e.log,side:e.side,ids:e.cs.map(o=>o.c.id)}));
   if(showRes){
     const ra=Math.max(rpMax,rpK&&rpK.lim?rpK.lim:0)*1.15; const top=T+mhAll+gap;
     const RY=val=>top+resH/2-val/ra*(resH/2);
@@ -20544,7 +20573,7 @@ function editAxisTitle(k){ inlineEditTitle(k); }
 /* ---- Axes and titles from the graph -------------------------------------------
    Right-click an axis's numbers or a title for its menu; drag them to move them;
    a double click types over a title, or opens an axis's page of the Format dialog. */
-const AXN=k=>k==="x"?"X axis":k==="y"?"Y axis":k==="x2"?"second X axis":k==="yo"?"second Y axis":k==="ta"?"top corner":k==="tb"?"bottom left corner":k==="tc"?"bottom right corner":"right Y axis";
+const AXN=k=>k==="x"?"X axis":k==="y"?"Y axis":k==="x2"?"second X axis":k==="yo"?"second Y axis":k==="y3"?"third Y axis":k==="y4"?"fourth Y axis":k==="ta"?"top corner":k==="tb"?"bottom left corner":k==="tc"?"bottom right corner":"right Y axis";
 function setAxisKeys(k,patch,log){ const p=P(); if(!p||S.readOnly) return; const ax=Object.assign({},GP().ax||{});
   (k==="all"?["x","y","y2","x2","yo"]:[k]).forEach(q=>{ ax[q]=Object.assign({},ax[q]||{},patch); }); setPlotKey("ax",ax,log||null); }
 function setTxtKey(el,patch,log){ const p=P(); if(!p||S.readOnly) return; const txt=Object.assign({},GP().txt||{}), o=Object.assign({},txt[el]||{},patch);
@@ -20581,7 +20610,11 @@ function axisMenuItems(k){
   const cfg=plotCfg(), A=axisCfg(cfg,k), ro=S.readOnly||!P(), isX=k==="x", nm=AXN(k);
   const items=[{group:nm[0].toUpperCase()+nm.slice(1),plain:true}];
   if(k==="x"||(k==="y"&&cfg.layout!=="heat")){ const cur=scaleKind(cfg,k); items.push({label:"Scale",note:cur==="lin"?"":scaleName(cur).replace(/ \(.*$/,""),sub:()=>AX_SCALES.map(([v,l])=>({label:l,radio:true,checked:cur===v,enabled:!ro,run:()=>setAxisScale(k,v)}))}); }
-  if(k!=="y2"&&k!=="x2"&&k!=="yo"&&!(k==="y"&&hasRight(cfg))) items.push({label:"Where it is",sub:()=>(isX?[["bottom","At the bottom"],["top","At the top"],["zero","At y = 0"]]:[["left","On the left"],["right","On the right"],["zero","At x = 0"]])
+  // A third or fourth axis: its side, set off outward, and a log scale.
+  if(k==="y3"||k==="y4"){ const a=(cfg.ax||{})[k]||{}, side=a.side==="l"||a.side==="r"?a.side:(k==="y3"?"r":"l");
+    items.push({label:"Side",note:side==="r"?"right":"left",sub:()=>[["l","On the left"],["r","On the right"]].map(([v,l])=>({label:l,radio:true,checked:side===v,enabled:!ro,run:()=>setAxisKeys(k,{side:v},`put the ${nm} ${l.toLowerCase()}`)}))},
+      {label:"Logarithmic",checked:!!a.log,enabled:!ro,run:()=>setAxisKeys(k,{log:a.log?null:true},a.log?`made the ${nm} linear`:`made the ${nm} logarithmic`)}); }
+  if(k!=="y2"&&k!=="x2"&&k!=="yo"&&k!=="y3"&&k!=="y4"&&!(k==="y"&&hasRight(cfg))) items.push({label:"Where it is",sub:()=>(isX?[["bottom","At the bottom"],["top","At the top"],["zero","At y = 0"]]:[["left","On the left"],["right","On the right"],["zero","At x = 0"]])
     .map(([v,l])=>({label:l,radio:true,checked:A.pos===v,enabled:!ro,run:()=>setAxisKeys(k,{pos:v},`put the ${nm} ${l.toLowerCase()}`)}))
     .concat([{label:isX?"At a value of y…":"At a value of x…",radio:true,checked:A.pos==="at",enabled:!ro,run:()=>askAxisAt(k)}])});
   items.push({label:"Ticks",sub:()=>[["in","Inside"],["out","Outside"],["both","Both sides"],["none","None"]].map(([v,l])=>({label:l,radio:true,checked:A.dir===v,enabled:!ro,run:()=>setAxisKeys(k,{ticks:v},`set the ${nm}'s ticks ${l.toLowerCase()}`)}))},
@@ -20627,7 +20660,7 @@ function dragTitle(x,y){ const td=S.ttdrag; if(!P()) return;
   else { gp.ax=Object.assign({},gp.ax||{}); gp.ax[td.k]=Object.assign({},gp.ax[td.k]||{},{tdx:dx||null,tdy:dy||null}); }
   renderPlot(); showTip(dx||dy?`${Math.round(Math.hypot(dx,dy))} px from its place`:"In its place",x,y); }
 function commitTitleDrag(td){ const gp=GP(); savePlot(td.k==="title"?{titleDx:gp.titleDx,titleDy:gp.titleDy}:{ax:gp.ax},`moved the ${td.k==="title"?"graph title":AXN(td.k)+" title"}`); renderPlot(); }
-function dragAxis(x,y){ const ad=S.axdrag, g=S.geo; if(!g||!P()||ad.k==="x2"||ad.k==="yo") return;
+function dragAxis(x,y){ const ad=S.axdrag, g=S.geo; if(!g||!P()||ad.k==="x2"||ad.k==="yo"||ad.k==="y3"||ad.k==="y4") return;
   if(!ad.moved&&Math.abs(x-ad.x0)+Math.abs(y-ad.y0)<3) return;
   if(!ad.moved){ pushUndo("moving the axis"); ad.moved=true; }
   const gp=GP(), k=ad.k, cfg=plotCfg(), a=Object.assign({},(gp.ax||{})[k]||{}), cap=v=>{ v=Math.round(Math.max(0,Math.min(60,v))); return v<4?null:v; }; let tip="";
@@ -20724,8 +20757,8 @@ function graphMenuItems(id,at){
       hasErrCols(c.id)||(finalOf(c).e||[]).some(v=>v>0)?{label:"Error bars",sub:()=>[{group:errSourceText(c)}].concat([["bars","Bars"],["band","A shaded band"],["box","Boxes (X and Y)"],["none","None"]].map(([k,l])=>({label:l,radio:true,checked:st.eb===k,enabled:!ro,run:()=>setSeriesStyle(c.id,{eb:k},`drew the error bars of ${specName(c)} as ${l.toLowerCase()}`)})))}:null);
     { const u=curveUse(c.id), ov=cfg.layout==="overlay", sib=sheetCols(sheetOf(c)).filter(o=>o.id!==c.id&&(o.data||[]).some(v=>v!=null));
       items.push("-",{label:"Range…",note:u.rng?rngText(u.rng,c):"",title:"What this graph draws of it: all, some rows, or an X range",enabled:!ro,run:()=>curveRangeDlg(c.id)},
-        {label:"Right axis",checked:u.ax==="r"||(cfg.layout==="dy"&&!isAct),enabled:!ro&&ov&&!isAct,title:isAct?"The active curve stays on the left axis":!ov?"For overlaid curves (two Y axes puts every other curve on the right)":"On a Y axis of its own at the right",
-          run:()=>setCurveUse([c.id],{ax:u.ax==="r"?null:"r"},`put ${specName(c)} on the ${u.ax==="r"?"left":"right"} axis`)},
+        {label:"Y axis",note:cfg.layout==="dy"&&!isAct?"right":(Y_AXES.find(q=>q[0]===(u.ax||""))||Y_AXES[0])[1].toLowerCase(),enabled:!ro&&ov&&!isAct,title:isAct?"The active curve stays on the left axis":!ov?"For overlaid curves (two Y axes puts every other curve on the right)":"The left axis, the right, or a third or fourth of its own",
+          sub:()=>Y_AXES.map(([v,l])=>({label:l,radio:true,checked:(u.ax||"")===v,enabled:!ro,run:()=>setCurveUse([c.id],{ax:v||null},`put ${specName(c)} on the ${l.toLowerCase()} axis`)}))},
         {label:"Group",note:(()=>{ const g=graphOf(GID()), q=g&&graphGroups(g.plot,g.cols).find(o=>o.ids.includes(c.id)); return q?q.name:""; })(),title:"Curves that share their plot type, and step their colour, symbol or line style together",sub:()=>groupItems(c,ro)},
         {label:"Labels from",note:u.lab?`column ${colLetter(colById(u.lab))}`:"",title:"Each point labelled with the value of a column in its row",sub:()=>[{label:"Nothing",radio:true,checked:!u.lab,enabled:!ro,run:()=>setCurveUse([c.id],{lab:null},`took the labels off the points of ${specName(c)}`)}]
           .concat(sib.map(o=>({label:`Column ${colLetter(o)}${o.name?`: ${o.name}`:""}`,radio:true,checked:u.lab===o.id,enabled:!ro,run:()=>setCurveUse([c.id],{lab:o.id},`labelled the points of ${specName(c)} with column ${colLetter(o)}`)})))}); }
@@ -20779,7 +20812,8 @@ function graphMenuItems(id,at){
   if(cfg.layout==="pie") return items.filter(it=>!(it&&(it.swatches||PIE_DROP.has(it.label))));
   return items;
 }
-const PIE_DROP=new Set(["Line, symbols and colour…","Plot type","Symbol…","Map","Columns","Connect","Join the points","Fill between it and","Error bars","Right axis","Group","Show all the data","Histogram of its values","Histogram bins…","Distribution over it"]);
+const Y_AXES=[["","Left"],["r","Right"],["y3","Third"],["y4","Fourth"]];
+const PIE_DROP=new Set(["Line, symbols and colour…","Plot type","Symbol…","Map","Columns","Connect","Join the points","Fill between it and","Error bars","Y axis","Group","Show all the data","Histogram of its values","Histogram bins…","Distribution over it"]);
 // A region of X (a shaded range, a band to integrate): look at it, fit in it, integrate it.
 function regionItems(lo,hi,xu,opt){
   const c=activeYCol(), d=c?finalOf(c):null, ro=S.readOnly, same=!!d&&(d.xu||"")===(xu||"");
@@ -21154,9 +21188,9 @@ function renderPlotDetails(o){
   list.forEach(c=>{ const st=serStyle(c.id,c===act,pal,false,cfg), hid=cfg.hidden.includes(c.id)&&c!==act; h+=opt("s:"+c.id,(st.label?texPlain(st.label):specName(c))+(hid?" (hidden)":"")); });
   if(activeFit()) h+=opt("s:__fit","Fit curve");
   const nav=(k,l)=>opt("p:"+k,l);
-  h+=`</optgroup><optgroup label="Axes">`+nav("ax:x","X axis")+nav("ax:x2","Second X axis")+nav("ax:y",hasRight(cfg)?"Left Y axis":"Y axis")+(["dy","heat","stack"].includes(cfg.layout)||hasRight(cfg)?"":nav("ax:yo","Second Y axis"))+(hasRight(cfg)?nav("ax:y2","Right Y axis"):cfg.layout==="heat"?nav("ax:y2","Colour scale"):"");
+  h+=`</optgroup><optgroup label="Axes">`+nav("ax:x","X axis")+nav("ax:x2","Second X axis")+nav("ax:y",hasRight(cfg)?"Left Y axis":"Y axis")+(["dy","heat","stack"].includes(cfg.layout)||hasRight(cfg)?"":nav("ax:yo","Second Y axis"))+(hasRight(cfg)?nav("ax:y2","Right Y axis"):cfg.layout==="heat"?nav("ax:y2","Colour scale"):"")+(hasYk(cfg,"y3")?nav("ax:y3","Third Y axis"):"")+(hasYk(cfg,"y4")?nav("ax:y4","Fourth Y axis"):"");
   h+=`</optgroup><optgroup label="Graph">`+nav("frame","Frame and grid")+nav("text","Text and fonts")+nav("legend","Legend")+nav("layout","Layout and colours")+nav("labels","Labels and lines")+nav("fpeaks","Fitted peak labels")+`</optgroup></select></div>`;
-  const TITLES={frame:"Frame and grid",text:"Text and fonts",legend:"Legend",layout:"Layout and colours",labels:"Labels and lines",fpeaks:"Fitted peak labels","ax:x":"X axis","ax:yo":"Second Y axis","ax:x2":"Second X axis","ax:y":cfg.layout==="dy"?"Left Y axis":"Y axis","ax:y2":cfg.layout==="heat"?"Colour scale":"Right Y axis"};
+  const TITLES={frame:"Frame and grid",text:"Text and fonts",legend:"Legend",layout:"Layout and colours",labels:"Labels and lines",fpeaks:"Fitted peak labels","ax:x":"X axis","ax:yo":"Second Y axis","ax:x2":"Second X axis","ax:y":cfg.layout==="dy"?"Left Y axis":"Y axis","ax:y2":cfg.layout==="heat"?"Colour scale":"Right Y axis","ax:y3":"Third Y axis","ax:y4":"Fourth Y axis"};
   const selC=page==="series"&&S.pdSel!=="__fit"?(colById(S.pdSel)||act):null;
   { const hd=$("#pdHead"); if(hd) hd.textContent=page==="series"?(S.pdSel==="__fit"?"Fit curve":selC?specName(selC):""):TITLES[page]||""; }
   { const all=$("#pdAll"); if(all) all.hidden=!multiGraph(); }
@@ -21209,6 +21243,7 @@ function renderPlotDetails(o){
       +`<label>Position</label>${seg(b+".talign",isX?[["start","Left"],["center","Centre"],["end","Right"]]:[["start","Bottom"],["center","Middle"],["end","Top"]],al,"Where the title sits along the axis")}`
       +(A.tdx||A.tdy?`<span></span><div><button type="button" class="btn sm" data-pdact="tdreset:${k}"${ro}>Put it back by the axis</button> <span class="lab">dragged ${Math.round(Math.hypot(A.tdx,A.tdy))} px</span></div>`:"")
       +`<label>Font</label>`+txtBarHtml("axt:"+k,a.tst||{},Object.assign({color:pal.ink},txtStyle(cfg,"axis",txtAuto(cfg,"axis"),KSERIF)),{inheritLabel:"Every axis title's font"})+note(`This axis's own. Every axis title's style is on <button type="button" class="lnk" data-pdpage="text">Text and fonts</button>.`),a.tst&&Object.keys(a.tst).length?`<button type="button" class="pd-rst" data-pdtxreset="axt:${k}"${ro}>Like every axis title</button>`:"");
+    if(k==="y3"||k==="y4") h+=grp("Where it is",`<label>Side</label>${seg(b+".side",[["l","Left"],["r","Right"]],a.side==="l"||a.side==="r"?a.side:(k==="y3"?"r":"l"),"Which side of the plot")}<label for="pd${k}off">Set off</label><div class="pair">${num("pd"+k+"off",a.off,b+".off","0",70)}<span class="lab">px outward</span></div>`+chk("pd"+k+"lg",b+".log",!!a.log,"Logarithmic"));
     if(!k2&&!ky) h+=grp(cs?"Range":"Scale",`<label for="pd${k}a">From</label>${num("pd"+k+"a",a.min,b+".min")}<label for="pd${k}b">To</label>${num("pd"+k+"b",a.max,b+".max")}`
       +(cs?"":`<label for="pd${k}s">Major ticks every</label>${num("pd"+k+"s",a.step,b+".step")}`)
       +(k==="x"||(k==="y"&&!heat)?`<label for="pd${k}sc">Type</label>${sel("pd"+k+"sc",AX_SCALES,scaleKind(cfg,k),"axscale."+k)}`+(scaleKind(cfg,k)==="orecip"?`<label for="pd${k}c">c</label><div class="pair">${num("pd"+k+"c",a.c,b+".c","273.15",90)}<span class="lab">1/(x + c)</span></div>`:""):"")
@@ -35883,7 +35918,7 @@ ${DL([["Reverse X","High to low, as wavenumbers are usually drawn."],["Log Y","A
 <p>On a curve: its colour, plot type and style; on the fit's curve, its look, its bands, Results and Remove fit. On an empty spot: a line, text or a peak label there; axes, layout and legend. On a line, a label, the legend or a title: its own options. ${K("Shift","F10")} opens the same menu from the keyboard.</p>
 <h2 id="use">What a curve draws on this graph</h2>
 <p>Four things on a curve's right-click belong to this graph alone: its data, its processing, the fit and the other graphs stay as they are.</p>
-${DL([["Range…","All of it, rows from and to (counted as the worksheet shows them), or X from and to (when X rises or falls steadily); with <em>Fit the axes to it</em> the graph shows just that, and <em>Every curve of this graph</em> gives them all the same range. The menu says the range a curve has."],["Right axis","An overlaid curve on a Y axis of its own at the right, fitted to it, with the legend saying left and right and the Format pane a <em>Right Y axis</em> page. The active curve stays on the left. The <em>Two Y axes</em> layout still puts every other curve on the right."],["Labels from","Each point drawn labelled with the value of a column in its row (a sample number, a temperature), in the labels' text style."],["Group","Curves that go together, as Origin's groups: they share their plot type (<em>Plot type</em> on one changes them all), and their colour, symbol and line style step together from the first curve's, all three or one of them (<em>Colour only</em>, <em>Symbol only</em>, <em>Line style only</em>), the others alike. A curve's own colour, symbol or line still wins. Put a curve in a group, a new group with another, or every curve in one; Plot setup has a Group column too. The legend still lists every curve."]])}
+${DL([["Range…","All of it, rows from and to (counted as the worksheet shows them), or X from and to (when X rises or falls steadily); with <em>Fit the axes to it</em> the graph shows just that, and <em>Every curve of this graph</em> gives them all the same range. The menu says the range a curve has."],["Y axis","An overlaid curve on the left axis, the right one, or a third or fourth of its own (the third on the right and the fourth on the left unless moved), each fitted to its curves, with its own range, scale, ticks, title and colour, set off outward from the Format pane's page for it. The legend says which axis each curve is on. The active curve stays on the left. The <em>Two Y axes</em> layout still puts every other curve on the right."],["Labels from","Each point drawn labelled with the value of a column in its row (a sample number, a temperature), in the labels' text style."],["Group","Curves that go together, as Origin's groups: they share their plot type (<em>Plot type</em> on one changes them all), and their colour, symbol and line style step together from the first curve's, all three or one of them (<em>Colour only</em>, <em>Symbol only</em>, <em>Line style only</em>), the others alike. A curve's own colour, symbol or line still wins. Put a curve in a group, a new group with another, or every curve in one; Plot setup has a Group column too. The legend still lists every curve."]])}
 <h2 id="select">What is selected</h2>
 <p>Click a curve, the fit's curve, an axis's numbers, a band, a line or a label to select it: it is outlined on the graph, and its menu, the same as its right-click menu, appears at the end of the graph's own bar as a coloured button (<em>Curve</em>, <em>Fit</em>, <em>Axis</em>, <em>Region</em>, <em>Text</em>…). A whole column selected in the worksheet does the same for its curve. A click on an empty spot, or ${K("Esc")}, lets go; ${K("Shift","F10")} opens that menu from the keyboard.</p>
 <h2 id="graphmenu">The graph's menus</h2>
@@ -39116,7 +39151,7 @@ function psuStart(cids){
 function psuFromGraph(g){
   const pl=g.plot||{}, use={}, rng={}, ax={}, grp={}, ser=pl.series||{}, sym={}, ssz={};
   const curves=graphCols(g.id).map(y=>{ const u=curveUse(y.id,pl), eo=errColsOf(y.id), s=ser[y.id]||{}, col=k=>{ const c=k&&colById(k); return c||null; };
-    if(u.rng) rng[y.id]=Object.assign({},u.rng); if(u.ax==="r") ax[y.id]="r"; if(u.grp) grp[y.id]=u.grp;
+    if(u.rng) rng[y.id]=Object.assign({},u.rng); if(u.ax) ax[y.id]=u.ax; if(u.grp) grp[y.id]=u.grp;
     if(s.sym) sym[y.id]=s.sym; if(s.ss!=null) ssz[y.id]=s.ss; const zc=col(s.zcol);
     return {y,x:xColFor(y),e:Object.keys(eo).filter(k=>k!=="z").map(k=>({c:eo[k],k})),lab:col(u.lab),zcol:zc,scol:col(s.scol),ez:zc?errColsOf(zc.id).z||null:null,tb:col(s.tB),tc:col(s.tC),...(()=>{ const v=vecOf(s.vec); return {va:v&&v.kind==="am"?col(v.a):null,vm:v&&v.kind==="am"?col(v.m):null,vx2:v&&v.kind==="xy"?col(v.x2):null,vy2:v&&v.kind==="xy"?col(v.y2):null}; })(),type:s.type||(!pl.style||pl.style==="auto"?autoType(y.id):pl.style)}; });
   curves.forEach(q=>{ if(!q.y.src) use[q.y.id]="y"; if(q.x) use[q.x.id]="x"; q.e.forEach(({c,k})=>{ use[c.id]="e:"+k; });
@@ -39166,7 +39201,7 @@ function plotSetupPv(st,kind,W,H){
       if(q.ez&&q.zcol){ put(q.ez,"role","e"); put(q.ez,"of",q.zcol.id); put(q.ez,"ax","z"); put(q.ez,"side",undefined); } });
     cur.forEach(q=>{ const y=q.y; if(y.src) return; if(!q.x){ if(xColFor(y)) put(y,"xcol","row"); } else if(xColFor(y)!==q.x) put(y,"xcol",q.x.id);
       const u=Object.assign({},tp.use[y.id]); if(st.rng[y.id]&&rngOk(st.rng[y.id])) u.rng=st.rng[y.id]; else delete u.rng;
-      if(st.ax[y.id]==="r") u.ax="r"; else delete u.ax; if(q.lab) u.lab=q.lab.id; if(st.grp[y.id]) u.grp=st.grp[y.id]; else delete u.grp; if(Object.keys(u).length) tp.use[y.id]=u; else delete tp.use[y.id];
+      if(st.ax[y.id]) u.ax=st.ax[y.id]; else delete u.ax; if(q.lab) u.lab=q.lab.id; if(st.grp[y.id]) u.grp=st.grp[y.id]; else delete u.grp; if(Object.keys(u).length) tp.use[y.id]=u; else delete tp.use[y.id];
       const s=Object.assign({},tp.series[y.id]); if(K&&psuType(kind)) s.type=psuType(kind); if(K&&MORE_KINDS[kind]&&MORE_KINDS[kind].eb) s.eb=MORE_KINDS[kind].eb;
       if(q.zcol) s.zcol=q.zcol.id; else if(g0) delete s.zcol; if(q.scol) s.scol=q.scol.id; else if(g0) delete s.scol;
       if(q.tb) s.tB=q.tb.id; else if(g0) delete s.tB; if(q.tc) s.tC=q.tc.id; else if(g0) delete s.tC;
@@ -39308,7 +39343,7 @@ async function openPlotDlg(cids,o){
     const y=q.y, r=st.rng[y.id], by=r?r.by:"", sp=psuSpan(q), i=st.curves.indexOf(q), K=(kindOf()||[])[2], lay=g0&&(g0.plot||{}).layout, ov=st.kind?K==="type"||K==="more":!lay||lay==="overlay", gl=psuGroups(st), g=gl.find(o=>o.g===st.grp[y.id]);
     return `<span class="psu-dn"><b>${ro(colRef(y)||"")}</b> ${ro(y.name||specName(y))}</span>`
       +`<span class="psu-p psu-rg"><span class="lab">Range</span> <select data-crng="${y.id}" aria-label="What of ${ro(specName(y))} the graph draws"><option value=""${!by?" selected":""}>All</option><option value="row"${by==="row"?" selected":""}>Rows</option><option value="x"${by==="x"?" selected":""}${sp.mono?"":` disabled title="X must rise or fall steadily to draw part of it by X"`}>X</option></select>${by?`<input type="text" inputmode="decimal" data-cra="${y.id}" value="${r?ro(String(r.a)):""}" aria-label="From"><span>to</span><input type="text" inputmode="decimal" data-crb="${y.id}" value="${r?ro(String(r.b)):""}" aria-label="To">`:""}</span>`
-      +(ov?`<span class="psu-p"><span class="lab">Axis</span> <select data-cax="${y.id}" aria-label="Axis of ${ro(specName(y))}"${i===0?` disabled title="The first curve, the active one, stays on the left"`:""}><option value="">Left</option><option value="r"${st.ax[y.id]==="r"&&i>0?" selected":""}>Right</option></select></span>`:"")
+      +(ov?`<span class="psu-p"><span class="lab">Axis</span> <select data-cax="${y.id}" aria-label="Axis of ${ro(specName(y))}"${i===0?` disabled title="The first curve, the active one, stays on the left"`:""}>${Y_AXES.map(([v,l])=>`<option value="${v}"${(i>0&&st.ax[y.id]||"")===v?" selected":""}>${l}</option>`).join("")}</select></span>`:"")
       +`<span class="psu-p"><span class="lab" title="Curves that share their plot type, and step their colour, symbol or line style together">Group</span> <select data-cgrp="${y.id}" aria-label="Group of ${ro(specName(y))}"><option value="">None</option>${gl.map(o=>`<option value="${o.g}"${st.grp[y.id]===o.g?" selected":""}>${o.name}</option>`).join("")}<option value="new">New group</option></select></span>`
       +(g&&g.ids.length>1?`<span class="psu-p"><span class="lab">${g.name} steps</span> <select data-gstep="${g.g}" aria-label="What ${g.name.toLowerCase()} steps">${GRP_STEPS.map(([k,l])=>`<option value="${k}"${g.step===k?" selected":""}>${l}</option>`).join("")}</select></span>`:""); };
   let pvT=0; const sk=k=>{ const el=box.querySelector("#pdlgSk"); if(!el) return; clearTimeout(pvT); const draw=()=>{ if(!el.isConnected) return; const w=Math.max(260,Math.round(el.clientWidth||520)), h=Math.max(150,Math.round(w*0.62)); el.innerHTML=plotSetupPv(st,k||st.kind,w,h)||`<p class="lab psu-none">Nothing to draw yet</p>`; }; if(k) draw(); else pvT=setTimeout(draw,40); };
@@ -39376,7 +39411,7 @@ async function openPlotDlg(cids,o){
   det.addEventListener("change",e=>{ const t=e.target;
     if(t.matches("[data-crng]")){ const id=t.dataset.crng, q=st.curves.find(q=>q.y.id===id); if(!t.value) delete st.rng[id]; else { const s=psuSpan(q); st.rng[id]=t.value==="row"?{by:"row",a:1,b:Math.max(1,s.rows)}:{by:"x",a:+fmt(s.x0,8),b:+fmt(s.x1,8)}; } refresh(); return; }
     if(t.matches("[data-cra],[data-crb]")){ const id=t.dataset.cra||t.dataset.crb, r=st.rng[id], v=parseNum(t.value); if(r&&v!=null&&Number.isFinite(v)){ if(t.dataset.cra) r.a=v; else r.b=v; } else if(r) t.value=String(t.dataset.cra?r.a:r.b); sk(); return; }
-    if(t.matches("[data-cax]")){ if(t.value) st.ax[t.dataset.cax]="r"; else delete st.ax[t.dataset.cax]; sk(); return; }
+    if(t.matches("[data-cax]")){ if(t.value) st.ax[t.dataset.cax]=t.value; else delete st.ax[t.dataset.cax]; sk(); return; }
     if(t.matches("[data-cgrp]")){ const id=t.dataset.cgrp; if(t.value==="new"){ const g=newGrpId(); st.grps[g]={step:"all"}; st.grp[id]=g; } else if(t.value) st.grp[id]=t.value; else delete st.grp[id]; refresh(); return; }
     if(t.matches("[data-gstep]")){ st.grps[t.dataset.gstep]={step:t.value}; sk(); } });
   // Enter in a range field enters it, not the dialog.
@@ -39405,7 +39440,7 @@ function psuApply(st,o){ const g0=o.g0||null, into=o.into;
   const ov=kind?kind[2]==="type"||kind[2]==="more"||st.kind==="overlay":(g0.plot||{}).layout==null||(g0.plot||{}).layout==="overlay", M=kind&&MORE_KINDS[st.kind];
   if(g0){ psuSetGraph(g0.id,curves,st,kind,ov,said); return; }
   const use={}, series={};
-  curves.forEach(q=>{ const y=q.y, u={}; if(st.rng[y.id]&&rngOk(st.rng[y.id])) u.rng=st.rng[y.id]; if(st.ax[y.id]==="r"&&q!==curves[0]&&ov) u.ax="r"; if(q.lab) u.lab=q.lab.id; if(st.grp[y.id]) u.grp=st.grp[y.id]; if(Object.keys(u).length) use[y.id]=u;
+  curves.forEach(q=>{ const y=q.y, u={}; if(st.rng[y.id]&&rngOk(st.rng[y.id])) u.rng=st.rng[y.id]; if(st.ax[y.id]&&q!==curves[0]&&ov) u.ax=st.ax[y.id]; if(q.lab) u.lab=q.lab.id; if(st.grp[y.id]) u.grp=st.grp[y.id]; if(Object.keys(u).length) use[y.id]=u;
     const vv=psuVec(q,st.kind);
     if(q.zcol||q.scol||q.tb||q.tc||vv||(M&&M.eb)||st.sym[y.id]||st.ss[y.id]!=null) series[y.id]=Object.assign({},q.zcol?{zcol:q.zcol.id}:{},q.scol?{scol:q.scol.id}:{},q.tb?{tB:q.tb.id}:{},q.tc?{tC:q.tc.id}:{},vv?{vec:vv}:{},M&&M.eb?{eb:M.eb}:{},st.sym[y.id]?{sym:st.sym[y.id]}:{},st.ss[y.id]!=null?{ss:st.ss[y.id]}:{}); });
   // Group by: each curve's place taken by a curve per value, one group a column (1.2d).
@@ -39486,7 +39521,7 @@ function psuSetGraph(gid,curves,st,kind,ov,said){
   was.filter(k=>!ids.includes(k)).forEach(k=>{ delete use[k]; });
   curves.forEach((q,i)=>{ const y=q.y, u=Object.assign({},use[y.id]);
     if(st.rng[y.id]&&rngOk(st.rng[y.id])) u.rng=st.rng[y.id]; else delete u.rng;
-    if(st.ax[y.id]==="r"&&i>0&&ov) u.ax="r"; else delete u.ax;
+    if(st.ax[y.id]&&i>0&&ov) u.ax=st.ax[y.id]; else delete u.ax;
     if(q.lab) u.lab=q.lab.id; else delete u.lab;
     if(st.grp[y.id]) u.grp=st.grp[y.id]; else delete u.grp;
     if(Object.keys(u).length) use[y.id]=u; else delete use[y.id];

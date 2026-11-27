@@ -107,7 +107,7 @@ if (section("7.1")) {
     check("one undo puts it back", !(await p.evaluate(id => ((GP().series || {})[id] || {}).pull, ids[0])));
     // Its right-click: the slice's name, Pull the slice out, the pie's own menu; no line, symbol or axis items.
     const menu = await p.evaluate(({ id, geo }) => graphMenuItems(id, { px: geo.x, py: geo.y, pt: toData(geo.x, geo.y) }).filter(Boolean).map(i => i === "-" ? "-" : i.group || i.label), { id: ids[0], geo });
-    check("a slice's right-click: its name and share, Pull the slice out, Pie chart; no Line, Symbol, Error bars or Right axis", menu[0] === "Rent: 57.7 %" && menu.includes("Pull the slice out") && menu.includes("Pie chart") && !menu.some(l => /Line, symbols|Symbol…|Error bars|Right axis|Plot type|Connect/.test(l)), JSON.stringify(menu));
+    check("a slice's right-click: its name and share, Pull the slice out, Pie chart; no Line, Symbol, Error bars or Y axis", menu[0] === "Rent: 57.7 %" && menu.includes("Pull the slice out") && menu.includes("Pie chart") && !menu.some(l => /Line, symbols|Symbol…|Error bars|Y axis|Plot type|Connect/.test(l)), JSON.stringify(menu));
     // Labels: values and shares; a legend appears once the labels do not name the slices.
     await p.evaluate(() => setPlotKey("pieLab", ["value", "pct"], "x")); await p.waitForTimeout(200);
     r = await readPie(p);
@@ -945,6 +945,84 @@ if (section("7.5")) {
     const w = await p.evaluate(() => { const svg = document.querySelector("#plot"), r = svg.getBoundingClientRect(); return { R: S.geo.radar.F.R, over: [...document.querySelectorAll("#plot text")].filter(t => { const b = t.getBoundingClientRect(); return b.width && (b.right > r.right + 1 || b.left < r.left - 1); }).length }; });
     check("at 390 px the radar fits the graph and no name runs off it", w.R > 60 && w.over === 0, JSON.stringify(w));
   }, { name: "7.5 at 390 px", vw: { width: 390, height: 800 } });
+}
+
+/* 7.6 More axes: a temperature, a pressure, a flow and a signal against time, each on an axis of its own. */
+const axesData = async p => {
+  await p.evaluate(async () => { const t = [], a = [], b = [], c = [], d = []; for (let i = 0; i < 60; i++) { t.push(i); a.push(+(20 + 5 * Math.sin(i / 8)).toFixed(3)); b.push(+(1000 + 300 * Math.cos(i / 10)).toFixed(2)); c.push(+(0.002 * i + 0.01 * Math.sin(i / 5)).toFixed(5)); d.push(+(50 * Math.exp(-i / 20)).toFixed(4)); }
+    const mk = (r, n, u, dd) => Object.assign(makeCol(r, n, u, dd), r === "y" ? { pipe: [], mask: [] } : {});
+    const cols = [mk("x", "Time", "min", t), mk("y", "Temperature", "°C", a), mk("y", "Pressure", "hPa", b), mk("y", "Flow", "L/s", c), mk("y", "Signal", "mV", d)];
+    await createProject(Object.assign(blankProject("Axes"), { cols, activeY: cols[1].id }), "test"); await new Promise(r => setTimeout(r, 100)); renderAll(); plotCols(yCols().map(c => c.id), { quiet: true }); });
+  await p.waitForTimeout(600);
+  return p.evaluate(() => yCols().map(c => ({ id: c.id, d: c.data.slice() })));
+};
+// The vertices of a curve's line, and where its axis's range puts each point (the graph's own X; the axis's Y from its range).
+const axOff = (p, id, k) => p.evaluate(({ id, k }) => { const g = S.geo, e = g.yAxes.find(q => q.k === k), path = document.querySelector(`#plot g[data-ser="${id}"] path`), V = [...(path.getAttribute("d") || "").matchAll(/[ML]([-\d.]+),([-\d.]+)/g)].map(m => [+m[1], +m[2]]);
+  const c = colById(id), d = finalOf(c), Y = y => e.log ? g.T + g.mh - (Math.log10(y) - Math.log10(e.y0)) / (Math.log10(e.y1) - Math.log10(e.y0)) * g.mh : g.T + g.mh - (y - e.y0) / (e.y1 - e.y0) * g.mh;
+  let worst = 0; d.x.forEach((x, i) => { const q = [g.X(x), Y(d.y[i])]; let m = Infinity; for (const v of V) m = Math.min(m, Math.hypot(v[0] - q[0], v[1] - q[1])); worst = Math.max(worst, m); });
+  return { worst, n: V.length, e }; }, { id, k });
+
+if (section("7.6")) {
+  console.log("7.6 More axes");
+  await page(async p => {
+    const cs = await axesData(p), [T, P, F, Sg] = cs.map(c => c.id);
+    // The curve's right-click: Y axis, Left, Right, Third, Fourth.
+    const items = await p.evaluate(id => { const it = graphMenuItems(id).find(q => q && q.label === "Y axis"); return it ? it.sub().map(q => q.label) : null; }, F);
+    check("a curve's right-click has Y axis: Left, Right, Third, Fourth", items && items.join() === "Left,Right,Third,Fourth", JSON.stringify(items));
+    for (const [id, l] of [[P, "Right"], [F, "Third"], [Sg, "Fourth"]]) await p.evaluate(({ id, l }) => { graphMenuItems(id).find(q => q && q.label === "Y axis").sub().find(q => q.label === l).run(); }, { id, l });
+    await p.waitForTimeout(400);
+    let r = await p.evaluate(() => ({ axes: S.geo.yAxes.map(e => [e.k, e.side]), leg: [...document.querySelectorAll("#plot .legend text")].map(e => e.textContent), lines: [...document.querySelectorAll("#plot [data-yaxis]")].map(g => +((g.querySelector("path").getAttribute("d").match(/M([-\d.]+)/) || [])[1])), L: S.geo.L, R: S.geo.L + S.geo.pw }));
+    check("four Y axes: the third on the right beyond the right axis, the fourth on the left beyond the main one, the legend saying which", r.axes.join(";") === "y3,r;y4,l" && r.lines[0] > r.R + 30 && r.lines[1] < r.L - 30 && r.leg.join() === "Temperature (left),Pressure (right),Flow (axis 3),Signal (axis 4)", JSON.stringify(r));
+    let o3 = await axOff(p, F, "y3"), o4 = await axOff(p, Sg, "y4");
+    const fr = (d) => [Math.min(...d), Math.max(...d)];
+    check("each curve drawn against its own axis's range (within the line's 0.05 px), each range its curve's", o3.worst <= 0.0712 && o4.worst <= 0.0712 && o3.e.y0 <= fr(cs[2].d)[0] && o3.e.y1 >= fr(cs[2].d)[1] && o4.e.y1 >= 50, JSON.stringify([o3.worst, o4.worst, o3.e, o4.e]));
+    check("…and the left axis fitted to the temperature alone", await p.evaluate(() => S.geo.v.y1 < 30 && S.geo.v.y0 > 10), "");
+    // Its right-click: Side and Logarithmic; the fourth moved to the right, then logarithmic.
+    const am = await p.evaluate(() => axisMenuItems("y4").filter(q => q && q.label).map(q => q.label));
+    check("a further axis's right-click has Side and Logarithmic, not Where it is", am.includes("Side") && am.includes("Logarithmic") && !am.includes("Where it is"), JSON.stringify(am));
+    await p.evaluate(() => { axisMenuItems("y4").find(q => q.label === "Side").sub().find(q => /right/.test(q.label)).run(); }); await p.waitForTimeout(250);
+    r = await p.evaluate(() => S.geo.yAxes.map(e => [e.k, e.side]).join(";"));
+    o4 = await axOff(p, Sg, "y4");
+    check("the fourth on the right, beyond the third, its curve on it still", r === "y3,r;y4,r" && o4.worst <= 0.0712, JSON.stringify([r, o4.worst]));
+    await p.evaluate(() => { axisMenuItems("y4").find(q => q.label === "Logarithmic").run(); }); await p.waitForTimeout(250);
+    o4 = await axOff(p, Sg, "y4");
+    check("logarithmic: the signal's decay drawn on a log axis of its own", o4.e.log && o4.worst <= 0.0712, JSON.stringify([o4.e, o4.worst]));
+    await p.evaluate(() => undo()); await p.evaluate(() => undo()); await p.waitForTimeout(200);
+    check("two undos: the fourth back on the left, linear", await p.evaluate(() => S.geo.yAxes.map(e => [e.k, e.side, e.log]).join(";")) === "y3,r,false;y4,l,false");
+    // The Format pane's page for the third axis: its side, set off, a range typed.
+    await p.evaluate(() => openPlotDetails(null, "ax:y3")); await p.waitForTimeout(300);
+    const pg = await p.evaluate(() => ({ head: ($("#pdHead") || {}).textContent, off: !!document.getElementById("pdy3off"), lg: !!document.getElementById("pdy3lg"), from: !!document.getElementById("pdy3a"), nav: [...document.querySelectorAll("#fmtSel option")].map(o => o.textContent).filter(t => /Y axis/.test(t)) }));
+    check("the Format pane has a page for the third and fourth axes: side, set off, logarithmic, its range", pg.head === "Third Y axis" && pg.off && pg.lg && pg.from && pg.nav.includes("Third Y axis") && pg.nav.includes("Fourth Y axis"), JSON.stringify(pg));
+    await p.fill("#pdy3a", "-0.05"); await p.press("#pdy3a", "Tab"); await p.fill("#pdy3b", "0.15"); await p.press("#pdy3b", "Tab"); await p.waitForTimeout(700);
+    await p.evaluate(() => { pdCommit && pdCommit(); closePlotDetails(); }); await p.waitForTimeout(250);
+    o3 = await axOff(p, F, "y3");
+    check("a range typed there, -0.05 to 0.15: the curve drawn against it", o3.e.y0 === -0.05 && o3.e.y1 === 0.15 && o3.worst <= 0.0712, JSON.stringify([o3.e, o3.worst]));
+    await p.evaluate(() => undo()); await p.waitForTimeout(150);
+    // Export.
+    const ex = await p.evaluate(async () => { const svg = buildPlot(800, 500, readPalette(true), true); const v = await svgToVector(svg, { kind: "pdf", wPt: 480, hPt: 300, title: "axes", embed: false }); const t = await v.blob.text();
+      return { axes: (svg.match(/data-yaxis/g) || []).length, pdf: t.slice(0, 5), miss: v.miss || [] }; });
+    check("an export draws both further axes; its PDF misses no character", ex.axes === 2 && ex.pdf === "%PDF-" && ex.miss.length === 0, JSON.stringify(ex));
+    // Junk from storage: an axis Kurve has not got is the left one.
+    await p.evaluate(id => { const g = graphOf(GID()); g.plot = Object.assign({}, g.plot, { use: Object.assign({}, g.plot.use, { [id]: { ax: "y9" } }) }); renderPlot(); }, F);
+    check("an axis from storage Kurve has not got: the curve on the left axis", await p.evaluate(() => S.geo.yAxes.map(e => e.k).join()) === "y4");
+    await p.evaluate(() => undo()); await p.waitForTimeout(150);
+    await p.evaluate(id => setCurveUse([id], { ax: "y3" }, "t"), F); await p.waitForTimeout(200);
+    await p.reload(); await ready(p); await p.waitForTimeout(600);
+    check("after a reload the third and fourth axes are there", await p.evaluate(() => (S.geo.yAxes || []).map(e => e.k).join()) === "y3,y4");
+  }, { name: "7.6 more axes", timeout: 120000 });
+
+  await page(async p => {
+    const cs = await axesData(p);
+    // Plot setup on the graph: the Axis list has Third and Fourth.
+    await p.evaluate(() => { plotsOf(); }); await p.waitForTimeout(400);
+    await p.click(`tr[data-pcur="${cs[2].id}"]`); await p.waitForTimeout(150);
+    const opts = await p.evaluate(id => [...document.querySelector(`select[data-cax="${id}"]`).options].map(o => o.textContent), cs[2].id);
+    check("What it plots… has the Axis list: Left, Right, Third, Fourth", opts.join() === "Left,Right,Third,Fourth", JSON.stringify(opts));
+    await p.selectOption(`select[data-cax="${cs[2].id}"]`, "y3"); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(400);
+    check("…Third chosen there: the curve on the third axis, one undo step", await p.evaluate(id => curveUse(id).ax === "y3" && S.geo.yAxes.length === 1, cs[2].id));
+    await p.evaluate(() => undo()); await p.waitForTimeout(200);
+    check("…undone", await p.evaluate(id => !curveUse(id).ax, cs[2].id));
+  }, { name: "7.6 Plot setup's Axis" });
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
