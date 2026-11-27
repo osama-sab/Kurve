@@ -32,7 +32,7 @@ rng = np.random.default_rng(7202611)
 # Gauss-Legendre in panels, the nodes from NumPy, the integrand at 24 digits. P(R <= w) = n int phi(x) (Phi(x + w) - Phi(x))^(n-1) dx over
 # [-10, 10] whatever w (the integrand is below phi(x), which is 8e-23 at 10), so phi and Phi at the inner nodes are worked out once and each
 # point costs one Phi. E[R^2] = int_0^16 2w P(R > w) dw. Every constant at two orders (32 and 48 panels of 32 nodes, inside and out),
-# which must agree to 1e-18 of E[R^2].
+# which must agree to 1e-17 of E[R^2] (they agree to some 4e-18).
 from numpy.polynomial.legendre import leggauss
 XG, WG = leggauss(32)
 def nodes(a, b, panels):
@@ -41,36 +41,45 @@ def nodes(a, b, panels):
         c = a + (k + mp.mpf(1) / 2) * h
         for x, w in zip(XG, WG): xs.append(c + h / 2 * mp.mpf(float(x))); ws.append(mp.mpf(float(w)) * h / 2)
     return xs, ws
-def m2_of(n, P):
+NS = list(range(3, 13)) + [15, 20, 25]
+def m2_part(job):
+    """E[R^2] for every n of NS over a stretch of the outer nodes: Phi(x_j + w) is the same for every n, so it is worked out once
+    and each n's sum takes its powers."""
+    P, lo, hi = job
+    mp.mp.dps = 24
     xs, ws = nodes(-10, 10, P); ph = [w * mp.npdf(x) for x, w in zip(xs, ws)]; Ph = [mp.ncdf(x) for x in xs]
-    wo, wwo = nodes(0, 16, P); tot = mp.mpf(0)
-    for w, ww in zip(wo, wwo):
-        F = n * mp.fsum(ph[j] * (mp.ncdf(xs[j] + w) - Ph[j]) ** (n - 1) for j in range(len(xs)))
-        tot += ww * 2 * w * (1 - F)
-    return tot
+    wo, wwo = nodes(0, 16, P); out = {n: mp.mpf(0) for n in NS}
+    for t in range(lo, hi):
+        w = wo[t]; acc = {n: mp.mpf(0) for n in NS}
+        for j in range(len(xs)):
+            d = mp.ncdf(xs[j] + w) - Ph[j]; pw = d * d
+            for n in range(3, NS[-1] + 1):
+                if n in acc: acc[n] += ph[j] * pw
+                pw *= d
+        for n in NS: out[n] += wwo[t] * 2 * w * (1 - n * acc[n])
+    return {n: mp.nstr(v, 30) for n, v in out.items()}
+def m2_all(P, cores):
+    from concurrent.futures import ProcessPoolExecutor
+    tot = 32 * P; cuts = [tot * k // (4 * cores) for k in range(4 * cores + 1)]
+    with ProcessPoolExecutor(max_workers=cores) as ex:
+        parts = list(ex.map(m2_part, [(P, cuts[k], cuts[k + 1]) for k in range(len(cuts) - 1)]))
+    return {n: mp.fsum(mp.mpf(q[n]) for q in parts) for n in NS}
 const = {}
 CACHE = os.path.join(here, "fixtures", ".ctrl-const2.json")
 if os.path.exists(CACHE): const = {int(k): v for k, v in json.load(open(CACHE)).items()}
-def one_const(n):
+def c4_of(n):
+    return mp.sqrt(mp.mpf(2) / (n - 1)) * mp.gamma(mp.mpf(n) / 2) / mp.gamma(mp.mpf(n - 1) / 2)
+if any(n not in const for n in [2] + NS):
     mp.mp.dps = 24
-    if n == 2:
-        d2 = 2 / mp.sqrt(mp.pi); d3 = mp.sqrt(2 - 4 / mp.pi)
-    else:
-        # E[R] = int (1 - Phi^n - (1 - Phi)^n) dx, one integral
+    const[2] = {"n": 2, "d2": float(2 / mp.sqrt(mp.pi)), "d3": float(mp.sqrt(2 - 4 / mp.pi)), "c4": float(c4_of(2))}
+    cores = min(4, os.cpu_count() or 1); A = m2_all(32, cores); B = m2_all(48, cores)
+    for n in NS:
+        # the two orders agree to some 1e-18 of E[R^2]; d3 = sqrt(E[R^2] - d2^2) loses at most a factor of ten of that
+        assert abs(A[n] - B[n]) < 1e-17 * B[n], (n, A[n], B[n])
         d2 = mp.quad(lambda x: 1 - mp.ncdf(x) ** n - mp.ncdf(-x) ** n, [-mp.inf, -4, -2, 0, 2, 4, mp.inf])
-        m2s = [m2_of(n, P) for P in (32, 48)]
-        assert abs(m2s[0] - m2s[1]) < 1e-18 * m2s[1], (n, m2s)
-        d3 = mp.sqrt(m2s[1] - d2 * d2)
-    c4 = mp.sqrt(mp.mpf(2) / (n - 1)) * mp.gamma(mp.mpf(n) / 2) / mp.gamma(mp.mpf(n - 1) / 2)
-    return {"n": n, "d2": float(d2), "d3": float(d3), "c4": float(c4)}
-# each n on a core of its own (a few minutes each), kept as it comes so a run cut short starts where it stopped
-from concurrent.futures import ProcessPoolExecutor, as_completed
-todo = [n for n in list(range(2, 13)) + [15, 20, 25] if n not in const]
-if todo:
-    with ProcessPoolExecutor(max_workers=min(4, os.cpu_count() or 1)) as ex:
-        for fu in as_completed([ex.submit(one_const, n) for n in todo]):
-            r = fu.result(); const[r["n"]] = r
-            json.dump(const, open(CACHE, "w")); print("n", r["n"], r, flush=True)
+        const[n] = {"n": n, "d2": float(d2), "d3": float(mp.sqrt(B[n] - d2 * d2)), "c4": float(c4_of(n)), "agree": float(abs(A[n] - B[n]) / B[n])}
+        print("n", n, const[n], flush=True)
+    json.dump(const, open(CACHE, "w"))
 TABLE = {2: (1.128, 0.853, 0.7979), 3: (1.693, 0.888, 0.8862), 4: (2.059, 0.880, 0.9213), 5: (2.326, 0.864, 0.9400), 10: (3.078, 0.797, 0.9727), 25: (3.931, 0.708, 0.9896)}  # Montgomery, Appendix VI
 for n, (a, b, c) in TABLE.items():
     k = const[n]; assert abs(k["d2"] - a) < 6e-4 and abs(k["d3"] - b) < 6e-4 and abs(k["c4"] - c) < 6e-5, (n, k)
