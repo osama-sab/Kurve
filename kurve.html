@@ -7961,12 +7961,18 @@ function polarFrame(o,L,T,pw,mh){ const turn=POL_TURN[o.unit]||360, z0=((POL_ZDE
     if(hole===0) P.push([0,0]); bx0=Math.min(...P.map(q=>q[0])); bx1=Math.max(...P.map(q=>q[0])); by0=Math.min(...P.map(q=>q[1])); by1=Math.max(...P.map(q=>q[1])); }
   const R=Math.max(4,Math.min(pw/Math.max(1e-9,bx1-bx0),mh/Math.max(1e-9,by1-by0)));
   return {cx:L+pw/2-R*(bx0+bx1)/2, cy:T+mh/2+R*(by0+by1)/2, R, z0, sg, turn, hole, o}; }
-function polarFwd(F,th,r){ const o=F.o; if(!Number.isFinite(th)||!Number.isFinite(r)) return null; const sp=o.r1-o.r0, eps=1e-9*Math.abs(sp);
-  if(r<o.r0-eps||r>o.r1+eps) return null;
-  if(o.t0!=null&&o.t1!=null&&Math.abs(o.t1-o.t0)<F.turn){ const lo=Math.min(o.t0,o.t1), hi=Math.max(o.t0,o.t1), t=lo+((((th-lo)%F.turn)+F.turn)%F.turn); if(t>hi+1e-9*F.turn) return null; }
-  // θ less its whole turns first (% is exact), so an angle of several turns keeps its digits in the cosine.
-  const rho=F.hole+(1-F.hole)*(r-o.r0)/sp, ph=((F.z0+F.sg*(th%F.turn)*360/F.turn)%360)*Math.PI/180;
-  return [F.cx+F.R*rho*Math.cos(ph),F.cy-F.R*rho*Math.sin(ph)]; }
+// n points at once into X and Y (NaN where a point has no place), allocating nothing; the count with no place returned.
+function polarPlace(F,TH,RR,X,Y,n){ const o=F.o, sp=o.r1-o.r0, eps=1e-9*Math.abs(sp), sec=o.t0!=null&&o.t1!=null&&Math.abs(o.t1-o.t0)<F.turn,
+    lo=sec?Math.min(o.t0,o.t1):0, hi=sec?Math.max(o.t0,o.t1):0; let out=0;
+  for(let i=0;i<n;i++){ const th=TH[i], r=RR[i];
+    let ok=Number.isFinite(th)&&Number.isFinite(r)&&!(r<o.r0-eps||r>o.r1+eps);
+    if(ok&&sec&&lo+((((th-lo)%F.turn)+F.turn)%F.turn)>hi+1e-9*F.turn) ok=false;
+    if(!ok){ X[i]=NaN; Y[i]=NaN; out++; continue; }
+    // θ less its whole turns first (% is exact), so an angle of several turns keeps its digits in the cosine.
+    const rho=F.hole+(1-F.hole)*(r-o.r0)/sp, ph=((F.z0+F.sg*(th%F.turn)*360/F.turn)%360)*Math.PI/180;
+    X[i]=F.cx+F.R*rho*Math.cos(ph); Y[i]=F.cy-F.R*rho*Math.sin(ph); }
+  return out; }
+function polarFwd(F,th,r){ const X=[0], Y=[0]; return polarPlace(F,[th],[r],X,Y,1)?null:[X[0],Y[0]]; }
 function polarInv(F,x,y){ const o=F.o, u=(x-F.cx)/F.R, v=-(y-F.cy)/F.R, rho=Math.hypot(u,v), r=o.r0+(rho-F.hole)/(1-F.hole)*(o.r1-o.r0);
   let d=((Math.atan2(v,u)*180/Math.PI-F.z0)*F.sg)%360; if(d<0) d+=360; let th=d*F.turn/360;
   if(o.t0!=null&&o.t1!=null&&Math.abs(o.t1-o.t0)<F.turn){ const lo=Math.min(o.t0,o.t1); th=lo+((((th-lo)%F.turn)+F.turn)%F.turn); }
@@ -7976,9 +7982,12 @@ function polarInv(F,x,y){ const o=F.o, u=(x-F.cx)/F.R, v=-(y-F.cy)/F.R, rho=Math
 // For the bench: a frame and every point's place and every screen point's (θ, r, ρ), in one call.
 function polarFlat(o,box,pts,scr){ const F=polarFrame(o,box[0],box[1],box[2],box[3]);
   return {cx:F.cx,cy:F.cy,R:F.R,xy:(pts||[]).map(([t,r])=>polarFwd(F,t,r)),iv:(scr||[]).map(([x,y])=>{ const q=polarInv(F,x,y); return [q.th,q.r,q.rho]; })}; }
-function polarJoin(pts,turn,maxDeg){ const out=[], st=(maxDeg||3)*turn/360;
+// A step from θ0 to θ the short way round, and the pieces it is drawn in (polarJoin and the drawing share them).
+function polarDelta(t0,t,turn){ let d=((t-t0)%turn+turn)%turn; if(d>turn/2) d-=turn; return d; }
+const polarPieces=(d,turn,maxDeg)=>Math.max(1,Math.ceil(Math.abs(d)/((maxDeg||3)*turn/360)));
+function polarJoin(pts,turn,maxDeg){ const out=[];
   for(let i=0;i<pts.length;i++){ const [t,r]=pts[i]; if(i===0){ out.push([t,r]); continue; } const [t0,r0]=pts[i-1];
-    let d=((t-t0)%turn+turn)%turn; if(d>turn/2) d-=turn; const k=Math.max(1,Math.ceil(Math.abs(d)/st));
+    const d=polarDelta(t0,t,turn), k=polarPieces(d,turn,maxDeg);
     for(let j=1;j<=k;j++) out.push([t0+d*j/k,r0+(r-r0)*j/k]); }
   return out; }
 /* ---- Statistical charts (PLOT2_SPEC 7.2), pure ----
@@ -18604,12 +18613,20 @@ function polarOpts(cfg){ return {map:cfg.polMap==="r-theta"?"r-theta":"theta-r",
 function polAngText(v,unit){ if(unit==="rad"){ const k=Math.round(v/(Math.PI/12)); if(Math.abs(v-k*Math.PI/12)>1e-9) return fmt(v,4);
     if(k===0) return "0"; const g=(a,b)=>b?g(b,a%b):a, d=g(Math.abs(k),12), num=k/d, den=12/d; return `${num===1?"":num===-1?"−":num}π${den===1?"":"/"+den}`; }
   return unit==="deg"?`${fmt(v,6)}°`:fmt(v,6); }
+// A curve's points as (θ, r) by the mapping, in typed arrays with their extent; those not finite left out. Kept per list of points.
+const POLM=new WeakMap();
+function polarPts(pts,map){ let m=POLM.get(pts); if(!m){ m={}; POLM.set(pts,m); } if(m[map]) return m[map];
+  const N=pts.length, th=new Float64Array(N), r=new Float64Array(N), tr=map==="theta-r"; let e=null, n=0, lo=Infinity, hi=-Infinity;
+  for(let i=0;i<N;i++){ const q=pts[i], a=tr?q.x:q.y, b=tr?q.y:q.x; if(!Number.isFinite(a)||!Number.isFinite(b)) continue;
+    th[n]=a; r[n]=b; if(b<lo) lo=b; if(b>hi) hi=b; if(tr&&q.e>0){ if(!e) e=new Float64Array(N); e[n]=q.e; } n++; }
+  return m[map]={th:th.subarray(0,n),r:r.subarray(0,n),e:e?e.subarray(0,n):null,n,rmin:lo,rmax:hi}; }
 function polarSvg(o){ const {W,H,pal,colEx,cfg,TS,ps,forExport,tk}=o, f1=v=>(+v).toFixed(1), f2=v=>(+v).toFixed(2), po=polarOpts(cfg), MAT=o.MAT;
   const turn=POL_TURN[po.unit], vw=S.view&&S.view.pol?S.view:null;
-  // Each curve's (θ, r): by the mapping, the points a coordinate cannot take left out and counted.
-  const cur=o.curves.map(z=>({c:z.c,act:z.act,pts:z.pts.map(q=>{ const th=po.map==="theta-r"?q.x:q.y, r=po.map==="theta-r"?q.y:q.x; return {th,r,e:po.map==="theta-r"?q.e:null,i:q.i}; }).filter(q=>Number.isFinite(q.th)&&Number.isFinite(q.r))}));
+  // Each curve's (θ, r) by the mapping (polarPts: typed arrays, kept per list of points), the points a coordinate cannot take left out.
+  const cur=o.curves.map(z=>({c:z.c,act:z.act,P:polarPts(z.pts,po.map)}));
   let mxs=null, mys=null; if(MAT){ const m=matXYOf(MAT); mxs=m.X; mys=m.Y; }
-  const rs=MAT?[amin(mys),amax(mys)]:cur.flatMap(z=>z.pts.map(q=>q.r)), rmin=rs.length?amin(rs):0, rmax=rs.length?amax(rs):1;
+  let rmin=Infinity, rmax=-Infinity; if(MAT){ rmin=amin(mys); rmax=amax(mys); } else cur.forEach(z=>{ if(z.P.n){ rmin=Math.min(rmin,z.P.rmin); rmax=Math.max(rmax,z.P.rmax); } });
+  if(!(rmin<=rmax)){ rmin=0; rmax=1; }
   let r0=po.r0!=null?po.r0:vw&&Number.isFinite(vw.y0)?vw.y0:rmin<0?null:0, r1=po.r1!=null?po.r1:vw&&Number.isFinite(vw.y1)?vw.y1:null;
   if(r1==null||r0==null){ const tk0=niceTicks(r0!=null?r0:rmin,rmax>((r0!=null?r0:rmin))?rmax:(r0!=null?r0:rmin)+1,5), st=tk0.step||1;
     if(r0==null) r0=Math.floor(rmin/st)*st; if(r1==null) r1=Math.max(r0+st,Math.ceil(rmax/st-1e-9)*st); }
@@ -18672,21 +18689,40 @@ function polarSvg(o){ const {W,H,pal,colEx,cfg,TS,ps,forExport,tk}=o, f1=v=>(+v)
   if(rTitle&&((cfg.ax||{}).y||{}).tshow!==false) s+=richText(rTitle,{attrs:ed("y"),x:L+pw/2,y:H-B+TS.axis.size*1.05+4,anchor:"middle",st:TS.axis,fill:pal.ink});
   // The curves: lines along θ, an area to the centre, error bars in r, symbols.
   let left=0;
-  cur.forEach((z,ci)=>{ const st=styles[ci], col=st.color, dsh=DASHES[st.dash]||"", line=["line","linesym","step","area","spline"].includes(st.type)||st.type==="auto", sym=["scatter","linesym"].includes(st.type)||(st.type==="auto"&&z.pts.length<40);
-    let g=`<g data-ser="${z.c.id}" data-polser="1">`, runs=[], run=[];
-    z.pts.forEach(q=>{ if(fwd(q.th,q.r)) run.push([q.th,q.r]); else { left++; if(run.length) runs.push(run); run=[]; } }); if(run.length) runs.push(run);
-    if(line||st.type==="area"){ let d=""; runs.forEach(rn=>{ const J=polarJoin(rn,turn,3); let pen=false; J.forEach(([t,r])=>{ const q=fwd(t,r); if(!q){ pen=false; return; } d+=(pen?"L":"M")+f2(q[0])+","+f2(q[1]); pen=true; });
-        if(st.type==="area"&&J.length>1){ const back=J.slice().reverse().map(([t])=>fwd(t,r0)).filter(Boolean); d+=back.map(q=>"L"+f2(q[0])+","+f2(q[1])).join("")+"Z"; } });
+  cur.forEach((z,ci)=>{ const P=z.P, n=P.n, TH=P.th, RR=P.r, st=styles[ci], col=st.color, dsh=DASHES[st.dash]||"", line=["line","linesym","step","area","spline"].includes(st.type)||st.type==="auto", sym=["scatter","linesym"].includes(st.type)||(st.type==="auto"&&n<40);
+    let g=`<g data-ser="${z.c.id}" data-polser="1">`;
+    // Every point placed once; NaN where it has no place (outside the radial range or the sector), which breaks the line.
+    const X=new Float64Array(n), Y=new Float64Array(n); left+=polarPlace(F,TH,RR,X,Y,n);
+    // On screen past DEC_MIN points, as the Cartesian graph: a line keeps a vertex half a pixel (decW) from the last kept, symbols
+    // and error bars one per spot of half that; an export draws every point.
+    const dec=decOn(n,!!colEx), dw=decW(), w=v=>dec?f1(v):f2(v);
+    if(line||st.type==="area"){ let d="", pen=false, lx=0, ly=0, ath=[];
+      // A run's area closed back along r0 under the angles it went through.
+      const closeArea=()=>{ if(st.type==="area"&&ath.length>1){ for(let j=ath.length-1;j>=0;j--){ const q=fwd(ath[j],r0); if(q) d+="L"+f2(q[0])+","+f2(q[1]); } d+="Z"; } ath=[]; };
+      const put=(x,y,t,last)=>{ if(dec&&pen&&!last&&Math.abs(x-lx)<dw&&Math.abs(y-ly)<dw) return; d+=(pen?"L":"M")+w(x)+","+w(y); lx=x; ly=y; pen=true; if(st.type==="area") ath.push(t); };
+      for(let i=0;i<n;i++){
+        if(X[i]!==X[i]){ if(pen) closeArea(); pen=false; continue; }
+        const last=i===n-1||X[i+1]!==X[i+1];
+        if(!pen){ put(X[i],Y[i],TH[i],last); continue; }
+        // The step from the point before, the short way round, in pieces of 3° at most (polarJoin's).
+        const dt=polarDelta(TH[i-1],TH[i],turn), k=polarPieces(dt,turn,3);
+        for(let m=1;m<k&&pen;m++){ const t=TH[i-1]+dt*m/k, q=fwd(t,RR[i-1]+(RR[i]-RR[i-1])*m/k); if(q) put(q[0],q[1],t,false); else { closeArea(); pen=false; } }
+        put(X[i],Y[i],TH[i],last); if(last) closeArea(); }
       if(d) g+=st.type==="area"?`<path d="${d}" fill="${col}" fill-opacity="${st.fill}" stroke="${col}" stroke-width="${st.lw}" stroke-linejoin="round"${dsh?` stroke-dasharray="${dsh}"`:""}/>`:
         `<path data-polline="1" d="${d}" fill="none" stroke="${col}" stroke-width="${st.lw}" stroke-linejoin="round" stroke-linecap="round"${dsh?` stroke-dasharray="${dsh}"`:""} opacity="${st.op}"/>`; }
-    if(st.eb!=="none"){ let ed=""; z.pts.forEach(q=>{ if(!(q.e>0)||!fwd(q.th,q.r)) return; const a=fwd(q.th,Math.max(r0,q.r-q.e)), b=fwd(q.th,Math.min(r1,q.r+q.e)); if(a&&b) ed+=`M${f2(a[0])},${f2(a[1])}L${f2(b[0])},${f2(b[1])}`; });
+    if(st.eb!=="none"&&P.e){ let ed=""; const seenE=dec?new Set():null, E=P.e; for(let i=0;i<n;i++){ if(!(E[i]>0)||X[i]!==X[i]) continue;
+        if(seenE){ const k=Math.round(X[i]*2/dw)*1048576+Math.round(Y[i]*2/dw); if(seenE.has(k)) continue; seenE.add(k); } const a=fwd(TH[i],Math.max(r0,RR[i]-E[i])), b=fwd(TH[i],Math.min(r1,RR[i]+E[i])); if(a&&b) ed+=`M${f2(a[0])},${f2(a[1])}L${f2(b[0])},${f2(b[1])}`; }
       if(ed) g+=`<path data-polerr="1" d="${ed}" stroke="${esc(st.ebColor||col)}" stroke-width="${st.ebLw}" fill="none"/>`; }
     if(sym){ const r=st.ss!=null?st.ss:3.2, open=symOpen(st.sym); let sd="";
-      z.pts.forEach(q=>{ const p=fwd(q.th,q.r); if(p) sd+=symD(st.sym,p[0],p[1],r); });
-      if(sd) g+=`<path data-polsym="1" d="${sd}" fill="${open?"none":col}" stroke="${col}" stroke-width="${open?1.2:0.6}"/>`; }
+      const xy=[]; for(let i=0;i<n;i++) if(X[i]===X[i]) xy.push([X[i],Y[i]]);
+      // Many circles, as the Cartesian graph draws them: one path of round dots.
+      if(st.sym==="circle"&&xy.length>1500){ (dec?spotsOf(xy,dw/2):xy).forEach(p=>{ sd+=`M${f1(p[0])},${f1(p[1])}h0`; });
+        if(sd) g+=`<path data-polsym="1" data-dots="1" d="${sd}" fill="none" stroke="${col}" stroke-opacity="${0.88*st.op}" stroke-width="${(2*r).toFixed(1)}" stroke-linecap="round"/>`; }
+      else { (dec?spotsOf(xy,dw/2):xy).forEach(p=>{ sd+=symD(st.sym,p[0],p[1],r); });
+        if(sd) g+=`<path data-polsym="1" d="${sd}" fill="${open?"none":col}" stroke="${col}" stroke-width="${open?1.2:0.6}"/>`; } }
     s+=g+`</g>`; });
   geo.polar.left=left;
-  if(!MAT&&!cur.some(z=>z.pts.length)) s+=`<text x="${f1(F.cx)}" y="${f1(F.cy)}" text-anchor="middle"${tAt(TS.labels,pal.muted)}>No values to place</text>`;
+  if(!MAT&&!cur.some(z=>z.P.n)) s+=`<text x="${f1(F.cx)}" y="${f1(F.cy)}" text-anchor="middle"${tAt(TS.labels,pal.muted)}>No values to place</text>`;
   s+=annoSvg("lines",annoCtx)+annoSvg("top",annoCtx);
   if(legOn){ let bx=W-legW-8-(CB?CB.w+CB.lw+16:0), by=T+pad; if(cfg.legend==="custom"&&cfg.legendPos){ bx=Math.max(2,Math.min(W-legW-2,L+cfg.legendPos.fx*pw)); by=Math.max(2,Math.min(H-legH-2,T+cfg.legendPos.fy*mh)); }
     if(!forExport) geo.legend={x:bx,y:by,w:legW,h:legH};
