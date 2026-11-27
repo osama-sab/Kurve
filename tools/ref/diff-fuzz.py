@@ -1579,6 +1579,39 @@ def polar_post(c, out):
     sc = max(abs(w["F"][0]), abs(w["F"][1])) + w["R"]  # the largest coordinate: its last bit is what the doubles can do
     return e / sc, f"{at}: {e:.2e} px, {e / sc:.2e} of the largest coordinate"
 POST["polarFlat"] = polar_post
+# Ternary graphs (PLOT2_SPEC 7.4): a random box, rows of parts of any size (some below 0, missing, or summing to 0), the grid and ticks
+# at random values, screen points inside and out; against plot2_ternary.py's mpmath, relative to the largest coordinate (an inverse's
+# parts as the pixels they move a point by: times the side).
+@gen("ternFlat", 4e-15, 0.3)
+def _():
+    import plot2_ternary as PT
+    box = [float(rng.uniform(-50, 80)), float(rng.uniform(-50, 80)), float(lognum(0.5, 3.6)), float(lognum(0.5, 3.6))]
+    F = PT.frame(box); n = int(rng.integers(1, 50)); sc = lognum(-150, 150)
+    rows = [[float(v) for v in rng.dirichlet([float(rng.uniform(0.2, 3))] * 3) * sc * lognum(-3, 3)] for _ in range(n)]
+    for _ in range(int(rng.integers(0, 4))):
+        r = rows[int(rng.integers(n))]; r[int(rng.integers(3))] = rng.choice([-1.0, 0.0, None]) if rng.random() < 0.7 else -float(lognum(-300, 0))
+    vs = sorted(float(v) for v in rng.uniform(0, 1, int(rng.integers(1, 12)))); cw = bool(rng.random() < 0.5)
+    scr = [[float(F["B"][0] + F["side"] * rng.uniform(-0.2, 1.2)), float(F["B"][1] - F["h"] * rng.uniform(-0.2, 1.2))] for _ in range(20)]
+    W = PT.flat(F, rows, vs, cw, scr)
+    return [box, rows, vs, cw, scr], dict(W, sc=float(max(abs(F["A"][0]), abs(F["A"][1]), abs(F["C"][0]), abs(F["C"][1]))), side=float(F["side"]))
+def tern_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or "xy" not in out: return float("inf"), f"refused: {str(out)[:80]}"
+    d2 = lambda a, b: math.hypot(val(a[0]) - b[0], val(a[1]) - b[1])
+    e = max(d2(out[k], w[k]) for k in "ABC"); at = "the frame"
+    for q, wq in zip(out["xy"], w["xy"]):
+        if (q is None) != (wq is None): return float("inf"), f"a row has a place in one and none in the other: {q} against {wq}"
+        if q is not None and d2(q, wq) > e: e, at = d2(q, wq), "a place"
+    for k in range(3):
+        for g, wg, t, wt in zip(out["grid"][k], w["grid"][k], out["tick"][k], w["tick"][k]):
+            d = max(d2(g[0], wg[0]), d2(g[1], wg[1]), d2(t, wt), w["side"] * math.hypot(val(t[2]) - wt[2], val(t[3]) - wt[3]))  # a direction: over the side
+            if d > e: e, at = d, "a grid line or tick"
+    for q, wq in zip(out["inv"], w["inv"]):  # a part off by d is d times the side off on the screen
+        d = max(abs(val(a) - b) for a, b in zip(q, wq)) * w["side"]
+        if d > e: e, at = d, "an inverse"
+    e /= w["sc"]
+    return e, f"{at}: {e:.2e} of the largest coordinate"
+POST["ternFlat"] = tern_post
 
 cases = []
 ONLY = os.environ.get("ONLY")  # ONLY=name,name: those generators alone

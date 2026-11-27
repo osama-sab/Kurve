@@ -3471,7 +3471,35 @@ graph first, with the taskbar kept at the bottom of the screen.
   map*, `plotItems`' *Polar*, Plot setup's *Coordinates* row, the Format pane's Layout page (`#pdQm`, `#pdQu`, `#pdQz`, `#pdQh`, `#pdQcw`,
   `#pdQgr`, `#pdQgt`); Help `polar` (F1 on a polar graph). `tools/ref/plot2_polar.py` (mpmath at 40 digits from the definition, with
   complex numbers) → `fixtures/plot2-polar.json`; ref-test's `polarFrame`, `polarFwd` (pixels), `polarInv` (the arc off, r along
-  R(1 − hole), less its last bit), `polarJoin`; the fuzzer's `polarFlat` (relative to the largest coordinate). **Columns** (`PLOT_TYPES` `column`): bars from zero, as wide as
+  R(1 − hole), less its last bit), `polarJoin`; the fuzzer's `polarFlat` (relative to the largest coordinate). The drawing places every
+  point once (`polarPlace(F, TH, RR, X, Y, n)` into typed arrays, NaN where none; `polarFwd` is it for one) from `polarPts(pts, map)`
+  (θ, r, errors as typed arrays with their extent, memoised per list of points in `POLM`), joins each step by `polarDelta` and
+  `polarPieces` (shared with `polarJoin`), and past `DEC_MIN` points on screen keeps a line's vertex half a pixel from the last,
+  symbols and error bars one per spot, many circles as one path of round dots (`data-dots`); an export draws every point.
+  **Ternary graphs** (PLOT2_SPEC 7.4): the layout `ternary`. In the ANA block, pure: `TERN_K`, `ternFrame(L, T, pw, mh)` (an
+  equilateral triangle as large as the box allows, centred: `{A (top), B (bottom left), C (bottom right), side, h}`), `ternNorm(a, b, c)`
+  (each part over the sum; null for a part below 0, not finite, or no sum), `ternFwd(F, fa, fb, fc)`, `ternInv(F, x, y)` (the parts
+  from areas, each on its own), `ternGrid(F, k, v)` (a part's line at v between the two sides at its corner), `ternTick(F, k, v, cw)`
+  (on the side the part's numbers go along, rising to its corner: anticlockwise A along C→A, B along A→B, C along B→C, clockwise the
+  reverse; `{x, y, dx, dy}` pointing out along its grid line), `ternFlat` (the bench's). The page: a curve's B and C are its series'
+  `tB`, `tC` (column ids; `ternCols(c, cfg)`), read at each point's recorded row (`ternPts(pts, B, C)`: the normalised parts as typed
+  arrays, the rows, `left`; memoised per points and the two columns' values in `TERNM`); `ternOpts(cfg)` (cfg.`ternSum` 1 | 100, `ternCw`,
+  `ternGrid`; in `FMT_KEYS`), `ternarySvg(o)` (called by `buildPlot` for the layout with a column: the title, the legend, the triangle
+  `[data-ternbg]`, the grid `[data-terngrid]` at 0.1 … 0.9 (every fifth under 320 px), the frame `[data-ternframe]`, the ticks
+  `[data-terntick]` and numbers `[data-ternnum="k:v"]` (×`ternSum`), the corners' titles `[data-axtitle="ta|tb|tc"]` (cfg.ax.`ta`… typed,
+  else the first curve's columns; `plotCfg` copies them, `AXN`, `inlineEditTitle`), the curves `g[data-ser][data-ternser]` (symbols
+  unless the curve's own type is a line: `[data-ternsym]`, `[data-ternline]`; decimated on screen as the polar graph), what was left
+  out said under it (`[data-ternleft]`); `S.geo.tern {F, o, names, autos, left, none}`, `heat` and `dist` true so annotations pin); the
+  readout the three parts; the wheel, zoom and pan do nothing (as on a pie). Menus: `ternMenuItems()` (the graph menu's *Ternary*: Each
+  row adds up to, Clockwise, Grid lines, Parts B and C… (`plotsOf`)), `plotItems`' *Ternary* (`ternaryFrom(cids)`: each three columns
+  in the sheet's order a curve and its B and C, said in the toast; else Plot setup on the kind), the Format pane's Layout page (`#pdTs`,
+  `#pdTcw`, `#pdTg`). Plot setup: roles `tb`, `tc` (`PSU_USES`, `PSU_ROLE`, `PSU_KROLES.ternary` Y, B, C; `useRole`, `psuWhyNot`, `psuSig`,
+  `psuBuild` (a part to the nearest Y on its left), `psuFromGraph`, the preview, `psuApply`, `psuSetGraph` write `tB`/`tC`), a curve's line
+  its B and C (`partsOf`, `partCol`, `setPart`; no *against*), `psuNeed` (each curve needs both), `psuTernGroup(st)` (Ternary chosen
+  with a multiple of three curves and no parts: grouped by threes, at the dialog's start and on picking the card), a curve's column
+  ticked as B or C leaves the list for the curve on its left. The worksheet counts a curve's `tB`, `tC`, `zcol`, `scol` as plotted.
+  Help `ternary`. `tools/ref/plot2_ternary.py` (mpmath at 40 digits; each place checked against python-ternary's projection) →
+  `fixtures/plot2-ternary.json`; ref-test's `ternFrame`, `ternFwd`, `ternGrid`, `ternInv`; the fuzzer's `ternFlat`. **Columns** (`PLOT_TYPES` `column`): bars from zero, as wide as
   a histogram's bins (`histOf(id)`, the step's `bins.w`) or 0.8 of the median spacing, several
   spectra as columns side by side (`colGrp`, `cgk`/`cgn` through `zSt`); a graph of columns
   stands on zero and is widened to whole columns when nothing is typed or zoomed. **Stacked**
@@ -4684,7 +4712,8 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   become a newline and "u_{1}"; rich-text examples in `DOCS` double the backslash.
 
 - **A copy made key by key drops the next key.** `plotCfg` rebuilt `ax` from x, y and y2, so
-  the second X axis, saved and undone like any setting, was never drawn. Grep for the list of
+  the second X axis, saved and undone like any setting, was never drawn. It happened again with the ternary graph's corners
+  (`ax.ta`, `tb`, `tc`): a title typed was saved and never drawn, until the drive typed one. Grep for the list of
   axes (`["x","y","y2"]`, `ax:{x:`) when adding one: `setAxisKeys("all")`, `allax.`, the
   quick styles and `fmtOf`/`styleFrom` had it too.
 - **The first branch that matches wins.** `pdSet` sent `ax.x.brk.0.1` to its general `ax.`
@@ -5983,7 +6012,9 @@ Next, in order:
    charts (control charts with Western Electric's and Nelson's rules, Pareto, Bland–Altman and forest plots, Q–Q plots against five
    distributions with a band, a heat map with dendrograms), done 27.11; slice 7.3, polar graphs (θ and r in degrees, radians or
    gradians, any zero and direction, a hole, a sector, lines the short way round, a matrix as a polar map; every place within 6e-13 px
-   of 40-digit mpmath), done 27.11
+   of 40-digit mpmath), done 27.11; slice 7.4, ternary graphs (each row's three parts, B and C a curve's columns as a colour is,
+   fractions or percentages, either way round, the rows with no place said; within the doubles' last bit of 40-digit mpmath and
+   python-ternary's projection), done 27.11
 
 Then, 19.11, the user's request: qudi's confocal files read with their positions, and ImageJ's statistics on them; the plan is
 `ux/spec/QUDI_SPEC.md` (eight decisions, four slices: Q.1 reading qudi's files, Q.2 a TIFF ImageJ opens with its calibration, Q.3
@@ -6243,6 +6274,8 @@ selected at once in the Project Explorer and acted on together, each command one
   between two spokes), spokes every 30° (π/6, 50 gradians) whatever the zoom, the radius zoomed at the rim only (not about a point),
   a matrix's map by its nearest cell (no smoothing between cells); no annotations at a data place on it (pinned ones only), no
   wind rose (stacked bars by direction), no Smith chart
+- Ternary graphs: symbols and straight lines (no ternary contours or filled regions, no zoom into a part of the triangle, no
+  ternary error bars), the grid at tenths or fifths, a curve's B and C its own columns read in its rows (not from another sheet)
 - Statistical charts: control charts with 3σ limits only (no CUSUM, EWMA, moving average or Hotelling's T² chart, no limits other than
   3σ, no phase I and II, no runs restarted after a change), the rules Western Electric's or Nelson's (not chosen one by one); a Pareto
   chart of one column of categories (no second level, no "Other" gathered); Bland–Altman without a regression of the differences on

@@ -652,6 +652,154 @@ if (section("7.3")) {
   }, { name: "7.3 Plot setup and 390 px", vw: { width: 390, height: 800 } });
 }
 
+/* 7.4 Ternary: soil textures (sand, silt, clay; a row with a part below 0 and one with a part missing) and a path of 20 rows. */
+const soilData = async p => {
+  await p.evaluate(async () => { const sa = [], si = [], cl = [], s2 = [], i2 = [], c2 = []; let seed = 3; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let i = 0; i < 40; i++) { sa.push(+(20 + 50 * rnd()).toFixed(1)); si.push(+(10 + 40 * rnd()).toFixed(1)); cl.push(+(5 + 30 * rnd()).toFixed(1)); }
+    for (let i = 0; i < 20; i++) { const t = i / 19; s2.push(+(70 - 50 * t).toFixed(2)); i2.push(+(20 + 10 * t).toFixed(2)); c2.push(+(10 + 40 * t).toFixed(2)); }
+    cl[5] = -2; si[7] = null; sa[9] = 0; si[9] = 0; cl[9] = 0;
+    const mk = (r, n, u, d) => Object.assign(makeCol(r, n, u, d), r === "y" ? { pipe: [], mask: [] } : {}), pad = a => a.concat(Array(20).fill(null));
+    const cols = [makeCol("x", "Sample", "", sa.map((_, i) => i + 1)), mk("y", "Sand", "%", sa), mk("y", "Silt", "%", si), mk("y", "Clay", "%", cl), mk("y", "Path sand", "%", pad(s2)), mk("y", "Path silt", "%", pad(i2)), mk("y", "Path clay", "%", pad(c2))];
+    await createProject(Object.assign(blankProject("Soil"), { cols, activeY: cols[1].id }), "test"); await new Promise(r => setTimeout(r, 100)); renderAll(); });
+  await p.waitForTimeout(400);
+  return p.evaluate(() => yCols().map(c => ({ id: c.id, d: c.data.slice() })));
+};
+// Each curve's symbol centres (a circle's path starts r to its left) and line vertices, the corners, what was left out.
+const ternRead = p => p.evaluate(() => { const T = S.geo.tern, out = {};
+  document.querySelectorAll("#plot g[data-ternser]").forEach(g => { const id = g.dataset.ser, ln = (g.querySelector("[data-ternline]") || { getAttribute: () => "" }).getAttribute("d") || "", sd = (g.querySelector("[data-ternsym]") || { getAttribute: () => "" }).getAttribute("d") || "";
+    out[id] = { line: [...ln.matchAll(/[ML]([-\d.]+),([-\d.]+)/g)].map(m => [+m[1], +m[2]]), sym: [...sd.matchAll(/M([-\d.]+),([-\d.]+)a([\d.]+),/g)].map(m => [+m[1] + +m[3], +m[2]]) }; });
+  const gd = (document.querySelector("#plot [data-terngrid]") || { getAttribute: () => "" }).getAttribute("d") || "";
+  return { A: T.F.A, B: T.F.B, C: T.F.C, o: T.o, left: T.left, names: T.names, curves: out, grid: [...gd.matchAll(/M([-\d.]+),([-\d.]+)L([-\d.]+),([-\d.]+)/g)].map(m => [+m[1], +m[2], +m[3], +m[4]]),
+    nums: [...document.querySelectorAll("#plot [data-ternnum]")].map(e => ({ k: e.dataset.ternnum, x: +e.getAttribute("x"), y: +e.getAttribute("y"), t: e.textContent })), note: (document.querySelector("#plot [data-ternleft]") || {}).textContent || "" }; });
+// Where the definition puts a row (each part over their sum, the corners weighted by them), or null.
+const ternDef = (R, a, b, c) => { if (![a, b, c].every(v => v != null && Number.isFinite(v) && v >= 0)) return null; const s = a + b + c; if (!(s > 0)) return null;
+  const f = [a / s, b / s, c / s]; return [f[0] * R.A[0] + f[1] * R.B[0] + f[2] * R.C[0], f[0] * R.A[1] + f[1] * R.B[1] + f[2] * R.C[1]]; };
+const ternOff = (pts, rows, R) => { let worst = 0, n = 0; rows.forEach(([a, b, c]) => { const q = ternDef(R, a, b, c); if (!q) return; n++; let m = Infinity; for (const v of pts) m = Math.min(m, Math.hypot(v[0] - q[0], v[1] - q[1])); worst = Math.max(worst, m); }); return { worst, n }; };
+
+if (section("7.4")) {
+  console.log("7.4 Ternary");
+  await page(async p => {
+    const cs = await soilData(p), rows1 = cs[0].d.map((v, i) => [v, cs[1].d[i], cs[2].d[i]]), rows2 = cs[3].d.slice(0, 20).map((v, i) => [v, cs[4].d[i], cs[5].d[i]]);
+    // From Plot's menu, six columns: two curves, each with its next two columns as B and C.
+    const it = await p.evaluate(ids => { const m = plotItems(ids).find(q => q && q.label === "Ternary"); if (m) m.run(); return !!m; }, cs.map(c => c.id)); await p.waitForTimeout(600);
+    let r = await p.evaluate(() => ({ lay: plotCfg().layout, n: document.querySelectorAll("#plot g[data-ternser]").length, ser: plotCfg().series, toast: (document.querySelector("#toast") || {}).textContent || "", off: [...document.querySelectorAll("#ws .hoff")].length }));
+    check("Plot's menu has Ternary: six columns make two curves, each with its next two columns as B and C, said in the message; no column says it is not plotted", it && r.lay === "ternary" && r.n === 2 && r.ser[cs[0].id].tB === cs[1].id && r.ser[cs[0].id].tC === cs[2].id && r.ser[cs[3].id].tB === cs[4].id && /Sand, Silt, Clay; Path sand, Path silt, Path clay/.test(r.toast) && r.off === 0, JSON.stringify(r));
+    let R = await ternRead(p);
+    let o1 = ternOff(R.curves[cs[0].id].sym, rows1, R);
+    check("every row of the first curve a symbol where its parts put it (within the symbols' 0.05 px), the corners titled by the columns", o1.n === 37 && o1.worst <= 0.0712 && R.names.join() === "Sand,Silt,Clay", JSON.stringify([o1, R.names]));
+    check("its rows with a part below 0, a part missing and every part 0 left out, counted and said", R.left === 3 && /3 rows left out/.test(R.note) && R.curves[cs[0].id].sym.length === 37, JSON.stringify([R.left, R.note]));
+    // The path as a line: its vertices at the definition's places (two decimals).
+    await p.evaluate(id => { savePlot({ series: Object.assign({}, plotCfg().series, { [id]: Object.assign({}, plotCfg().series[id], { type: "linesym" }) }) }, "t"); renderPlot(); }, cs[3].id); await p.waitForTimeout(200);
+    R = await ternRead(p); const o2 = ternOff(R.curves[cs[3].id].line, rows2, R);
+    check("a curve drawn as lines: each vertex at its row's place (within 0.005 px), straight between them", o2.n === 20 && o2.worst <= 0.0072 && R.curves[cs[3].id].line.length === 20, JSON.stringify(o2));
+    // The grid: each part's lines at 0.1 … 0.9 parallel to the side across from its corner.
+    const gw = await p.evaluate(() => { const F = S.geo.tern.F, out = []; TERN_K.forEach(k => [1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(j => out.push(ternGrid(F, k, j / 10)))); return out; });
+    const gOff = Math.max(...gw.map((g, i) => { const d = R.grid[i]; return d ? Math.max(Math.hypot(d[0] - g[0][0], d[1] - g[0][1]), Math.hypot(d[2] - g[1][0], d[3] - g[1][1])) : Infinity; }));
+    const par = gw.every((g, i) => { const k = Math.floor(i / 9), P = [R.A, R.B, R.C], J = P[(k + 1) % 3], M = P[(k + 2) % 3], ux = g[1][0] - g[0][0], uy = g[1][1] - g[0][1], vx = M[0] - J[0], vy = M[1] - J[1]; return Math.abs(ux * vy - uy * vx) <= 1e-9 * Math.hypot(ux, uy) * Math.hypot(vx, vy); });
+    check("27 grid lines, each at its part's value and parallel to the side across from its corner", R.grid.length === 27 && gOff <= 0.0072 && par, JSON.stringify([R.grid.length, gOff, par]));
+    const nm = R.nums.filter(q => q.k.startsWith("a:")), ax = R.A[0];
+    check("anticlockwise: Sand's numbers 0.1 … 0.9 up the right side, rising to its corner", nm.length === 9 && nm.every(q => q.x > ax - 1) && +nm[8].t === 0.9 && nm[8].y < nm[0].y, JSON.stringify(nm.map(q => [q.t, q.x, q.y])));
+    // The readout: the three parts under the pointer.
+    const at = await p.evaluate(() => { const F = S.geo.tern.F, q = ternFwd(F, 0.5, 0.3, 0.2), svg = document.querySelector("#plot"), bb = svg.getBoundingClientRect(), k = bb.width / svg.viewBox.baseVal.width; return { x: bb.left + q[0] * k, y: bb.top + q[1] * k }; });
+    await p.mouse.move(at.x, at.y); await p.waitForTimeout(150);
+    const ro = await p.evaluate(() => document.querySelector("#readout").textContent), m = ro.match(/Sand ([\d.]+)\s+Silt ([\d.]+)\s+Clay ([\d.]+)/);
+    check("the status bar reads the three parts under the pointer", m && Math.abs(+m[1] - 0.5) < 0.005 && Math.abs(+m[2] - 0.3) < 0.005 && Math.abs(+m[3] - 0.2) < 0.005, ro);
+    // The wheel and the Pan tool leave it whole.
+    await p.mouse.wheel(0, 300); await p.waitForTimeout(150);
+    check("the wheel does nothing to a ternary graph", await p.evaluate(() => !S.view && S.geo.tern && S.geo.tern.F.side > 100));
+    // Its menu: percentages, clockwise, the grid.
+    const menu = await p.evaluate(() => { const it = graphMenuItems().find(q => q && q.label === "Ternary"); return it ? (typeof it.sub === "function" ? it.sub() : it.sub).filter(q => q && q.label).map(q => q.label) : null; });
+    check("the graph's menu has Ternary: what each row adds up to, clockwise, the grid lines, the parts B and C", menu && ["Each row adds up to", "Clockwise", "Grid lines", "Parts B and C…"].every(l => menu.includes(l)), JSON.stringify(menu));
+    await p.evaluate(() => { const it = ternMenuItems()[0].sub().find(q => /100/.test(q.label)); it.run(); }); await p.waitForTimeout(200);
+    await p.evaluate(() => { ternMenuItems().find(q => q.label === "Clockwise").run(); }); await p.waitForTimeout(200);
+    R = await ternRead(p); const nc = R.nums.filter(q => q.k.startsWith("a:"));
+    await p.mouse.move(at.x, at.y + 1); await p.mouse.move(at.x, at.y); await p.waitForTimeout(150);
+    const ro2 = await p.evaluate(() => document.querySelector("#readout").textContent);
+    check("as percentages, clockwise: Sand's numbers 10 … 90 up the left side, the readout in %", R.o.sum === 100 && R.o.cw && nc.every(q => q.x < ax + 1) && nc.map(q => q.t).join() === "10,20,30,40,50,60,70,80,90" && /Sand (49|50)\.\d+ %/.test(ro2), JSON.stringify([R.o, nc.map(q => [q.t, Math.round(q.x)]), ro2]));
+    o1 = ternOff(R.curves[cs[0].id].sym, rows1, R);
+    check("…the points where they were (only the numbers change)", o1.worst <= 0.0712, o1.worst);
+    await p.evaluate(() => undo()); await p.evaluate(() => undo()); await p.waitForTimeout(200);
+    check("two undos: fractions, anticlockwise", await p.evaluate(() => ternOpts(plotCfg()).sum === 1 && !ternOpts(plotCfg()).cw));
+    await p.evaluate(() => { ternMenuItems().find(q => q.label === "Grid lines").run(); }); await p.waitForTimeout(200);
+    check("Grid lines off from the menu", await p.evaluate(() => !document.querySelector("#plot [data-terngrid]") && ternOpts(plotCfg()).grid === false));
+    await p.evaluate(() => undo()); await p.waitForTimeout(150);
+    // The Format pane's Layout page.
+    await p.evaluate(() => openPlotDetails(null, "layout")); await p.waitForTimeout(250);
+    const f = await p.evaluate(() => ["pdTs", "pdTcw", "pdTg"].map(id => !!document.getElementById(id)));
+    check("the Format pane's Layout page has what a row adds up to, clockwise and the grid lines", f.every(Boolean), JSON.stringify(f));
+    await p.selectOption("#pdTs", "100"); await p.waitForTimeout(600); await p.evaluate(() => { pdCommit && pdCommit(); closePlotDetails(); }); await p.waitForTimeout(200);
+    check("percentages chosen there are the graph's", await p.evaluate(() => ternOpts(plotCfg()).sum === 100));
+    await p.evaluate(() => undo()); await p.waitForTimeout(150);
+    // A corner titled by typing, and undone.
+    await p.evaluate(() => setAxisTitle("ta", "Sand (%)")); await p.waitForTimeout(200);
+    const tt = await p.evaluate(() => ({ n: S.geo.tern.names[0], t: [...document.querySelectorAll('#plot [data-axtitle="ta"]')].map(e => e.textContent) }));
+    check("a corner's title typed is drawn there", tt.n === "Sand (%)" && tt.t.some(t => t.replace(/\s+/g, " ") === "Sand (%)"), JSON.stringify(tt));
+    await p.evaluate(() => undo()); await p.waitForTimeout(150);
+    // Export: the PDF draws it and misses no character.
+    const ex = await p.evaluate(async () => { const svg = buildPlot(640, 520, readPalette(true), true); const v = await svgToVector(svg, { kind: "pdf", wPt: 400, hPt: 325, title: "ternary", embed: false }); const t = await v.blob.text();
+      return { sym: (svg.match(/data-ternsym/g) || []).length, grid: (svg.match(/data-terngrid/g) || []).length, pdf: t.slice(0, 5), miss: v.miss || [] }; });
+    check("an export draws both curves and the grid; its PDF misses no character", ex.sym === 2 && ex.grid === 1 && ex.pdf === "%PDF-" && ex.miss.length === 0, JSON.stringify(ex));
+    // A column of B deleted: the curve says it has none.
+    await p.evaluate(id => { const p = P(); pushUndo("t"); p.cols = p.cols.filter(c => c.id !== id); save({ cols: p.cols }, "deleted"); }, cs[1].id); await p.waitForTimeout(300);
+    R = await ternRead(p);
+    check("its B column deleted: the curve has no place and the graph says so", !R.curves[cs[0].id] && /Sand has no B and C/.test(R.note), R.note);
+    await p.evaluate(() => undo()); await p.waitForTimeout(300);
+    // Junk from storage reads as the defaults.
+    await p.evaluate(() => { const g = graphOf(GID()); g.plot = Object.assign({}, g.plot, { ternSum: "x", ternCw: 0, ternGrid: "?" }); renderPlot(); });
+    const jo = await p.evaluate(() => ternOpts(plotCfg()));
+    check("junk settings read as the defaults", jo.sum === 1 && jo.cw === false && jo.grid === true, JSON.stringify(jo));
+    await p.evaluate(() => { const g = graphOf(GID()); ["ternSum", "ternCw", "ternGrid"].forEach(k => delete g.plot[k]); savePlot({ ternCw: true }, "t"); });
+    await p.reload(); await ready(p); await p.waitForTimeout(600);
+    check("after a reload the graph is ternary, clockwise, its two curves drawn", await p.evaluate(() => plotCfg().layout === "ternary" && ternOpts(plotCfg()).cw && document.querySelectorAll("#plot g[data-ternser]").length === 2));
+  }, { name: "7.4 ternary", timeout: 120000 });
+
+  await page(async p => {
+    const cs = await soilData(p);
+    // Plot setup: the Ternary card, the roles Y, B and C, a note until each curve has its B and C.
+    await p.evaluate(ids => { S.plotDlgKind = "ternary"; openPlotDlg(ids); }, cs.slice(0, 3).map(c => c.id)); await p.waitForTimeout(400);
+    let r = await p.evaluate(() => ({ roles: [...document.querySelectorAll(".psu-rh")].map(e => e.textContent), need: ($("#psuNeed") || {}).textContent || "", kind: ($("#psuKindN") || {}).textContent }));
+    const parts0 = await p.evaluate(() => ({ parts: [...document.querySelectorAll('select[data-cpart="tb"], select[data-cpart="tc"]')].map(e => e.value), curves: document.querySelectorAll("tr[data-pcur]").length }));
+    check("Plot setup opened on Ternary with three columns: one curve, the next two its B and C, the roles Y, B and C, no note", r.kind === "Ternary" && ["Y", "B", "C"].every(k => r.roles.includes(k)) && !r.need && parts0.curves === 1 && parts0.parts.join() === `${cs[1].id},${cs[2].id}`, JSON.stringify([r, parts0]));
+    // By hand: C taken off the curve (a note), then marked again in the grid.
+    await p.selectOption('select[data-cpart="tc"]', ""); await p.waitForTimeout(150);
+    r = await p.evaluate(() => ({ need: ($("#psuNeed") || {}).textContent || "", ok: $("#formOk").disabled }));
+    check("a curve without its C: the note says so and Plot waits", /Mark them as B and C/.test(r.need) && r.ok, JSON.stringify(r));
+    await p.click(`input[data-prole="tc"][data-pcol="${cs[2].id}"]`); await p.waitForTimeout(150);
+    r = await p.evaluate(() => ({ need: ($("#psuNeed") || {}).textContent || "", parts: [...document.querySelectorAll('select[data-cpart="tb"], select[data-cpart="tc"]')].map(e => e.value), curves: document.querySelectorAll("tr[data-pcur]").length }));
+    check("C marked in the grid: the curve on its left takes it, the note goes", r.curves === 1 && r.parts.join() === `${cs[1].id},${cs[2].id}` && !/Mark them/.test(r.need), JSON.stringify(r));
+    const sv = await p.evaluate(() => { const s = $("#pdlgSk"); return s ? s.innerHTML.length : 0; });
+    check("…the preview draws the triangle", sv > 1000 && await p.evaluate(() => !!document.querySelector("#pdlgSk [data-ternframe]")), sv);
+    await p.click("#formOk"); await p.waitForTimeout(500);
+    r = await p.evaluate(() => ({ lay: plotCfg().layout, ser: plotCfg().series, n: document.querySelectorAll("#plot g[data-ternser]").length }));
+    check("OK draws it ternary, the curve's B and C kept on the graph", r.lay === "ternary" && r.n === 1 && r.ser[cs[0].id].tB === cs[1].id && r.ser[cs[0].id].tC === cs[2].id, JSON.stringify(r));
+    // What it plots… shows the curve's B and C to change.
+    await p.evaluate(() => { plotsOf(); }); await p.waitForTimeout(400);
+    r = await p.evaluate(() => [...document.querySelectorAll('select[data-cpart="tb"], select[data-cpart="tc"]')].map(e => e.value));
+    check("What it plots… shows the curve's B and C", r.join() === `${cs[1].id},${cs[2].id}`, JSON.stringify(r));
+    await p.selectOption('select[data-cpart="tc"]', cs[5].id); await p.waitForTimeout(150); await p.click("#formOk"); await p.waitForTimeout(400);
+    check("…and a new C chosen there is the curve's, one undo step", await p.evaluate(id => plotCfg().series[id].tC, cs[0].id) === cs[5].id);
+    await p.evaluate(() => undo()); await p.waitForTimeout(200);
+    check("…undone", await p.evaluate(id => plotCfg().series[id].tC, cs[0].id) === cs[2].id);
+    // Fifty thousand rows: on screen fewer symbols than rows, every row in an export.
+    const big = await p.evaluate(async () => { const n = 50000, a = [], b = [], c = []; let s = 7; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+      for (let i = 0; i < n; i++) { a.push(rnd()); b.push(rnd()); c.push(rnd()); }
+      const cols = [makeCol("x", "Row", "", a.map((_, i) => i)), Object.assign(makeCol("y", "A", "", a), { pipe: [], mask: [] }), Object.assign(makeCol("y", "B", "", b), { pipe: [], mask: [] }), Object.assign(makeCol("y", "C", "", c), { pipe: [], mask: [] })];
+      await createProject(Object.assign(blankProject("Big"), { cols, activeY: cols[1].id }), "test"); await new Promise(r => setTimeout(r, 100)); renderAll();
+      ternaryFrom(yCols().map(c => c.id)); await new Promise(r => setTimeout(r, 300));
+      const t0 = performance.now(); renderPlot(); const ms = performance.now() - t0;
+      const scr = (document.querySelector("#plot [data-ternsym]").getAttribute("d").match(/M/g) || []).length, ex = (buildPlot(800, 640, readPalette(true), true).match(/data-ternsym="1" data-dots="1" d="[^"]*"/) || [""])[0].split("M").length - 1;
+      return { ms, scr, ex }; });
+    check("fifty thousand rows: fewer dots on screen than rows, every row in an export", big.scr < 50000 && big.ex === 50000, JSON.stringify(big));
+  }, { name: "7.4 Plot setup and many rows", timeout: 120000 });
+
+  await page(async p => {
+    const cs = await soilData(p);
+    await p.evaluate(ids => { ternaryFrom(ids); }, cs.slice(0, 3).map(c => c.id)); await p.waitForTimeout(600);
+    const w = await p.evaluate(() => { const svg = document.querySelector("#plot"), r = svg.getBoundingClientRect(); return { side: S.geo.tern.F.side, over: [...document.querySelectorAll("#plot text")].filter(t => { const b = t.getBoundingClientRect(); return b.width && (b.right > r.right + 1 || b.left < r.left - 1); }).length }; });
+    check("at 390 px the triangle fits the graph and no number or title runs off it", w.side > 120 && w.over === 0, JSON.stringify(w));
+  }, { name: "7.4 at 390 px", vw: { width: 390, height: 800 } });
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

@@ -233,6 +233,7 @@ Plot
     Columns by category  ## new (PLOT2_SPEC 7.1)
     Pie chart  ## new (PLOT2_SPEC 7.1)
     Polar  ## new (PLOT2_SPEC 7.3): X the angle, Y the radius
+    Ternary  ## new (PLOT2_SPEC 7.4): each three columns the parts of a whole
     Add to a graph
       (each graph)
   Plot a matrix  ## new (SHEET_SPEC 3.6): a matrix drawn as a map on a graph of its own

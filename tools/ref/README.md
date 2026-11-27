@@ -132,6 +132,12 @@ turned zero and a box too small; the region fitted into the box from its arcs' e
 short way round in pieces of 3°. `fixtures/plot2-polar.json`; ref-test's `polarFrame`, `polarFwd` (pixels), `polarInv` (the arc off
 in units of the radius, r along R(1 − hole) less its last bit), `polarJoin`; the fuzzer's `polarFlat` imports its functions.
 
+`tools/ref/plot2_ternary.py` (PLOT2_SPEC 7.4) is the ternary graphs': each row's parts over their exact sum, its place the corners
+weighted by them in mpmath at 40 digits, checked there against python-ternary's projection as its source writes it (written out, not
+run); the grid lines and ticks from their definitions, the inverse by areas; fractions, percentages, counts of any size, parts from
+1e-200 to 1e200 and the rows with no place. `fixtures/plot2-ternary.json`; ref-test's `ternFrame`, `ternFwd`, `ternGrid`, `ternInv`; the
+fuzzer's `ternFlat` imports its functions.
+
 ImageJ's own readout, where its jar may be run:
 
 ```sh

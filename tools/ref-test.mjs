@@ -520,6 +520,24 @@ if (fixtures["plot2-polar"]) {
     note("polarJoin", e, `${c.name}: ${r.length} pieces against ${c.want.length}`); }
 }
 
+/* ---- Ternary graphs (PLOT2_SPEC 7.4): ternFrame, ternNorm with ternFwd, ternInv, ternGrid and ternTick against mpmath at 40 digits
+   from the definitions, each place checked there against python-ternary's projection (tools/ref/plot2_ternary.py): fractions and
+   percentages, counts of any size, parts from 1e-200 to 1e200, a part below 0, missing or a sum of 0 with no place; pixels, the
+   inverse's parts absolutely (each is at most about 1), the ticks' directions as unit vectors. ---- */
+if (fixtures["plot2-ternary"]) {
+  const TF = get("ternFlat");
+  for (const c of fixtures["plot2-ternary"].cases) { const r = TF(c.box, c.rows, c.vs, c.cw, c.scr), w = c.want, d2 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    note("ternFrame", Math.max(d2(r.A, w.A), d2(r.B, w.B), d2(r.C, w.C)), c.name);
+    let e = 0, at = c.name;
+    r.xy.forEach((q, i) => { const wq = w.xy[i], d = wq == null ? (q == null ? 0 : Infinity) : q == null ? Infinity : d2(q, wq); if (!(d <= e)) { e = d; at = `${c.name}: row ${JSON.stringify(c.rows[i])}${wq == null ? " (has no place)" : ""}`; } });
+    note("ternFwd", e, at);
+    let eg = 0; for (let k = 0; k < 3; k++) c.vs.forEach((v, j) => { const g = r.grid[k][j], wg = w.grid[k][j], t = r.tick[k][j], wt = w.tick[k][j];
+      eg = Math.max(eg, d2(g[0], wg[0]), d2(g[1], wg[1]), d2(t, wt), Math.hypot(t[2] - wt[2], t[3] - wt[3])); });
+    note("ternGrid", eg, c.name);
+    let ei = 0; r.inv.forEach((q, i) => { ei = Math.max(ei, ...q.map((v, k) => Math.abs(v - w.inv[i][k]))); });
+    note("ternInv", ei, c.name); }
+}
+
 /* ---- The shift between two scans (QUDI_SPEC Q.8): Guizar-Sicairos, Thurman and Fienup's registration written again in NumPy,
    tools/ref/shift_fixtures.py; the shift the same grid point, the correlation at it to the rounding ---- */
 if (fixtures.shift) {

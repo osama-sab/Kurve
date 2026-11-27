@@ -7990,6 +7990,31 @@ function polarJoin(pts,turn,maxDeg){ const out=[];
     const d=polarDelta(t0,t,turn), k=polarPieces(d,turn,maxDeg);
     for(let j=1;j<=k;j++) out.push([t0+d*j/k,r0+(r-r0)*j/k]); }
   return out; }
+/* ---- Ternary graphs (PLOT2_SPEC 7.4), pure ----
+   Three parts a, b, c of a whole, each row divided by its sum (a row with a part below 0, a part missing, or a sum of 0 has no
+   place); the point the barycentric combination fa·A + fb·B + fc·C of the triangle's corners, A at the top, B at the bottom left,
+   C at the bottom right, the triangle equilateral, as large as the box allows and centred in it. The inverse from areas
+   (fa = area(P, B, C)/area(A, B, C) …), each part on its own, so none is 1 less the others. A part's grid line at v joins the two
+   sides meeting at its corner where it is v; its numbers go along one side, rising towards its corner: anticlockwise (A along C→A,
+   B along A→B, C along B→C) or clockwise (A along B→A, B along C→B, C along A→C), each tick pointing out along its grid line. */
+const TERN_K=["a","b","c"];
+function ternFrame(L,T,pw,mh){ const r3=Math.sqrt(3), side=Math.max(8,Math.min(pw,mh*2/r3)), h=side*r3/2, x0=L+(pw-side)/2, y0=T+(mh-h)/2;
+  return {A:[x0+side/2,y0],B:[x0,y0+h],C:[x0+side,y0+h],side,h}; }
+function ternNorm(a,b,c){ if(!Number.isFinite(a)||!Number.isFinite(b)||!Number.isFinite(c)||a<0||b<0||c<0) return null;
+  const s=a+b+c; return s>0&&Number.isFinite(s)?[a/s,b/s,c/s]:null; }
+function ternFwd(F,fa,fb,fc){ return [fa*F.A[0]+fb*F.B[0]+fc*F.C[0],fa*F.A[1]+fb*F.B[1]+fc*F.C[1]]; }
+function ternInv(F,x,y){ const cr=(P,Q,R)=>(Q[0]-P[0])*(R[1]-P[1])-(Q[1]-P[1])*(R[0]-P[0]), p=[x,y], all=cr(F.A,F.B,F.C);
+  return [cr(p,F.B,F.C)/all,cr(F.A,p,F.C)/all,cr(F.A,F.B,p)/all]; }
+const ternCorners=F=>[F.A,F.B,F.C];
+function ternGrid(F,k,v){ const i=TERN_K.indexOf(k), P=ternCorners(F), K=P[i], J=P[(i+1)%3], M=P[(i+2)%3];
+  return [[v*K[0]+(1-v)*J[0],v*K[1]+(1-v)*J[1]],[v*K[0]+(1-v)*M[0],v*K[1]+(1-v)*M[1]]]; }
+function ternTick(F,k,v,cw){ const i=TERN_K.indexOf(k), P=ternCorners(F), K=P[i], J=P[cw?(i+1)%3:(i+2)%3], M=P[cw?(i+2)%3:(i+1)%3], dx=J[0]-M[0], dy=J[1]-M[1], l=Math.hypot(dx,dy);
+  return {x:v*K[0]+(1-v)*J[0],y:v*K[1]+(1-v)*J[1],dx:dx/l,dy:dy/l}; }
+// For the bench: a frame, each row's place (null for none), each part's grid lines and ticks at vs, and screen points' parts.
+function ternFlat(box,rows,vs,cw,scr){ const F=ternFrame(box[0],box[1],box[2],box[3]);
+  return {A:F.A,B:F.B,C:F.C,xy:(rows||[]).map(([a,b,c])=>{ const f=ternNorm(a,b,c); return f?ternFwd(F,f[0],f[1],f[2]):null; }),
+    grid:TERN_K.map(k=>(vs||[]).map(v=>ternGrid(F,k,v))),tick:TERN_K.map(k=>(vs||[]).map(v=>{ const t=ternTick(F,k,v,cw); return [t.x,t.y,t.dx,t.dy]; })),
+    inv:(scr||[]).map(([x,y])=>ternInv(F,x,y))}; }
 /* ---- Statistical charts (PLOT2_SPEC 7.2), pure ----
    Control charts (Montgomery, Introduction to Statistical Quality Control, 2019): `ctrlConst(n)` the constants of a subgroup of
    n normal values, d₂ = E[R]/σ and d₃ = SD(R)/σ worked out from the range's distribution (∫₀^∞ P(R > w) dw over `rangeSf`, and
@@ -16523,7 +16548,7 @@ function plotCfg(){
   // S.hoverPv: a gallery's card on the graph while it is hovered (hoverPreview); S.plotPreview: the Format pane's burst.
   const p=P(), id=GID(), pv=S.hoverPv||S.plotPreview, src=pv||GP()||{};
   const o=Object.assign({},PLOT_DEF,src);
-  o.ax={x:Object.assign({},(src.ax||{}).x),y:Object.assign({},(src.ax||{}).y),y2:Object.assign({},(src.ax||{}).y2),x2:Object.assign({},(src.ax||{}).x2),yo:Object.assign({},(src.ax||{}).yo)};
+  o.ax={x:Object.assign({},(src.ax||{}).x),y:Object.assign({},(src.ax||{}).y),y2:Object.assign({},(src.ax||{}).y2),x2:Object.assign({},(src.ax||{}).x2),yo:Object.assign({},(src.ax||{}).yo),ta:Object.assign({},(src.ax||{}).ta),tb:Object.assign({},(src.ax||{}).tb),tc:Object.assign({},(src.ax||{}).tc)};
   o.series=src.series||{}; o.hidden=src.hidden||[];
   // On a graph of its own, a spectrum not on it counts as hidden.
   const g=pv?null:graphOf(id), on=g?g.cols:pv?null:[]; if(on) o.hidden=o.hidden.concat(yCols().filter(c=>!on.includes(c.id)).map(c=>c.id));
@@ -16960,11 +16985,11 @@ function histCurve(c,kind){
   const u=out.xu?" "+out.xu:"", f=(v,e)=>fmtPM(v,e).replace(/<[^>]+>/g,"");
   const nm=(DIST_KINDS.find(q=>q[0]===kind)||[,kind])[1], ps=fit.names.map((n,i)=>`${n} = ${f(fit.p[i],fit.e[i])}${kind==="normal"?u:""}`).join(", ")+(kind==="exp"?` (mean ${fmt(fit.mean,4)}${u})`:"");
   return m[key]={fit,y,kind,text:`${nm}: ${ps}`,tip:`${nm} fitted to the ${fit.n} values by maximum likelihood: ${ps}. Kolmogorov–Smirnov D = ${fmt(fit.ks,3)}, p ≈ ${fmt(fit.pks,2)}.`}; }
-const LAYOUTS=[["overlay","Overlay"],["offset","Offset (waterfall)"],["stack","Stacked panels"],["dy","Two Y axes"],["heat","Heat map"],["box","Box chart"],["violin","Violin plot"],["dot","Dot plot"],["mean","Means with intervals"],["catbar","Columns by category"],["pie","Pie chart"],["polar","Polar"]];
+const LAYOUTS=[["overlay","Overlay"],["offset","Offset (waterfall)"],["stack","Stacked panels"],["dy","Two Y axes"],["heat","Heat map"],["box","Box chart"],["violin","Violin plot"],["dot","Dot plot"],["mean","Means with intervals"],["catbar","Columns by category"],["pie","Pie chart"],["polar","Polar"],["ternary","Ternary"]];
 // The charts of categories (PLOT2_SPEC 7.1): every curve, or every group of a column, a category along X.
 const DIST_LAYOUTS=["box","violin","dot","mean","catbar"], isDistLayout=l=>DIST_LAYOUTS.includes(l);
 // Kinds that are not curves against X and Y: the layouts only one curve list can be drawn as.
-const KIND_LAYOUTS=DIST_LAYOUTS.concat(["pie","polar"]), isKindLayout=l=>KIND_LAYOUTS.includes(l);
+const KIND_LAYOUTS=DIST_LAYOUTS.concat(["pie","polar","ternary"]), isKindLayout=l=>KIND_LAYOUTS.includes(l);
 /* What a chart of means or of columns by category shows (cfg.distStat, distErr, distConf) and its words. */
 const DIST_STATS=[["mean","Mean"],["median","Median"],["sum","Sum"],["count","Count"]];
 const DIST_ERRS={mean:[["none","None"],["sd","± SD"],["se","± SE"],["ci","Confidence interval"]],median:[["none","None"],["iqr","Quartiles"],["ci","Confidence interval"]],sum:[["none","None"]],count:[["none","None"]]};
@@ -17529,6 +17554,12 @@ async function polRangeDlg(){ const cfg=plotCfg(), o=polarOpts(cfg), u=(POL_UNIT
   if(!r) return; const num=t=>t===""?null:parseNum(t);
   const p=P(); if(!p||S.readOnly) return; pushUndo("the polar range"); S.view=null;
   savePlot({polR0:num(r.prR0),polR1:num(r.prR1),polT0:num(r.prT0),polT1:num(r.prT1)},`set the polar graph's radius ${r.prR0||r.prR1?`from ${r.prR0||"auto"} to ${r.prR1||"auto"}`:"to the data's"}${r.prT0?`, the sector from ${r.prT0} to ${r.prT1} ${u}`:""}`); renderPlot(); }
+// The graph menu's Ternary: the numbers as fractions or percentages, which way they run, the grid, and what each curve's parts are.
+function ternMenuItems(){ const cfg=plotCfg(), ro=S.readOnly||!P(), o=ternOpts(cfg);
+  return [{label:"Each row adds up to",note:o.sum===100?"100":"1",sub:()=>[[1,"1"],[100,"100 (percentages)"]].map(([v,l])=>({label:l,radio:true,checked:o.sum===v,enabled:!ro,run:()=>setPlotKey("ternSum",v===1?null:100,`numbered the parts ${v===100?"as percentages":"as fractions"}`)}))},
+    {label:"Clockwise",checked:o.cw,enabled:!ro,title:"Each part's numbers run clockwise round the triangle, else anticlockwise",run:()=>setPlotKey("ternCw",o.cw?null:true,o.cw?"ran the numbers anticlockwise":"ran the numbers clockwise")},
+    {label:"Grid lines",checked:o.grid,enabled:!ro,run:()=>setPlotKey("ternGrid",o.grid?false:null,o.grid?"took the grid lines off":"drew the grid lines")},
+    "-",{label:"Parts B and C…",enabled:!ro&&!!GID(),title:"The columns of each curve's second and third parts (its values are the first)",run:()=>plotsOf()}]; }
 function pieMenuItems(){ const cfg=plotCfg(), ro=S.readOnly||!P(), o=pieOpts(cfg), hasPull=graphCols().some(c=>Object.keys(((cfg.series||{})[c.id]||{}).pull||{}).length);
   const togLab=k=>{ const a=o.labs.includes(k)?o.labs.filter(q=>q!==k):PIE_LABS.map(q=>q[0]).filter(q=>q===k||o.labs.includes(q)); setPlotKey("pieLab",a,a.length?`labelled the slices with ${andList(a.map(q=>(PIE_LABS.find(z=>z[0]===q)||[,q])[1].toLowerCase()))}`:"took the labels off the slices"); };
   return [{group:"Labels"},...PIE_LABS.map(([k,l])=>({label:l,checked:o.labs.includes(k),enabled:!ro,run:()=>togLab(k)})),
@@ -18732,6 +18763,92 @@ function polarSvg(o){ const {W,H,pal,colEx,cfg,TS,ps,forExport,tk}=o, f1=v=>(+v)
     s+=`</g>`; }
   if(cfg.figLetter){ const ls=Math.round(TS.title.size); s+=`<text x="${(L+7).toFixed(1)}" y="${(T+ls+3).toFixed(1)}"${tAt(Object.assign({},TS.title,{size:ls,b:true,i:false,u:false}),pal.ink)} stroke="${pal.bg}" stroke-width="3" stroke-linejoin="round" paint-order="stroke" pointer-events="none">${esc(cfg.figLetter)}</text>`; }
   return s+`</svg>`; }
+/* Ternary graphs (PLOT2_SPEC 7.4): a curve's three parts are its values (A) and two columns read at the same rows (B and C,
+   series[id].tB and tC), each row divided by its sum (cfg.ternSum 1 or 100 for the numbers), placed by ternFwd in the triangle
+   (ternFrame); a row with a part below 0, a part missing or no sum left out and counted (geo.tern.left). Grid lines parallel to a
+   side (cfg.ternGrid), each part's numbers along its side (cfg.ternCw), the corners titled (ax.ta, ax.tb, ax.tc, else the parts'
+   names). The readout is the three parts. */
+function ternOpts(cfg){ return {sum:+cfg.ternSum===100?100:1,cw:!!cfg.ternCw,grid:cfg.ternGrid!==false}; }
+function ternCols(c,cfg){ const s=((cfg||plotCfg()).series||{})[c.id]||{}, B=s.tB&&colById(s.tB), C=s.tC&&colById(s.tC); return {B:B&&B!==c?B:null,C:C&&C!==c?C:null}; }
+// A curve's parts, normalised, kept per its points and the two columns' values.
+const TERNM=new WeakMap();
+function ternPts(pts,B,C){ const m=TERNM.get(pts); if(m&&m.bd===B.data&&m.cd===C.data) return m;
+  const N=pts.length, fa=new Float64Array(N), fb=new Float64Array(N), fc=new Float64Array(N), raw=[]; let n=0, left=0;
+  for(let k=0;k<N;k++){ const q=pts[k], i=q.i, b=i!=null?B.data[i]:null, c=i!=null?C.data[i]:null, f=b==null||c==null?null:ternNorm(q.y,+b,+c);
+    if(!f){ left++; continue; } fa[n]=f[0]; fb[n]=f[1]; fc[n]=f[2]; raw.push(i); n++; }
+  const o={bd:B.data,cd:C.data,fa:fa.subarray(0,n),fb:fb.subarray(0,n),fc:fc.subarray(0,n),rows:raw,n,left}; TERNM.set(pts,o); return o; }
+function ternarySvg(o){ const {W,H,pal,colEx,cfg,TS,forExport}=o, f1=v=>(+v).toFixed(1), f2=v=>(+v).toFixed(2), to=ternOpts(cfg);
+  let s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><rect width="${W}" height="${H}" fill="${pal.bg}"/>`;
+  const ed=k=>forExport?"":` data-axtitle="${k}" style="cursor:move"`;
+  let T=10, L=10, R=10, B=10;
+  if(cfg.title){ const ta=TS.title.align||"center"; T+=TS.title.size*1.25+6;
+    s+=richText(cfg.title,{attrs:ed("title"),x:(ta==="left"?L:ta==="right"?W-R:W/2)+numOr(cfg.titleDx,0),y:6+TS.title.size*0.95+numOr(cfg.titleDy,0),anchor:ta==="left"?"start":ta==="right"?"end":"middle",st:TS.title,fill:pal.ink}); }
+  const LS=TS.legend, lfs=LS.size, lh=lfs*numOr(cfg.legendSp,1)+5, lpad=6, styles=o.curves.map(z=>Object.assign(serStyle(z.c.id,z.act,pal,forExport,cfg),{name:specName(z.c)}));
+  const ents=o.curves.map((z,i)=>({c:z.c,label:styles[i].label||styles[i].name,st:styles[i]})).filter((e,i)=>styles[i].leg), legOn=cfg.legend!=="off"&&ents.length>(cfg.legend==="auto"||cfg.legend==null?1:0);
+  const legW=lpad*2+ents.reduce((m,e)=>Math.max(m,richW(e.label,LS)),20)+30, legH=ents.length*lh+lpad;
+  if(legOn) R+=legW+14;
+  // The parts' names: the first curve's Y and its two columns, unless a corner's title is typed.
+  const z0=o.curves.find(z=>z.B&&z.C), ax=cfg.ax||{}, au=(k,c)=>c?axisLabel(c.name||colRef(c),""):k==="ta"?"A":k==="tb"?"B":"C", nm=(k,c)=>{ const t=(ax[k]||{}).title; return t!=null&&t!==""?t:au(k,c); };
+  const names=[nm("ta",z0&&z0.c),nm("tb",z0&&z0.B),nm("tc",z0&&z0.C)], autos=[au("ta",z0&&z0.c),au("tb",z0&&z0.B),au("tc",z0&&z0.C)];
+  // Room for the numbers round the sides and the corners' titles.
+  const TK=TS.ticks, AT=TS.axis, step=to.sum===100?10:0.1, vs=[], big=Math.min(W-L-R,H-T-B)>320;
+  for(let k=1;k<10;k++) if(big||k%2===0) vs.push(k/10);
+  const numW=textW(to.sum===100?"90":"0.9",TK), tl=5, mx=tl+4+numW+8, mt=AT.size*1.3+8, mb=tl+4+TK.size*1.4+AT.size*1.3+8;
+  const pw=Math.max(40,W-L-R), mh=Math.max(40,H-T-B), F=ternFrame(L+mx,T+mt,Math.max(20,pw-2*mx),Math.max(20,mh-mt-mb));
+  const geo={L,pw,T,mh,v:{x0:0,x1:1,y0:0,y1:1,xu:null},full:!!colEx,logY:false,logX:false,W,H,X:x=>L+x*pw,Y:y=>T+mh-y*mh,revX:false,handles:[],heat:true,dist:true,tern:{F,o:to,names,autos,left:0},axes:null};
+  if(!forExport){ S.geo=geo; S.shownPts=[]; S.ps=o.ps; }
+  const annoCtx={cfg,pal,X:geo.X,Y:geo.Y,ps:o.ps,forExport,colEx,fs:o.fs,sans:o.sans,L,pw,T,mh,heat:true,dist:true,TS,ptsAll:[],tk:o.tk};
+  const tri=`M${f2(F.A[0])},${f2(F.A[1])}L${f2(F.B[0])},${f2(F.B[1])}L${f2(F.C[0])},${f2(F.C[1])}Z`;
+  s+=`<path data-ternbg="1" d="${tri}" fill="${esc(cfg.plotBg||pal.bg)}" stroke="none"/>`;
+  // Grid lines: each part's at the numbers, parallel to the side across from its corner.
+  if(to.grid){ let gd=""; TERN_K.forEach(k=>vs.forEach(v=>{ const [a,b]=ternGrid(F,k,v); gd+=`M${f2(a[0])},${f2(a[1])}L${f2(b[0])},${f2(b[1])}`; }));
+    s+=`<path data-terngrid="1" d="${gd}" fill="none" stroke="${esc(cfg.gridColor||pal.grid)}" stroke-width="${numOr(cfg.gridLw,0.8)}"${cfg.gridDash&&DASHES[cfg.gridDash]?` stroke-dasharray="${DASHES[cfg.gridDash]}"`:""}/>`; }
+  s+=`<path data-ternframe="1" d="${tri}" fill="none" stroke="${esc(cfg.frameColor||pal.ink)}" stroke-width="${numOr(cfg.frameLw,1)}" stroke-linejoin="round"/>`;
+  s+=annoSvg("under",annoCtx);
+  // Each part's ticks and numbers along its side, pointing out along its grid line.
+  let td="";
+  TERN_K.forEach((k,ki)=>vs.forEach(v=>{ const t=ternTick(F,k,v,to.cw), x2=t.x+t.dx*tl, y2=t.y+t.dy*tl; td+=`M${f2(t.x)},${f2(t.y)}L${f2(x2)},${f2(y2)}`;
+    const lx=x2+t.dx*4, ly=y2+t.dy*4+TK.size*0.35+(t.dy>0.3?TK.size*0.45:t.dy<-0.3?-TK.size*0.2:0), an=t.dx>0.3?"start":t.dx<-0.3?"end":"middle";
+    s+=`<text data-ternnum="${k}:${v}" x="${f1(lx)}" y="${f1(ly)}" text-anchor="${an}"${tAt(TK,pal.ink)}>${esc(fmt(v*to.sum,6))}</text>`; }));
+  s+=`<path data-terntick="1" d="${td}" stroke="${esc(cfg.frameColor||pal.ink)}" stroke-width="${numOr(cfg.frameLw,1)}" fill="none"/>`;
+  // The corners' titles: A above its corner, B and C below theirs, out to the side.
+  if((ax.ta||{}).tshow!==false) s+=richText(names[0],{attrs:ed("ta"),x:F.A[0],y:F.A[1]-8,anchor:"middle",st:AT,fill:pal.ink});
+  const ty=F.B[1]+tl+4+TK.size*1.4+AT.size*0.95;
+  if((ax.tb||{}).tshow!==false) s+=richText(names[1],{attrs:ed("tb"),x:F.B[0],y:ty,anchor:"middle",st:AT,fill:pal.ink});
+  if((ax.tc||{}).tshow!==false) s+=richText(names[2],{attrs:ed("tc"),x:F.C[0],y:ty,anchor:"middle",st:AT,fill:pal.ink});
+  // The curves: lines straight between their points (straight in the parts too), symbols.
+  let left=0, none=[];
+  o.curves.forEach((z,ci)=>{ const st=styles[ci], col=st.color, dsh=DASHES[st.dash]||"";
+    if(!z.B||!z.C){ none.push(z.c); return; }
+    const Q=ternPts(z.pts,z.B,z.C), n=Q.n; left+=Q.left;
+    // Rows of a composition have no order: symbols, unless the curve's own type says lines.
+    const own=((cfg.series||{})[z.c.id]||{}).type, tp=own&&own!=="auto"?own:"scatter";
+    const line=["line","linesym","step","area","spline"].includes(tp), sym=tp==="scatter"||tp==="linesym"||!line;
+    const X=new Float64Array(n), Y=new Float64Array(n); for(let i=0;i<n;i++){ const p=ternFwd(F,Q.fa[i],Q.fb[i],Q.fc[i]); X[i]=p[0]; Y[i]=p[1]; }
+    const dec=decOn(n,!!colEx), dw=decW(), w=v=>dec?f1(v):f2(v);
+    let g=`<g data-ser="${z.c.id}" data-ternser="1">`;
+    if(line&&n>1){ let d="", lx=0, ly=0; for(let i=0;i<n;i++){ if(dec&&i&&i<n-1&&Math.abs(X[i]-lx)<dw&&Math.abs(Y[i]-ly)<dw) continue; d+=(i?"L":"M")+w(X[i])+","+w(Y[i]); lx=X[i]; ly=Y[i]; }
+      g+=`<path data-ternline="1" d="${d}" fill="none" stroke="${col}" stroke-width="${st.lw}" stroke-linejoin="round" stroke-linecap="round"${dsh?` stroke-dasharray="${dsh}"`:""} opacity="${st.op}"/>`; }
+    if(sym&&n){ const r=st.ss!=null?st.ss:3.2, open=symOpen(st.sym), xy=[]; for(let i=0;i<n;i++) xy.push([X[i],Y[i]]); let sd="";
+      if(st.sym==="circle"&&n>1500){ (dec?spotsOf(xy,dw/2):xy).forEach(p=>{ sd+=`M${f1(p[0])},${f1(p[1])}h0`; });
+        g+=`<path data-ternsym="1" data-dots="1" d="${sd}" fill="none" stroke="${col}" stroke-opacity="${0.88*st.op}" stroke-width="${(2*r).toFixed(1)}" stroke-linecap="round"/>`; }
+      else { (dec?spotsOf(xy,dw/2):xy).forEach(p=>{ sd+=symD(st.sym,p[0],p[1],r); }); g+=`<path data-ternsym="1" d="${sd}" fill="${open?"none":col}" stroke="${col}" stroke-width="${open?1.2:0.6}"/>`; } }
+    s+=g+`</g>`; });
+  geo.tern.left=left; geo.tern.none=none.map(c=>c.id);
+  // What could not be placed, said under the triangle.
+  const say=[]; if(left) say.push(`${left} ${left===1?"row":"rows"} left out: a part below 0, a part missing, or no sum`);
+  if(none.length) say.push(`${andList(none.map(c=>specName(c)))} ${none.length===1?"has":"have"} no B and C: choose them in What it plots…`);
+  if(say.length) s+=`<text data-ternleft="${left}" x="${f1(L+4)}" y="${f1(H-6)}"${tAt(TS.labels,pal.muted)}>${esc(say.join(". "))}</text>`;
+  s+=annoSvg("lines",annoCtx)+annoSvg("top",annoCtx);
+  if(legOn){ let bx=W-legW-8, by=T+4; if(cfg.legend==="custom"&&cfg.legendPos){ bx=Math.max(2,Math.min(W-legW-2,L+cfg.legendPos.fx*pw)); by=Math.max(2,Math.min(H-legH-2,T+cfg.legendPos.fy*mh)); }
+    if(!forExport) geo.legend={x:bx,y:by,w:legW,h:legH};
+    s+=`<g class="legend"${forExport?"":` data-legbox="1" style="cursor:move"`}>`;
+    if(cfg.legendFrame!==false) s+=`<rect x="${f1(bx)}" y="${f1(by)}" width="${f1(legW)}" height="${f1(legH)}" fill="${esc(cfg.legendFill||pal.bg)}" fill-opacity="${numOr(cfg.legendOp,0.85)}" stroke="${esc(cfg.legendBd||pal.grid)}" stroke-width="${numOr(cfg.legendLw,1)}" rx="${numOr(cfg.legendR,3)}"/>`;
+    ents.forEach((e,i)=>{ const yy=by+lpad/2+lh*i+lh/2, st=e.st, own=((cfg.series||{})[e.c.id]||{}).type, line=own&&["line","linesym","step","area","spline"].includes(own);
+      s+=`<g data-legtern="${i}">`+(line?`<line x1="${f1(bx+lpad)}" x2="${f1(bx+lpad+18)}" y1="${f1(yy)}" y2="${f1(yy)}" stroke="${st.color}" stroke-width="${st.lw}"/>`:`<path d="${symD(st.sym,bx+lpad+9,yy,3.2)}" fill="${symOpen(st.sym)?"none":st.color}" stroke="${st.color}"/>`)+richText(e.label,{x:bx+lpad+24,y:yy+lfs*0.35,st:LS,fill:pal.ink})+`</g>`; });
+    s+=`</g>`; }
+  if(cfg.figLetter){ const ls=Math.round(TS.title.size); s+=`<text x="${(L+7).toFixed(1)}" y="${(T+ls+3).toFixed(1)}"${tAt(Object.assign({},TS.title,{size:ls,b:true,i:false,u:false}),pal.ink)} stroke="${pal.bg}" stroke-width="3" stroke-linejoin="round" paint-order="stroke" pointer-events="none">${esc(cfg.figLetter)}</text>`; }
+  return s+`</svg>`; }
 function buildPlot(W,H,pal,colEx,opt){
   const ins=opt&&opt.inset||null, forExport=colEx||!!ins;
   const p=P(), cfg=plotCfg(), logY=!!cfg.logY, logX=!!cfg.logX;
@@ -18776,6 +18893,9 @@ function buildPlot(W,H,pal,colEx,opt){
   // A polar graph: θ and r, or a matrix as a polar map (PLOT2_SPEC 7.3).
   if(layout==="polar"&&!ins&&(MAT||act)){ const curves=MAT?[]:yCols().filter(c=>c===act||oser.some(o=>o.c===c)).map(c=>({c,act:c===act,pts:c===act?pts:oser.find(o=>o.c===c).pts}));
     return polarSvg({W,H,pal,colEx,cfg,TS,ps,forExport,fs,sans,tk,curves,MAT}); }
+  // A ternary graph: each curve's values and its two columns as the parts of a whole (PLOT2_SPEC 7.4).
+  if(layout==="ternary"&&!ins&&!MAT&&act){ const curves=yCols().filter(c=>c===act||oser.some(o=>o.c===c)).map(c=>Object.assign({c,act:c===act,pts:c===act?pts:oser.find(o=>o.c===c).pts},ternCols(c,cfg)));
+    return ternarySvg({W,H,pal,colEx,cfg,TS,ps,forExport,fs,sans,tk,curves}); }
   // The offset between traces of a waterfall: a fraction of the tallest one.
   let offStep=0;
   if(layout==="offset"&&oser.length){ const span=q=>{ let a=Infinity,b=-Infinity; q.forEach(z=>{ if(z.y<a)a=z.y; if(z.y>b)b=z.y; }); return b>a?b-a:0; };
@@ -20039,7 +20159,7 @@ function inlineEditTitle(k){
   const p=P(); if(!p||S.readOnly) return;
   const el=document.querySelector(`#plot [data-axtitle="${CSS.escape(k)}"]`);
   const gp=GP(), cur=k==="title"?(gp.title||""):(((gp.ax||{})[k]||{}).title||""), d=plotState().d;
-  const auto=k==="x"?axisLabel(d.xn,d.xu,"X"):k==="y"?autoYOf():k==="title"?"Graph title":k==="x2"?x2AutoTitle():k==="yo"?yoAutoTitle():"Right axis title";
+  const tn={ta:0,tb:1,tc:2}[k], auto=tn!=null?((S.geo&&S.geo.tern&&S.geo.tern.autos)||["A","B","C"])[tn]:k==="x"?axisLabel(d.xn,d.xu,"X"):k==="y"?autoYOf():k==="title"?"Graph title":k==="x2"?x2AutoTitle():k==="yo"?yoAutoTitle():"Right axis title";
   inlineBox({el,cur,ph:auto,aria:k==="title"?"Graph title":`Title of the ${AXN(k)}`,max:160,st:titleStyleOf(k),
     keep:v=>{ if(v!==cur) setAxisTitle(k,v); else unfocusPlot(); },
     more:{title:"Font, size and position",run:()=>openPlotDetails(null,k==="title"?"text":"ax:"+k)}});
@@ -20285,7 +20405,7 @@ function editAxisTitle(k){ inlineEditTitle(k); }
 /* ---- Axes and titles from the graph -------------------------------------------
    Right-click an axis's numbers or a title for its menu; drag them to move them;
    a double click types over a title, or opens an axis's page of the Format dialog. */
-const AXN=k=>k==="x"?"X axis":k==="y"?"Y axis":k==="x2"?"second X axis":k==="yo"?"second Y axis":"right Y axis";
+const AXN=k=>k==="x"?"X axis":k==="y"?"Y axis":k==="x2"?"second X axis":k==="yo"?"second Y axis":k==="ta"?"top corner":k==="tb"?"bottom left corner":k==="tc"?"bottom right corner":"right Y axis";
 function setAxisKeys(k,patch,log){ const p=P(); if(!p||S.readOnly) return; const ax=Object.assign({},GP().ax||{});
   (k==="all"?["x","y","y2","x2","yo"]:[k]).forEach(q=>{ ax[q]=Object.assign({},ax[q]||{},patch); }); setPlotKey("ax",ax,log||null); }
 function setTxtKey(el,patch,log){ const p=P(); if(!p||S.readOnly) return; const txt=Object.assign({},GP().txt||{}), o=Object.assign({},txt[el]||{},patch);
@@ -20509,6 +20629,7 @@ function graphMenuItems(id,at){
     isDistLayout(cfg.layout)?{label:(LAYOUTS.find(q=>q[0]===cfg.layout)||[,"Chart"])[1],sub:()=>distMenuItems()}:null,
     cfg.layout==="pie"?{label:"Pie chart",sub:()=>pieMenuItems()}:null,
     cfg.layout==="polar"?{label:"Polar",sub:()=>polMenuItems()}:null,
+    cfg.layout==="ternary"?{label:"Ternary",sub:()=>ternMenuItems()}:null,
     {label:"What it plots…",run:()=>plotsOf(),enabled:!ro&&!!GID(),title:"Its curves: add, replace, take off and order them, and what each draws"},
     {label:"Format graph…",run:()=>openPlotDetails(id||(act&&act.id),id&&id!=="__fit"?"series":"frame")},
     {label:"Copy the graph as a picture",run:copyGraphPicture,enabled:has,title:"A PNG on the clipboard, to paste into a document or slides"},
@@ -21065,6 +21186,8 @@ function renderPlotDetails(o){
         +`<label for="pdQu">Angle in</label>${sel("pdQu",POL_UNITS,o.unit,"polUnit")}<label for="pdQz">Zero at</label>${sel("pdQz",POL_ZEROS,o.zero,"polZero")}`
         +`<label for="pdQh">Hole</label>${sel("pdQh",POL_HOLES.map(q=>[String(q[0]),q[1]]).concat(POL_HOLES.some(q=>Math.abs(q[0]-o.hole)<1e-9)?[]:[[String(o.hole),fmt(o.hole*100,3)+" %"]]),String((POL_HOLES.find(q=>Math.abs(q[0]-o.hole)<1e-9)||[o.hole])[0]),"polHole")}`
         +chk("pdQcw","polCw",o.cw,"Clockwise")+chk("pdQgr","polGridR",o.gridR,"Circles")+chk("pdQgt","polGridT",o.gridT,"Spokes"); })():"")
+      +(cfg.layout==="ternary"?(()=>{ const o=ternOpts(cfg); return `<label for="pdTs">Each row adds up to</label>${sel("pdTs",[["1","1"],["100","100 (percentages)"]],String(o.sum),"ternSum")}`
+        +chk("pdTcw","ternCw",o.cw,"Clockwise")+chk("pdTg","ternGrid",o.grid,"Grid lines"); })():"")
       +(cfg.layout==="overlay"||!cfg.layout?`<label for="pdCs">Columns</label>${sel("pdCs",COL_STACK,cfg.colStack==="stack"||cfg.colStack==="pct"?cfg.colStack:"side","colStack")}`:"")
       +chk("pdAxM","axisMatch",cfg.axisMatch!==false,"On two Y axes, colour each axis like its curve"));
     { const cur=cfg.scheme||"kurve", schs=Object.entries(SCHEMES).filter(([k,v])=>!v.hide||k===cur);
@@ -21183,7 +21306,7 @@ function pdAnnoEditor(a,o){
 }
 // Every graph takes this one's frame, axes, text, legend and colours; data,
 // ranges, titles and annotations stay their own.
-const FMT_KEYS=["frame","frameLw","frameColor","grid","gridMinor","gridColor","gridLw","gridDash","gridX","gridY","plotBg","mL","mR","mT","mB","txt","font","fontFam","fontName","titleItalic","legend","legendPos","legendText","legendFrame","legendCols","legendLine","legendSp","legendFill","legendOp","legendBd","legendLw","legendR","scheme","peakScheme","peakLab","peakLabRot","peakLabDec","peakLabShow","peakLabTpl","peakLabErr","peakLabUnit","peakLabSep","peakLabPos","peakLabMk","peakLabCol","peakLabBox","axisMatch","resid","bandConf","bandPred","sizeLeg","distWhisk","distPts","distNotch","colStack","distStat","distErr","distConf","distJoin","dotKind","dotLine","pieStart","pieCw","pieHole","pieLab","pieLabPos","pieDec","pieSort","polMap","polUnit","polZero","polCw","polHole","polGridR","polGridT"];
+const FMT_KEYS=["frame","frameLw","frameColor","grid","gridMinor","gridColor","gridLw","gridDash","gridX","gridY","plotBg","mL","mR","mT","mB","txt","font","fontFam","fontName","titleItalic","legend","legendPos","legendText","legendFrame","legendCols","legendLine","legendSp","legendFill","legendOp","legendBd","legendLw","legendR","scheme","peakScheme","peakLab","peakLabRot","peakLabDec","peakLabShow","peakLabTpl","peakLabErr","peakLabUnit","peakLabSep","peakLabPos","peakLabMk","peakLabCol","peakLabBox","axisMatch","resid","bandConf","bandPred","sizeLeg","distWhisk","distPts","distNotch","colStack","distStat","distErr","distConf","distJoin","dotKind","dotLine","pieStart","pieCw","pieHole","pieLab","pieLabPos","pieDec","pieSort","polMap","polUnit","polZero","polCw","polHole","polGridR","polGridT","ternSum","ternCw","ternGrid"];
 const FMT_AX=["tst","ticks","tlen","mlen","tw","mirror","mticks","mlabs","labs","lrot","color","lw","pos","at","off","talign","line","fmt","dec","minor","tshow"];
 /* A graph's settings with another's format laid over them: frame, grid, text,
    legend, colours and each axis's style; a key the format lacks goes back to
@@ -21596,7 +21719,7 @@ function setupGraph(){
       S.lgdrag={x0:x,y0:y,box:Object.assign({},S.geo.legend),moved:false,hit:le?"leg:"+le.dataset.leg:ev.target.closest("[data-legtitle]")?"title":"box"}; return; }
     const pan=S.mode==="pan"||ev.button===1;
     // A pie has no axes to zoom, pan or mask along: a press there selects its curve, through the click.
-    if(S.geo.pie&&(pan||S.mode==="zoom"||S.mode==="mask"||S.mode==="range"||S.mode==="reader"||S.mode==="cross")) return;
+    if((S.geo.pie||S.geo.tern)&&(pan||S.mode==="zoom"||S.mode==="mask"||S.mode==="range"||S.mode==="reader"||S.mode==="cross")) return;
     // A polar graph: the Pan tool turns it about its centre; no box, mask or reader along axes it has not got.
     if(S.geo.polar&&!pan&&(S.mode==="zoom"||S.mode==="mask"||S.mode==="range"||S.mode==="reader"||S.mode==="cross")) return;
     drag={x0:x,y0:y,x1:x,y1:y,moved:false,pan,v:Object.assign({},S.geo.v),rx:S.geo.rx,ry:S.geo.ry,brk:S.geo.brk};
@@ -21610,6 +21733,8 @@ function setupGraph(){
       // On a map: X, where up the side (the series value, or the spectrum), and the value there.
       if(g.pie){ const h=pieHit(g,x,y), c=h&&colById(h.ring.id), u=c?finalOf(c).yu||"":"";
         ro.textContent=h?`${h.z.name}   ${fmt(h.z.v,6)}${u?" "+u:""}   ${(h.z.share*100).toFixed(Math.max(1,g.pie.o.dec))} % of ${c?specName(c):"the ring"}`:""; }
+      else if(g.tern){ const G=g.tern, f=ternInv(G.F,x,y), ok=f.every(v=>v>=-1e-9);
+        ro.textContent=ok?f.map((v,i)=>`${texPlain(G.names[i])} ${fmt(Math.max(0,v)*G.o.sum,5)}${G.o.sum===100?" %":""}`).join("   "):""; }
       else if(g.polar){ const G=g.polar, iv=polarInv(G.F,x,y), inside=iv.rho>=G.F.hole-1e-9&&iv.rho<=1+1e-9&&!!polarFwd(G.F,iv.th,iv.r), m=G.mat?matOf(G.mat):null, z=inside&&G.z?G.z(iv.th,iv.r):null;
         const tu=G.po.unit==="deg"?"°":G.po.unit==="rad"?" rad":" grad", ru=m?(m.yunit||""):G.po.map==="theta-r"?yu:xu;
         ro.textContent=inside?`θ ${fmt(iv.th,6)}${tu}   r ${fmt(iv.r,6)}${ru?" "+ru:""}${m?`   ${m.zname||"value"} ${z==null?"empty":fmt(z,6)}${m.zunit?" "+m.zunit:""}`:""}`:""; }
@@ -21752,7 +21877,7 @@ function setupGraph(){
   svg.addEventListener("dblclick",ev=>{ if(Date.now()-(S.noDbl||0)<600) return; onGraphDouble(downEl&&document.contains(downEl)?downEl:ev.target); });
   svg.addEventListener("contextmenu",ev=>{ const an=ev.target.closest&&ev.target.closest("[data-anc]"); if(an&&anchorStep()&&!S.readOnly){ ev.preventDefault(); removeAnchor(+an.dataset.anc); return; } hideTip(); openGraphMenu(ev); });
   svg.addEventListener("wheel",ev=>{ if(S.geo&&S.geo.polar&&P()){ ev.preventDefault(); const v=S.geo.v, k=ev.deltaY>0?1.18:1/1.18; S.view=Object.assign({},v,{pol:true,y1:v.y0+(v.y1-v.y0)*k}); renderPlot(); return; }
-    if(!S.geo||!P()||S.geo.pie) return; ev.preventDefault(); const [x,y]=localXY(ev); const c=toData(x,y); const v=S.geo.v; const k=ev.deltaY>0?1.18:1/1.18;
+    if(!S.geo||!P()||S.geo.pie||S.geo.tern) return; ev.preventDefault(); const [x,y]=localXY(ev); const c=toData(x,y); const v=S.geo.v; const k=ev.deltaY>0?1.18:1/1.18;
     if(S.geo.fx||S.geo.fy){ const g=S.geo, sx=axScale(v.x0,v.x1,g.fx||g.logX,[],0), sy=axScale(v.y0,v.y1,g.fy||g.logY,[],0), tx=sx.f(c.x), ty=sy.f(c.y);
       const nx=[sx.inv(tx-tx*k),sx.inv(tx+(1-tx)*k)], ny=[sy.inv(ty-ty*k),sy.inv(ty+(1-ty)*k)], okx=nx.every(q=>Number.isFinite(q)&&(!g.fx||g.fx.ok(q))), oky=ny.every(q=>Number.isFinite(q)&&(!g.fy||g.fy.ok(q)));
       if(!(nx[1]>nx[0])||!(ny[1]>ny[0])) return;
@@ -23313,7 +23438,8 @@ function wsModel(){
   }
   const cols=sheetCols(), n=nRows(), actRoot=rootOf(activeYCol()), xs=cols.filter(c=>c.role==="x"), hid=new Set(wsHideOf(p).cols);
   // "Not plotted" is a column with values on no graph at all, whichever graph is in front.
-  const onG=new Set(); (p.graphs||[]).forEach(g=>{ if(!g.fig) g.cols.forEach(k=>onG.add(k)); });
+  // On a graph: its curves, and the columns a curve draws with (a ternary curve's B and C, a colour, a size).
+  const onG=new Set(); (p.graphs||[]).forEach(g=>{ if(!g.fig){ const sr=(g.plot||{}).series||{}; g.cols.forEach(k=>{ onG.add(k); const z=sr[k]; if(z) ["tB","tC","zcol","scol"].forEach(q=>{ if(z[q]) onG.add(z[q]); }); }); } });
   const FC=filtOf(p);
   const mc=cols.map((c,i)=>{ const isY=c.role==="y", isAct=c===actRoot, off=isY&&!onG.has(c.id)&&c.data.some(v=>v!=null), L=wsLetter(i), w=hid.has(c.id)?WS_HIDW:W[c.id]||WS_W;
     if(hid.has(c.id)) return {id:c.id, col:c, letter:L, role:ROLE_LABEL[c.role]||c.role, w, hidden:true, lab:{name:c.name||"",unit:c.unit||"",comm:c.comm||"",fx:c.fx?fxShow(c):""}, calc:!!c.fx,
@@ -35732,6 +35858,17 @@ ${DL([["Coordinates","X is the angle and Y the radius (the usual), or X the radi
 <p>The wheel changes the radius at the rim (closer in or further out); a drag with the <em>Pan</em> tool turns the whole circle about its centre, the zero with it; a double-click shows everything again and turns it back.</p>
 <h2 id="map">A matrix as a polar map</h2>
 <p>A matrix whose X is an angle and whose Y a radius (a scan in polar coordinates, a radiation pattern) is drawn as a polar map: its map's right-click menu › <em>A polar map</em>, and <em>As a rectangular map</em> back. Each pixel takes the cell holding its angle and radius; the readout names the cell's value.</p>`},
+{id:"ternary", g:"Graph", t:"Ternary graphs", kw:"ternary triangle triangular three parts composition compositions mixture mixtures phase diagram gibbs triangle barycentric fractions percentages sum to one sum to 100 soil texture sand silt clay alloy three components de finetti",
+ lead:"Three columns as the parts of a whole: each row divided by its sum and drawn as a point in a triangle, each corner one part.",
+ body:`<h2>Making one</h2>
+<p>Select three columns, the first a curve and the next two its other parts, and choose ${MP("Plot › Plot the selected columns")} › <em>Ternary</em> (six columns make two curves, and so on). Or pick <em>Ternary</em> under <em>Coordinates</em> in <em>Plot setup…</em> and mark the other two parts as <em>B</em> and <em>C</em> beside each curve: a curve's own values are its first part, A, and its B and C are read in the same rows. On a graph already drawn, <em>What it plots…</em> sets them.</p>
+<p>Each row's three parts are divided by their sum, so only their proportions count; the point is where those proportions put it: at a corner when that part is all of it, on the side across from a corner when that part is none of it, at the middle when all three are equal. A row with a part below zero, a part missing or a sum of zero has no place, and the graph says how many rows were left out.</p>
+<h2 id="read">Reading it</h2>
+<p>Each part is read along the grid lines parallel to the side across from its corner: its numbers rise towards its corner, along one side. The status bar says the three parts under the pointer. The corners are titled by the parts' columns; double-click a title to type another.</p>
+<h2 id="set">Its settings</h2>
+<p>In the graph's right-click menu under <em>Ternary</em>, and in the Format pane's Layout page:</p>
+${DL([["Each row adds up to","1 (fractions) or 100 (percentages): only the numbers change."],["Clockwise","Each part's numbers run clockwise round the triangle (A along the left side, B along the bottom, C along the right), else anticlockwise (A along the right, B along the left, C along the bottom)."],["Grid lines","Lines at the numbers, parallel to the sides."],["Parts B and C…","Opens <em>What it plots…</em>, to choose each curve's B and C."]])}
+<p>Curves are drawn as symbols, or as lines straight between their rows (a straight line in the parts is a straight line in the triangle). A ternary graph has no zoom or pan; it is always the whole triangle.</p>`},
 {id:"dists", g:"Graph", t:"Distributions: histograms, boxes and violins", kw:"histogram bins bin width frequency count probability density percent cumulative distribution stacked stack bar bars category categories names labels grouped group groups notch notched normal gaussian log-normal lognormal exponential maximum likelihood kolmogorov smirnov goodness distfit box chart box plot boxplot whisker whiskers quartile quartiles median interquartile iqr outlier outliers tukey violin kernel density kde bandwidth silverman column chart bar chart columns bars categories",
  lead:"How a column's values are spread: counted into bins as a histogram, or summed up per column as boxes or violins side by side.",
  body:`<h2>Histograms</h2>
@@ -36468,6 +36605,7 @@ function helpFor(win){
   if(win==="fit") return S.fitMode==="peaks"?"peakfit":"curvefit";
   if(isFigId(graphOfWin(win))) return "panels";
   if(graphOfWin(win)&&(plotOf(graphOfWin(win))||{}).layout==="polar") return "polar";
+  if(graphOfWin(win)&&(plotOf(graphOfWin(win))||{}).layout==="ternary") return "ternary";
   if(matGraph(graphOfWin(win))) return "matrices";
   if(graphOfWin(win)) return multiGraph()?"graphs":"graph";
   if(WINS[win]&&WINS[win].trend) return "batch#desk";
@@ -38615,7 +38753,8 @@ function plotItems(cids){
     {label:"Means with intervals", enabled:!ro, title:"Each column's mean with its confidence interval", run:()=>plotCols(cids,{layout:"mean"})},
     {label:"Columns by category", enabled:!ro, title:"A column for each column of values: its mean, with its interval", run:()=>plotCols(cids,{layout:"catbar"})},
     {label:"Pie chart", enabled:!ro, title:"Each value a slice, its share of the whole; several columns concentric rings", run:()=>plotCols(cids,{layout:"pie"})},
-    {label:"Polar", enabled:!ro, title:"Each column's X as the angle and its values as the radius", run:()=>plotCols(cids,{layout:"polar"})});
+    {label:"Polar", enabled:!ro, title:"Each column's X as the angle and its values as the radius", run:()=>plotCols(cids,{layout:"polar"})},
+    {label:"Ternary", enabled:!ro, title:"Three columns as the parts of a whole, each row a point in a triangle: the first a curve, the next two its B and C", run:()=>ternaryFrom(cids)});
   if(many) out.push("-",{label:"Stacked panels", enabled:!ro, run:()=>plotCols(cids,{layout:"stack"})},{label:"Offset (waterfall)", enabled:!ro, run:()=>plotCols(cids,{layout:"offset"})},{label:"Contour map against the series", enabled:!ro, title:"Each column at its value of the series variable, with contour lines over the colours", run:()=>plotCols(cids,{layout:"heat",plot:{mapKind:"both",mapY:"series"}})},{label:"Heat map", enabled:!ro, run:()=>plotCols(cids,{layout:"heat"})});
   const gs=drawGraphIds(), shut=id=>{ const f=figOf(id); return graphShut(f?f.id:id); };
   if(gs.length) out.push("-",{label:"Add to a graph", enabled:!ro, sub:()=>gs.map(id=>({label:graphTitle(id), note:shut(id)?"closed":"", run:()=>plotCols(cids,{into:id})}))});
@@ -38630,7 +38769,7 @@ const PLOT_DLG_KINDS=[
   ["line","Line","type"],["scatter","Symbols","type"],["linesym","Line + symbols","type"],["column","Columns","type"],["area","Area","type"],["step","Steps","type"],["stick","Drop lines","type"],
   ["stack","Stacked panels","layout"],["offset","Offset (waterfall)","layout"],["dy","Two Y axes","layout"],["heat","Heat map","layout"],["box","Box chart","layout"],["violin","Violin plot","layout"],["hist","Histogram","hist"],
   ["bubble","Bubbles","more","Symbols sized by a column"],["cmap","Colour by value","more","Symbols coloured by a column, with a colour bar"],["labels","Labelled points","more","Each point labelled with a column's value in its row"],["errbox","Error boxes","more","X and Y errors drawn as a box round each point"],["tmap","Map from X, Y, Z","more","A colour map between the points, of a column's values at each, by triangles"],
-  ["dot","Dot plot","layout","Every value a dot, in a column for each curve or each group of a column"],["mean","Means with intervals","layout","Each curve's or group's mean with its SD, SE or confidence interval"],["catbar","Columns by category","layout","A column for each curve or group: its mean, median, sum or count"],["pie","Pie chart","layout","Each value a slice: its share of the whole, named by its row's X or labels"],["polar","Polar","layout","Each curve's X as the angle and Y as the radius (or the other way round)"]];
+  ["dot","Dot plot","layout","Every value a dot, in a column for each curve or each group of a column"],["mean","Means with intervals","layout","Each curve's or group's mean with its SD, SE or confidence interval"],["catbar","Columns by category","layout","A column for each curve or group: its mean, median, sum or count"],["pie","Pie chart","layout","Each value a slice: its share of the whole, named by its row's X or labels"],["polar","Polar","layout","Each curve's X as the angle and Y as the radius (or the other way round)"],["ternary","Ternary","layout","Three columns as the parts of a whole: each row a point in a triangle"]];
 // Where the gallery's kinds start a new row, and its heading.
 const PLOT_DLG_SEP={stack:"With several columns",bubble:"With another column",dot:"Categories",polar:"Coordinates"};
 // What each kind that needs another column draws, and what it needs beside every curve.
@@ -38641,8 +38780,14 @@ const MORE_KINDS={bubble:{need:"scol",words:"bubbles",say:"Bubbles take their si
   errbox:{need:"xy",eb:"box",words:"error boxes",say:"A box needs errors in X and in Y: mark an X error and a Y error beside each curve, and Add."}};
 // The plot type a kind gives each curve: its own for a type, symbols for one that needs more columns, none for a layout.
 const psuType=k=>{ const K=PLOT_DLG_KINDS.find(q=>q[0]===k); return !K?null:K[2]==="type"?k:K[2]==="more"?(k==="tmap"?"tmap":"scatter"):null; };
+// Ternary chosen with three columns (or six…) as curves and none with its parts: each three a curve and its B and C, as Plot's menu does.
+function psuTernGroup(st){ if(st.kind!=="ternary"||st.gid||!st.curves.length||st.curves.length%3||st.curves.some(q=>q.tb||q.tc||q.y.src)) return;
+  const out=[]; for(let i=0;i<st.curves.length;i+=3){ const q=st.curves[i], b=st.curves[i+1].y, c=st.curves[i+2].y; q.tb=b; q.tc=c; st.use[b.id]="tb"; st.use[c.id]="tc"; out.push(q); }
+  st.curves=out; if(!out.some(q=>q.y.id===st.sel)) st.sel=out[0].y.id; }
 // What the kind chosen still needs, in words, or "".
-function psuNeed(st){ const M=MORE_KINDS[st.kind]; if(!M||!st.curves.length) return "";
+function psuNeed(st){ if(st.kind==="ternary"&&st.curves.length){ const lack=st.curves.filter(q=>!q.tb||!q.tc);
+    return lack.length?`A ternary curve has three parts: its values and two more columns. Mark them as B and C beside each curve, and Add. ${lack.length===st.curves.length?"":`(${andList(lack.map(q=>specName(q.y)))} ${lack.length===1?"has":"have"} none.)`}`.trim():""; }
+  const M=MORE_KINDS[st.kind]; if(!M||!st.curves.length) return "";
   const lack=st.curves.filter(q=>M.need==="xy"?!(q.e.some(e=>e.k[0]==="x")&&q.e.some(e=>e.k[0]==="y")):!q[M.need]);
   return lack.length?`${M.say} ${lack.length===st.curves.length?"":`(${andList(lack.map(q=>specName(q.y)))} ${lack.length===1?"has":"have"} none.)`}`.trim():""; }
 // A small picture of each kind of plot, drawn in the text colour.
@@ -38664,6 +38809,7 @@ function plotKindIcon(k){
     mean:`<path d="M10 9V23M7 9H13M7 23H13M27 6V18M24 6H30M24 18H30" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="16" r="3" fill="currentColor"/><circle cx="27" cy="12" r="3" fill="currentColor"/>`,
     catbar:`<rect x="5" y="16" width="10" height="16" fill="currentColor" fill-opacity=".55"/><rect x="23" y="9" width="10" height="23" fill="currentColor" fill-opacity=".55"/><path d="M10 11V20M8 11H12M28 4V13M26 4H30" stroke="currentColor" stroke-width="1.4"/>`,
     polar:`<circle cx="20" cy="18" r="14" fill="none" stroke="currentColor" stroke-width="1" stroke-opacity=".5"/><circle cx="20" cy="18" r="7" fill="none" stroke="currentColor" stroke-width="1" stroke-opacity=".5"/><path d="M6 18H34M20 4V32" stroke="currentColor" stroke-width="1" stroke-opacity=".5"/><path d="M30 18C29 25 22 29 16 26C10 23 10 13 17 11C24 9 28 14 25 19" fill="none" stroke="currentColor" stroke-width="2"/>`,
+    ternary:`<path d="M20 4L36 31H4Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M12 17.5H28M14 31L24 13.7M26 31L16 13.7" stroke="currentColor" stroke-width=".8" stroke-opacity=".5"/>`+[[18,20],[22,23],[15,26],[25,27],[20,15]].map(([x,y])=>`<circle cx="${x}" cy="${y}" r="1.9" fill="currentColor"/>`).join(""),
     pie:`<path d="M20 18L20 4A14 14 0 0 1 33.3 22.3Z" fill="currentColor"/><path d="M20 18L33.3 22.3A14 14 0 0 1 9.8 27.6Z" fill="currentColor" fill-opacity=".55"/><path d="M20 18L9.8 27.6A14 14 0 0 1 20 4Z" fill="currentColor" fill-opacity=".25"/>`,
     violin:`<path d="M10 4 C14 10 15 14 12 18 C16 22 14 28 10 32 C6 28 4 22 8 18 C5 14 6 10 10 4Z" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.4"/><path d="M27 6 C29 12 33 15 30 20 C33 25 30 29 27 31 C24 29 21 25 24 20 C21 15 25 12 27 6Z" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.4"/>`,
     hist:[[4,6],[10,14],[16,22],[22,18],[28,9],[34,4]].map(([x,h])=>`<rect x="${x}" y="${32-h}" width="6" height="${h}" fill="currentColor" fill-opacity=".55" stroke="currentColor" stroke-width="1"/>`).join(""),
@@ -38689,6 +38835,13 @@ function plotDraw(ser,kind,L,T,pw,ph,max){
   if(kind==="hist"){ const b=histBins(ser[0].Y,{rule:"fd"}); if(b.fail) return "";
     const K=b.counts.length, top=Math.max(...b.counts)||1, w=pw/K;
     out.push(`<path d="${b.counts.map((n,i)=>`M${f1(L+i*w+w*0.08)},${f1(T+ph)}V${f1(T+ph-n/top*ph*0.92)}`).join("")}" stroke="${ser[0].col}" stroke-width="${f1(Math.max(1,w*0.84))}"/>`); return out.join(""); }
+  // A ternary card: the triangle, and the first three curves' values as the parts of each row (or a few points).
+  if(kind==="ternary"){ const sd=Math.min(pw,ph*2/Math.sqrt(3))*0.92, h=sd*Math.sqrt(3)/2, x0=L+(pw-sd)/2, y0=T+(ph-h)/2, A=[x0+sd/2,y0], B=[x0,y0+h], C=[x0+sd,y0+h];
+    out.push(`<path d="M${f1(A[0])},${f1(A[1])}L${f1(B[0])},${f1(B[1])}L${f1(C[0])},${f1(C[1])}Z" fill="none" stroke="${pal.ink}" stroke-width="0.9"/>`);
+    let rows=[]; if(ser.length>=3){ const n=Math.min(ser[0].Y.length,ser[1].Y.length,ser[2].Y.length,400); for(let i=0;i<n;i++){ const f=ternNorm(ser[0].Y[i],ser[1].Y[i],ser[2].Y[i]); if(f) rows.push(f); } }
+    if(!rows.length) rows=[[0.6,0.25,0.15],[0.3,0.5,0.2],[0.2,0.2,0.6],[0.45,0.35,0.2],[0.25,0.3,0.45]];
+    out.push(rows.map(([a,b,c])=>`<circle cx="${f1(a*A[0]+b*B[0]+c*C[0])}" cy="${f1(a*A[1]+b*B[1]+c*C[1])}" r="1.8" fill="${(ser[0]||{}).col||pal.ink}"/>`).join(""));
+    return out.join(""); }
   if(kind==="polar"){ const cx=L+pw/2, cy=T+ph/2, R=Math.min(pw,ph)*0.44; out.push(`<circle cx="${f1(cx)}" cy="${f1(cy)}" r="${f1(R)}" fill="none" stroke="${pal.grid}"/><circle cx="${f1(cx)}" cy="${f1(cy)}" r="${f1(R/2)}" fill="none" stroke="${pal.grid}"/>`);
     ser.slice(0,4).forEach(z=>{ const xl=amin(z.X), xh=amax(z.X), yh=Math.max(amax(z.Y),0)||1, xs=xh>xl?xh-xl:1;
       out.push(`<path d="${z.X.map((x,i)=>{ const t=(x-xl)/xs*2*Math.PI, r=Math.max(0,z.Y[i])/yh*R; return (i?"L":"M")+f1(cx+r*Math.cos(t))+","+f1(cy-r*Math.sin(t)); }).join("")}" fill="none" stroke="${z.col}" stroke-width="1.4"/>`); });
@@ -38750,13 +38903,13 @@ function plotDlgSketch(st,kind,ser){
 // Each kind's card: the selected columns drawn that way (PLOT_DLG_KINDS's own picture while none is ticked).
 function plotDlgCard(k,ser){ const inner=ser&&ser.length?plotDraw(ser,k,6,5,148,54,90):"";
   return inner?`<svg viewBox="0 0 160 64" preserveAspectRatio="none" aria-hidden="true">${inner}</svg>`:`<svg viewBox="0 0 160 64" aria-hidden="true"><g transform="translate(60,10) scale(1.2)" style="color:var(--data)">${plotKindIcon(k).replace(/<\/?svg[^>]*>/g,"")}</g></svg>`; }
-const PSU_USES=[["","—"],["x","X"],["y","Y"],["e:y","Y error ±"],["e:y+","Y error +"],["e:y-","Y error −"],["e:x","X error ±"],["e:x+","X error +"],["e:x-","X error −"],["lab","Labels"],["col","Colour"],["size","Size"],["e:z","Z error"]];
+const PSU_USES=[["","—"],["x","X"],["y","Y"],["e:y","Y error ±"],["e:y+","Y error +"],["e:y-","Y error −"],["e:x","X error ±"],["e:x+","X error +"],["e:x-","X error −"],["lab","Labels"],["col","Colour"],["size","Size"],["e:z","Z error"],["tb","B"],["tc","C"]];
 /* The roles a kind takes, as the grid's columns (PLOT_SPEC slice 7): each its header, the use it marks and
    its tooltip, in the grid's order. Z is the colour column of a map from X, Y, Z, so the two are one use. */
 const PSU_ROLE={x:["X","x","What the curves after it are plotted against"],y:["Y","y","A curve"],ey:["Y error","e:y","Error bars in Y, of the nearest Y to its left"],ex:["X error","e:x","Error bars in X, of the nearest Y to its left"],
-  lab:["Labels","lab","Each point labelled with its value in the row"],size:["Size","size","The symbols sized by its values"],col:["Colour","col","The symbols coloured by its values"],z:["Z","col","The map's values"],ez:["Z error","e:z","The error of the map's values"]};
-const PSU_KROLES={polar:["x","y","ey"],tmap:["x","y","z","ez"],bubble:["x","y","size","ey","ex"],cmap:["x","y","col","ey","ex"],labels:["x","y","lab"],errbox:["x","y","ey","ex"],box:["y"],violin:["y"],dot:["y"],mean:["y"],catbar:["y"],pie:["x","y","lab"],hist:["y"],heat:["x","y"]};
-const useRole=(u,tm)=>!u?"":u==="x"||u==="y"||u==="lab"||u==="size"?u:u.startsWith("e:y")?"ey":u.startsWith("e:x")?"ex":u==="e:z"?"ez":u==="col"?(tm?"z":"col"):"";
+  lab:["Labels","lab","Each point labelled with its value in the row"],tb:["B","tb","A ternary curve's second part (its values are the first), read in the same rows"],tc:["C","tc","A ternary curve's third part, read in the same rows"],size:["Size","size","The symbols sized by its values"],col:["Colour","col","The symbols coloured by its values"],z:["Z","col","The map's values"],ez:["Z error","e:z","The error of the map's values"]};
+const PSU_KROLES={polar:["x","y","ey"],ternary:["y","tb","tc"],tmap:["x","y","z","ez"],bubble:["x","y","size","ey","ex"],cmap:["x","y","col","ey","ex"],labels:["x","y","lab"],errbox:["x","y","ey","ex"],box:["y"],violin:["y"],dot:["y"],mean:["y"],catbar:["y"],pie:["x","y","lab"],hist:["y"],heat:["x","y"]};
+const useRole=(u,tm)=>!u?"":u==="x"||u==="y"||u==="lab"||u==="size"||u==="tb"||u==="tc"?u:u.startsWith("e:y")?"ey":u.startsWith("e:x")?"ex":u==="e:z"?"ez":u==="col"?(tm?"z":"col"):"";
 const roleUse=(k,u)=>k==="ey"||k==="ex"?(u&&u.startsWith("e:"+k[1])?u:"e:"+k[1]):PSU_ROLE[k][1];
 // The grid's roles: the kind's, and any a column shown is marked with besides (so nothing marked is hidden).
 function psuRoles(st,cols){ const tm=st.kind==="tmap"||!st.kind&&st.curves.some(q=>q.type==="tmap"), base=(st.kind&&PSU_KROLES[st.kind])||(tm?PSU_KROLES.tmap:["x","y","ey","ex","lab"]), all=new Set(base);
@@ -38765,19 +38918,19 @@ function psuRoles(st,cols){ const tm=st.kind==="tmap"||!st.kind&&st.curves.some(
 const PSU_SYMK=new Set(["scatter","linesym","bubble","cmap","labels","errbox"]);
 // Why a column cannot be used so here, or "": its role changes only where nothing is lost.
 function psuWhyNot(c,u){
-  if(!u||u==="lab"||u==="col"||u==="size") return "";
+  if(!u||u==="lab"||u==="col"||u==="size"||u==="tb"||u==="tc") return "";
   if(u==="x") return c.role==="x"||c.role==="ignore"?"":c.role==="y"?"A Y column: make it an X column in the worksheet first":"Error bars: make it an X column in the worksheet first";
   if(u==="y") return c.role==="y"||c.role==="ignore"?"":c.role==="x"?"An X column: make it a Y column in the worksheet first":"Error bars: make it a Y column in the worksheet first";
   return c.role==="e"||c.role==="ignore"?"":c.role==="x"?"An X column: make it other data in the worksheet first":"A Y column: make it other data in the worksheet first"; }
 // What a curve is made of, to tell two apart.
-const psuSig=q=>[q.y.id,q.x?q.x.id:"row",q.e.map(e=>e.c.id+e.k).sort().join(","),q.lab?q.lab.id:"",q.zcol?q.zcol.id:"",q.scol?q.scol.id:"",q.ez?q.ez.id:""].join("|");
+const psuSig=q=>[q.y.id,q.x?q.x.id:"row",q.e.map(e=>e.c.id+e.k).sort().join(","),q.lab?q.lab.id:"",q.zcol?q.zcol.id:"",q.scol?q.scol.id:"",q.ez?q.ez.id:"",q.tb?q.tb.id:"",q.tc?q.tc.id:""].join("|");
 // The curves to start with (the columns selected, or the active one) and the marks they make.
 function psuStart(cids){
   const sel=(cids||[]).map(colById).filter(Boolean), xs=sel.filter(c=>c.role==="x"), ys=sel.filter(c=>c.role==="y"||c.role==="ignore"), act=activeYCol(), all=allCols();
   const Y=ys.length?ys:act?[act]:yCols().slice(0,1), use={};
   // As plotCols reads a selection: each Y against the selected X nearest to its left, else its own.
   const curves=Y.map(y=>{ let x=null; if(xs.length){ const i=all.indexOf(y); for(let j=i-1;j>=0&&!x;j--) if(xs.includes(all[j])) x=all[j]; x=x||xs[0]; } else x=xColFor(y);
-    const eo=errColsOf(y.id); return {y,x,e:Object.keys(eo).filter(k=>k!=="z").map(k=>({c:eo[k],k})),lab:null,zcol:null,scol:null,ez:null}; });
+    const eo=errColsOf(y.id); return {y,x,e:Object.keys(eo).filter(k=>k!=="z").map(k=>({c:eo[k],k})),lab:null,zcol:null,scol:null,ez:null,tb:null,tc:null}; });
   curves.forEach(q=>{ if(!q.y.src) use[q.y.id]="y"; if(q.x) use[q.x.id]="x"; q.e.forEach(({c,k})=>{ use[c.id]="e:"+k; }); });
   return {use,curves}; }
 // A graph's curves as the dialog's list, with what each uses and the marks they make.
@@ -38786,9 +38939,10 @@ function psuFromGraph(g){
   const curves=graphCols(g.id).map(y=>{ const u=curveUse(y.id,pl), eo=errColsOf(y.id), s=ser[y.id]||{}, col=k=>{ const c=k&&colById(k); return c||null; };
     if(u.rng) rng[y.id]=Object.assign({},u.rng); if(u.ax==="r") ax[y.id]="r"; if(u.grp) grp[y.id]=u.grp;
     if(s.sym) sym[y.id]=s.sym; if(s.ss!=null) ssz[y.id]=s.ss; const zc=col(s.zcol);
-    return {y,x:xColFor(y),e:Object.keys(eo).filter(k=>k!=="z").map(k=>({c:eo[k],k})),lab:col(u.lab),zcol:zc,scol:col(s.scol),ez:zc?errColsOf(zc.id).z||null:null,type:s.type||(!pl.style||pl.style==="auto"?autoType(y.id):pl.style)}; });
+    return {y,x:xColFor(y),e:Object.keys(eo).filter(k=>k!=="z").map(k=>({c:eo[k],k})),lab:col(u.lab),zcol:zc,scol:col(s.scol),ez:zc?errColsOf(zc.id).z||null:null,tb:col(s.tB),tc:col(s.tC),type:s.type||(!pl.style||pl.style==="auto"?autoType(y.id):pl.style)}; });
   curves.forEach(q=>{ if(!q.y.src) use[q.y.id]="y"; if(q.x) use[q.x.id]="x"; q.e.forEach(({c,k})=>{ use[c.id]="e:"+k; });
-    if(q.lab&&!use[q.lab.id]) use[q.lab.id]="lab"; if(q.zcol&&!use[q.zcol.id]) use[q.zcol.id]="col"; if(q.scol&&!use[q.scol.id]) use[q.scol.id]="size"; if(q.ez&&!use[q.ez.id]) use[q.ez.id]="e:z"; });
+    if(q.lab&&!use[q.lab.id]) use[q.lab.id]="lab"; if(q.zcol&&!use[q.zcol.id]) use[q.zcol.id]="col"; if(q.scol&&!use[q.scol.id]) use[q.scol.id]="size"; if(q.ez&&!use[q.ez.id]) use[q.ez.id]="e:z";
+    if(q.tb&&!use[q.tb.id]) use[q.tb.id]="tb"; if(q.tc&&!use[q.tc.id]) use[q.tc.id]="tc"; });
   return {use,curves,rng,ax,grp,grps:clone(pl.grps||{}),sym,ss:ssz}; }
 // The dialog's groups in the order of their first curves (a group of one too, so others can join it).
 function psuGroups(st){ const out=[]; st.curves.forEach(q=>{ const g=st.grp[q.y.id]; if(!g) return; let o=out.find(z=>z.g===g); if(!o){ o={g,ids:[]}; out.push(o); } o.ids.push(q.y.id); });
@@ -38797,11 +38951,11 @@ function psuGroups(st){ const out=[]; st.curves.forEach(q=>{ const g=st.grp[q.y.
 function psuBuild(st){
   const out=[];
   sheetList().forEach(s=>{ const cols=sheetCols(s.id), here=[]; let X=null;
-    cols.forEach(c=>{ const u=st.use[c.id]||""; if(u==="x") X=c; else if(u==="y"){ const own=xColFor(c); here.push({y:c,x:own&&st.use[own.id]==="x"?own:(X||own),e:[],lab:null,zcol:null,scol:null,ez:null}); } });
+    cols.forEach(c=>{ const u=st.use[c.id]||""; if(u==="x") X=c; else if(u==="y"){ const own=xColFor(c); here.push({y:c,x:own&&st.use[own.id]==="x"?own:(X||own),e:[],lab:null,zcol:null,scol:null,ez:null,tb:null,tc:null}); } });
     cols.forEach((c,i)=>{ const u=st.use[c.id]||""; if(!u||u==="x"||u==="y"||u==="e:z") return; let t=c.role==="e"&&c.of?here.find(q=>q.y.id===c.of)||null:null;
       for(let j=i-1;j>=0&&!t;j--) if(st.use[cols[j].id]==="y") t=here.find(q=>q.y===cols[j])||null;
       if(!t) t=here.find(q=>cols.indexOf(q.y)>i)||null; if(!t) return;
-      if(u.startsWith("e:")) t.e.push({c,k:u.slice(2)}); else if(u==="lab") t.lab=c; else if(u==="col") t.zcol=c; else if(u==="size") t.scol=c; });
+      if(u.startsWith("e:")) t.e.push({c,k:u.slice(2)}); else if(u==="lab") t.lab=c; else if(u==="col") t.zcol=c; else if(u==="size") t.scol=c; else if(u==="tb") t.tb=c; else if(u==="tc") t.tc=c; });
     // A Z error goes to the curve whose Z it already belongs to, else whose Z is the nearest to its left.
     cols.forEach((c,i)=>{ if(st.use[c.id]!=="e:z") return; let t=c.role==="e"&&c.ax==="z"?here.find(q=>q.zcol&&q.zcol.id===c.of)||null:null;
       for(let j=i-1;j>=0&&!t;j--) if(st.use[cols[j].id]==="col") t=here.find(q=>q.zcol===cols[j])||null; if(t) t.ez=c; });
@@ -38835,6 +38989,7 @@ function plotSetupPv(st,kind,W,H){
       if(st.ax[y.id]==="r") u.ax="r"; else delete u.ax; if(q.lab) u.lab=q.lab.id; if(st.grp[y.id]) u.grp=st.grp[y.id]; else delete u.grp; if(Object.keys(u).length) tp.use[y.id]=u; else delete tp.use[y.id];
       const s=Object.assign({},tp.series[y.id]); if(K&&psuType(kind)) s.type=psuType(kind); if(K&&MORE_KINDS[kind]&&MORE_KINDS[kind].eb) s.eb=MORE_KINDS[kind].eb;
       if(q.zcol) s.zcol=q.zcol.id; else if(g0) delete s.zcol; if(q.scol) s.scol=q.scol.id; else if(g0) delete s.scol;
+      if(q.tb) s.tB=q.tb.id; else if(g0) delete s.tB; if(q.tc) s.tC=q.tc.id; else if(g0) delete s.tC;
       if(st.sym[y.id]) s.sym=st.sym[y.id]; if(st.ss[y.id]!=null) s.ss=st.ss[y.id]; tp.series[y.id]=s; });
     cur.filter(q=>q.y.src).forEach(q=>{ const s=Object.assign({},tp.series[q.y.id]); if(K&&psuType(kind)) s.type=psuType(kind); tp.series[q.y.id]=s; });
     const pcols=g0?ids:(into?into.cols.filter(k=>!ids.includes(k)):[]).concat(ids);
@@ -38897,7 +39052,7 @@ async function openPlotDlg(cids,o){
   const g0=o.gid&&graphOf(o.gid)&&!graphOf(o.gid).fig?graphOf(o.gid):null; if(o.gid&&!g0) return;
   const any=allCols().some(c=>!c.src&&(c.role==="y"||c.role==="ignore")&&hasVals(c))||yCols().some(c=>c.src);
   if(!g0&&!any){ toast("There is no column to plot yet: type or paste values into the worksheet, or import a file."); return; }
-  const st=psuState(cids,g0); if(!g0) psuRecall(st);
+  const st=psuState(cids,g0); if(!g0){ psuRecall(st); psuTernGroup(st); }
   // A column chosen from another sheet shows every sheet.
   if(Object.keys(st.use).some(id=>{ const c=colById(id); return c&&sheetOf(c)!==st.sheet; })) st.sheet="all";
   const targets=drawGraphIds(), ss=sheetList(), many=ss.length>1, ro=v=>esc(v);
@@ -38943,11 +39098,12 @@ async function openPlotDlg(cids,o){
     return `<table class="ptab psu-t"><thead><tr><th class="l">Column</th><th class="r psu-n">Rows</th><th class="psu-spk"></th>${keys.map(k=>`<th class="psu-rh" title="${esc(PSU_ROLE[k][2])}">${PSU_ROLE[k][0]}</th>`).join("")}</tr></thead><tbody>${h}</tbody></table>`; };
   // What a curve can take for a part: the columns of its sheet with values that may be used so.
   const candOf=(q,role)=>{ if(q.y.src) return []; const use=roleUse(role,""); return sheetCols(sheetOf(q.y)).filter(c=>c!==q.y&&c!==q.x&&hasVals(c)&&!psuWhyNot(c,use)&&(role!=="ez"||c!==q.zcol)); };
-  const partCol=(q,role)=>role==="ey"||role==="ex"?((q.e.find(e=>e.k[0]===role[1])||{}).c||null):role==="lab"?q.lab:role==="size"?q.scol:role==="col"||role==="z"?q.zcol:role==="ez"?q.ez:null;
+  const partCol=(q,role)=>role==="ey"||role==="ex"?((q.e.find(e=>e.k[0]===role[1])||{}).c||null):role==="tb"?q.tb:role==="tc"?q.tc:role==="lab"?q.lab:role==="size"?q.scol:role==="col"||role==="z"?q.zcol:role==="ez"?q.ez:null;
   const partSide=(q,role)=>{ const e=q.e.find(e=>e.k[0]===role[1]); return e?e.k.slice(1):""; };
   // The parts a curve's line shows: those it has, and (for a kind that needs one) the one it lacks.
   const tmOn=()=>st.kind==="tmap"||!st.kind&&st.curves.some(q=>q.type==="tmap");
-  const partsOf=q=>{ const tm=tmOn(), need=(MORE_KINDS[st.kind]||{}).need, out=[];
+  const ternOn=()=>st.kind==="ternary"||!st.kind&&g0&&(g0.plot||{}).layout==="ternary";
+  const partsOf=q=>{ const tm=tmOn(), need=(MORE_KINDS[st.kind]||{}).need, out=ternOn()?["tb","tc"]:[q.tb?"tb":null,q.tc?"tc":null].filter(Boolean);
     ["ey","ex","lab","size",tm?"z":"col","ez"].forEach(r=>{ if(partCol(q,r)||need==="scol"&&r==="size"||need==="zcol"&&(r==="z"||r==="col")||need==="lab"&&r==="lab"||need==="xy"&&(r==="ey"||r==="ex")) out.push(r); });
     return out; };
   const addable=q=>{ const R=psuRoles(st,[]).keys.filter(k=>k!=="x"&&k!=="y"), have=partsOf(q); return R.concat(q.zcol&&!R.includes("ez")?["ez"]:[]).filter(r=>!have.includes(r)&&(r!=="ez"||q.zcol)&&candOf(q,r).length); };
@@ -38960,7 +39116,7 @@ async function openPlotDlg(cids,o){
     const noX=isDistLayout(st.kind)||st.kind==="hist", anySym=cur.some(drawsSym);
     return `<table class="ptab psu-c"><tbody>${cur.map(q=>{ const y=q.y, sym=st.sym[y.id]||"circle";
       const xs=y.src?[]:[...new Set(sheetCols(sheetOf(y)).filter(c=>c.role==="x"||st.use[c.id]==="x").concat(q.x&&sheetOf(q.x)===sheetOf(y)?[q.x]:[]))];
-      const against=noX?"":y.src?`<span class="psu-p"><span class="lab">against</span> <span title="A column made from another takes its X">${q.x?`<b>${ro(colRef(q.x))}</b> ${ro(q.x.name||"")}`:"the row number"}</span></span>`
+      const against=noX||ternOn()?"":y.src?`<span class="psu-p"><span class="lab">against</span> <span title="A column made from another takes its X">${q.x?`<b>${ro(colRef(q.x))}</b> ${ro(q.x.name||"")}`:"the row number"}</span></span>`
         :`<span class="psu-p"><span class="lab">against</span> <select data-cx="${y.id}" aria-label="What ${ro(colRef(y))} is plotted against">${xs.map(c=>`<option value="${c.id}"${q.x===c?" selected":""}>${ro(colLetter(c))}${c.name?" "+ro(c.name):""}</option>`).join("")}<option value=""${q.x?"":" selected"}>Row number</option></select></span>`;
       const parts=noX?"":partsOf(q).map(r=>partSel(q,r)).join(""), more=!noX&&addable(q).length;
       return `<tr data-pcur="${y.id}" tabindex="0" aria-selected="${st.sel===y.id}"${st.sel===y.id?` class="sel"`:""}>${anySym?`<td class="psu-sym">`:""}${anySym&&drawsSym(q)?`<button type="button" class="symb" data-csym="${y.id}" title="${esc(`Symbol: ${symName(sym)}`)}" aria-label="${esc(`Symbol of ${specName(y)}: ${symName(sym)}`)}" aria-haspopup="dialog">${symGlyph(sym,curCol(q),18)}</button>`:""}${anySym?"</td>":""}`
@@ -38994,7 +39150,7 @@ async function openPlotDlg(cids,o){
     placePop(el,kbtn); kbtn.setAttribute("aria-expanded","true");
     const bs=[...el.querySelectorAll("[data-pk]:not(:disabled)")];
     bs.forEach(b=>{ const on=()=>sk(b.dataset.pk), off=()=>sk(); b.addEventListener("pointerenter",on); b.addEventListener("pointerleave",off); b.addEventListener("focus",on); b.addEventListener("blur",off); });
-    el.addEventListener("click",e=>{ const b=e.target.closest("[data-pk]"); if(!b||b.disabled) return; st.kind=b.dataset.pk; closeFontPicker(); refresh(true); });
+    el.addEventListener("click",e=>{ const b=e.target.closest("[data-pk]"); if(!b||b.disabled) return; st.kind=b.dataset.pk; psuTernGroup(st); closeFontPicker(); refresh(true); });
     el.addEventListener("keydown",e=>{ if(e.key==="Escape"){ e.preventDefault(); e.stopPropagation(); closeFontPicker(); return; }
       const i=bs.indexOf(document.activeElement), d=e.key==="ArrowRight"||e.key==="ArrowDown"?1:e.key==="ArrowLeft"||e.key==="ArrowUp"?-1:0; if(!d||i<0) return; e.preventDefault(); bs[(i+d+bs.length)%bs.length].focus({preventScroll:true}); });
     const out=e=>{ if(!el.contains(e.target)&&e.target!==kbtn&&!kbtn.contains(e.target)) closeFontPicker(); };
@@ -39006,7 +39162,12 @@ async function openPlotDlg(cids,o){
   const cbox=box.querySelector("#psuCols"), cur=box.querySelector("#psuCur"), det=box.querySelector("#psuDet");
   const setUse=(id,v)=>{ const c=colById(id); if(!c) return; if(v&&psuWhyNot(c,v)) return; if(v) st.use[id]=v; else delete st.use[id]; };
   cbox.addEventListener("change",e=>{ const t=e.target;
-    if(t.matches("[data-prole]")){ const id=t.dataset.pcol, k=t.dataset.prole; setUse(id,t.checked?roleUse(k,st.use[id]||""):""); refresh(true); return; }
+    if(t.matches("[data-prole]")){ const id=t.dataset.pcol, k=t.dataset.prole; setUse(id,t.checked?roleUse(k,st.use[id]||""):"");
+      // A curve's column marked as B or C: it leaves the list and becomes that part of the nearest curve on its left (else the first).
+      if(t.checked&&(k==="tb"||k==="tc")){ const c=colById(id), i=st.curves.findIndex(q=>q.y.id===id); if(i>=0){ st.curves.splice(i,1); if(st.sel===id) st.sel=st.curves.length?st.curves[0].y.id:null; }
+        const cs=sheetCols(sheetOf(c)), at=cs.indexOf(c); let tgt=null; for(let j=at-1;j>=0&&!tgt;j--) tgt=st.curves.find(q=>q.y===cs[j])||null; tgt=tgt||st.curves[0]||null;
+        if(tgt){ const old=tgt[k]; if(old&&old!==c&&st.use[old.id]===k) delete st.use[old.id]; tgt[k]=c; } }
+      refresh(true); return; }
     if(t.matches("[data-pside]")){ const id=t.dataset.pside, u=st.use[id]||""; if(u.startsWith("e:")) setUse(id,u.slice(0,3)+t.value); st.curves.forEach(q=>q.e.forEach(e=>{ if(e.c.id===id) e.k=e.k[0]+t.value; })); refresh(true); } });
   const pick=id=>{ st.sel=id; refresh(); const tr=cur.querySelector(`[data-pcur="${CSS.escape(id)}"]`); if(tr&&!cur.contains(document.activeElement)) tr.focus(); };
   cur.addEventListener("pointerdown",e=>{ const tr=e.target.closest("[data-pcur]"); if(tr&&st.sel!==tr.dataset.pcur){ st.sel=tr.dataset.pcur; cur.querySelectorAll("[data-pcur]").forEach(q=>{ const on=q===tr; q.classList.toggle("sel",on); q.setAttribute("aria-selected",String(on)); }); det.innerHTML=detHtml(); acts(); } });
@@ -39020,7 +39181,7 @@ async function openPlotDlg(cids,o){
   const setPart=(q,role,c)=>{ const old=partCol(q,role), side=role==="ey"||role==="ex"?partSide(q,role):"";
     if(old&&st.use[old.id]&&useRole(st.use[old.id],tmOn())===role) delete st.use[old.id];
     if(role==="ey"||role==="ex"){ q.e=q.e.filter(e=>e.k[0]!==role[1]).concat(c?[{c,k:role[1]+side}]:[]); }
-    else if(role==="lab") q.lab=c; else if(role==="size") q.scol=c; else if(role==="col"||role==="z"){ q.zcol=c; if(!c) q.ez=null; } else if(role==="ez") q.ez=c;
+    else if(role==="tb") q.tb=c; else if(role==="tc") q.tc=c; else if(role==="lab") q.lab=c; else if(role==="size") q.scol=c; else if(role==="col"||role==="z"){ q.zcol=c; if(!c) q.ez=null; } else if(role==="ez") q.ez=c;
     if(c) st.use[c.id]=role==="ey"||role==="ex"?"e:"+role[1]+side:PSU_ROLE[role][1]; refresh(true); };
   cur.addEventListener("change",e=>{ const t=e.target;
     if(t.matches("[data-cx]")){ const q=st.curves.find(q=>q.y.id===t.dataset.cx); if(q){ q.x=t.value?colById(t.value):null; if(!t.value||psuSpan(q).mono===false) { if(st.rng[q.y.id]&&st.rng[q.y.id].by==="x") delete st.rng[q.y.id]; } } refresh(); return; }
@@ -39063,7 +39224,7 @@ function psuApply(st,o){ const g0=o.g0||null, into=o.into;
   if(g0){ psuSetGraph(g0.id,curves,st,kind,ov,said); return; }
   const use={}, series={};
   curves.forEach(q=>{ const y=q.y, u={}; if(st.rng[y.id]&&rngOk(st.rng[y.id])) u.rng=st.rng[y.id]; if(st.ax[y.id]==="r"&&q!==curves[0]&&ov) u.ax="r"; if(q.lab) u.lab=q.lab.id; if(st.grp[y.id]) u.grp=st.grp[y.id]; if(Object.keys(u).length) use[y.id]=u;
-    if(q.zcol||q.scol||(M&&M.eb)||st.sym[y.id]||st.ss[y.id]!=null) series[y.id]=Object.assign({},q.zcol?{zcol:q.zcol.id}:{},q.scol?{scol:q.scol.id}:{},M&&M.eb?{eb:M.eb}:{},st.sym[y.id]?{sym:st.sym[y.id]}:{},st.ss[y.id]!=null?{ss:st.ss[y.id]}:{}); });
+    if(q.zcol||q.scol||q.tb||q.tc||(M&&M.eb)||st.sym[y.id]||st.ss[y.id]!=null) series[y.id]=Object.assign({},q.zcol?{zcol:q.zcol.id}:{},q.scol?{scol:q.scol.id}:{},q.tb?{tB:q.tb.id}:{},q.tc?{tC:q.tc.id}:{},M&&M.eb?{eb:M.eb}:{},st.sym[y.id]?{sym:st.sym[y.id]}:{},st.ss[y.id]!=null?{ss:st.ss[y.id]}:{}); });
   // Group by: each curve's place taken by a curve per value, one group a column (1.2d).
   const by=o.by?colById(o.by):null; let ids2=ids, grps=st.grps, split="";
   if(by&&!g0){ const sp=psuSplit(curves,by,use,series); if(sp){ ids2=sp.ids; grps=Object.assign({},st.grps||{},sp.grps); split=`${andList(curves.map(q=>specName(q.y)))} split by ${by.name||colRef(by)} into ${sp.ids.length} curves`; } }
@@ -39120,6 +39281,13 @@ function psuColChanges(curves){
 /* A graph's curves set from Plot setup's list (What it plots…): their order, what each draws (its
    range, axis and labels), colour and size from a column, and the kind when one was chosen; a
    curve taken off loses what it used here. One save, after psuColChanges. */
+// A ternary graph from columns chosen: each three, in the sheet's order, a curve (the first) and its B and C; else Plot setup on the kind.
+function ternaryFrom(cids){ const p=P(); if(!p||S.readOnly) return;
+  const cs=(cids||[]).map(colById).filter(c=>c&&!c.src&&(c.role==="y"||c.role==="ignore")&&hasVals(c)), all=allCols(); cs.sort((a,b)=>all.indexOf(a)-all.indexOf(b));
+  if(!cs.length||cs.length%3){ S.plotDlgKind="ternary"; openPlotDlg(cids); return; }
+  const ids=[], series={}; for(let i=0;i<cs.length;i+=3){ ids.push(cs[i].id); series[cs[i].id]={tB:cs[i+1].id,tC:cs[i+2].id}; }
+  const parts=[]; for(let i=0;i<cs.length;i+=3) parts.push(cs.slice(i,i+3).map(c=>specName(c)).join(", "));
+  plotCols(ids,{layout:"ternary",series,say:`The parts of each row: ${parts.join("; ")}.`}); }
 function psuSetGraph(gid,curves,st,kind,ov,said){
   const p=P(), graphs=(p.graphs||[]).map(g=>Object.assign({},g,{cols:g.cols.slice(),plot:Object.assign({},g.plot)})), g=graphs.find(q=>q.id===gid); if(!g) return;
   const was=g.cols.slice(), ids=curves.map(q=>q.y.id), tp=g.plot, use=Object.assign({},tp.use), ser=Object.assign({},tp.series), before=JSON.stringify([use,ser,tp.grps||null]);
@@ -39131,6 +39299,7 @@ function psuSetGraph(gid,curves,st,kind,ov,said){
     if(st.grp[y.id]) u.grp=st.grp[y.id]; else delete u.grp;
     if(Object.keys(u).length) use[y.id]=u; else delete use[y.id];
     const s=Object.assign({},ser[y.id]); if(q.zcol) s.zcol=q.zcol.id; else delete s.zcol; if(q.scol) s.scol=q.scol.id; else delete s.scol;
+    if(q.tb) s.tB=q.tb.id; else delete s.tB; if(q.tc) s.tC=q.tc.id; else delete s.tC;
     if(st.sym[y.id]) s.sym=st.sym[y.id]; if(st.ss[y.id]!=null) s.ss=st.ss[y.id];
     if(kind&&psuType(st.kind)) s.type=psuType(st.kind); if(kind&&MORE_KINDS[st.kind]&&MORE_KINDS[st.kind].eb) s.eb=MORE_KINDS[st.kind].eb; if(Object.keys(s).length) ser[y.id]=s; else delete ser[y.id]; });
   tp.use=use; tp.series=ser; g.cols=ids; tp.grps=clone(st.grps||{}); grpClean(tp); grpShareTypes(tp,ids);

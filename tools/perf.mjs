@@ -95,6 +95,10 @@ const BUDGET = {
   "Hierarchical: 3000, Ward's": [1500, "the distances of 3000 observations of 5 variables and Ward's linkage by the nearest-neighbour chain (in the worker in the app; MULTI_SPEC 6.3)"],
   "Discriminant: 10^4 × 20, left one out": [1000, "linear discriminant analysis of 10 000 rows of 20 columns in 4 groups, every row's class left one out by Sherman and Morrison (MULTI_SPEC 6.4)"],
   "PLS: 100 curves × 1000, left one out": [2000, "PLS regression of 100 curves of 1000 points, ten components, each curve left out and the model made again (MULTI_SPEC 6.5)"],
+  "Pie: 200 slices": [60, "a pie of 200 slices drawn, labels placed (PLOT2_SPEC 7.1's budget)"],
+  "Dot plot: 50 000 in 20": [60, "a dot plot of 50 000 values in 20 categories drawn, the dots scattered (PLOT2_SPEC 7.1's budget)"],
+  "Polar: 200 000 points": [60, "a polar graph of 200 000 points drawn as a line, eight turns (PLOT2_SPEC 7.3's budget)"],
+  "Ternary: 50 000 rows": [60, "a ternary graph of 50 000 rows drawn as symbols (PLOT2_SPEC 7.4's budget)"],
   "PCA: 300 curves × 2000": [2400, "principal components of 300 curves of 2000 points, centred, ten kept, T² and Q (in the worker in the app; MULTI_SPEC 6.2)"],
 };
 const got = {};
@@ -277,6 +281,29 @@ await withPage(async (p) => {
     const a = performance.now(); plsFit(X, [y], { a: 10 }); plsCv(X, [y], { amax: 10, cv: { kind: "loo" } }); return performance.now() - a; }));
   got["PCA: 300 curves × 2000"] = await best(() => p.evaluate(() => { const mb = mulberry32(31), C = Array.from({ length: 2000 }, () => Float64Array.from({ length: 300 }, () => mb() - 0.5));
     const a = performance.now(); pca({ cols: C, n: 300 }, { scale: "none", k: 10, rows: false }); return performance.now() - a; }));
+});
+
+// Plots of wave 7 (PLOT2_SPEC's budgets): each graph drawn on the desk.
+await withPage(async (p) => {
+  const mk = (name, cols, act) => p.evaluate(async ({ name, cols, act }) => { const cs = cols.map(([r, n, d]) => Object.assign(makeCol(r, n, "", d), r === "y" ? { pipe: [], mask: [] } : {}));
+    await createProject(Object.assign(blankProject(name), { cols: cs, activeY: cs[act].id }), "perf"); await new Promise((r) => setTimeout(r, 300)); renderAll(); }, { name, cols, act });
+  const draw = () => best(() => p.evaluate(() => { const a = performance.now(); renderPlot(); return performance.now() - a; }));
+  await mk("Pie", [["x", "Part", Array.from({ length: 200 }, (_, i) => i + 1)], ["y", "Share", Array.from({ length: 200 }, (_, i) => 1 + ((i * 37) % 23))]], 1);
+  await p.evaluate(() => { plotCols(yCols().map((c) => c.id), { layout: "pie", quiet: true }); }); await p.waitForTimeout(400);
+  got["Pie: 200 slices"] = await draw();
+  { const n = 50000, x = [], y = []; for (let i = 0; i < n; i++) { x.push(1 + (i % 20)); y.push(Math.sin(i * 0.37) * 3 + (i % 20)); }
+    await mk("Dots", [["x", "Group", x], ["y", "Value", y]], 1); }
+  await p.evaluate(() => { const c = yCols()[0]; plotCols([c.id], { layout: "dot", quiet: true }); savePlot({ distBy: P().cols[0].id }, "t"); }); await p.waitForTimeout(400);
+  got["Dot plot: 50 000 in 20"] = await draw();
+  { const n = 200000, th = [], r = []; for (let i = 0; i < n; i++) { th.push(i * 360 * 8 / n); r.push(1 + 0.5 * Math.sin(th[i] * 3 * Math.PI / 180) + 0.002 * Math.sin(i * 0.37) + i / n); }
+    await mk("Polar", [["x", "Angle", th], ["y", "Radius", r]], 1); }
+  await p.evaluate(() => { plotCols(yCols().map((c) => c.id), { layout: "polar", quiet: true }); }); await p.waitForTimeout(400);
+  got["Polar: 200 000 points"] = await draw();
+  { const n = 50000, a = [], b = [], c = []; let s = 7; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+    for (let i = 0; i < n; i++) { a.push(rnd()); b.push(rnd()); c.push(rnd()); }
+    await mk("Ternary", [["x", "Row", a.map((_, i) => i)], ["y", "A", a], ["y", "B", b], ["y", "C", c]], 1); }
+  await p.evaluate(() => { ternaryFrom(yCols().map((c) => c.id)); }); await p.waitForTimeout(400);
+  got["Ternary: 50 000 rows"] = await draw();
 });
 
 await browser.close(); server.close();

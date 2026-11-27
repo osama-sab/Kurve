@@ -132,6 +132,18 @@
  "polarJoin": {
   "tol": 1e-15
  },
+ "ternFrame": {
+  "tol": 3e-13
+ },
+ "ternFwd": {
+  "tol": 6e-13
+ },
+ "ternGrid": {
+  "tol": 3e-13
+ },
+ "ternInv": {
+  "tol": 1e-15
+ },
  "regShift.shift": {
   "tol": 1e-12
  },
@@ -1271,5 +1283,6 @@
   "plsFlat.r2x": {"tol": 1e-13},
   "plsFlat.fail": {"tol": 0},
   "plsCvFlat.pred": {"tol": 1e-12},
-  "polarFlat": {"tol": 4e-15}
+  "polarFlat": {"tol": 4e-15},
+  "ternFlat": {"tol": 1.5e-15}
 }

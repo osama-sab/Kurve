@@ -1024,6 +1024,32 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Plots, wave 7, slice 7.4: ternary graphs (2026-11-27)
+
+`ux/spec/PLOT2_SPEC.md` slice 7.4. Plot › Plot the selected columns › Ternary, or Plot setup's *Ternary* under *Coordinates*.
+- **A ternary graph**: three columns as the parts of a whole, each row divided by its sum and drawn in a triangle, each corner a part;
+  the first column a curve, the other two its B and C (read in the same rows). Six columns are two curves, nine three. A row with a
+  part below 0, a part missing or no sum is left out, and the graph says how many.
+- **Reading it**: grid lines parallel to the sides at tenths, each part's numbers along one side rising to its corner (anticlockwise
+  or clockwise), the corners titled by the columns (typed over in place), as fractions or percentages; the status bar says the three
+  parts under the pointer. Curves are symbols, or lines when chosen.
+- **Plot setup** has the roles B and C: three columns chosen with Ternary are grouped at once; a curve's line shows its B and C to
+  change, a column ticked as B or C joins the curve on its left, and Plot waits with a note until each curve has both. *What it
+  plots…* changes them on a graph. B and C no longer say *not plotted* in the worksheet (nor a curve's colour or size column).
+- **Polar graphs, faster**: 200 000 points drawn in 41 ms as a line (was 180), each point placed once and decimated on screen as the
+  Cartesian graph is; an export still draws every point.
+- **Budgets**: `tools/perf.mjs` measures a pie of 200 slices, a dot plot of 50 000 values in 20 categories, a polar graph of 200 000
+  points and a ternary graph of 50 000 rows: 11, 35, 37 and 25 ms against 60 each.
+
+Checked: `tools/ref/plot2_ternary.py` (each row's place from its exact sum in mpmath at 40 digits, checked against python-ternary's
+projection as its source writes it; grid lines, ticks and the inverse from their definitions; 6 frames, 378 rows with parts from 1e-200
+to 1e200 and those with no place, 180 inversions) through ref-test (the frame 1.1e-13 px, each place 2.3e-13 px, the grid and ticks
+1.2e-13 px, the inverse's parts 3.3e-16); the fuzzer's `ternFlat` (4.9e-16 of the largest coordinate over ten seeds);
+`tools/plot2-drive.mjs` 7.4 (33: two curves from six columns, every symbol and vertex at its row's place, the rows left out said, 27 grid
+lines parallel to their sides, the numbers' sides either way round, percentages, the readout, the menus and Format pane, a corner
+typed, an export to PDF, a B column deleted, junk settings, a reload, Plot setup's grouping, note and roles, What it plots…, 50 000
+rows, 390 px). Found on the way: a corner's title typed was saved and not drawn (`plotCfg` copies the axes by name).
+
 ## Plots, wave 7, slice 7.3: polar graphs (2026-11-27)
 
 `ux/spec/PLOT2_SPEC.md` slice 7.3. Plot › Plot the selected columns › Polar, Plot setup's *Coordinates* row, or the Format pane's

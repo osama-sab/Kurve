@@ -294,6 +294,11 @@ sector; the readout's inverse; export to PDF; undo; the matrix's map.
 
 ## 7.4 Ternary
 
+Done 27.11, as below, with these changes of plan: no axes `ax.ta`… styles of their own (the corners' titles are typed there, the
+numbers and grid take the graph's tick and grid styles); three columns chosen (or six…) are grouped by threes, from Plot's menu or on
+choosing Ternary in Plot setup; a curve is symbols unless its own type is a line; no zoom. Measured: every place, grid line and tick
+within the doubles' last bit of 40-digit mpmath (and python-ternary's projection), the inverse's parts 3.3e-16.
+
 **What.** Layout `ternary`: a curve's three parts (Y and the columns marked *B* and *C*), each row
 normalised to 1 or to 100, a row with a negative part or a sum of zero left out and counted; the
 triangle with its three axes clockwise or not, each with title, ticks, numbers and grid lines

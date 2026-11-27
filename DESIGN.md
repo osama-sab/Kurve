@@ -910,6 +910,20 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-27: Ternary graphs (PLOT2_SPEC 7.4)
+
+- **A curve with two more columns.** A ternary curve is a column of values (its first part) and two columns read in the same rows
+  (its B and C), as a coloured curve has its colour column; so it is plotted, styled and undone as any curve, and Plot setup marks B
+  and C as it marks a colour or a size. Three columns chosen (or six…) are grouped by threes at once, from Plot's menu or when
+  Ternary is chosen in Plot setup: choosing the columns again as B and C was repeating oneself.
+- **Symbols unless asked.** The rows of a composition have no order, so a ternary curve is drawn as symbols whatever Automatic would
+  pick from its X; lines only when the curve's own type says so (a path through compositions).
+- **What has no place is said.** A row with a part below zero, a part missing or a sum of zero is left out, and the graph says how
+  many under the triangle; a curve whose B or C has gone says so rather than vanishing.
+- **The corners name the parts.** Each corner is titled by its part's column (typed over in place, as any axis title), and each
+  part's numbers rise along one side towards its corner: anticlockwise or clockwise, the two ways ternary diagrams are read.
+- **The whole triangle, always.** A ternary graph has no zoom or pan: the triangle is the whole of what the parts can be.
+
 ### 2026-11-27: Polar graphs (PLOT2_SPEC 7.3)
 
 - **A layout, not a kind of axis.** A polar graph is a graph's layout, as a pie is, so any curve (or a matrix) can be drawn in it
