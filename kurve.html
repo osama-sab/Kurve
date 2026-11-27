@@ -7642,6 +7642,11 @@ function rangeSf(w,k){ if(!(w>0)) return 1; if(w===Infinity) return 0; if(k===2)
   const lk=Math.log(k), lf=z=>{ const a=nQ(z), b=nQ(z+w); if(!(a>0)||!(b>0)) return -Infinity;
     return lk-z*z/2-LN_SQRT_2PI+(k-1)*Math.log(a)+Math.log(-Math.expm1((k-1)*Math.log1p(-b/a))); };
   const [M,S]=lcInt(lf,Math.min(-w/2,-6)-10,10,1); return Math.min(1,Math.exp(M)*S); }
+// The range's density: k(k − 1)∫ φ(z) φ(z + w) (Q(z) − Q(z + w))^{k−2} dz, in logarithms about its peak as rangeSf.
+function rangePdf(w,k){ if(!(w>0)||w===Infinity) return 0; if(k===2) return Math.exp(-w*w/4)/Math.sqrt(Math.PI);
+  const lc=Math.log(k)+Math.log(k-1)-2*LN_SQRT_2PI, lf=z=>{ const a=nQ(z), b=nQ(z+w); if(!(a>0)||!(b>0)) return -Infinity;
+    return lc-z*z/2-(z+w)*(z+w)/2+(k-2)*(Math.log(a)+Math.log1p(-b/a)); };
+  const [M,S]=lcInt(lf,Math.min(-w/2,-6)-10,10,1); return Math.exp(M)*S; }
 // The χ density of s = √(χ²_ν/ν), times s, in u = ln s: its logarithm, Stirling's part apart so a large ν keeps its digits.
 const lchiU=nu=>{ const c=0.5*Math.log(nu/Math.PI)-stirlerr(nu/2); return u=>c+nu*(u-Math.expm1(2*u)/2); };
 // ∫ g_ν(s) h(c·s) ds for a tail h of the scaled statistic (∫ in ln s, about its one peak); ν past 10⁸ is the normal's.
@@ -7939,14 +7944,17 @@ function pieSlices(items,sort){ let left=0; const sl=[];
   return {slices:sl,tot,left}; }
 /* ---- Statistical charts (PLOT2_SPEC 7.2), pure ----
    Control charts (Montgomery, Introduction to Statistical Quality Control, 2019): `ctrlConst(n)` the constants of a subgroup of
-   n normal values, d₂ = E[R]/σ and d₃ = SD(R)/σ worked out from the range's tail (∫₀^∞ P(R > w) dw and ∫₀^∞ 2w P(R > w) dw by
-   Gauss–Kronrod over `rangeSf`, n = 2 in closed form), c₄ = √(2/(n − 1)) Γ(n/2)/Γ((n − 1)/2), memoised; and from them A₂ = 3/(d₂√n),
+   n normal values, d₂ = E[R]/σ and d₃ = SD(R)/σ worked out from the range's distribution (∫₀^∞ P(R > w) dw over `rangeSf`, and
+   ∫₀^∞ (w − d₂)² f(w) dw over its density `rangePdf`, by Gauss–Kronrod; n = 2 in closed form), c₄ = √(2/(n − 1)) Γ(n/2)/Γ((n − 1)/2), memoised; and from them A₂ = 3/(d₂√n),
    D₃ = max(0, 1 − 3d₃/d₂), D₄ = 1 + 3d₃/d₂, A₃ = 3/(c₄√n), B₃ = max(0, 1 − 3√(1 − c₄²)/c₄), B₄ = 1 + 3√(1 − c₄²)/c₄. */
 const CTRLC=new Map();
 function ctrlConst(n){ if(!(Number.isInteger(n)&&n>=2&&n<=1000)) return null; let c=CTRLC.get(n); if(c) return c;
   let d2, d3;
   if(n===2){ d2=2/Math.sqrt(Math.PI); d3=Math.sqrt(2-4/Math.PI); }
-  else { const pts=[0,0.5,1,1.5,2,2.5,3,3.5,4,5,6,7,8,10,12,16,24,40]; d2=gkInt(w=>rangeSf(w,n),pts,1e-15,0); const m2=gkInt(w=>2*w*rangeSf(w,n),pts,1e-15,0); d3=Math.sqrt(Math.max(0,m2-d2*d2)); }
+  else { const pts=[0,0.5,1,1.5,2,2.5,3,3.5,4,5,6,7,8,10,12,16,24,40]; d2=gkInt(w=>rangeSf(w,n),pts,1e-15,0);
+    // the variance from the density, a sum of positive terms (to first order d2's own error does nothing): E[R²] − d₂² loses a
+    // factor of 8 to 30 to cancellation, and d₃ that way was up to 9e-15 off; this way 4e-16 (against 24 digits, n 3 to 25)
+    d3=Math.sqrt(gkInt(w=>(w-d2)*(w-d2)*rangePdf(w,n),pts,1e-15,0)); }
   const c4=Math.sqrt(2/(n-1))*Math.exp(lgam(n/2)-lgam((n-1)/2)), r=Math.sqrt(Math.max(0,1-c4*c4))/c4;
   c={n,d2,d3,c4,A2:3/(d2*Math.sqrt(n)),D3:Math.max(0,1-3*d3/d2),D4:1+3*d3/d2,A3:3/(c4*Math.sqrt(n)),B3:Math.max(0,1-3*r),B4:1+3*r};
   CTRLC.set(n,c); return c; }
@@ -8087,20 +8095,25 @@ function weibFit(v){ const n=v.length; if(n<3) return {fail:"Three values at lea
   const k=(lo+hi)/2, lam=mx*Math.pow(neuSum(u.map(x=>x**k))/n,1/k); return {k,lam}; }
 const QQ_DISTS=[["normal","Normal"],["lognormal","Log-normal"],["exp","Exponential"],["weibull","Weibull"],["gamma","Gamma"]];
 const QQ_POS=[["r","R's ppoints"],["blom","Blom"],["filliben","Filliben (as SciPy)"],["weibull","Weibull, i/(n + 1)"],["hazen","Hazen, (i − ½)/n"]];
-function qqPositions(n,kind){ const p=new Array(n);
-  for(let i=1;i<=n;i++){ p[i-1]=kind==="blom"?(i-0.375)/(n+0.25):kind==="weibull"?i/(n+1):kind==="hazen"?(i-0.5)/n:kind==="filliben"?(i===n?Math.pow(0.5,1/n):i===1?1-Math.pow(0.5,1/n):(i-0.3175)/(n+0.365)):(i-(n<=10?0.375:0.5))/(n+1-2*(n<=10?0.375:0.5)); }
+// The positions p, and (up) 1 − p worked out as such, so a quantile near 1 is taken from its upper tail with its digits.
+function qqPositions(n,kind,up){ const p=new Array(n), r=Math.pow(0.5,1/n), r1=-Math.expm1(Math.log(0.5)/n), a=n<=10?0.375:0.5;
+  for(let i=1;i<=n;i++){ const j=up?n+1-i:i;   // 1 − p_i is p_{n+1−i} for every rule here: each is symmetric
+    p[i-1]=kind==="blom"?(j-0.375)/(n+0.25):kind==="weibull"?j/(n+1):kind==="hazen"?(j-0.5)/n:kind==="filliben"?(j===n?r:j===1?r1:(j-0.3175)/(n+0.365)):(j-a)/(n+1-2*a); }
   return p; }
 function qqData(vals,o){ o=o||{}; const dist=QQ_DISTS.some(q=>q[0]===o.dist)?o.dist:"normal", conf=o.conf>0&&o.conf<1?o.conf:0.95, v=finVals(vals).sort((a,b)=>a-b), n=v.length;
   if(n<3) return {fail:"Three values at least are needed."};
+  // Q(u, w): the fitted quantile at u, with w = 1 − u given as such; above one half taken from the upper tail w (1 − u near 1 has
+  // lost the digits a quantile there magnifies: a band's top was 1.5e-13 off where SciPy's was 1e-14)
   let Q, par, names;
-  if(dist==="weibull"){ const f=weibFit(v); if(f.fail) return f; Q=u=>f.lam*Math.pow(-Math.log1p(-u),1/f.k); par=[f.k,f.lam]; names=["k","λ"]; }
-  else if(dist==="gamma"){ const f=gammaFit(v); if(f.fail) return f; Q=u=>DIST.gamma.ppf(u,f.a,f.scale); par=[f.a,f.scale]; names=["shape","scale"]; }
-  else { const f=distFit(v,dist); if(f.fail) return f; par=f.p; names=f.names;
-    Q=dist==="normal"?u=>f.p[0]+f.p[1]*probit(u):dist==="lognormal"?u=>Math.exp(f.p[0]+f.p[1]*probit(u)):u=>-Math.log1p(-u)/f.p[0]; }
-  const pp=qqPositions(n,o.pos||"r"), x=pp.map(Q), a=(1-conf)/2;
-  const lo=v.map((_,i)=>Q(DIST.beta.ppf(a,i+1,n-i))), hi=v.map((_,i)=>Q(DIST.beta.isf(a,i+1,n-i)));
+  if(dist==="weibull"){ const f=weibFit(v); if(f.fail) return f; Q=(u,w)=>f.lam*Math.pow(u<=0.5?-Math.log1p(-u):-Math.log(w),1/f.k); par=[f.k,f.lam]; names=["k","λ"]; }
+  else if(dist==="gamma"){ const f=gammaFit(v); if(f.fail) return f; Q=(u,w)=>u<=0.5?DIST.gamma.ppf(u,f.a,f.scale):DIST.gamma.isf(w,f.a,f.scale); par=[f.a,f.scale]; names=["shape","scale"]; }
+  else { const f=distFit(v,dist); if(f.fail) return f; par=f.p; names=f.names; const z=(u,w)=>u<=0.5?probit(u):-probit(w);
+    Q=dist==="normal"?(u,w)=>f.p[0]+f.p[1]*z(u,w):dist==="lognormal"?(u,w)=>Math.exp(f.p[0]+f.p[1]*z(u,w)):(u,w)=>(u<=0.5?-Math.log1p(-u):-Math.log(w))/f.p[0]; }
+  const pp=qqPositions(n,o.pos||"r"), qq=qqPositions(n,o.pos||"r",true), x=pp.map((u,i)=>Q(u,qq[i])), a=(1-conf)/2;
+  // each order statistic's band from its beta distribution; 1 − (a Beta(i, n + 1 − i)) is a Beta(n + 1 − i, i), so both ends come from lower tails
+  const lo=v.map((_,i)=>Q(DIST.beta.ppf(a,i+1,n-i),DIST.beta.isf(a,n-i,i+1))), hi=v.map((_,i)=>Q(DIST.beta.isf(a,i+1,n-i),DIST.beta.ppf(a,n-i,i+1)));
   let line={a:0,b:1};
-  if(o.line==="quartiles"){ const q1=quantileType(v,0.25,7), q3=quantileType(v,0.75,7), t1=Q(0.25), t3=Q(0.75); const b=(q3-q1)/(t3-t1); line={a:q1-b*t1,b}; }
+  if(o.line==="quartiles"){ const q1=quantileType(v,0.25,7), q3=quantileType(v,0.75,7), t1=Q(0.25,0.75), t3=Q(0.75,0.25); const b=(q3-q1)/(t3-t1); line={a:q1-b*t1,b}; }
   return {dist,n,x,y:v,lo,hi,line,par,names,pos:o.pos||"r",conf}; }
 /* A category's summary for a chart of categories (PLOT2_SPEC 7.1): stat "mean", "median", "sum" or "count"; err "none", or
    for the mean "sd" (n − 1), "se" (SD/√n) or "ci" (the t interval at conf), for the median "iqr" (the quartiles, R's type 7)

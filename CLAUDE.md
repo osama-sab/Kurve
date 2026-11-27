@@ -542,7 +542,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   `lcInt(lf, lo, hi, step)` (∫ e^lf over one peak: a scan, golden sections, each side's width where lf falls
   by 4.5, panels of that width to a fall of 46; `[M, S]`, e^M·S), `GK21`, `gk21`, `gkInt(f, pts, rtol, atol)`
   (adaptive Gauss–Kronrod), `nQ`, `rangeSf(w, k)` (P(range of k normals > w), 1 − (…) never formed; k = 2
-  closed), `lchiU(nu)` (ln of s's χ density times s, in ln s, Stirling's part apart), `overS(h, c, nu)` (∫ over
+  closed), `rangePdf(w, k)` (its density, the same way; `ctrlConst`'s d₃),
+  `lchiU(nu)` (ln of s's χ density times s, in ln s, Stirling's part apart), `overS(h, c, nu)` (∫ over
   s; ν past 10⁸ the normal's), `tukeySf(q, k, nu)`, `tailInv(sf, p, x0)` (secant on ln sf), `tukeyIsf`,
   `dunnettSf(c, lam, nu, two)` (λ_i = √(n_i/(n_i + n₀)), the inner integral by `gkInt` from each comparison's
   peak), `dunnettIsf`, `DIST.tukey`. Within 1e-15 of 40-digit references (`range.json`).
@@ -1635,8 +1636,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   rows both scores have; the sheet those tables (Youden's keys `y…`, the comparisons' `c…`) and each curve's `fpr<k>` (X),
   `tpr<k>`, `thr<k>`, and the diagonal `dx`, `dy`), form `#aRg`, `#aRp`, `#aRdir`, `#aCf`; the report's *ROC curve*
   (`anaRocPlot`: the curves and the diagonal dashed, the Y axis Sensitivity); Analyze › Statistics › ROC curve….
-  **Statistical charts** (PLOT2_SPEC 7.2; pure in the ANA block, before the categories' summaries): `ctrlConst(n)` (d₂ and d₃ of
-  the range of n normals by `gkInt` over `rangeSf`, n = 2 closed, c₄ by `lgam`; A₂, D₃, D₄, A₃, B₃, B₄; memoised in `CTRLC`, n 2 to
+  **Statistical charts** (PLOT2_SPEC 7.2; pure in the ANA block, before the categories' summaries): `ctrlConst(n)` (d₂ of
+  the range of n normals by `gkInt` over `rangeSf`, d₃ over `rangePdf` from (w − d₂)², no cancellation, n = 2 closed, c₄ by `lgam`; A₂, D₃, D₄, A₃, B₃, B₄; memoised in `CTRLC`, n 2 to
   1000), `CTRL_RULES` (Western Electric's four, Nelson's eight), `ctrlRules(z, set, v)` (`[{i, rules}]`, a point marked with the
   rules whose pattern it completes, a gap breaking a run), `CTRL_CHARTS`, `ctrlChart(o)` (`{chart, x, n, sub | size, rules, mu,
   sigma, p0, c0}` → `{chart, k, labels, sizes, A {name, v, cl, ucl, lcl, z}, B, centre, sigma, consts, left, marks, marksB}` or
@@ -5288,9 +5289,12 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
   deleting a declaration, grep its name.
 - **A reference's quadrature nodes are numbers too.** The control charts' d₃ was first worked out at 24 digits with Gauss–Legendre
   nodes and weights from NumPy, in doubles: the inner integral of a density came out some 1e-16 above 1, and 1 − F(w) integrated
-  against 2w out to 16 made the reference 1e-14 high, the same in both orders, which therefore agreed. Kurve was blamed, and its d₃
-  nearly rewritten, before the closed form for n = 3 (E[R²] = 2 + 3√3/π) showed Kurve right to the last digit and the reference wrong. Nodes
-  at the reference's precision, and a closed form checked inside the reference script itself.
+  against 2w out to 16 made the reference 1e-14 high, the same in both orders, which therefore agreed. Kurve was blamed before the closed form
+  for n = 3 (E[R²] = 2 + 3√3/π) showed Kurve right to the last digit there and the reference wrong (corrected, it showed Kurve's
+  E[R²] − d₂² up to 9e-15 off for other n, by cancellation, and d₃ is now from the density: 4e-16). Nodes
+  at the reference's precision, and a closed form checked inside the reference script itself. The same day SciPy's t.isf(0.005, 6)
+  was found 7e-15 off (Kurve's 3e-16), and a Q–Q band's top 1.5e-13 off in Kurve (1 − p near 1 taken from p): every quantile a
+  reference or Kurve needs near 1 is taken from the upper tail, and Student's t in a reference at 30 digits.
 - **1 − r is not computed as 1 − r.** The fuzzer's suite seed found hierarchical clustering's heights 3e-12 off SciPy's, and 50
   digits found both off: rows on an offset of 1000 lose the mean's rounding in every deviation, and 1 − d/(‖a‖‖b‖) cancels near
   r = 1. With the mean's rounding taken out and 1 − r as half the squared distance between the unit rows, Kurve is within 1e-14;

@@ -243,7 +243,9 @@ Done 27.11, as below, with these changes of plan: the Q–Q plot is a kind of it
 left as they were; the heat map is the hierarchical clustering's report action, with the analysis keeping its matrix (its `p.heat`)
 so the map follows the data, and a matrix's map takes names along its axes; a Pareto chart's names along X come from its text X,
 not `ax.x.cats`; graphs made one by one into a figure take their windows' room together (`stFigure`); the dialogs' lists start from
-the columns ticked. Measured: still to come (the constants' 24-digit reference).
+the columns ticked. Measured: the constants to 1.6e-15 of 24 digits (d₃ from the range's density; by E[R²] − d₂² it was up to 9e-15), the charts'
+limits 3.7e-15 and their rules exactly, Pareto exactly, Bland–Altman 1.0e-15, the meta-analysis 6.0e-15, the Q–Q quantiles 6.1e-15
+(from the upper tail near 1) and fits 1.2e-14; each run rule's false alarms at its exact rate.
 
 **What.**
 - **Q–Q plots further**: against the normal, log-normal, exponential, Weibull and gamma

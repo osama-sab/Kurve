@@ -1398,6 +1398,11 @@ def _vals7(n):
     v = rng.normal(0, 1, n) * lognum(-3, 3) + float(edge([0.0, 1e6, -1e3], lambda: rng.uniform(-50, 50)))
     if rng.random() < 0.2: v = np.round(v, int(rng.integers(0, 3)))
     return v
+def _tq7(p, nu):
+    """Student's t upper quantile at 30 digits (SciPy's t.isf is 7e-15 off at 6 degrees of freedom and p 0.005)."""
+    with mp.workdps(30):
+        f = lambda t: mp.betainc(mp.mpf(nu) / 2, mp.mpf(1) / 2, 0, nu / (nu + t * t), regularized=True) / 2 - mp.mpf(p)
+        return float(mp.findroot(f, mp.mpf(float(stats.t.isf(p, nu)))))
 def _msd7(x):
     F = [_Fr(float(t)) for t in x]; n = len(F); m = sum(F) / n
     var = sum((t - m) ** 2 for t in F) / (n - 1) if n > 1 else None
@@ -1419,7 +1424,7 @@ def _():
     else:
         m, sd, _, _ = _msd7(x); w["v"] = m
         if sd is not None:
-            h = sd if err == "sd" else sd / math.sqrt(n) if err == "se" else float(stats.t.isf((1 - conf) / 2, n - 1)) * sd / math.sqrt(n)
+            h = sd if err == "sd" else sd / math.sqrt(n) if err == "se" else _tq7((1 - conf) / 2, n - 1) * sd / math.sqrt(n)
             w["lo"], w["hi"] = m - h, m + h
     w["sc"] = float(max(np.max(np.abs(x)), 1e-300))
     return [x.tolist(), {"stat": stat, "err": err, "conf": conf}], w
@@ -1460,7 +1465,7 @@ def _():
     d = a - b if mode == "diff" else a / b if mode == "ratio" else (a - b) / ((a + b) / 2) * 100
     m, sd, M, V = _msd7(d)
     if not sd: raise ValueError("no spread")
-    z = float(stats.norm.isf((1 - conf) / 2)); t_ = float(stats.t.isf((1 - conf) / 2, n - 1))
+    z = float(stats.norm.isf((1 - conf) / 2)); t_ = _tq7((1 - conf) / 2, n - 1)
     return [a.tolist(), b.tolist(), {"mode": mode, "conf": conf}], {"bias": m, "sd": sd, "lo": m - z * sd, "hi": m + z * sd, "bci": [m - t_ * sd / math.sqrt(n), m + t_ * sd / math.sqrt(n)],
              "lci": [m - z * sd - t_ * sd * math.sqrt(3 / n), m - z * sd + t_ * sd * math.sqrt(3 / n)], "sc": max(abs(m), sd)}
 def ba_post(c, out):
@@ -1510,7 +1515,7 @@ def par_post(c, out):
     e = max(max(abs(val(r["v"]) - q[1]) / max(abs(q[1]), 1e-300), abs(val(r["pct"]) - q[2]) / 100, abs(val(r["cum"]) - q[3]) / 100) for r, q in zip(out["rows"], w["rows"]))
     return e, f"sums and shares {e:.2e}"
 POST["paretoOf"] = par_post
-@gen("qqData", 1e-12, 0.3)
+@gen("qqData", 3e-14, 0.3)
 def _():
     dist = str(rng.choice(["normal", "lognormal", "exp", "weibull", "gamma"])); n = int(edge([3, 4], lambda: int(rng.integers(3, 150))))
     x = np.sort(rng.normal(float(rng.uniform(-5, 5)), 1, n) * lognum(-2, 2) if dist == "normal" else (rng.weibull(float(rng.uniform(0.6, 4)), n) if dist == "weibull" else rng.gamma(float(rng.uniform(0.5, 8)), 1, n) if dist == "gamma" else rng.lognormal(0, float(rng.uniform(0.2, 1.5)), n)) * lognum(-2, 3))

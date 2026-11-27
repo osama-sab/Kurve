@@ -9,10 +9,11 @@ and qqData, fixtures/plot2-stats.json.
   with the constants above; the Western Electric rules (Western Electric 1956, Montgomery 5.3.6) and Nelson's eight (Nelson 1984)
   written again in plain Python, marking the point that completes each pattern.
 - Pareto: pandas' groupby sum, sorted descending, ties in the order first seen (a stable sort).
-- Bland and Altman (1999): NumPy, the t quantile by SciPy.
+- Bland and Altman (1999): NumPy, the t quantile at 30 digits (SciPy's, 7e-15 off at 6 degrees of freedom, a check no more).
 - Meta-analysis: statsmodels' combine_effects (fixed and DerSimonian-Laird), its Q, I2 and tau2; where statsmodels leaves tau2 below zero
   (Q < df) it is truncated at 0 as DerSimonian and Laird (1986) do, and the random effects are then the fixed effect.
-- Q-Q plots: maximum likelihood with the location 0 solved at 30 digits (SciPy's weibull_min.fit and gamma.fit as a check), the plotting positions written
+- Q-Q plots: maximum likelihood with the location 0 solved at 30 digits (SciPy's weibull_min.fit and gamma.fit as a check), the quantiles at
+  30 digits at the exact positions from whichever tail is the smaller (the band's beta quantiles by SciPy from lower tails), the plotting positions written
   from their definitions (Filliben's as SciPy's probplot computes them), the band from beta.ppf, the quantiles by SciPy.
 
 Usage: PYREF=$SC/pyref python3.13 -I tools/ref/plot2_stats.py   (writes fixtures/plot2-stats.json)
@@ -235,6 +236,11 @@ par("summed", ["A", "B", "C", "A", "D", "B", "E", "C", "A"], [3.5, 12.25, 1.0, 4
 par("ties", ["x", "y", "z", "w"], [2.0, 3.0, 2.0, 3.0])
 
 # ---- Bland-Altman
+def t_isf_mp(p, nu):
+    # Student's t at 30 digits: SciPy's t.isf is some 7e-15 off at 6 degrees of freedom and p 0.005
+    with mp.workdps(30):
+        f = lambda t: mp.betainc(mp.mpf(nu) / 2, mp.mpf(1) / 2, 0, nu / (nu + t * t), regularized=True) / 2 - mp.mpf(p)
+        return float(mp.findroot(f, mp.mpf(float(stats.t.isf(p, nu)))))
 bland = []
 for name, n, mode in [("diff", 40, "diff"), ("pct", 25, "pct"), ("ratio", 30, "ratio"), ("small", 5, "diff")]:
     t = rng.uniform(50, 150, n); a = t + rng.normal(1.5, 4, n); b = t * 1.01 + rng.normal(0, 3, n)
@@ -243,7 +249,7 @@ for name, n, mode in [("diff", 40, "diff"), ("pct", 25, "pct"), ("ratio", 30, "r
     else: dd_ = (a - b) / ((a + b) / 2) * 100
     m = (a + b) / 2; bias = dd_.mean(); sd_ = dd_.std(ddof=1)
     for conf in (0.95, 0.9):
-        zq = stats.norm.isf((1 - conf) / 2); tq = stats.t.isf((1 - conf) / 2, n - 1); sb = sd_ / math.sqrt(n); sl = sd_ * math.sqrt(3 / n)
+        zq = stats.norm.isf((1 - conf) / 2); tq = t_isf_mp((1 - conf) / 2, n - 1); sb = sd_ / math.sqrt(n); sl = sd_ * math.sqrt(3 / n)
         lo, hi = bias - zq * sd_, bias + zq * sd_
         bland.append({"name": f"{name} at {conf}", "a": list(map(float, a)), "b": list(map(float, b)), "mode": mode, "conf": conf,
                       "want": {"n": n, "m": list(map(float, m)), "d": list(map(float, dd_)), "bias": float(bias), "sd": float(sd_), "lo": float(lo), "hi": float(hi),
@@ -280,6 +286,10 @@ def pos(n, kind):
 # Maximum likelihood with the location 0, solved at 30 digits: SciPy's optimiser stops a few parts in 10^5 short of the maximum, so it is
 # only a check here. Weibull: the shape k solves sum x^k ln x / sum x^k - 1/k = mean ln x, the scale (mean x^k)^(1/k). Gamma: the shape a
 # solves ln a - digamma(a) = ln mean - mean ln x, the scale mean / a.
+def _ms(x):
+    from fractions import Fraction as Fr
+    F = [Fr(float(t)) for t in x]; n = len(F); m = sum(F) / n; v = sum((t - m) ** 2 for t in F) / (n - 1)
+    with mp.workdps(40): return float(m), float(mp.sqrt(mp.mpf(v.numerator) / v.denominator))
 def weib_mle(x):
     with mp.workdps(30):
         X = [mp.mpf(float(v)) for v in x]; L = [mp.log(v) for v in X]; mL = mp.fsum(L) / len(X)
@@ -296,20 +306,51 @@ def gamma_mle(x):
         return float(a), float(m / a)
 qq = []
 samples = {"normal": rng.normal(5, 2, 37), "lognormal": rng.lognormal(0.5, 0.6, 52), "exp": rng.exponential(3, 44), "weibull": rng.weibull(1.7, 60) * 4, "gamma": rng.gamma(2.5, 1.3, 48), "small": rng.normal(0, 1, 8)}
-for name, x in samples.items():
+def pos_mp(n, kind):
+    """The positions as exact numbers at 30 digits, with 1 - p as such (Filliben's ends by expm1)."""
+    a = mp.mpf(3) / 8 if n <= 10 else mp.mpf(1) / 2; out = []
+    for i in range(1, n + 1):
+        def one(j):
+            if kind == "blom": return (j - mp.mpf(3) / 8) / (n + mp.mpf(1) / 4)
+            if kind == "weibull": return mp.mpf(j) / (n + 1)
+            if kind == "hazen": return (j - mp.mpf(1) / 2) / n
+            if kind == "filliben":
+                if j == n: return mp.mpf(1) / 2 ** (mp.mpf(1) / n)
+                if j == 1: return -mp.expm1(mp.log(mp.mpf(1) / 2) / n)
+                return (j - mp.mpf("0.3175")) / (n + mp.mpf("0.365"))
+            return (j - a) / (n + 1 - 2 * a)
+        out.append((one(i), one(n + 1 - i)))
+    return out
+def qmaker(dist, par_):
+    """The fitted quantile at 30 digits from whichever tail is the smaller (u, w = 1 - u, both given)."""
+    P = [mp.mpf(float(t)) for t in par_]
+    z = lambda u, w: mp.sqrt(2) * mp.erfinv(2 * u - 1) if u <= 0.5 else -mp.sqrt(2) * mp.erfinv(2 * w - 1)
+    if dist == "normal": return lambda u, w: P[0] + P[1] * z(u, w)
+    if dist == "lognormal": return lambda u, w: mp.exp(P[0] + P[1] * z(u, w))
+    if dist == "exp": return lambda u, w: (-mp.log1p(-u) if u <= 0.5 else -mp.log(w)) / P[0]
+    if dist == "weibull": return lambda u, w: P[1] * (-mp.log1p(-u) if u <= 0.5 else -mp.log(w)) ** (1 / P[0])
+    def g(u, w):   # the gamma's by Newton on the regularised incomplete gamma, from SciPy's double
+        x0 = mp.mpf(float(stats.gamma.ppf(float(u), float(P[0]))) if u <= 0.5 else float(stats.gamma.isf(float(w), float(P[0]))))
+        f = (lambda t: mp.gammainc(P[0], 0, t, regularized=True) - u) if u <= 0.5 else (lambda t: mp.gammainc(P[0], t, mp.inf, regularized=True) - w)
+        return mp.findroot(f, x0) * P[1]
+    return g
+with mp.workdps(30):
+  for name, x in samples.items():
     x = np.sort(x.astype(float)); n = len(x)
     for dist in (["normal", "lognormal", "exp", "weibull", "gamma"] if name != "small" else ["normal"]):
         if dist in ("lognormal", "weibull", "gamma", "exp") and (x <= 0).any(): continue
-        if dist == "normal": m, s = x.mean(), x.std(ddof=1); Q = lambda u: m + s * stats.norm.ppf(u); par_ = [m, s]
-        elif dist == "lognormal": L = np.log(x); m, s = L.mean(), L.std(ddof=1); Q = lambda u: np.exp(m + s * stats.norm.ppf(u)); par_ = [m, s]
-        elif dist == "exp": lam = 1 / x.mean(); Q = lambda u: -np.log1p(-u) / lam; par_ = [lam]
-        elif dist == "weibull": c, sc = weib_mle(x); Q = lambda u: stats.weibull_min.ppf(u, c, scale=sc); par_ = [c, sc]
-        else: a, sc = gamma_mle(x); Q = lambda u: stats.gamma.ppf(u, a, scale=sc); par_ = [a, sc]
+        if dist == "normal": m, s = _ms(x); par_ = [m, s]
+        elif dist == "lognormal": m, s = _ms(np.log(x)); par_ = [m, s]
+        elif dist == "exp": par_ = [float(1 / (mp.fsum(mp.mpf(float(t)) for t in x) / n))]
+        elif dist == "weibull": par_ = list(weib_mle(x))
+        else: par_ = list(gamma_mle(x))
+        Q = qmaker(dist, par_)
         for pk in ["r", "blom", "filliben", "weibull", "hazen"]:
-            p = pos(n, pk); xq = Q(p)
-            i = np.arange(1, n + 1)
-            lo = Q(stats.beta.ppf(0.025, i, n - i + 1)); hi = Q(stats.beta.isf(0.025, i, n - i + 1))
-            q1, q3 = np.percentile(x, 25), np.percentile(x, 75); t1, t3 = Q(0.25), Q(0.75); b = (q3 - q1) / (t3 - t1)
+            xq = [Q(u, w) for u, w in pos_mp(n, pk)]; i = np.arange(1, n + 1)
+            # each order statistic's band: its beta quantiles from lower tails (1 - Beta(i, n + 1 - i) is Beta(n + 1 - i, i)), by SciPy
+            lo = [Q(mp.mpf(float(stats.beta.ppf(0.025, k, n - k + 1))), mp.mpf(float(stats.beta.isf(0.025, n - k + 1, k)))) for k in i]
+            hi = [Q(mp.mpf(float(stats.beta.isf(0.025, k, n - k + 1))), mp.mpf(float(stats.beta.ppf(0.025, n - k + 1, k)))) for k in i]
+            q1, q3 = np.percentile(x, 25), np.percentile(x, 75); t1, t3 = Q(mp.mpf(0.25), mp.mpf(0.75)), Q(mp.mpf(0.75), mp.mpf(0.25)); b = (q3 - q1) / (t3 - t1)
             qq.append({"name": f"{name} as {dist}, {pk}", "vals": list(map(float, x)), "dist": dist, "pos": pk, "par": list(map(float, par_)),
                        "want": {"x": list(map(float, xq)), "lo": list(map(float, lo)), "hi": list(map(float, hi)), "qa": float(q1 - b * t1), "qb": float(b)}})
 # SciPy's own probplot positions agree with Filliben's written above

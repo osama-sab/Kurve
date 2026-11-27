@@ -1047,12 +1047,18 @@ report, followed when its data change, and its report's button draws it from the
 - The dialogs' lists of columns start from the columns ticked; a figure made of graphs just plotted takes their room together;
   a matrix's map takes names along its axes.
 
-Checked so far: `tools/plot2-drive.mjs` 7.2 (56: each dialog's defaults from the columns ticked, every chart's numbers against its pure
-function, each drawn, undone, a value followed, junk settings, refusals, a reload; the heat map's cells against the scaled data and its
-order against the variables' own linkage; every dialog at 390 px); `tools/stats-test.mjs` (each run rule's marks on 400 000 in-control
-points at its exact rate, σ̂ unbiased, the Bland–Altman and fixed-effect intervals' coverage); the fuzzer's new generators (catSummary,
-pieSlices, blandAltman, metaAnalysis, paretoOf, qqData: 1.7e-16 to 5.8e-15; Kurve's digamma, 1e-11 off, extended); ana-drive and
-mv-drive unchanged. The control-chart constants' 24-digit reference is still being worked out.
+Checked: `tools/ref/plot2_stats.py` (the constants d₂ and d₃ at 24 digits, checked against n = 3's closed form; eleven charts from
+Montgomery; Pareto by pandas; Bland–Altman with Student's t at 30 digits; statsmodels' meta-analysis with τ² truncated as DerSimonian
+and Laird do; Q–Q quantiles at 30 digits from the smaller tail) through ref-test (the constants 1.6e-15, the charts' limits 3.7e-15 and
+their rules exactly, Pareto exactly, Bland–Altman 1.0e-15, the meta-analysis 6.0e-15, the Q–Q quantiles 6.1e-15 and fits 1.2e-14);
+`tools/plot2-drive.mjs` 7.2 (56: each dialog's defaults from the columns ticked, every chart's numbers against its pure function, each
+drawn, undone, a value followed, junk settings, refusals, a reload; the heat map's cells against the scaled data and its order against
+the variables' own linkage; every dialog at 390 px); `tools/stats-test.mjs` (each run rule's marks on 400 000 in-control points at its
+exact rate, σ̂ unbiased, the Bland–Altman and fixed-effect intervals' coverage); the fuzzer's new generators (catSummary, pieSlices,
+blandAltman, metaAnalysis, paretoOf, qqData: 1.4e-16 to 3.0e-15); ana-drive, mv-drive, plot-drive, ds-test and 7.1 unchanged. Found on
+the way: Kurve's digamma 1e-11 off (a gamma Q–Q plot's quantiles 2e-11), d₃ by E[R²] − d₂² up to 9e-15 off (now from the range's
+density, 4e-16), a Q–Q band's top 1.5e-13 off (now from the upper tail); and in the references, NumPy's double-precision quadrature
+nodes biasing d₃ 1e-14, SciPy's t.isf 7e-15 off, statsmodels' table at 95 % whatever was asked.
 
 ## Plots, wave 7, slice 7.1: charts of categories (2026-11-26)
 
