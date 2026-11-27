@@ -910,6 +910,26 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-27: Statistical charts (PLOT2_SPEC 7.2)
+
+- **A chart is an analysis that draws.** A control chart, a Pareto chart, a Bland–Altman plot, a forest plot and a Q–Q plot are each
+  an analysis with a result sheet and a report, as the statistics are; the graph is drawn from the sheet's columns by the report's
+  button. So the numbers are in the worksheet and the report, follow their data, are undone in one step, and the graph is an
+  ordinary graph (formatted, exported, put in a figure) rather than a special picture.
+- **Numbers, not verdicts** (principle 8). A control chart rings the points that break a rule and writes the rule's number beside
+  each; nothing says a process is in or out of control. A Bland–Altman plot gives the bias and the limits with their intervals and
+  no "agreement is good"; a forest plot gives Q, I² and τ² and no "heterogeneous".
+- **The limits look like limits.** Centre lines green, limits red and dashed, as every quality chart draws them; limits that change
+  with the subgroup's size are steps, not lines between points. Two charts (X̄ and R) are one figure sharing X, with the legends
+  outside the plot so no point is hidden.
+- **A dialog's lists start from what is ticked.** Choosing the columns for a role (Method A, Estimates, Values) starts from the
+  columns ticked in the dialog's list, in order; ticking and then choosing them again was repeating oneself.
+- **Graphs made together take their room together.** A figure made of graphs that were just plotted takes the space their windows
+  had, not the half of one, and its first panel is in hand.
+- **A heat map shows its trees beside it.** The clustered rows and columns of a heat map only mean something next to the
+  dendrograms that ordered them; the figure lines each leaf up with its row or column (the axes' limits at the cells' edges, the
+  side tree's root at the left), and the map's colours run cool to warm about zero, since the values are scaled.
+
 ### 2026-11-26: Charts of categories (PLOT2_SPEC 7.1)
 
 - **New kinds are layouts.** A pie, a dot plot, means and columns by category are a graph's layout, as the box chart is, so the

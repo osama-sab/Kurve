@@ -113,6 +113,19 @@ ImageProcessor.updateComposite with Java's int arithmetic, the tables from `fixt
 `fixtures/ij-scalebar.json`; ref-test's `ijScaleBar.numbers`, `ijScaleBar.bars` and `ijComposite.colours` (exact).
 Usage: `PYREF=$SC/pyref python3.13 -I tools/ref/ij_scalebar.py`.
 
+`tools/ref/plot2_fixtures.py` (PLOT2_SPEC 7.1) is the charts of categories' numbers: each category's mean against exact rationals, its
+SD and SE, the t interval by SciPy, the median and quartiles (NumPy's linear) and the median's interval from the order statistics as
+the sign test gives it; the pies' shares and slices' ends from exact sums. `fixtures/plot2-cats.json`; ref-test's `catSummary.values`,
+`.order` and `pieSlices`.
+`tools/ref/plot2_stats.py` (PLOT2_SPEC 7.2) is the statistical charts': the control charts' constants d₂ and d₃ from the range's
+distribution in mpmath at 24 digits (d₂ one integral, E[R²] = ∫ 2w P(R > w) dw by Gauss–Legendre panels at two orders agreeing to
+1e-18), c₄ by the gamma function, checked against Montgomery's table; eleven charts written again from Montgomery (2019) with the
+rules in plain Python; Pareto by pandas; Bland and Altman (1999) in NumPy; statsmodels' `combine_effects` (τ² truncated at 0 where
+statsmodels leaves it below, as DerSimonian and Laird do, and its table asked for the level); Q–Q plots with the Weibull and gamma
+fitted at 30 digits (SciPy's fits, a few parts in 10⁵ short, a check), the quantiles and the band by SciPy. `fixtures/plot2-stats.json`
+(the constants kept as they come in `fixtures/.ctrl-const2.json`, so a run cut short starts where it stopped); ref-test's `ctrlConst`,
+`ctrlChart.limits`, `.rules`, `paretoOf`, `blandAltman`, `metaAnalysis`, `qqData.quantiles` and `.fit`.
+
 ImageJ's own readout, where its jar may be run:
 
 ```sh

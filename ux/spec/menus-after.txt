@@ -391,10 +391,16 @@ Analyze  ## ~ "Analysis"; + Statistics and Spectroscopy (DS2): measuring, in one
     Multivariate  ## + (MULTI_SPEC, wave 6): many variables at once, columns as variables or curves as observations
       Principal component analysis…  ## + (MULTI_SPEC 6.2): eigenvalues, loadings, scores, Hotelling's T² and Q with their limits; scree, scores, loadings, T²–Q plots and the biplot
       k-means clustering…  ## + (MULTI_SPEC 6.3): k-means++ starts from a seed, restarts, silhouettes, k compared; the clusters into the data
-      Hierarchical clustering…  ## + (MULTI_SPEC 6.3): Ward's, average, complete, single; Euclidean or 1 − r; the dendrogram
+      Hierarchical clustering…  ## + (MULTI_SPEC 6.3): Ward's, average, complete, single; Euclidean or 1 − r; the dendrogram; (PLOT2_SPEC 7.2) a heat map with both dendrograms from the report
       Discriminant analysis…  ## + (MULTI_SPEC 6.4): canonical functions, Wilks' Λ, coefficients and structure, Fisher's classification, the classification table also left one out
       PLS regression…  ## + (MULTI_SPEC 6.5): responses from many variables or curves, NIPALS or SIMPLS, the number of components by cross-validation, coefficients, VIP, predictions
     ROC curve…  ## + (STATS_SPEC 2.12) the area with DeLong's interval, Youden's cut-off, scores compared, the curve
+    Statistical charts  ## + (PLOT2_SPEC 7.2): Origin's statistical graphs, each an analysis with its result sheet that draws
+      Q–Q plot…  ## + normal, log-normal, exponential, Weibull or gamma fitted, five plotting positions, the line and a band
+      Pareto chart…  ## + counted or summed by category from the largest, the running share on a right axis
+      Control chart…  ## + X̄–R, X̄–S, I–MR, p, np, c, u; limits from the data or typed; Western Electric's or Nelson's rules marked
+      Bland–Altman plot…  ## + differences, ratios or percentages against the means; the bias and limits with their intervals
+      Forest plot…  ## + fixed and DerSimonian–Laird effects, Q, I², τ²; ratios on a log scale
     Power and sample size…  ## + (STATS_SPEC 2.11) t tests, one-way ANOVA, proportions, variances, χ²: power at sizes, the size for a power, a power curve
     Histogram…  ## ~ "Histogram of the values"; now takes the selected columns
   Spectroscopy  ## ← the Spectroscopy menu (DS2): the toolkit, gathered from Data, Math, Analysis, Statistics and Plot

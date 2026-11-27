@@ -7937,6 +7937,171 @@ function pieSlices(items,sort){ let left=0; const sl=[];
   sl.forEach(z=>{ z.share=z.v/tot; z.a=(s0+c)/tot; const t=s0+z.v; c+=Math.abs(s0)>=Math.abs(z.v)?(s0-t)+z.v:(z.v-t)+s0; s0=t; z.b=Math.min(1,(s0+c)/tot); });
   if(sl.length) sl[sl.length-1].b=1;
   return {slices:sl,tot,left}; }
+/* ---- Statistical charts (PLOT2_SPEC 7.2), pure ----
+   Control charts (Montgomery, Introduction to Statistical Quality Control, 2019): `ctrlConst(n)` the constants of a subgroup of
+   n normal values, d₂ = E[R]/σ and d₃ = SD(R)/σ worked out from the range's tail (∫₀^∞ P(R > w) dw and ∫₀^∞ 2w P(R > w) dw by
+   Gauss–Kronrod over `rangeSf`, n = 2 in closed form), c₄ = √(2/(n − 1)) Γ(n/2)/Γ((n − 1)/2), memoised; and from them A₂ = 3/(d₂√n),
+   D₃ = max(0, 1 − 3d₃/d₂), D₄ = 1 + 3d₃/d₂, A₃ = 3/(c₄√n), B₃ = max(0, 1 − 3√(1 − c₄²)/c₄), B₄ = 1 + 3√(1 − c₄²)/c₄. */
+const CTRLC=new Map();
+function ctrlConst(n){ if(!(Number.isInteger(n)&&n>=2&&n<=1000)) return null; let c=CTRLC.get(n); if(c) return c;
+  let d2, d3;
+  if(n===2){ d2=2/Math.sqrt(Math.PI); d3=Math.sqrt(2-4/Math.PI); }
+  else { const pts=[0,0.5,1,1.5,2,2.5,3,3.5,4,5,6,7,8,10,12,16,24,40]; d2=gkInt(w=>rangeSf(w,n),pts,1e-15,0); const m2=gkInt(w=>2*w*rangeSf(w,n),pts,1e-15,0); d3=Math.sqrt(Math.max(0,m2-d2*d2)); }
+  const c4=Math.sqrt(2/(n-1))*Math.exp(lgam(n/2)-lgam((n-1)/2)), r=Math.sqrt(Math.max(0,1-c4*c4))/c4;
+  c={n,d2,d3,c4,A2:3/(d2*Math.sqrt(n)),D3:Math.max(0,1-3*d3/d2),D4:1+3*d3/d2,A3:3/(c4*Math.sqrt(n)),B3:Math.max(0,1-3*r),B4:1+3*r};
+  CTRLC.set(n,c); return c; }
+/* The run rules on a chart's points (z each point's distance from the centre in its own σ, null for a gap that breaks a run):
+   Western Electric's four ("we") or Nelson's eight ("nelson"). A point is marked with the rules whose pattern it completes.
+   [{i, rules:[…]}], in order. */
+const CTRL_RULES={we:["One point beyond 3σ","Two of three beyond 2σ on one side","Four of five beyond 1σ on one side","Eight in a row on one side"],
+  nelson:["One point beyond 3σ","Nine in a row on one side","Six in a row rising or falling","Fourteen in a row alternating up and down","Two of three beyond 2σ on one side","Four of five beyond 1σ on one side","Fifteen in a row within 1σ","Eight in a row beyond 1σ, either side"]};
+function ctrlRules(z,set,v){ const n=z.length, out=[]; if(set==="none") return out; v=v||z;
+  const win=(i,len)=>{ if(i-len+1<0) return null; const w=[]; for(let j=i-len+1;j<=i;j++){ if(z[j]==null||!Number.isFinite(z[j])) return null; w.push(j); } return w; };
+  const kOf=(i,len,k,lim)=>{ const w=win(i,len); if(!w) return false; const s=Math.sign(z[i]); if(!(Math.abs(z[i])>lim)) return false; return w.filter(j=>Math.sign(z[j])===s&&Math.abs(z[j])>lim).length>=k; };
+  const side=(i,len)=>{ const w=win(i,len); if(!w) return false; const s=Math.sign(z[i]); return s!==0&&w.every(j=>Math.sign(z[j])===s); };
+  for(let i=0;i<n;i++){ if(z[i]==null||!Number.isFinite(z[i])) continue; const r=[];
+    if(set==="nelson"){
+      if(Math.abs(z[i])>3) r.push(1);
+      if(side(i,9)) r.push(2);
+      { const w=win(i,6); if(w&&(w.every((j,q)=>q===0||v[j]>v[w[q-1]])||w.every((j,q)=>q===0||v[j]<v[w[q-1]]))) r.push(3); }
+      { const w=win(i,14); if(w&&w.every((j,q)=>q<2||Math.sign(v[j]-v[w[q-1]])*Math.sign(v[w[q-1]]-v[w[q-2]])<0)&&w.every((j,q)=>q===0||v[j]!==v[w[q-1]])) r.push(4); }
+      if(kOf(i,3,2,2)) r.push(5);
+      if(kOf(i,5,4,1)) r.push(6);
+      { const w=win(i,15); if(w&&w.every(j=>Math.abs(z[j])<1)) r.push(7); }
+      { const w=win(i,8); if(w&&w.every(j=>Math.abs(z[j])>1)&&w.some(j=>z[j]>1)&&w.some(j=>z[j]<-1)) r.push(8); } }
+    else {
+      if(Math.abs(z[i])>3) r.push(1);
+      if(kOf(i,3,2,2)) r.push(2);
+      if(kOf(i,5,4,1)) r.push(3);
+      if(side(i,8)) r.push(4); }
+    if(r.length) out.push({i,rules:r}); }
+  return out; }
+/* A control chart's numbers. o: {chart: "xbar-r"|"xbar-s"|"imr"|"p"|"np"|"c"|"u", x (the values, or the defectives or counts, by row),
+   n (the subgroups' sizes or units by row, for p, np, u; or one number), sub (each row's subgroup key, for X̄ charts) or size (rows
+   a subgroup, taken in order), rules ("we", "nelson", "none"), mu, sigma (typed: the centre and σ for X̄ and I charts), p0, c0 (typed:
+   p̄, or c̄ and ū)}. {chart, k, labels, sizes, A {name, v, cl, ucl, lcl, z}, B (the R, S or MR chart, or null), centre, sigma, consts,
+   left, marks (A's), marksB (B's points past their limits)} or {fail} in words. */
+const CTRL_CHARTS=[["xbar-r","X̄ and R"],["xbar-s","X̄ and S"],["imr","Individuals and moving range"],["p","p (proportion defective)"],["np","np (number defective)"],["c","c (count of defects)"],["u","u (defects per unit)"]];
+function ctrlChart(o){ const chart=o.chart||"xbar-r", rules=o.rules||"we", X=o.x||[], N=X.length; let left=0;
+  const num=v=>v!=null&&Number.isFinite(+v)&&v!==""?+v:null, typed=v=>v!=null&&v!==""&&Number.isFinite(+v);
+  const fin=(a,b,ucl,lcl,cl,zf,name,bname,sizes,labels,extra)=>{ const z=a.map((v,i)=>v==null?null:zf(i,v)), A={name,v:a,cl,ucl,lcl,z};
+    const out=Object.assign({chart,k:a.length,labels,sizes,A,B:b,left,marks:ctrlRules(z,rules,a),marksB:b?b.v.map((v,i)=>v!=null&&(v>b.ucl[i]+1e-12*Math.abs(b.ucl[i])||(b.lcl[i]!=null&&v<b.lcl[i]-1e-12*Math.abs(b.lcl[i])))?{i,rules:[1]}:null).filter(Boolean):[]},extra);
+    return out; };
+  if(chart==="xbar-r"||chart==="xbar-s"){ const groups=[], labels=[];
+    if(o.sub){ const at=new Map(); for(let i=0;i<N;i++){ const k=o.sub[i]; if(k==null||k===""){ if(num(X[i])!=null) left++; continue; } const key=typeof k==="number"?"n"+k:"s"+k; if(!at.has(key)){ at.set(key,groups.length); groups.push([]); labels.push(typeof k==="number"?fmt(k,8):String(k)); } const v=num(X[i]); if(v==null) continue; groups[at.get(key)].push(v); } }
+    else { const m=Math.round(+o.size); if(!(m>=2)) return {fail:"Give the subgroup's size (2 or more) or a column of subgroups."};
+      const vals=[]; for(let i=0;i<N;i++){ const v=num(X[i]); if(v!=null) vals.push(v); }
+      for(let i=0;i+m<=vals.length;i+=m){ groups.push(vals.slice(i,i+m)); labels.push(String(groups.length)); } left+=vals.length%m; }
+    const G=[], L=[]; groups.forEach((g,i)=>{ if(g.length>=2){ G.push(g); L.push(labels[i]); } else left+=g.length; });
+    if(G.length<2) return {fail:"A control chart needs two subgroups of two values or more."};
+    const sizes=G.map(g=>g.length), eq=sizes.every(n=>n===sizes[0]);
+    if(chart==="xbar-r"&&!eq) return {fail:"X̄ and R needs subgroups of one size: choose X̄ and S for subgroups of different sizes."};
+    if(sizes.some(n=>n>1000)) return {fail:"A subgroup has more than 1000 values."};
+    const xb=G.map(g=>neuSum(g)/g.length), tot=sizes.reduce((a,b)=>a+b,0), xbb=typed(o.mu)?+o.mu:neuSum(G.map((g,i)=>xb[i]*g.length))/tot;
+    if(chart==="xbar-r"){ const n=sizes[0], C=ctrlConst(n), R=G.map(g=>{ let a=g[0], b=g[0]; for(const v of g){ if(v<a) a=v; if(v>b) b=v; } return b-a; }), Rb=neuSum(R)/R.length;
+      const sig=typed(o.sigma)?+o.sigma:Rb/C.d2, Rc=typed(o.sigma)?C.d2*sig:Rb, h=3*sig/Math.sqrt(n);
+      return fin(xb,{name:"R",v:R,cl:R.map(()=>Rc),ucl:R.map(()=>typed(o.sigma)?(C.d2+3*C.d3)*sig:C.D4*Rb),lcl:R.map(()=>typed(o.sigma)?Math.max(0,(C.d2-3*C.d3)*sig):C.D3*Rb)},
+        xb.map(()=>xbb+h),xb.map(()=>xbb-h),xb.map(()=>xbb),(i,v)=>(v-xbb)/(sig/Math.sqrt(n)),"X̄","R",sizes,L,{centre:xbb,sigma:sig,consts:C,rbar:Rb}); }
+    const S2=G.map((g,i)=>{ const m=xb[i]; return neuSum(g.map(v=>(v-m)*(v-m)))/(g.length-1); }), Sd=S2.map(Math.sqrt);
+    const Sb=eq?neuSum(Sd)/Sd.length:Math.sqrt(neuSum(S2.map((v,i)=>v*(sizes[i]-1)))/neuSum(sizes.map(n=>n-1)));
+    const C0=ctrlConst(eq?sizes[0]:Math.round(tot/sizes.length)), sig=typed(o.sigma)?+o.sigma:(eq?Sb/C0.c4:Sb/C0.c4);
+    const Ci=sizes.map(n=>ctrlConst(n)), useSig=typed(o.sigma);
+    return fin(xb,{name:"S",v:Sd,cl:Ci.map(c=>useSig?c.c4*sig:Sb),ucl:Ci.map(c=>useSig?(c.c4+3*Math.sqrt(1-c.c4*c.c4))*sig:c.B4*Sb),lcl:Ci.map(c=>useSig?Math.max(0,(c.c4-3*Math.sqrt(1-c.c4*c.c4))*sig):c.B3*Sb)},
+      Ci.map((c,i)=>useSig?xbb+3*sig/Math.sqrt(sizes[i]):xbb+c.A3*Sb),Ci.map((c,i)=>useSig?xbb-3*sig/Math.sqrt(sizes[i]):xbb-c.A3*Sb),xb.map(()=>xbb),
+      (i,v)=>(v-xbb)/((useSig?sig:Sb/Ci[i].c4)/Math.sqrt(sizes[i])),"X̄","S",sizes,L,{centre:xbb,sigma:useSig?sig:Sb/C0.c4,consts:eq?C0:null,sbar:Sb}); }
+  if(chart==="imr"){ const v=[], L=[]; for(let i=0;i<N;i++){ const x=num(X[i]); if(x==null){ continue; } v.push(x); L.push(String(i+1)); }
+    if(v.length<3) return {fail:"Individuals and moving range needs three values or more."};
+    const MR=v.map((x,i)=>i?Math.abs(x-v[i-1]):null), mr=MR.slice(1), MRb=neuSum(mr)/mr.length, C=ctrlConst(2), mu=typed(o.mu)?+o.mu:neuSum(v)/v.length, sig=typed(o.sigma)?+o.sigma:MRb/C.d2;
+    const MRc=typed(o.sigma)?C.d2*sig:MRb;
+    return fin(v,{name:"MR",v:MR,cl:MR.map(()=>MRc),ucl:MR.map(()=>typed(o.sigma)?(C.d2+3*C.d3)*sig:C.D4*MRb),lcl:MR.map(()=>0)},v.map(()=>mu+3*sig),v.map(()=>mu-3*sig),v.map(()=>mu),(i,x)=>(x-mu)/sig,"X","MR",v.map(()=>1),L,{centre:mu,sigma:sig,consts:C,mrbar:MRb}); }
+  // Attributes: a row a subgroup; its size from the column of sizes or the one typed.
+  const nOf=i=>Array.isArray(o.n)?num(o.n[i]):typed(o.n)?+o.n:null, rows=[];
+  for(let i=0;i<N;i++){ const d=num(X[i]), n=nOf(i); if(d==null){ continue; } if(d<0) return {fail:`Row ${i+1}: a count below zero.`};
+    if(chart!=="c"){ if(n==null||!(n>0)) return {fail:`Row ${i+1} has no size above zero: give a column of sizes or the size.`}; if((chart==="p"||chart==="np")&&d>n) return {fail:`Row ${i+1}: ${fmt(d,6)} defective of ${fmt(n,6)}.`}; }
+    rows.push({i,d,n}); }
+  if(rows.length<2) return {fail:"A control chart needs two subgroups or more."};
+  const L=rows.map(r=>String(r.i+1)), sizes=rows.map(r=>r.n);
+  if(chart==="p"||chart==="np"){ const D=neuSum(rows.map(r=>r.d)), T=neuSum(rows.map(r=>r.n)), pb=typed(o.p0)?+o.p0:D/T;
+    if(!(pb>0&&pb<1)) return {fail:pb<=0?"No defectives at all: p̄ is 0 and the limits are nothing.":"Every one defective: p̄ is 1."};
+    if(chart==="np"&&!sizes.every(n=>n===sizes[0])) return {fail:"np needs subgroups of one size: choose p for different sizes."};
+    const sd=n=>Math.sqrt(pb*(1-pb)/n);
+    if(chart==="p") return fin(rows.map(r=>r.d/r.n),null,rows.map(r=>Math.min(1,pb+3*sd(r.n))),rows.map(r=>Math.max(0,pb-3*sd(r.n))),rows.map(()=>pb),(i,v)=>(v-pb)/sd(rows[i].n),"p",null,sizes,L,{centre:pb,sigma:null});
+    const n=sizes[0], s=Math.sqrt(n*pb*(1-pb));
+    return fin(rows.map(r=>r.d),null,rows.map(()=>n*pb+3*s),rows.map(()=>Math.max(0,n*pb-3*s)),rows.map(()=>n*pb),(i,v)=>(v-n*pb)/s,"np",null,sizes,L,{centre:n*pb,sigma:s}); }
+  if(chart==="c"){ const cb=typed(o.c0)?+o.c0:neuSum(rows.map(r=>r.d))/rows.length; if(!(cb>0)) return {fail:"Every count is zero: c̄ is 0."};
+    return fin(rows.map(r=>r.d),null,rows.map(()=>cb+3*Math.sqrt(cb)),rows.map(()=>Math.max(0,cb-3*Math.sqrt(cb))),rows.map(()=>cb),(i,v)=>(v-cb)/Math.sqrt(cb),"c",null,sizes.map(()=>1),L,{centre:cb,sigma:Math.sqrt(cb)}); }
+  if(chart==="u"){ const ub=typed(o.c0)?+o.c0:neuSum(rows.map(r=>r.d))/neuSum(rows.map(r=>r.n)); if(!(ub>0)) return {fail:"Every count is zero: ū is 0."};
+    return fin(rows.map(r=>r.d/r.n),null,rows.map(r=>ub+3*Math.sqrt(ub/r.n)),rows.map(r=>Math.max(0,ub-3*Math.sqrt(ub/r.n))),rows.map(()=>ub),(i,v)=>(v-ub)/Math.sqrt(ub/rows[i].n),"u",null,sizes,L,{centre:ub,sigma:null}); }
+  return {fail:"No such chart."}; }
+/* A Pareto chart's numbers: keys (text or numbers, by row) with their values (summed; none: counted), from the largest, ties in the
+   order first seen; each its share and the running share, in percent. {rows [{key, v, pct, cum}], tot, left} or {fail}. */
+function paretoOf(keys,vals){ const at=new Map(), rows=[]; let left=0;
+  for(let i=0;i<keys.length;i++){ const k=keys[i]; if(k==null||k===""){ left++; continue; } const v=vals?vals[i]:1; if(vals&&(v==null||!Number.isFinite(v))){ left++; continue; }
+    const key=typeof k==="number"?"n"+(+(+k).toPrecision(12)):"s"+k; if(!at.has(key)){ at.set(key,rows.length); rows.push({key:k,a:[]}); } rows[at.get(key)].a.push(v); }
+  if(!rows.length) return {fail:"There are no categories."};
+  rows.forEach((r,j)=>{ r.v=neuSum(r.a); r.j=j; delete r.a; });
+  if(rows.some(r=>r.v<0)) return {fail:"A category's total is below zero: a Pareto chart is of amounts or counts."};
+  rows.sort((a,b)=>b.v-a.v||a.j-b.j); const tot=neuSum(rows.map(r=>r.v)); if(!(tot>0)) return {fail:"Every total is zero."};
+  let s0=0, c=0; rows.forEach(r=>{ r.pct=r.v/tot*100; const t=s0+r.v; c+=Math.abs(s0)>=Math.abs(r.v)?(s0-t)+r.v:(r.v-t)+s0; s0=t; r.cum=Math.min(100,(s0+c)/tot*100); delete r.j; });
+  rows[rows.length-1].cum=100; return {rows,tot,left}; }
+/* Bland and Altman (1999): two methods' values by row, as their difference (a − b), ratio (a/b) or percentage difference ((a − b)
+   over their mean, in percent) against their mean; the bias (the differences' mean) with its t interval, and the limits of
+   agreement bias ± z·s (z the normal's quantile at the level, 1.96 at 95 %) with theirs, each ± t·s·√(3/n). {n, m, d, rows, bias,
+   sd, z, lo, hi, biasCI, loCI, hiCI, conf, mode} or {fail}. */
+function blandAltman(a,b,o){ o=o||{}; const mode=o.mode==="ratio"||o.mode==="pct"?o.mode:"diff", conf=o.conf>0&&o.conf<1?o.conf:0.95, m=[], d=[], rows=[];
+  for(let i=0;i<Math.max(a.length,b.length);i++){ const x=a[i], y=b[i]; if(x==null||y==null||!Number.isFinite(x)||!Number.isFinite(y)) continue; const mu=(x+y)/2;
+    if(mode==="ratio"&&y===0) continue; if(mode==="pct"&&mu===0) continue; m.push(mu); d.push(mode==="ratio"?x/y:mode==="pct"?(x-y)/mu*100:x-y); rows.push(i); }
+  const n=d.length; if(n<3) return {fail:"Three pairs with both values are needed."};
+  const M=msd(d), bias=M.m, sd=M.sd; if(!(sd>0)) return {fail:"Every difference is the same."};
+  const z=DIST.norm.isf((1-conf)/2), t=tCrit(conf,n-1), sb=sd/Math.sqrt(n), sl=sd*Math.sqrt(3/n), lo=bias-z*sd, hi=bias+z*sd;
+  return {n,m,d,rows,bias,sd,z,t,lo,hi,biasCI:[bias-t*sb,bias+t*sb],loCI:[lo-t*sl,lo+t*sl],hiCI:[hi-t*sl,hi+t*sl],conf,mode}; }
+/* A meta-analysis of k estimates y with their variances v: the fixed (inverse variance) and the DerSimonian–Laird random effects
+   estimates with their standard errors, intervals at conf (normal), z and p; Cochran's Q with k − 1 degrees of freedom and its p,
+   I² = max(0, (Q − df)/Q), H = √(Q/df), τ²; each study's weight in each, in percent. Or {fail}. */
+function metaAnalysis(y,v,o){ o=o||{}; const conf=o.conf>0&&o.conf<1?o.conf:0.95, k=y.length;
+  if(k<2) return {fail:"A meta-analysis needs two studies or more."};
+  for(let i=0;i<k;i++){ if(!Number.isFinite(y[i])) return {fail:`Study ${i+1} has no estimate.`}; if(!(v[i]>0)) return {fail:`Study ${i+1} has no error above zero.`}; }
+  const zq=DIST.norm.isf((1-conf)/2), w=v.map(x=>1/x), sw=neuSum(w), yF=neuSum(w.map((x,i)=>x*y[i]))/sw, Q=neuSum(w.map((x,i)=>x*(y[i]-yF)**2)), df=k-1;
+  const pool=(W)=>{ const s=neuSum(W), est=neuSum(W.map((x,i)=>x*y[i]))/s, se=1/Math.sqrt(s), zz=est/se; return {est,se,lo:est-zq*se,hi:est+zq*se,z:zz,p:2*DIST.norm.sf(Math.abs(zz)),w:W.map(x=>x/s*100)}; };
+  const C=sw-neuSum(w.map(x=>x*x))/sw, tau2=Math.max(0,(Q-df)/C), R=pool(v.map(x=>1/(x+tau2))), F=pool(w);
+  return {k,fixed:F,random:R,Q,df,pQ:DIST.chi2.sf(Q,df),I2:Q>0?Math.max(0,(Q-df)/Q)*100:0,H:df>0?Math.sqrt(Q/df):null,tau2,conf}; }
+/* Q–Q plots against a distribution fitted to the values (PLOT2_SPEC 7.2): the normal, log-normal and exponential as `distFit`
+   fits them, the Weibull and gamma by maximum likelihood (`weibFit`, `gammaFit`, the location 0); the plotting positions (R's
+   `ppoints`, Blom's (i − 3/8)/(n + 1/4), Filliben's as SciPy's probplot, Weibull's i/(n + 1), Hazen's (i − 1/2)/n); each value's
+   theoretical quantile in the data's units, so the fitted distribution is the line y = x (or, `line` "quartiles", R's qqline
+   through the quartiles); a pointwise band at conf from the order statistics' beta distributions mapped by the fitted quantile. */
+// ψ and ψ′: the recurrence up to 10, then the asymptotic series to the Bernoulli number B₁₂ (the next term is below 1e-15 there;
+// from 6, as first written, the series' last term was 1e-11 and a gamma fit's shape 1e-11 off, found by the fuzzer)
+function digammaFn(x){ let r=0; while(x<10){ r-=1/x; x+=1; } const f=1/(x*x); return r+Math.log(x)-0.5/x-f*(1/12-f*(1/120-f*(1/252-f*(1/240-f*(1/132-f*(691/32760-f/12)))))); }
+function trigammaFn(x){ let r=0; while(x<10){ r+=1/(x*x); x+=1; } const f=1/(x*x); return r+1/x+f/2+(1/x)*f*(1/6-f*(1/30-f*(1/42-f*(1/30-f*(5/66-f*(691/2730-f*7/6)))))); }
+function gammaFit(v){ const n=v.length; if(n<3) return {fail:"Three values at least are needed."}; if(v.some(x=>!(x>0))) return {fail:"A gamma distribution needs values above zero."};
+  const m=neuSum(v)/n, s=Math.log(m)-neuSum(v.map(Math.log))/n; if(!(s>0)) return {fail:"The values are all the same."};
+  let a=(3-s+Math.sqrt((s-3)**2+24*s))/(12*s);
+  for(let it=0;it<100;it++){ const f=Math.log(a)-digammaFn(a)-s, df=1/a-trigammaFn(a), na=a-f/df, nb=na>0?na:a/2; if(Math.abs(nb-a)<=1e-15*a){ a=nb; break; } a=nb; }
+  return {a,scale:m/a,mean:m}; }
+function weibFit(v){ const n=v.length; if(n<3) return {fail:"Three values at least are needed."}; if(v.some(x=>!(x>0))) return {fail:"A Weibull distribution needs values above zero."};
+  const mx=Math.max(...v), u=v.map(x=>x/mx), L=u.map(Math.log), mL=neuSum(L)/n; if(L.every(x=>x===L[0])) return {fail:"The values are all the same."};
+  const g=k=>{ let s0=0, s1=0; for(let i=0;i<n;i++){ const t=u[i]**k; s0+=t; s1+=t*L[i]; } return s1/s0-1/k-mL; };
+  let lo=1e-3, hi=1; while(g(hi)<0&&hi<1e4) hi*=2; while(g(lo)>0&&lo>1e-9) lo/=2;
+  for(let it=0;it<200;it++){ const mid=(lo+hi)/2; if(g(mid)<0) lo=mid; else hi=mid; if(hi-lo<=2e-16*hi) break; }
+  const k=(lo+hi)/2, lam=mx*Math.pow(neuSum(u.map(x=>x**k))/n,1/k); return {k,lam}; }
+const QQ_DISTS=[["normal","Normal"],["lognormal","Log-normal"],["exp","Exponential"],["weibull","Weibull"],["gamma","Gamma"]];
+const QQ_POS=[["r","R's ppoints"],["blom","Blom"],["filliben","Filliben (as SciPy)"],["weibull","Weibull, i/(n + 1)"],["hazen","Hazen, (i − ½)/n"]];
+function qqPositions(n,kind){ const p=new Array(n);
+  for(let i=1;i<=n;i++){ p[i-1]=kind==="blom"?(i-0.375)/(n+0.25):kind==="weibull"?i/(n+1):kind==="hazen"?(i-0.5)/n:kind==="filliben"?(i===n?Math.pow(0.5,1/n):i===1?1-Math.pow(0.5,1/n):(i-0.3175)/(n+0.365)):(i-(n<=10?0.375:0.5))/(n+1-2*(n<=10?0.375:0.5)); }
+  return p; }
+function qqData(vals,o){ o=o||{}; const dist=QQ_DISTS.some(q=>q[0]===o.dist)?o.dist:"normal", conf=o.conf>0&&o.conf<1?o.conf:0.95, v=finVals(vals).sort((a,b)=>a-b), n=v.length;
+  if(n<3) return {fail:"Three values at least are needed."};
+  let Q, par, names;
+  if(dist==="weibull"){ const f=weibFit(v); if(f.fail) return f; Q=u=>f.lam*Math.pow(-Math.log1p(-u),1/f.k); par=[f.k,f.lam]; names=["k","λ"]; }
+  else if(dist==="gamma"){ const f=gammaFit(v); if(f.fail) return f; Q=u=>DIST.gamma.ppf(u,f.a,f.scale); par=[f.a,f.scale]; names=["shape","scale"]; }
+  else { const f=distFit(v,dist); if(f.fail) return f; par=f.p; names=f.names;
+    Q=dist==="normal"?u=>f.p[0]+f.p[1]*probit(u):dist==="lognormal"?u=>Math.exp(f.p[0]+f.p[1]*probit(u)):u=>-Math.log1p(-u)/f.p[0]; }
+  const pp=qqPositions(n,o.pos||"r"), x=pp.map(Q), a=(1-conf)/2;
+  const lo=v.map((_,i)=>Q(DIST.beta.ppf(a,i+1,n-i))), hi=v.map((_,i)=>Q(DIST.beta.isf(a,i+1,n-i)));
+  let line={a:0,b:1};
+  if(o.line==="quartiles"){ const q1=quantileType(v,0.25,7), q3=quantileType(v,0.75,7), t1=Q(0.25), t3=Q(0.75); const b=(q3-q1)/(t3-t1); line={a:q1-b*t1,b}; }
+  return {dist,n,x,y:v,lo,hi,line,par,names,pos:o.pos||"r",conf}; }
 /* A category's summary for a chart of categories (PLOT2_SPEC 7.1): stat "mean", "median", "sum" or "count"; err "none", or
    for the mean "sd" (n − 1), "se" (SD/√n) or "ci" (the t interval at conf), for the median "iqr" (the quartiles, R's type 7)
    or "ci" (the order statistics of the sign test's interval, its level as reached, `level`). {n, v, lo, hi, sd, se, level}
@@ -9943,6 +10108,106 @@ ANA_KINDS.roc={label:"ROC curve", base:"ROC", cats:true, xs:true,
     R.forEach(({q,r},k)=>{ cols.push({k:`fpr${k}`,name:"1 − specificity",role:"x",vals:r.pts.map(o=>o.fpr)},{k:`tpr${k}`,name:q.name,role:"y",vals:r.pts.map(o=>o.tpr)},{k:`thr${k}`,name:`Cut-off, ${q.name}`,vals:r.pts.map(o=>o.c)}); });
     cols.push({k:"dx",name:"1 − specificity",role:"x",vals:[0,1]},{k:"dy",name:"Diagonal",role:"y",vals:[0,1]});
     return {tables:[{cols}],report:{sections:secs,method:`Positive: ${g.name} = ${nm(pos)}, a ${dir==="low"?"lower":"higher"} score more positive; the area as U/(n₁n₀), DeLong's standard error, the interval the area ± z·SE.`,roc:R.length,curves:R.length},notes}; }};
+/* ---- Statistical charts' analyses (PLOT2_SPEC 7.2): each a result sheet whose columns the report's action draws ---- */
+// An input's values by row: a number, or its text or level for a column read as categories.
+const anaByRow=q=>{ const m=new Map(); (q.rows||[]).forEach((r,i)=>{ const v=q.cats?q.cats.keys[i]:q.vals[i]; if(v!=null&&v!==""&&(q.cats||Number.isFinite(v))) m.set(r,v); }); return m; };
+ANA_KINDS.ctrl={label:"Control chart", base:"Control chart", cats:true, xs:true, noMiss:true,
+  help:"A quality control chart: X̄ and R, X̄ and S, individuals and moving range, p, np, c or u; the centre line and the limits from the data or typed, and the points that break Western Electric's or Nelson's rules marked.",
+  run(ins,p){ p=p||{}; const chart=CTRL_CHARTS.some(q=>q[0]===p.chart)?p.chart:"xbar-r", notes=[], cols=[], secs=[];
+    const sub=ins.find(q=>q.id===p.sub), ncol=ins.find(q=>q.id===p.ncol), val=ins.find(q=>q.id===p.val&&!q.cats)||ins.find(q=>q!==sub&&q!==ncol&&!q.cats);
+    if(!val) return {fail:"Tick the column of values (or of counts)."};
+    const vm=anaByRow(val), rowsAll=[...new Set([...vm.keys()].concat(sub?[...anaByRow(sub).keys()]:[]))].sort((a,b)=>a-b), sm=sub?anaByRow(sub):null, nm=ncol?anaByRow(ncol):null;
+    const rows=chart==="xbar-r"||chart==="xbar-s"?rowsAll:[...vm.keys()].sort((a,b)=>a-b);
+    const o={chart,x:rows.map(r=>vm.has(r)?vm.get(r):null),rules:p.rules||"we",mu:p.mu,sigma:p.sigma,p0:p.p0,c0:p.c0};
+    if(chart==="xbar-r"||chart==="xbar-s"){ if(sm) o.sub=rows.map(r=>sm.has(r)?sm.get(r):null); else o.size=p.size; }
+    if(chart==="p"||chart==="np"||chart==="u") o.n=nm?rows.map(r=>nm.has(r)?nm.get(r):null):p.size;
+    const R=ctrlChart(o); if(R.fail) return {fail:R.fail};
+    if(R.left) notes.push(`${R.left} value${R.left===1?"":"s"} left out (${chart==="xbar-r"||chart==="xbar-s"?"a subgroup of one, or the rows past the last whole subgroup":"no value"}).`);
+    const A=R.A, B=R.B, rset=p.rules==="nelson"?"nelson":p.rules==="none"?"none":"we", RN=CTRL_RULES[rset]||[], mk=new Map(R.marks.map(m=>[m.i,m.rules])), mkB=new Set(R.marksB.map(m=>m.i));
+    const vary=a=>a.some(v=>Math.abs(v-a[0])>1e-12*Math.max(1,Math.abs(a[0]))), rng=a=>vary(a)?`${fmt(Math.min(...a),6)} to ${fmt(Math.max(...a),6)}`:fmt(a[0],6);
+    const typedL=[p.mu,p.sigma,p.p0,p.c0].some(v=>v!=null&&v!==""&&Number.isFinite(+v));
+    const rowsT=[{c:A.name,cl:rng(A.cl),ucl:rng(A.ucl),lcl:rng(A.lcl)}].concat(B?[{c:B.name,cl:rng(B.cl),ucl:rng(B.ucl),lcl:rng(B.lcl.map(v=>v==null?0:v))}]:[]);
+    anaTab("Centre and limits",[["c","Chart"],["cl","Centre"],["ucl","Upper limit"],["lcl","Lower limit"]],rowsT,[],secs);
+    const info=[{k:"Subgroups",v:R.k},{k:"Subgroup size",v:R.sizes.every(n=>n===R.sizes[0])?R.sizes[0]:`${Math.min(...R.sizes)} to ${Math.max(...R.sizes)}`}].concat(R.sigma!=null?[{k:"σ̂",v:R.sigma}]:[]).concat(R.consts&&B?[{k:"d₂",v:R.consts.d2},{k:"d₃",v:R.consts.d3},{k:"c₄",v:R.consts.c4}]:[]);
+    anaTab("Chart",[["k","Quantity"],["v","Value"]],info,[],secs);
+    const brk=R.marks.map(m=>({lab:R.labels[m.i],v:A.v[m.i],r:m.rules.join(", ")})).concat(R.marksB.map(m=>({lab:R.labels[m.i],v:B.v[m.i],r:`${B.name}: beyond its limits`})));
+    if(brk.length) anaTab("Points that break a rule",[["lab","Subgroup"],["v","Value"],["r","Rules"]],brk,[],secs);
+    cols.push({k:"i",name:"Subgroup",role:"x",vals:A.v.map((_,i)=>i+1)},{k:"lab",name:"Label",vals:R.labels},
+      {k:"v",name:A.name+" of "+val.name,role:"y",unit:chart==="p"||chart==="u"?"":val.unit,vals:A.v},{k:"cl",name:"Centre",role:"y",vals:A.cl},{k:"ucl",name:"Upper limit",role:"y",vals:A.ucl},{k:"lcl",name:"Lower limit",role:"y",vals:A.lcl},
+      {k:"mark",name:"Breaks a rule",role:"y",vals:A.v.map((v,i)=>mk.has(i)?v:null)},{k:"rule",name:"Rules",vals:A.v.map((_,i)=>mk.has(i)?mk.get(i).join(", "):null)});
+    if(B) cols.push({k:"v2",name:B.name+" of "+val.name,role:"y",vals:B.v},{k:"cl2",name:B.name+", centre",role:"y",vals:B.cl},{k:"ucl2",name:B.name+", upper limit",role:"y",vals:B.ucl},{k:"lcl2",name:B.name+", lower limit",role:"y",vals:B.lcl},
+      {k:"mark2",name:B.name+", beyond its limits",role:"y",vals:B.v.map((v,i)=>mkB.has(i)?v:null)});
+    const meth=`${(CTRL_CHARTS.find(q=>q[0]===chart)||[,chart])[1]} chart (Montgomery, Introduction to Statistical Quality Control): ${typedL?"the centre and σ typed":"the centre and limits from the data"}, 3σ limits${rset==="none"?"":`, ${rset==="nelson"?"Nelson's eight rules":"Western Electric's four rules"}: ${RN.map((t,i)=>`${i+1} ${t.toLowerCase()}`).join("; ")}`}.`;
+    return {tables:[{cols}],report:{sections:secs,method:meth,ctrl:{two:!!B,vary:vary(A.ucl),varyB:!!B&&vary(B.ucl),name:A.name,bname:B?B.name:null,val:val.name,n:brk.length}},notes}; }};
+ANA_KINDS.pareto={label:"Pareto chart", base:"Pareto", cats:true, xs:true, noMiss:true,
+  help:"A column of categories counted, or a column of amounts summed by category, from the largest, with each one's share and the running share: drawn as columns with the running share on a right axis.",
+  run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[]; const cat=ins.find(q=>q.id===p.cat)||ins.find(q=>q.cats)||ins[0]; if(!cat) return {fail:"Tick the column of categories."};
+    const val=ins.find(q=>q.id===p.val&&q!==cat&&!q.cats)||null, km=anaByRow(cat), vm=val?anaByRow(val):null, rows=[...km.keys()].sort((a,b)=>a-b);
+    const R=paretoOf(rows.map(r=>km.get(r)),vm?rows.map(r=>vm.has(r)?vm.get(r):null):null); if(R.fail) return {fail:R.fail};
+    if(R.left) notes.push(`${R.left} row${R.left===1?"":"s"} with no category or no amount left out.`);
+    const what=val?`Sum of ${val.name}`:"Count", nm=v=>typeof v==="number"?fmt(v,8):String(v);
+    anaTab("Categories",[["k","Category"],["v",what],["pct","Share (%)"],["cum","Running share (%)"]],R.rows.map(r=>({k:nm(r.key),v:r.v,pct:r.pct,cum:r.cum})),[],secs);
+    cols.push({k:"lev",name:cat.name,role:"x",vals:R.rows.map(r=>nm(r.key))},{k:"n",name:what,role:"y",unit:val?val.unit:"",vals:R.rows.map(r=>r.v)},{k:"pct",name:"Share",unit:"%",vals:R.rows.map(r=>r.pct)},{k:"cum",name:"Running share",role:"y",unit:"%",vals:R.rows.map(r=>r.cum)});
+    return {tables:[{cols}],report:{sections:secs,method:`${val?`${val.name} summed`:"Rows counted"} by ${cat.name}, from the largest (ties in the order first seen), with the running share of the total ${fmt(R.tot,8)}.`,pareto:{what}},notes}; }};
+ANA_KINDS.bland={label:"Bland–Altman plot", base:"Bland–Altman", noMiss:true,
+  help:"Two methods measuring the same things: each pair's difference (or ratio, or percentage difference) against its mean, the bias and the limits of agreement with their confidence intervals (Bland and Altman 1999).",
+  run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[], num=ins.filter(q=>!q.cats); if(num.length<2) return {fail:"Choose the two columns of measurements."};
+    const A=num.find(q=>q.id===p.a)||num[0], B=num.find(q=>q.id===p.b&&q!==A)||num.find(q=>q!==A), am=anaByRow(A), bm=anaByRow(B), rows=[...am.keys()].filter(r=>bm.has(r)).sort((a,b)=>a-b);
+    if(num.length>2&&!(p.a&&p.b)) notes.push(`Only ${A.name} and ${B.name} are compared.`);
+    const R=blandAltman(rows.map(r=>am.get(r)),rows.map(r=>bm.get(r)),{mode:p.mode,conf:anaConf(p)}); if(R.fail) return {fail:R.fail};
+    const left=Math.max(am.size,bm.size)-R.n; if(left>0) notes.push(`${left} row${left===1?"":"s"} without both values${R.mode!=="diff"?" (or with a zero to divide by)":""} left out.`);
+    const pc=anaPct(R.conf), dn=R.mode==="ratio"?`${A.name} / ${B.name}`:R.mode==="pct"?`Difference (%)`:`${A.name} − ${B.name}`, du=R.mode==="diff"&&A.unit===B.unit?A.unit:R.mode==="pct"?"%":"";
+    anaTab("Agreement",[["q","Quantity"],["v","Value"],["lo",`${pc} interval, from`],["hi","to"]],[{q:"N",v:R.n,lo:null,hi:null},{q:"Bias (mean difference)",v:R.bias,lo:R.biasCI[0],hi:R.biasCI[1]},{q:"SD of the differences",v:R.sd,lo:null,hi:null},
+      {q:`Lower limit of agreement (bias − ${fmt(R.z,4)} SD)`,v:R.lo,lo:R.loCI[0],hi:R.loCI[1]},{q:`Upper limit of agreement (bias + ${fmt(R.z,4)} SD)`,v:R.hi,lo:R.hiCI[0],hi:R.hiCI[1]}],[],secs);
+    const x0=Math.min(...R.m), x1=Math.max(...R.m), two=v=>[v,v];
+    cols.push({k:"m",name:`Mean of ${A.name} and ${B.name}`,role:"x",unit:A.unit===B.unit?A.unit:"",vals:R.m},{k:"d",name:dn,role:"y",unit:du,vals:R.d},
+      {k:"lx",name:"Mean, ends",role:"x",unit:A.unit===B.unit?A.unit:"",vals:[x0,x1]},{k:"lb",name:"Bias",role:"y",vals:two(R.bias)},{k:"lu",name:"Upper limit",role:"y",vals:two(R.hi)},{k:"ll",name:"Lower limit",role:"y",vals:two(R.lo)},
+      {k:"lbl",name:"Bias, interval from",role:"y",vals:two(R.biasCI[0])},{k:"lbh",name:"Bias, interval to",role:"y",vals:two(R.biasCI[1])},
+      {k:"lul",name:"Upper limit, interval from",role:"y",vals:two(R.hiCI[0])},{k:"luh",name:"Upper limit, interval to",role:"y",vals:two(R.hiCI[1])},
+      {k:"lll",name:"Lower limit, interval from",role:"y",vals:two(R.loCI[0])},{k:"llh",name:"Lower limit, interval to",role:"y",vals:two(R.loCI[1])});
+    return {tables:[{cols}],report:{sections:secs,method:`Bland and Altman (1999): ${R.mode==="ratio"?"each pair's ratio":R.mode==="pct"?"each pair's difference over its mean, in percent,":"each pair's difference"} against its mean; the limits bias ± ${fmt(R.z,5)} SD (the normal's ${pc} quantile); the intervals Student's t at n − 1 with the bias's SE s/√n and each limit's √(3s²/n).`,bland:{dn,du}},notes}; }};
+ANA_KINDS.meta={label:"Forest plot", base:"Forest plot", cats:true, xs:true, noMiss:true,
+  help:"A meta-analysis of studies' estimates with their standard errors or intervals: the fixed and the random effects (DerSimonian–Laird) estimates with their intervals, Q, I² and τ², drawn as a forest plot.",
+  run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[];
+    const nmq=ins.find(q=>q.id===p.name)||ins.find(q=>q.cats), num=ins.filter(q=>q!==nmq&&!q.cats);
+    const est=num.find(q=>q.id===p.est)||num[0]; if(!est) return {fail:"Tick the column of estimates."};
+    const se=num.find(q=>q.id===p.se&&q!==est)||null, lo=num.find(q=>q.id===p.lo&&q!==est)||null, hi=num.find(q=>q.id===p.hi&&q!==est)||null;
+    if(!se&&!(lo&&hi)) return {fail:"Choose the column of standard errors, or the columns of the intervals' ends."};
+    const lg=p.scale==="log", cz=DIST.norm.isf((1-(+p.cconf>0&&+p.cconf<1?+p.cconf:0.95))/2), em=anaByRow(est), sm=se?anaByRow(se):null, lm=lo?anaByRow(lo):null, hm=hi?anaByRow(hi):null, nm=nmq?anaByRow(nmq):null;
+    const rows=[...em.keys()].sort((a,b)=>a-b), y=[], v=[], names=[], gl=[], gh=[]; let left=0;
+    for(const r of rows){ let e=em.get(r), V=null, a=null, b=null;
+      if(lg){ if(!(e>0)){ left++; continue; } }
+      if(sm&&sm.has(r)&&sm.get(r)>0){ V=sm.get(r)**2; }
+      else if(lm&&hm&&lm.has(r)&&hm.has(r)){ a=lm.get(r); b=hm.get(r); if(lg&&!(a>0&&b>0)){ left++; continue; } const w=lg?Math.log(b)-Math.log(a):b-a; if(!(w>0)){ left++; continue; } V=(w/(2*cz))**2; }
+      if(V==null){ left++; continue; }
+      const t=lg?Math.log(e):e; y.push(t); v.push(V); names.push(nm&&nm.has(r)?(typeof nm.get(r)==="number"?fmt(nm.get(r),8):String(nm.get(r))):`Row ${r+1}`);
+      const s0=Math.sqrt(V), cq=DIST.norm.isf((1-anaConf(p))/2); gl.push(a!=null?a:lg?Math.exp(t-cq*s0):t-cq*s0); gh.push(b!=null?b:lg?Math.exp(t+cq*s0):t+cq*s0); }
+    if(left) notes.push(`${left} row${left===1?"":"s"} with no usable estimate or error left out.`);
+    const R=metaAnalysis(y,v,{conf:anaConf(p)}); if(R.fail) return {fail:R.fail};
+    const bk=t=>lg?Math.exp(t):t, pc=anaPct(R.conf), k=y.length;
+    anaTab("Studies",[["s","Study"],["e","Estimate"],["lo",`Interval, from`],["hi","to"],["wf","Weight, fixed (%)"],["wr","Weight, random (%)"]],names.map((n,i)=>({s:n,e:bk(y[i]),lo:gl[i],hi:gh[i],wf:R.fixed.w[i],wr:R.random.w[i]})),[],secs);
+    anaTab("Pooled",[["m","Model"],["e","Estimate"],["se","SE"+(lg?" (of the logarithm)":"")],["lo",`${pc} interval, from`],["hi","to"],["z","z"],["p","p"]],[{m:"Fixed effect",e:bk(R.fixed.est),se:R.fixed.se,lo:bk(R.fixed.lo),hi:bk(R.fixed.hi),z:R.fixed.z,p:R.fixed.p},{m:"Random effects (DerSimonian–Laird)",e:bk(R.random.est),se:R.random.se,lo:bk(R.random.lo),hi:bk(R.random.hi),z:R.random.z,p:R.random.p}],[],secs);
+    anaTab("Heterogeneity",[["q","Quantity"],["v","Value"]],[{q:"Q",v:R.Q},{q:"Degrees of freedom",v:R.df},{q:"p",v:R.pQ},{q:"I² (%)",v:R.I2},{q:"H",v:R.H},{q:"τ²",v:R.tau2}],[],secs);
+    // The forest plot's columns: each study at a place down Y (the first at the top), the pooled below.
+    const pos=names.map((_,i)=>k-i+2), ppos=[1,0];
+    cols.push({k:"e",name:est.name,role:"x",unit:est.unit,vals:names.map((_,i)=>bk(y[i]))},{k:"pos",name:"Study",role:"y",vals:pos},
+      {k:"eminus",name:"Interval, below",role:"e",of:"pos",ax:"x",side:"-",vals:names.map((_,i)=>bk(y[i])-gl[i])},{k:"eplus",name:"Interval, above",role:"e",of:"pos",ax:"x",side:"+",vals:names.map((_,i)=>gh[i]-bk(y[i]))},
+      {k:"w",name:"Weight, random (%)",vals:R.random.w},{k:"name",name:"Study",vals:names},
+      {k:"pe",name:"Pooled estimate",role:"x",unit:est.unit,vals:[bk(R.fixed.est),bk(R.random.est)]},{k:"ppos",name:"Pooled",role:"y",vals:ppos},
+      {k:"pminus",name:"Pooled interval, below",role:"e",of:"ppos",ax:"x",side:"-",vals:[bk(R.fixed.est)-bk(R.fixed.lo),bk(R.random.est)-bk(R.random.lo)]},
+      {k:"pplus",name:"Pooled interval, above",role:"e",of:"ppos",ax:"x",side:"+",vals:[bk(R.fixed.hi)-bk(R.fixed.est),bk(R.random.hi)-bk(R.random.est)]});
+    return {tables:[{cols}],report:{sections:secs,method:`Inverse-variance fixed effect and DerSimonian–Laird random effects${lg?" on the logarithms of the estimates (ratios), shown back as ratios":""}; ${se?`each study's standard error from ${se.name}`:`each study's standard error from its interval's width over 2 × ${fmt(cz,4)}`}; the pooled intervals normal at ${pc}.`,meta:{k,log:lg,names,pos,null:lg?1:0}},notes}; }};
+ANA_KINDS.qq={label:"Q–Q plot", base:"Q–Q", noMiss:true,
+  help:"Each column's sorted values against the quantiles of a distribution fitted to them (normal, log-normal, exponential, Weibull or gamma): the line where they would lie, and a band where each would fall at a level.",
+  run(ins,p){ p=p||{}; const notes=[], cols=[], secs=[], num=ins.filter(q=>!q.cats); if(!num.length) return {fail:"Tick a column of values."};
+    const dist=QQ_DISTS.some(q=>q[0]===p.dist)?p.dist:"normal", conf=anaConf(p), rows=[];
+    for(let t=0;t<num.length;t++){ const q=num[t], R=qqData(q.vals,{dist,pos:p.pos,conf,line:p.line}); if(R.fail) return {fail:`${q.name}: ${R.fail}`};
+      rows.push({c:q.name,n:R.n,par:R.names.map((n,i)=>`${n} = ${fmt(R.par[i],6)}`).join(", ")});
+      cols.push({k:`qx${t}`,name:`${(QQ_DISTS.find(z=>z[0]===dist)||[,""])[1]} quantile`,role:"x",unit:q.unit,vals:R.x},{k:`qy${t}`,name:q.name,role:"y",unit:q.unit,vals:R.y},
+        {k:`ql${t}`,name:`Line, ${q.name}`,role:"y",vals:R.x.map(x=>R.line.a+R.line.b*x)},{k:`qlo${t}`,name:`Band, ${q.name}, from`,role:"y",vals:R.lo},{k:`qhi${t}`,name:`Band, ${q.name}, to`,role:"y",vals:R.hi}); }
+    anaTab("Fitted",[["c","Column"],["n","N"],["par","Parameters"]],rows,[],secs);
+    const dn=(QQ_DISTS.find(z=>z[0]===dist)||[,""])[1].toLowerCase(), pn=(QQ_POS.find(z=>z[0]===(p.pos||"r"))||QQ_POS[0])[1];
+    return {tables:[{cols}],report:{sections:secs,method:`Each column's sorted values against the ${dn} distribution's quantiles at ${pn}'s plotting positions, the distribution fitted to the values (${dist==="weibull"||dist==="gamma"?"maximum likelihood, the location 0":dist==="exp"?"λ = 1/mean":"the mean and SD"+(dist==="lognormal"?" of the logarithms":"")}); the line ${p.line==="quartiles"?"through the quartiles (R's qqline)":"y = x, the fitted distribution"}; the band each order statistic's ${anaPct(conf)} interval under the fitted distribution (its beta distribution).`,qq:num.length},notes}; }};
 /* ---- Reshaping (SHEET_SPEC 3.5), pure: tables of cells (a number, a text, or null) made into other tables ----
    Each input is {id, name, unit, role, sheet, cells (its rows, aligned with the others'), order (a categorical
    column's levels, or null)}. A cell's key (rsKey) makes 1 and "1" two things and every empty cell one; rsCmp orders
@@ -13093,8 +13358,23 @@ ANA_KINDS.hclust={label:"Hierarchical clustering", base:"Clusters", cats:true, r
     secs.push({title:Z.length>15?"The last 15 merges":"The merges",tables:[{head:["Merge","Joins","and","Height","Size"],rows:last.map((z,i)=>[Z.length-i,nm(z[0]),nm(z[1]),z[2],z[3]])}]});
     const o={lay,vx:+p.vx,vy:+p.vy}; mvClusterCols(T,lab,k,cols,secs,o);
     const mword=LINK_METHODS.find(([q])=>q===method)[1];
-    const meth=`${lay==="curves"?`Each curve an observation and its ${m} points the variables`:`${m} columns the variables and ${n} rows the observations`}; ${mvScaleWord(how)}; ${mword} linkage on ${metric==="correlation"?"1 − r between observations":"Euclidean distances"}, as SciPy's linkage; ${byH?`cut at the height ${fmt(+p.h,6)}`:`cut into ${k0} clusters, drawn at a height between the merges either side`}; the clusters numbered by their first observation.`;
-    return {tables:[{cols}],report:{sections:secs,method:meth,clu:{k,lay,rows:T.rows,vids:T.vids,pair:o.pair||null,leaves:dg.leaves.map(i=>T.obs[i]),n,hcut}},notes}; }};
+    /* The heat map (PLOT2_SPEC 7.2), asked for by the report's action: the scaled values as a matrix, a row an observation in the
+       dendrogram's order (row r the r-th leaf, at Y = r + 1, where the dendrogram drawn sideways puts it) and a column a variable,
+       the variables joined by the same linkage on the same distances between them (columns of data), in X's order for curves;
+       the dendrogram sideways as columns (X the heights, Y the leaves' places) and the variables' dendrogram. */
+    let mat=null, heat=null, hmeth="";
+    if(p.heat){ const cur=lay==="curves"; let vdg=null;
+      if(!cur&&m>=2&&m<=HC_MAX){ const Rv=new Float64Array(m*n); for(let j=0;j<m;j++) Rv.set(sc.Z[j],j*n); const Zv=linkage(mvDist(Rv,m,n,metric),m,method); if(!Zv.fail) vdg=dendroXY(Zv,m); }
+      const order=vdg?vdg.leaves:Array.from({length:m},(_,j)=>j);
+      if(n*m>MAT_MAX) notes.push(`The heat map would have ${n*m} cells, more than a matrix holds (${MAT_MAX}).`);
+      else { const z=new Array(n*m); let M=0; for(let r=0;r<n;r++){ const i=dg.leaves[r]; for(let c=0;c<m;c++){ const v=sc.Z[order[c]][i]; z[r*m+c]=v; const a=Math.abs(v); if(a>M) M=a; } }
+        mat={nx:m,ny:n,x:cur&&T.vx?{v:order.map(j=>T.vx[j])}:{a:1,b:m},y:{a:1,b:n},z,xname:cur?T.xn||"X":"Variable",xunit:cur?T.xu||"":"",yname:"Observation",zname:how==="none"?"Value":"Scaled value",sname:"Heat"};
+        heat={vclu:!!vdg,vnames:order.map(j=>T.vnames[j]),m,cur,M,sym:how!=="none"}; }
+      if(vdg) cols.push({k:"vdx",name:"Variable",role:"x",vals:vdg.x},{k:"vdy",name:"Dendrogram of the variables",role:"y",vals:vdg.y});
+      cols.push({k:"hx",name:"Height",role:"x",vals:dg.y},{k:"hy",name:"Dendrogram of the observations",role:"y",vals:dg.x});
+      hmeth=` The heat map: ${how==="none"?"the values":"the scaled values"}, the observations in the dendrogram's order${vdg?`, the variables joined by ${mword.toLowerCase()} linkage on ${metric==="correlation"?"1 − r":"Euclidean distances"} between them`:cur?", the variables in X's order":""}.`; }
+    const meth=`${lay==="curves"?`Each curve an observation and its ${m} points the variables`:`${m} columns the variables and ${n} rows the observations`}; ${mvScaleWord(how)}; ${mword} linkage on ${metric==="correlation"?"1 − r between observations":"Euclidean distances"}, as SciPy's linkage; ${byH?`cut at the height ${fmt(+p.h,6)}`:`cut into ${k0} clusters, drawn at a height between the merges either side`}; the clusters numbered by their first observation.${hmeth}`;
+    return Object.assign({tables:[{cols}],report:{sections:secs,method:meth,clu:{k,lay,rows:T.rows,vids:T.vids,pair:o.pair||null,leaves:dg.leaves.map(i=>T.obs[i]),n,hcut,heat}},notes},mat?{mat}:{}); }};
 /* ---- Discriminant analysis (MULTI_SPEC 6.4) ----
    lda(C, gi, G, o): C the variables' columns (n each), gi each observation's group (0 … G − 1), o {priors: "prop"|"equal",
    names}. The within-group data whitened by their own SVD (scikit-learn's svd solver: each variable divided by its pooled
@@ -18421,6 +18701,8 @@ function buildPlot(W,H,pal,colEx,opt){
      dialog wins over the measured one. */
   const npE=stack?1+oser.length:1, xpM=xPos(true), ypM=yPos(true);
   const yMaxW=(lo,hi,tg)=>(fY?scaleTicks(lo,hi,tg*55*tkDen,fY,cfg.ax.y,{lw:()=>TK.size,rot:90,size:TK.size}):axisTicks(lo,hi,tg,cfg.ax.y,logY)).ticks.reduce((m,t)=>Math.max(m,labW(t.lab,TK)),0);
+  // Names along Y (ax.y.cats: a forest plot's studies, PLOT2_SPEC 7.2), in place of the numbers, on a linear Y of one panel.
+  const yCatsAll=!dist&&(!heat||MAT)&&!fY&&!logY&&!stack?catsOf(cfg.ax.y):[];
   let ylw=0;
   // A map: its rows up the side, in their order or at their values of the series variable.
   const MR=MAT?{series:true,lo:v.y0,hi:v.y1,rows:[]}:heat?mapRows(cfg,[{c:act,pts}].concat(oser)):null, mapS=MR&&MR.series?MR:null;
@@ -18428,6 +18710,7 @@ function buildPlot(W,H,pal,colEx,opt){
   else if(heat) ylw=[act].concat(oser.map(o=>o.c)).reduce((m,c)=>Math.max(m,c?textW(specName(c).slice(0,14),TK):0),0);
   else if(YA.labs||YA.mlabs){
     if(YA.rot) ylw=TK.size*1.05;
+    else if(yCatsAll.length) ylw=yCatsAll.reduce((m,q)=>Math.max(m,labW(q[1],TK)),0);
     else { const tg=Math.max(40,(H-110)/npE)/((stack?40:55)*tkDen); ylw=yMaxW(v.y0,v.y1,tg);
       if(stack) oser.forEach(o=>{ const rg=fY?scaleRange(0,1,fY,o.pts.filter(q=>q.x>=Math.min(v.x0,v.x1)&&q.x<=Math.max(v.x0,v.x1)).map(q=>q.y)):yRangeFor(o.pts,v.x0,v.x1,logY); ylw=Math.max(ylw,yMaxW(rg[0],rg[1],tg)); });
       if(showRes){ const ra=rpMax*1.15, rt=niceTicks(-ra,ra,resH/32);
@@ -18453,7 +18736,7 @@ function buildPlot(W,H,pal,colEx,opt){
   // nanoseconds each reads 1.70000002×10^18, and 85 px apart they overlapped.
   // Names along X: typed (ax.x.cats), else a categorical X column's levels.
   const xCatCol=act?xColFor(act):null, xCatAuto=!dist&&!heat&&!fX&&!logX&&isCatCol(xCatCol)&&hasVals(xCatCol)?xCatPos(xCatCol):null;
-  const xCatsAll=!dist&&!heat&&!fX&&!logX?(catsOf(cfg.ax.x).length?catsOf(cfg.ax.x):xCatAuto?xCatAuto.names:[]):[];
+  const xCatsAll=!dist&&(!heat||MAT)&&!fX&&!logX?(catsOf(cfg.ax.x).length?catsOf(cfg.ax.x):xCatAuto?xCatAuto.names:[]):[];
   const xTicks=(lo,hi,avail)=>{ const xc=xCatsAll.filter(q=>q[0]>=Math.min(lo,hi)&&q[0]<=Math.max(lo,hi)); if(xc.length) return {ticks:xc.map(q=>({v:q[0],lab:q[1]})),minor:[],step:xc.length>1?Math.abs(xc[1][0]-xc[0][0]):1};
     if(dist) return {ticks:distG?distG.keys.map((g,j)=>({v:j+1,lab:typeof g==="number"?fmt(g,6):String(g).slice(0,28)})):distC.map((c,k)=>({v:k+1,lab:specName(c).slice(0,28)})),minor:[],step:1};
     if(fX) return scaleTicks(lo,hi,avail,fX,cfg.ax.x,{lw:l=>XA.rot===90?TK.size*1.3:labW(l,TK)*(XA.rot===45?0.75:1),rot:XA.rot===90?90:0,size:TK.size});
@@ -18537,7 +18820,7 @@ function buildPlot(W,H,pal,colEx,opt){
     s+=richText(cfg.title,{attrs:ed("title"),x:tx,y:ty,anchor:ta==="left"?"start":ta==="right"?"end":"middle",st:TS.title,fill:pal.ink}); }
   const xLw=q=>XA.rot===90?TK.size*1.3:labW(q.lab,TK)*(XA.rot===45?0.75:1);
   const xT=SX.segs.length>1?mergeTicks(SX.segs.map(g=>xTicks(g.a,g.b,Math.max(30,pw*(g.t1-g.t0)))),X,xLw,8):xTicks(v.x0,v.x1,pw);
-  const yT=heat?(mapS?axisTicks(v.y0,v.y1,mh/(55*tkDen),cfg.ax.y,false):{ticks:[],minor:[]}):fY?scaleTicks(v.y0,v.y1,mh,fY,cfg.ax.y,{lw:()=>TK.size,rot:90,size:TK.size}):SY.segs.length>1?mergeTicks(SY.segs.map(g=>axisTicks(g.a,g.b,Math.max(1,mh*(g.t1-g.t0)/(55*tkDen)),cfg.ax.y,logY)),Y,()=>TK.size*1.05,4):axisTicks(v.y0,v.y1,mh/((stack?40:55)*tkDen),cfg.ax.y,logY);
+  const yT=yCatsAll.length?(()=>{ const yc=yCatsAll.filter(q=>q[0]>=Math.min(v.y0,v.y1)&&q[0]<=Math.max(v.y0,v.y1)); return {ticks:yc.map(q=>({v:q[0],lab:q[1]})),minor:[],step:1}; })():heat?(mapS?axisTicks(v.y0,v.y1,mh/(55*tkDen),cfg.ax.y,false):{ticks:[],minor:[]}):fY?scaleTicks(v.y0,v.y1,mh,fY,cfg.ax.y,{lw:()=>TK.size,rot:90,size:TK.size}):SY.segs.length>1?mergeTicks(SY.segs.map(g=>axisTicks(g.a,g.b,Math.max(1,mh*(g.t1-g.t0)/(55*tkDen)),cfg.ax.y,logY)),Y,()=>TK.size*1.05,4):axisTicks(v.y0,v.y1,mh/((stack?40:55)*tkDen),cfg.ax.y,logY);
   // The plot's background, then grid lines in their own colour, width and dash.
   const gcol=esc(cfg.gridColor||pal.grid), glw=numOr(cfg.gridLw,1), gdash=DASHES[cfg.gridDash||"solid"]||"", gX=cfg.gridX!==false, gY=cfg.gridY!==false;
   const plotBg=(top,h)=>cfg.plotBg?`<rect x="${f1(L)}" y="${f1(top)}" width="${f1(pw)}" height="${f1(h)}" fill="${esc(cfg.plotBg)}"/>`:"";
@@ -23585,7 +23868,7 @@ function anaDone(id,j,r,notes){ const p=P(); if(!p||S.pid!==j.pid) return; const
 // The table into the result sheet: a column per key, kept by id across recalculations.
 function anaWrite(a,p,t){ const sid=a.out.sheet, have=new Map(p.cols.filter(c=>c.ana===a.id).map(c=>[c.ak,c])), keep=new Set();
   t.cols.forEach(o=>{ let c=have.get(o.k); if(!c){ c=Object.assign(makeCol(o.role||"ignore",o.name,o.unit||""),{sheet:sid,ana:a.id,ak:o.k}); p.cols.push(c); }
-    keep.add(c); c.name=o.name; c.comm=a.name; c.role=o.role||(c.role==="y"?"y":"ignore"); /* a column plotted stays a curve */ if(o.ax) c.ax=o.ax; else if(o.of) delete c.ax; const text=o.vals.some(v=>typeof v==="string");
+    keep.add(c); c.name=o.name; c.comm=a.name; c.role=o.role||(c.role==="y"?"y":"ignore"); /* a column plotted stays a curve */ if(o.ax) c.ax=o.ax; else if(o.of) delete c.ax; if(o.side) c.side=o.side; else if(o.of) delete c.side; if(o.cat) c.cat=o.cat; const text=o.vals.some(v=>typeof v==="string");
     // A reshaped column keeps its cells as they were: numbers as numbers, text as text (SHEET_SPEC 3.5).
     if(o.cells){ const T={}; c.data=o.vals.map((v,i)=>{ if(typeof v==="string"){ if(v!=="") T[i]=v; return null; } return typeof v==="number"&&Number.isFinite(v)?v:null; }); trimTail(c.data);
       delete c.fmt; if(Object.keys(T).length){ c.txt=T; TXT_OK.add(T); if(!o.vals.some(v=>typeof v==="number")) c.fmt="text"; } else delete c.txt; if(o.unit!=null) c.unit=o.unit; }
@@ -23692,6 +23975,51 @@ function mvPairWire(box){ const l=box.querySelector("#aMl"); if(!l) return; cons
 const mvPairRead=v=>({vx:Math.max(1,Math.round(parseNum(String(v.aKx||"1"))||1)),vy:Math.max(1,Math.round(parseNum(String(v.aKy||"2"))||2))});
 const mvPairOk=v=>[v.aKx,v.aKy].every(t=>{ t=String(t||"").trim(); return !t||/^\d+$/.test(t)&&+t>=1; });
 function mvFormRead(v){ const lay=v.aMl==="curves"?"curves":"cols"; return {layout:lay,scale:MV_SCALES.some(([k])=>k===v.aMs)?v.aMs:null,grp:lay==="cols"&&v.aMg?v.aMg:null,meta:lay==="curves"&&v.aMh?v.aMh:null}; }
+/* The statistical charts' forms (PLOT2_SPEC 7.2): columns chosen from the sheet's (S.anaCand), read beside those ticked (extra). */
+const stNum=c=>(c.data||[]).some(v=>v!=null), stTxt=c=>isCatCol(c)||textCount(c)>0;
+const stShow=(box,id,on)=>{ const el=box.querySelector("#"+id); if(!el) return; el.hidden=!on; const l=box.querySelector(`label[for="${id}"]`); if(l) l.hidden=!on; };
+// A form's list starts from a column ticked that fits, else the first that fits; an X column is a column of values only when ticked.
+const stVal=c=>stNum(c)&&c.role!=="x"||stNum(c)&&!!S.anaSel&&S.anaSel.has(c.id);
+const stFirst=(f,skip)=>{ const l=(S.anaCand||[]).filter(c=>!(skip||[]).includes(c.id)), t=l.filter(c=>S.anaSel&&S.anaSel.has(c.id)), c=t.find(f)||l.find(f); return c?c.id:""; };
+const stNumv=t=>{ const v=parseNum(String(t==null?"":t).trim()); return Number.isFinite(v)?v:null; };
+const ST_FORMS={
+  ctrl:{noGroup:true, html(p){ const ck=CTRL_CHARTS.some(q=>q[0]===p.chart)?p.chart:"xbar-r";
+      return `<div class="grid2"><label for="aChK">Chart</label><select id="aChK">${CTRL_CHARTS.map(([k,l])=>`<option value="${k}"${k===ck?" selected":""}>${esc(l)}</option>`).join("")}</select>
+      ${rsSel("aChV","Values",p.val||stFirst(stVal),"",(S.anaCand||[]).filter(stNum))}
+      ${rsSel("aChS","Subgroups",p.sub||"","By size, in order",(S.anaCand||[]).filter(c=>c.id!==(p.val||stFirst(stVal))))}
+      <label for="aChN" class="tipd" title="The rows in each subgroup, taken in order (X̄ charts); or each subgroup's size when there is no column of sizes (p, np, u)">Size</label><input type="text" id="aChN" inputmode="numeric" value="${esc(p.size==null?"5":String(p.size))}">
+      ${rsSel("aChZ","Sizes",p.ncol||"","The size typed",(S.anaCand||[]).filter(c=>stNum(c)&&c.id!==(p.val||stFirst(stVal))))}
+      <label for="aChR" class="tipd" title="The patterns marked: Western Electric's four, or Nelson's eight (Help lists them)">Rules</label><select id="aChR"><option value="we">Western Electric</option><option value="nelson"${p.rules==="nelson"?" selected":""}>Nelson</option><option value="none"${p.rules==="none"?" selected":""}>None</option></select>
+      <label for="aChM" class="tipd" title="A centre known beforehand (a standard); empty: the data's">Centre</label><input type="text" id="aChM" inputmode="decimal" placeholder="from the data" value="${esc(p.mu==null?"":String(p.mu))}">
+      <label for="aChG" class="tipd" title="The process's σ known beforehand; empty: from the data's ranges or SDs">σ</label><input type="text" id="aChG" inputmode="decimal" placeholder="from the data" value="${esc(p.sigma==null?"":String(p.sigma))}">
+      <label for="aChP" class="tipd" title="A known proportion defective; empty: the data's">p̄</label><input type="text" id="aChP" inputmode="decimal" placeholder="from the data" value="${esc(p.p0==null?"":String(p.p0))}">
+      <label for="aChC" class="tipd" title="A known mean count (c) or count per unit (u); empty: the data's">Mean count</label><input type="text" id="aChC" inputmode="decimal" placeholder="from the data" value="${esc(p.c0==null?"":String(p.c0))}"></div>`; },
+    wire(box){ const on=()=>{ const k=box.querySelector("#aChK").value, xb=k==="xbar-r"||k==="xbar-s", att=k==="p"||k==="np"||k==="u", sub=box.querySelector("#aChS").value, nc=box.querySelector("#aChZ").value;
+        stShow(box,"aChS",xb); stShow(box,"aChN",xb&&!sub||att&&!nc); stShow(box,"aChZ",att); stShow(box,"aChM",xb||k==="imr"); stShow(box,"aChG",xb||k==="imr"); stShow(box,"aChP",k==="p"||k==="np"); stShow(box,"aChC",k==="c"||k==="u");
+        const l=box.querySelector('label[for="aChV"]'); if(l) l.textContent=k==="p"||k==="np"?"Defectives":k==="c"||k==="u"?"Counts":"Values"; };
+      box.addEventListener("change",on); on(); },
+    read(v){ const k=v.aChK, sz=Math.floor(+v.aChN); return {chart:k,val:v.aChV||null,sub:v.aChS||null,size:sz>0?sz:null,ncol:v.aChZ||null,rules:v.aChR,mu:stNumv(v.aChM),sigma:stNumv(v.aChG),p0:stNumv(v.aChP),c0:stNumv(v.aChC)}; },
+    valid(v){ const k=v.aChK, xb=k==="xbar-r"||k==="xbar-s", att=k==="p"||k==="np"||k==="u"; if(!v.aChV) return false; if(xb&&!v.aChS&&!(+v.aChN>=2)) return false; if(att&&!v.aChZ&&!(+v.aChN>0)) return false; return true; },
+    extra(p){ return [p.val,p.sub,p.ncol].filter(Boolean); }},
+  pareto:{noGroup:true, html(p){ return `<div class="grid2">${rsSel("aPaC","Categories",p.cat||stFirst(stTxt))}${rsSel("aPaV","Amounts",p.val||"","None: count the rows",(S.anaCand||[]).filter(stNum))}</div>`; },
+    read(v){ return {cat:v.aPaC||null,val:v.aPaV||null}; }, valid(v){ return !!v.aPaC&&v.aPaC!==v.aPaV; }, extra(p){ return [p.cat,p.val].filter(Boolean); }},
+  bland:{noGroup:true, html(p){ return `<div class="grid2">${rsSel("aBaA","Method A",p.a||stFirst(stVal),"",(S.anaCand||[]).filter(stNum))}${rsSel("aBaB","Method B",p.b||stFirst(stVal,[p.a||stFirst(stVal)]),"",(S.anaCand||[]).filter(stNum))}
+      <label for="aBaM" class="tipd" title="Difference: A − B. Ratio: A / B. Percentage: (A − B) over their mean, in percent">Compared as</label><select id="aBaM"><option value="diff">Difference, A − B</option><option value="ratio"${p.mode==="ratio"?" selected":""}>Ratio, A / B</option><option value="pct"${p.mode==="pct"?" selected":""}>Percentage difference</option></select>${confSel(p)}</div>`; },
+    read(v){ return {a:v.aBaA,b:v.aBaB,mode:v.aBaM,conf:+v.aCf||0.95}; }, valid(v){ return !!v.aBaA&&!!v.aBaB&&v.aBaA!==v.aBaB; }, extra(p){ return [p.a,p.b].filter(Boolean); }},
+  meta:{noGroup:true, html(p){ const num=(S.anaCand||[]).filter(stNum), ek=p.lo&&p.hi&&!p.se?"ci":"se", e0=p.est||stFirst(stVal);
+      return `<div class="grid2">${rsSel("aMaN","Study names",p.name||stFirst(stTxt),"Their rows",(S.anaCand||[]).filter(stTxt))}${rsSel("aMaE","Estimates",e0,"",num)}
+      <label for="aMaK">Their errors</label><select id="aMaK"><option value="se">Standard errors</option><option value="ci"${ek==="ci"?" selected":""}>Intervals</option></select>
+      ${rsSel("aMaS","Standard errors",p.se||stFirst(stVal,[e0]),"",num)}${rsSel("aMaL","Intervals, from",p.lo||"","",num)}${rsSel("aMaH","Intervals, to",p.hi||"","",num)}
+      <label for="aMaC" class="tipd" title="The level of the intervals given, to find each study's standard error from its width">Their level</label><select id="aMaC">${[0.9,0.95,0.99].map(c=>`<option value="${c}"${c===(+p.cconf||0.95)?" selected":""}>${anaPct(c)}</option>`).join("")}</select>
+      <label for="aMaG" class="tipd" title="Ratios (odds, risk, hazard ratios) are combined as their logarithms, with the standard errors of the logarithms, and shown back as ratios">Scale</label><select id="aMaG"><option value="linear">Differences, as they are</option><option value="log"${p.scale==="log"?" selected":""}>Ratios, on a log scale</option></select>
+      ${confSel(p,"Pooled interval")}</div>`; },
+    wire(box){ const on=()=>{ const ci=box.querySelector("#aMaK").value==="ci"; stShow(box,"aMaS",!ci); stShow(box,"aMaL",ci); stShow(box,"aMaH",ci); stShow(box,"aMaC",ci); }; box.addEventListener("change",on); on(); },
+    read(v){ const ci=v.aMaK==="ci"; return {name:v.aMaN||null,est:v.aMaE,se:ci?null:v.aMaS||null,lo:ci?v.aMaL||null:null,hi:ci?v.aMaH||null:null,cconf:+v.aMaC||0.95,scale:v.aMaG==="log"?"log":"linear",conf:+v.aCf||0.95}; },
+    valid(v){ return !!v.aMaE&&(v.aMaK==="ci"?!!v.aMaL&&!!v.aMaH&&v.aMaL!==v.aMaH:!!v.aMaS&&v.aMaS!==v.aMaE); }, extra(p){ return [p.name,p.est,p.se,p.lo,p.hi].filter(Boolean); }},
+  qq:{noGroup:true, html(p){ return `<div class="grid2"><label for="aQqD">Distribution</label><select id="aQqD">${QQ_DISTS.map(([k,l])=>`<option value="${k}"${k===(p.dist||"normal")?" selected":""}>${esc(l)}</option>`).join("")}</select>
+      <label for="aQqP" class="tipd" title="Where the i-th of n values is put on the distribution">Plotting positions</label><select id="aQqP">${QQ_POS.map(([k,l])=>`<option value="${k}"${k===(p.pos||"r")?" selected":""}>${esc(l)}</option>`).join("")}</select>
+      <label for="aQqL">Line</label><select id="aQqL"><option value="fit">The fitted distribution, y = x</option><option value="quartiles"${p.line==="quartiles"?" selected":""}>Through the quartiles</option></select>${confSel(p,"Band")}</div><p class="lab">Each column ticked, a Q–Q plot of its own.</p>`; },
+    read(v){ return {dist:v.aQqD,pos:v.aQqP,line:v.aQqL,conf:+v.aCf||0.95}; }}};
 const ANA_FORMS={
   desc:{html(p){ const want=new Set(descKeys(p)), qt=qtOk(p.qtype)?p.qtype:7, conf=p.conf>0&&p.conf<1?p.conf:0.95;
       const tip={n:"The values counted",miss:"Rows read that hold no number",sd:"Standard deviation",se:"The standard error of the mean, SD / √N",ci:"The interval the mean lies in, at the level below (Student's t)",
@@ -23762,6 +24090,7 @@ const ANA_FORMS={
       return {test:v.aWt,find:v.aWf==="size"?"size":"pw",sizes:list(v.aWn),powers:list(v.aWp),alpha:num(v.aWa),alt:ANA_ALT[v.aAlt]?v.aAlt:"two",d:num(v.aWd),sd:num(v.aWsd),means:list(v.aWm),
         p0:num(v.aWp0),p1:num(v.aWp1),p2:num(v.aWp2),v0:num(v.aWv0),v1:num(v.aWv1),v2:num(v.aWv2),w:num(v.aWw),df:num(v.aWdf),r:num(v.aWr)}; },
     valid(v){ const L=s=>{ const r=parseFillList(s); return r.vals.length>0&&!r.bad.length; }; return v.aWf==="size"?L(v.aWp):L(v.aWn); }},
+  ...ST_FORMS,
   roc:{html(p){ return `<div class="grid2"><label for="aRg" class="tipd" title="The column naming each row's group: text, or numbers with two values">Groups</label><select id="aRg" data-v="${esc(p.grp||"")}"></select>
       <label for="aRp">Positive</label><select id="aRp" data-v="${esc(p.pos==null?"":String(p.pos))}"></select>
       <label for="aRdir">A positive scores</label><select id="aRdir"><option value="high">Higher</option><option value="low"${p.dir==="low"?" selected":""}>Lower</option></select>
@@ -24381,6 +24710,7 @@ async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[kin
   const sel=new Set(a0?a0.in.cols:(o.cols||(wsSelColIds?wsSelColIds():[])).filter(id=>cand.some(c=>c.id===id)));
   if(!sel.size&&cand.length&&o.all) cand.filter(c=>c.role!=="x"&&anyVal(c.data)).forEach(c=>sel.add(c.id));
   if(!sel.size&&cand.length){ const act=activeYCol(); if(act&&cand.includes(act)) sel.add(act.id); else sel.add(cand[0].id); if(o.two&&cand.length>1){ const nx=cand.find(c=>!sel.has(c.id)); if(nx) sel.add(nx.id); } }
+  S.anaSel=sel;   // the columns ticked when the dialog opened: a form's lists start from them (stFirst)
   const rd=a0?a0.in.read||{}:{}, bys=F.noGroup?[]:sheetCols(sid).filter(c=>!c.ana&&(isCatCol(c)||textCount(c))), rr=a0?anaRowsOf(a0.in):null, p0=a0?a0.p||{}:(o.p||{});
   // A filter on the sheet is offered as the analysis's own rows (SHEET_SPEC 3.3): ticked for a new one; an analysis that has its own keeps them.
   const W0=a0&&a0.in.where&&Object.keys(a0.in.where).length?a0.in.where:null, Wf=filtOf(p,sid), whereC=W0||(Object.keys(Wf).length?Wf:null);
@@ -24457,6 +24787,11 @@ function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&
   if(a.kind==="anovan") return [{key:"inter",label:"Interaction plot",title:"The cells' means by the first factor, a line for each level of the second, with their intervals, on a graph",enabled:!ro,run:()=>anaInterPlot(a.id)},
     {key:"mains",label:"Main effects plot",title:"Each factor's means with their intervals, a graph each, in a figure",enabled:!ro,run:()=>anaMainsPlot(a.id)}];
   if(a.kind==="rm") return [{key:"profile",label:"Profile plot",title:"The cells' means across the first within factor's levels, a line for each level of the second or each group, with their standard errors, on a graph",enabled:!ro,run:()=>anaInterPlot(a.id)}];
+  if(a.kind==="ctrl") return [{key:"plot",label:"Control chart",title:"The statistic with its centre line and limits, the points that break a rule ringed and labelled with the rules, on a graph (X̄ and R, X̄ and S, and individuals and MR in panels of one figure)",enabled:!ro,run:()=>ctrlPlot(a.id)}];
+  if(a.kind==="pareto") return [{key:"plot",label:"Pareto chart",title:"The categories as columns from the largest, and the running share as a line on a right axis from 0 to 100 %",enabled:!ro,run:()=>paretoPlot(a.id)}];
+  if(a.kind==="bland") return [{key:"plot",label:"Bland–Altman plot",title:"Each pair's difference against its mean, the bias and the limits of agreement as lines with their intervals shaded",enabled:!ro,run:()=>blandPlot(a.id)}];
+  if(a.kind==="meta") return [{key:"plot",label:"Forest plot",title:"Each study's estimate with its interval, a square as large as its weight, the pooled estimates as diamonds, and the line of no effect",enabled:!ro,run:()=>forestPlot(a.id)}];
+  if(a.kind==="qq") return [{key:"plot",label:"Q–Q plot",title:"Each column's sorted values against the fitted distribution's quantiles, with the line and the band shaded, a graph each",enabled:!ro,run:()=>qqKindPlot(a.id)}];
   if(a.kind==="roc") return [{key:"roc",label:"ROC curve",title:"Sensitivity against 1 − specificity, a curve each score, with the diagonal, on a graph",enabled:!ro,run:()=>anaRocPlot(a.id)}];
   if(a.kind==="power") return [{key:"curve",label:"Power curve",title:"Power against size, on a graph",enabled:!ro,run:()=>anaPowerPlot(a.id)}];
   if(a.kind==="lm") return [{key:"partial",label:"Partial residual plots",title:"For each column of numbers, the residuals plus its terms' share against it, with the line of those terms, a graph each, in a figure",enabled:!ro&&(a.res.report.nums||0)>0,run:()=>anaPartial(a.id)}];
@@ -24480,7 +24815,8 @@ function anaActs(a){ const rep=a.res&&a.res.report, ro=S.readOnly||!P(), n=rep&&
       {key:"scores",label:"Plot the scores",title:l.two?"The samples' first two scores, named, on a graph":"The samples' first score against their number, on a graph",enabled:!ro,run:()=>plsPlot(a.id,"scores")}]; }
   if(a.kind==="lda"){ const l=rep.lda||{}; return [{key:"scores",label:"Plot the scores",title:l.q>1?"The rows' scores on the two functions plotted, a curve a group, with the group means, on a graph":"The rows' scores on the function against their row, a curve a group, on a graph",enabled:!ro,run:()=>ldaPlot(a.id)}]; }
   if(a.kind==="kmeans"||a.kind==="hclust"){ const cl=rep.clu||{}, cur=cl.lay==="curves";
-    return (a.kind==="hclust"?[{key:"dendro",label:"Dendrogram",title:"The merges drawn as a tree, the observations named along X, the cut as a dashed line, on a graph",enabled:!ro,run:()=>cluPlot(a.id,"dendro")}]:[])
+    return (a.kind==="hclust"?[{key:"dendro",label:"Dendrogram",title:"The merges drawn as a tree, the observations named along X, the cut as a dashed line, on a graph",enabled:!ro,run:()=>cluPlot(a.id,"dendro")},
+        {key:"heat",label:"Heat map",title:cur?"The curves as a map, in the dendrogram's order, the dendrogram beside them, in panels of one figure sharing Y":"The data as a map, the rows in the dendrogram's order with the dendrogram beside them and the variables joined the same way above, in panels of one figure sharing their axes",enabled:!ro,run:()=>heatDendro(a.id)}]:[])
       .concat([{key:"clus",label:cur?"Cluster means":"Plot the clusters",title:cur?"Each cluster's mean curve against X, on a graph":`The observations on ${cl.pair?cl.pair.join(" and "):"two variables"}, a curve a cluster, on a graph`,enabled:!ro,run:()=>cluPlot(a.id,"clus")}])
       .concat(a.kind==="kmeans"&&cl.sil?[{key:"sil",label:"Silhouette plot",title:"Each observation's silhouette as a column, a cluster each, sorted, on a graph",enabled:!ro,run:()=>cluPlot(a.id,"sil")}]:[])
       .concat(a.kind==="kmeans"&&cl.scan?[{key:"scan",label:"Plot against k",title:"The within sum of squares and the mean silhouette against the number of clusters (the silhouette on the right axis), on a graph",enabled:!ro,run:()=>cluPlot(a.id,"scan")}]:[])
@@ -24560,6 +24896,61 @@ function anaScatter(id){ const a0=anaOf(id); if(!a0||!P()||S.readOnly) return;
   if(gids.length>1) makeFigure(gids,{noUndo:true,quiet:true,cols:Math.min(3,gids.length),log:`put the scatter matrix of ${a0.name} in a figure`});
   toast(`The scatter matrix of ${a0.name}.`,{action:"Undo",run:undo}); }
 // A means plot: the groups' means as symbols joined by a line, their intervals as error bars, the groups along X.
+/* The statistical charts' graphs (PLOT2_SPEC 7.2), each from its result sheet's columns, one undo step: graphs made by plotCols,
+   then their axes titled and their annotations put, all in the step pushed here. */
+function stCol(id,k){ return P().cols.find(c=>c.ana===id&&c.ak===k); }
+function stGraph(ids,o){ const g0=P().graphs.length; plotCols(ids.filter(Boolean).map(c=>c.id),Object.assign({noUndo:true,quiet:true},o)); return P().graphs.length>g0?P().graphs[P().graphs.length-1].id:null; }
+function stAxes(gid,ax,more){ if(!gid) return; if(GID()!==gid) activateGraph(gid); const cur=Object.assign({},GP().ax||{}); Object.keys(ax||{}).forEach(k=>{ cur[k]=Object.assign({},cur[k]||{},ax[k]); }); savePlot(Object.assign({ax:cur},more||{})); }
+const ST_RED="#E0453A", ST_GREEN="#3E9B4F";   // mid-tones, read on the light graph and the dark
+// Graphs made one by one put in a figure that takes the room their windows had together, not one window's half.
+function stFigure(gids,o){ const gs=gids.map(id=>{ const w=winOfGraph(id); return w&&winOpen(w)?winState(w).g.slice():null; }).filter(Boolean);
+  const fid=makeFigure(gids,Object.assign({noUndo:true,quiet:true},o)); if(!fid||!gs.length) return fid;
+  const x0=Math.min(...gs.map(g=>g[0])), y0=Math.min(...gs.map(g=>g[1])), x1=Math.max(...gs.map(g=>g[0]+g[2])), y1=Math.max(...gs.map(g=>g[1]+g[3]));
+  Object.assign(winState(fid),{g:[x0,y0,x1-x0,y1-y0]}); applyWins(); saveLayout(); activateGraph(gids[0]); layoutFigs(fid); return fid; }
+function ctrlPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const r=a.res&&a.res.report&&a.res.report.ctrl, v=stCol(id,"v");
+  if(!r||!v){ toast("There is no control chart to draw: Recalculate first."); return; }
+  pushUndo("a control chart"); const gids=[];
+  const panel=(sfx,name,vary)=>{ const c=k=>stCol(id,k+sfx), lim={type:vary?"step":"line",color:ST_RED,dash:"dash",lw:1.2}, rule=stCol(id,"rule");
+    // the points that break a rule, ringed: drawn only when there are some, so the legend names nothing that is not there
+    const mk=c("mark")&&anyVal(c("mark").data)?c("mark"):null;
+    const g=stGraph([c("v"),c("cl"),c("ucl"),c("lcl"),mk],{series:{[c("v").id]:{type:"linesym",sym:"circle"},[c("cl").id]:{type:"line",color:ST_GREEN,lw:1.2},[c("ucl").id]:lim,[c("lcl").id]:lim,...(mk?{[mk.id]:{type:"scatter",sym:"ocircle",ss:7,color:ST_RED,lw:1.6}}:{})},use:mk&&rule&&!sfx?{[mk.id]:{lab:rule.id}}:{}});
+    if(g){ gids.push(g); stAxes(g,{y:{title:name},x:{title:"Subgroup"}},{legend:"out"}); } };
+  panel("",`${r.name} of ${r.val}`,r.vary); if(r.two) panel("2",r.bname,r.varyB);
+  if(gids.length>1) stFigure(gids,{cols:1,shareX:true,log:`put the control chart of ${a.name} in a figure`});
+  toast(`The control chart of ${a.name}${r.n?`: ${r.n} point${r.n===1?"":"s"} break${r.n===1?"s":""} a rule`:""}.`,{action:"Undo",run:undo}); }
+function paretoPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const n=stCol(id,"n"), cum=stCol(id,"cum"), r=a.res&&a.res.report&&a.res.report.pareto;
+  if(!n||!cum){ toast("There is no Pareto chart to draw: Recalculate first."); return; }
+  pushUndo("a Pareto chart"); const g=stGraph([n,cum],{series:{[n.id]:{type:"column"},[cum.id]:{type:"linesym",sym:"circle",color:ST_RED}},use:{[cum.id]:{ax:"r"}}});
+  stAxes(g,{y:{title:r?r.what:"Count",min:0},y2:{title:"Running share (%)",min:0,max:100}});
+  toast(`The Pareto chart of ${a.name}.`,{action:"Undo",run:undo}); }
+function blandPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const d=stCol(id,"d"), ks=["lb","lu","ll","lbl","lbh","lul","luh","lll","llh"].map(k=>stCol(id,k));
+  if(!d||ks.some(c=>!c)){ toast("There is no Bland–Altman plot to draw: Recalculate first."); return; }
+  const [lb,lu,ll,lbl,lbh,lul,luh,lll,llh]=ks, band=(c,to)=>({type:"line",dash:"none",color:"#7F8A99",fillTo:to.id,fill:0.18,leg:false}), hid={type:"line",dash:"none",leg:false};
+  pushUndo("a Bland–Altman plot");
+  const g=stGraph([d,lb,lu,ll,lbl,lbh,lul,luh,lll,llh],{series:{[d.id]:{type:"scatter",sym:"circle"},[lb.id]:{type:"line",color:ST_GREEN,lw:1.4},[lu.id]:{type:"line",color:ST_RED,dash:"dash",lw:1.3},[ll.id]:{type:"line",color:ST_RED,dash:"dash",lw:1.3},
+    [lbl.id]:band(lbl,lbh),[lbh.id]:hid,[lul.id]:band(lul,luh),[luh.id]:hid,[lll.id]:band(lll,llh),[llh.id]:hid}});
+  stAxes(g,{});
+  toast(`The Bland–Altman plot of ${a.name}.`,{action:"Undo",run:undo}); }
+function forestPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const pos=stCol(id,"pos"), pp=stCol(id,"ppos"), w=stCol(id,"w"), m=a.res&&a.res.report&&a.res.report.meta;
+  if(!pos||!pp||!m){ toast("There is no forest plot to draw: Recalculate first."); return; }
+  pushUndo("a forest plot");
+  const g=stGraph([pos,pp],{series:{[pos.id]:{type:"scatter",sym:"square",scol:w?w.id:"",ebCap:0},[pp.id]:{type:"scatter",sym:"diamond",ss:6,color:ST_RED,ebColor:ST_RED,ebCap:0}}});
+  const cats=m.names.map((n,i)=>[m.pos[i],n]).concat([[1,"Fixed effect"],[0,"Random effects"]]);
+  // X over every interval and the line of no effect, a twentieth beyond (in logarithms for ratios)
+  const ends=[m.null]; [[stCol(id,"e"),stCol(id,"eminus"),stCol(id,"eplus")],[stCol(id,"pe"),stCol(id,"pminus"),stCol(id,"pplus")]].forEach(([e,lo,hi])=>{ if(!e) return;
+    (e.data||[]).forEach((v,i)=>{ if(!Number.isFinite(v)) return; ends.push(v); const a=lo&&lo.data[i], b=hi&&hi.data[i]; if(Number.isFinite(a)) ends.push(v-a); if(Number.isFinite(b)) ends.push(v+b); }); });
+  const tf=m.log?Math.log10:v=>v, ti=m.log?v=>10**v:v=>v, ok=ends.filter(v=>Number.isFinite(tf(v))).map(tf), x0=Math.min(...ok), x1=Math.max(...ok), pad=(x1-x0||1)*0.05;
+  stAxes(g,{y:{cats,min:-0.8,max:m.k+2.8,tshow:false},x:{title:m.log?"Ratio (log scale)":"Estimate",min:ti(x0-pad),max:ti(x1+pad)}},Object.assign({sizeLeg:false,legend:"off"},m.log?{logX:true}:{}));
+  if(g){ const q=P(), d=finalOf(pos); saveAnnos((q.annos||[]).concat([{id:annoId(),t:"v",x:m.null,g,xu:d.xu||"",color:"#7F8A99",dash:"dash",text:""}]),null); }
+  toast(`The forest plot of ${a.name}.`,{action:"Undo",run:undo}); }
+function qqKindPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const n=(a.res&&a.res.report&&a.res.report.qq)||0;
+  if(!n||!stCol(id,"qy0")){ toast("There is no Q–Q plot to draw: Recalculate first."); return; }
+  pushUndo("a Q–Q plot"); const gids=[];
+  for(let t=0;t<n;t++){ const y=stCol(id,"qy"+t), l=stCol(id,"ql"+t), lo=stCol(id,"qlo"+t), hi=stCol(id,"qhi"+t); if(!y) continue;
+    const g=stGraph([y,l,lo,hi],{series:{[y.id]:{type:"scatter",sym:"circle"},[l.id]:{type:"line",color:ST_RED,lw:1.3},[lo.id]:{type:"line",dash:"none",color:"#7F8A99",fillTo:hi.id,fill:0.18,leg:false},[hi.id]:{type:"line",dash:"none",leg:false}}});
+    if(g){ gids.push(g); stAxes(g,{y:{title:`${y.name}, sorted`}}); } }
+  if(gids.length>1) stFigure(gids,{log:`put the Q–Q plots of ${a.name} in a figure`});
+  toast(`The Q–Q plot${gids.length>1?"s":""} of ${a.name}.`,{action:"Undo",run:undo}); }
 function anaRocPlot(id){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const ys=p.cols.filter(c=>c.ana===id&&/^tpr\d+$/.test(c.ak||"")), dg=p.cols.find(c=>c.ana===id&&c.ak==="dy");
   if(!ys.length){ toast("There is no ROC curve to draw: Recalculate first."); return; } const ids=ys.map(c=>c.id).concat(dg?[dg.id]:[]);
   plotCols(ids,{series:Object.fromEntries(ids.map(i=>[i,i===(dg&&dg.id)?{type:"line",dash:"dash"}:{type:"line"}])),undo:"plotting an ROC curve",say:`ROC curve of ${a.name}`});
@@ -24582,6 +24973,31 @@ function pcaPlot(id,what){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) retu
 /* A clustering's graphs (MULTI_SPEC 6.3), from its result sheet's columns, one undo step: the dendrogram (the observations named
    along X, the cut dashed), the clusters (a curve each: on two variables, or each cluster's mean curve), the silhouettes as
    columns, the sums of squares and silhouettes against k. */
+/* The heat map with dendrograms (PLOT2_SPEC 7.2), one undo step: the analysis worked out again with its heat map (once), then a figure:
+   the variables' dendrogram above the map, the observations' sideways to its left (its root at the left), the map of the scaled values
+   (cool to warm about 0); X shared down the column and Y along the row, the axes' limits at the cells' edges so the leaves meet the cells. */
+function heatDendro(id){ const a0=anaOf(id); if(!a0||!P()||S.readOnly) return;
+  if(!(a0.p&&a0.p.heat)) anaEdit(id,"a heat map",(a,ana,q)=>{ a.p=Object.assign({},a.p||{},{heat:true}); runAna(a,q,{sync:true}); return anaPatch({ana,cols:q.cols},q); },`worked out the heat map of ${a0.name}`);
+  else pushUndo("a heat map");
+  const a=anaOf(id), h=a&&a.res&&a.res.report&&a.res.report.clu&&a.res.report.clu.heat, ms=anaMatSheet(a), col=k=>P().cols.find(c=>c.ana===id&&c.ak===k);
+  if(!h||!ms||!col("hy")){ toast(a&&a.res&&a.res.err?`${a.name} could not be worked out: ${a.res.err}.`:"There is no heat map to draw."); return; }
+  const n=ms.ny, m=ms.nx, leaves=a.res.report.clu.leaves||[], gids=[];
+  const xcats=h.cur?null:h.vnames.map((t,j)=>[j+1,String(t)]), ycats=n<=200?leaves.map((t,i)=>[i+1,String(t)]):null, xr=h.cur?{}:{min:0.5,max:m+0.5}, yr={min:0.5,max:n+0.5};
+  let gTop=null;
+  if(h.vclu&&col("vdy")){ gTop=stGraph([col("vdy")],{series:{[col("vdy").id]:{type:"line",gap:true,lw:1.2}}}); stAxes(gTop,{x:Object.assign({title:""},xr),y:{title:"Height"}},{legend:"off"}); }
+  const gLeft=stGraph([col("hy")],{series:{[col("hy").id]:{type:"line",gap:true,lw:1.2}}});
+  stAxes(gLeft,{x:{title:"Height"},y:Object.assign({tshow:false},yr,ycats?{cats:ycats}:{})},{legend:"off",revX:true});
+  // the map: a graph of the matrix, made here so it is in the same undo step as the rest
+  const p=P(), graphs=(p.graphs||[]).slice(), base=Object.assign(plotBase(GID()?plotOf(GID()):{}),{layout:"heat",mat:ms.id,mapKind:"image",cmap:h.sym?"coolwarm":"viridis",revX:false},h.sym&&h.M>0?{matRng:[-h.M,h.M]}:{});
+  const gm={id:newGid(),name:nextGraphName({graphs}),cols:[],plot:base}; graphs.push(gm); save({graphs},`made ${gm.name}, the heat map of ${a.name}`); xNew(["g:"+gm.id]);
+  renderAll(); splitInto(winOfGraph(gLeft),gm.id); activateGraph(gm.id);
+  stAxes(gm.id,{x:Object.assign({title:h.cur?"":"",lrot:xcats&&xcats.length>12?90:0},xr,xcats?{cats:xcats}:{}),y:Object.assign({tshow:false},yr)});
+  const fid=stFigure((gTop?[gTop]:[]).concat([gLeft,gm.id]),{log:`put the heat map of ${a.name} in a figure`});
+  if(fid){ const g=graphOf(fid), F=Object.assign({},g.fig);
+    if(gTop) Object.assign(F,{rows:2,cols:2,cells:[{gid:gTop,r:0,c:1,rs:1,cs:1},{gid:gLeft,r:1,c:0,rs:1,cs:1},{gid:gm.id,r:1,c:1,rs:1,cs:1}],w:[1,3],h:[1,3],shareX:"col",shareY:"row",letters:"none"});
+    else Object.assign(F,{rows:1,cols:2,cells:[{gid:gLeft,r:0,c:0,rs:1,cs:1},{gid:gm.id,r:0,c:1,rs:1,cs:1}],w:[1,3],h:[],shareX:false,shareY:true,letters:"none"});
+    figSave(fid,F,null,{noUndo:true}); activateGraph(gm.id); }
+  toast(`The heat map of ${a.name}.`,{action:"Undo",run:undo}); }
 function cluPlot(id,what){ const a=anaOf(id), p=P(); if(!a||!p||S.readOnly) return; const cl=a.res&&a.res.report&&a.res.report.clu;
   const col=k=>p.cols.find(c=>c.ana===id&&c.ak===k), all=re=>p.cols.filter(c=>c.ana===id&&re.test(c.ak||"")); if(!cl){ toast("There is nothing to plot: Recalculate first."); return; }
   const ids=[], series={}, use={}; let xt="", yt="", nm="", cats=null, step=null;
@@ -32467,6 +32883,11 @@ function analyzeMenu(){
         {label:"Discriminant analysis…", title:ANA_KINDS.lda.help, run:()=>anaDlg("lda",{all:true}), enabled:!S.readOnly&&!!P()},
         {label:"PLS regression…", title:ANA_KINDS.pls.help, run:()=>anaDlg("pls",{all:true}), enabled:!S.readOnly&&!!P()}]},
       {label:"ROC curve…", title:ANA_KINDS.roc.help, run:()=>anaDlg("roc",{two:true}), enabled:!S.readOnly&&!!P()},
+      {label:"Statistical charts", sub:()=>[{label:"Q–Q plot…", title:ANA_KINDS.qq.help, run:()=>anaDlg("qq"), enabled:!S.readOnly&&!!P()},
+        {label:"Pareto chart…", title:ANA_KINDS.pareto.help, run:()=>anaDlg("pareto"), enabled:!S.readOnly&&!!P()},
+        {label:"Control chart…", title:ANA_KINDS.ctrl.help, run:()=>anaDlg("ctrl"), enabled:!S.readOnly&&!!P()},
+        {label:"Bland–Altman plot…", title:ANA_KINDS.bland.help, run:()=>anaDlg("bland",{two:true}), enabled:!S.readOnly&&!!P()},
+        {label:"Forest plot…", title:ANA_KINDS.meta.help, run:()=>anaDlg("meta"), enabled:!S.readOnly&&!!P()}]},
       {label:"Power and sample size…", title:ANA_KINDS.power.help, run:()=>anaDlg("power"), enabled:!S.readOnly&&!!P()},
       {label:"Histogram", title:"The distribution of the selected columns' values (or the active column's), as a column of its own on a graph of its own", run:()=>histogramCols(hist()), enabled:has&&!S.readOnly}]},
     {label:"Spectroscopy", sub:spectroscopyItems},
@@ -35355,6 +35776,27 @@ ${DL([["Pearson's r","p by t on N − 2 degrees of freedom; its interval by Fish
 <p>Its tab carries a lock: the sheet is read only, since its values are worked out. Its columns can be plotted, read by a formula and copied; one moved to another sheet becomes a copy, cut from the analysis. The results are not original data, so they leave the check code alone.</p>
 <h2 id="recalc">Recalculating</h2>
 <p>Right-click its tab: ${DL([["Report","What it found, with its notes."],["Change settings…","The dialog again."],["Recalculate","When it is out of date."],["Recalculate by itself","The default: worked out again whenever a value, a step or a mask of what it reads changes, with a line in the log."],["Only when asked","A change marks its tab out of date instead, with the reason in its tooltip."],["Cut from its data","The values stay as an ordinary sheet; the analysis goes."],["Delete the analysis…","With its sheet."]])} Each is one undo step.</p>`},
+{id:"stcharts", g:"Analysis", t:"Statistical charts", kw:"statistical charts heat map heatmap clustered heat map dendrograms cluster map control chart shewhart quality spc xbar x-bar range r chart s chart individuals moving range i-mr imr p chart np c chart u chart western electric nelson rules out of control limits ucl lcl d2 d3 c4 a2 pareto 80 20 vital few bland altman agreement limits of agreement bias method comparison forest plot meta-analysis meta analysis pooled fixed random effects dersimonian laird heterogeneity i2 tau q-q qq quantile probability plot weibull gamma lognormal band envelope",
+ lead:"Charts that are statistics: Q–Q plots against five distributions, Pareto charts, control charts, Bland–Altman plots and forest plots. Each is an analysis with a result sheet (followed when its data change); its report's button draws the chart from the sheet's columns, so the chart is ordinary curves you can restyle.",
+ body:`<p>${MP("Analyze › Statistics › Statistical charts")}. As everywhere in Kurve, the charts give numbers, not verdicts: a control chart marks the points that break a rule and names the rule; it does not say whether a process is in control.</p>
+<h2 id="qq">Q–Q plot</h2>
+<p>Each column ticked, its sorted values against the quantiles of a distribution fitted to them: the normal (the mean and SD), the log-normal (those of the logarithms), the exponential (λ = 1/mean), or the Weibull and gamma (maximum likelihood, the location 0). The quantiles are in the data's units, so the fitted distribution is the line y = x (or, if chosen, the line through the quartiles, R's <code>qqline</code>). The plotting positions are R's <code>ppoints</code>, Blom's, Filliben's (as SciPy's <code>probplot</code>), Weibull's i/(n + 1) or Hazen's (i − ½)/n. The band is where each sorted value would fall at the level chosen under the fitted distribution (its order statistic's beta distribution), point by point.</p>
+<h2 id="pareto">Pareto chart</h2>
+<p>A column of categories counted, or a column of amounts summed by category, from the largest (ties in the order first seen): each category's share and the running share. Drawn as columns with the running share as a line on a right axis from 0 to 100 %.</p>
+<h2 id="ctrl">Control charts</h2>
+${DL([["X̄ and R, X̄ and S","Subgroups by a column naming each row's subgroup, or by a size (rows taken in order). The centre is the grand mean; σ̂ is R̄/d₂ or S̄/c₄, and the limits the centre ± 3σ̂/√n (Montgomery's A₂R̄ and A₃S̄); the R chart's D₃R̄ and D₄R̄, the S chart's B₃S̄ and B₄S̄. X̄ and S takes subgroups of different sizes (S̄ pooled, each subgroup its own limits, drawn as steps). d₂ and d₃ are worked out from the range's distribution, not read from a table, so any size up to 1000 has them."],
+  ["Individuals and moving range","Each value a point; σ̂ = MR̄/d₂ with d₂ = 2/√π for ranges of two; the MR chart's limit D₄MR̄."],
+  ["p and np","Defectives by subgroup, with a column of sizes or one size: p̄ = Σd/Σn and the limits p̄ ± 3√(p̄(1 − p̄)/n), each subgroup its own when sizes differ (np needs one size)."],
+  ["c and u","Counts of defects (c: c̄ ± 3√c̄), or counts per unit with a column of units (u: ū ± 3√(ū/n))."],
+  ["Typed","A centre and σ known beforehand (a standard), or p̄, c̄ or ū, in place of the data's."],
+  ["Rules","Western Electric's four: 1 a point beyond 3σ; 2 two of three beyond 2σ on one side; 3 four of five beyond 1σ on one side; 4 eight in a row on one side. Or Nelson's eight: 1 beyond 3σ; 2 nine in a row on one side; 3 six in a row rising or falling; 4 fourteen alternating up and down; 5 two of three beyond 2σ; 6 four of five beyond 1σ; 7 fifteen in a row within 1σ; 8 eight in a row beyond 1σ on either side. A point is marked with each rule whose pattern it completes; the R, S or MR chart's points beyond their limits are marked too."]])}
+<p>The report's <em>Control chart</em> draws the statistic with its centre line (green) and limits (red, dashed), the points that break a rule ringed and labelled with the rules' numbers; X̄ and R, X̄ and S, and individuals and MR are drawn in panels of one figure sharing X.</p>
+<h2 id="bland">Bland–Altman plot</h2>
+<p>Two columns measuring the same things by two methods: each pair's difference A − B (or the ratio A/B, or the difference over the pair's mean in percent) against the pair's mean. The bias is the differences' mean, with its t interval; the limits of agreement are the bias ± z·SD (1.96 at 95 %), each with its interval ± t·SD·√(3/n) (Bland and Altman 1999). The plot draws the bias and the limits as lines with their intervals shaded.</p>
+<h2 id="heat">Heat map with dendrograms</h2>
+<p>${MP("Analyze › Statistics › Multivariate › Hierarchical clustering…")}, then the report's <em>Heat map</em>: the values (scaled as the clustering scaled them) as a matrix, a row for each observation in the dendrogram's order and a column for each variable, the variables joined by the same linkage on the same distances between them. Drawn in panels of one figure: the variables' dendrogram above the map, the observations' to its left (its root at the left), each leaf in line with its row or column; the colours run from cool to warm about 0. The matrix is the analysis's, worked out again when the data change. Curves as observations: their points in X's order, the map and the observations' dendrogram only.</p>
+<h2 id="forest">Forest plots</h2>
+<p>A meta-analysis of studies: each study's estimate with its standard error, or with its interval's ends (at a level you give, the standard error the interval's width over twice the normal's quantile). Ratios (odds, risk or hazard ratios) are combined as logarithms and shown back as ratios, on a log axis. The report gives the fixed effect (inverse variance) and DerSimonian–Laird random effects estimates with their intervals, z and p, each study's weight in both, and the heterogeneity: Cochran's Q, I², H and τ². The forest plot names the studies down the side, draws each estimate as a square as large as its weight with its interval, the pooled estimates as diamonds, and the line of no effect.</p>`},
 {id:"signal", g:"Analysis", t:"Signal processing", kw:"signal processing fft fourier transform discrete spectrum frequency amplitude power phase real imaginary periodogram power spectral density psd welch segments overlap window hann hanning hamming blackman harris flat top kaiser tukey bartlett gaussian rectangle boxcar leakage padding zero padding detrend nyquist sampling rate inverse ifft irfft bluestein db decibel unwrap filter designed iir fir butterworth chebyshev elliptic cauer bessel thomson low-pass high-pass band-pass band-stop lowpass highpass bandpass bandstop order cut-off cutoff edge ripple attenuation zero phase filtfilt sosfiltfilt forwards backwards causal notch hum mains 50 hz 60 hz harmonics quality factor correlation autocorrelation cross-correlation xcorr lag lags delay shift coherence cross-spectrum csd convolution convolve kernel blur broaden instrument function line shape deconvolution deconvolve wiener sharpen wavelet wavelets dwt idwt cwt daubechies symlet coiflet haar morlet mexican hat gaussian derivative decomposition levels detail approximation denoise denoising threshold universal visushrink sure sureshrink minimax soft hard spectrogram short-time stft time-frequency waterfall envelope hilbert analytic signal instantaneous frequency phase amplitude modulation demodulation upper lower maxima minima interpolate interpolation extrapolate extrapolation spline cubic natural not-a-knot clamped akima makima pchip smoothing spline gcv cross-validation resample grid gridding scattered xyz delaunay triangles thin plate tps rbf shepard inverse distance matrix integral integrate area simpson trapezoid trapezoidal area between two curves crossing fitted curve integral gauss-kronrod quadrature",
  lead:"The Fourier transform of a column, its power spectrum by Welch's method and the inverse, correlation and coherence, interpolation, each as a sheet of results worked out again when its data change; scattered points gridded into a matrix; filters designed by their kind, band and order, a notch, convolution and deconvolution, as steps.",
  body:`<h2 id="fft">FFT</h2>
@@ -35415,7 +35857,7 @@ ${DL([["Eigenvalues","Each component's variance, its share of the total and the 
 <p>${MP("Analyze › Statistics › Multivariate › k-means clustering…")}: the observations into <em>Clusters</em> groups, each observation in the group whose centre is nearest, each centre the mean of its group (Lloyd's algorithm). It starts from centres spread by k-means++, drawn from the <em>Seed</em>, and tries several <em>Starts</em>, keeping the one with the least within sum of squares: the same seed gives the same clusters. Clusters are numbered by the data: cluster 1 holds the first observation. The result sheet holds each observation's cluster (as text), its distance to its centre and its silhouette (how much nearer its own cluster is than the next, from −1 to 1); each cluster's size, within sum of squares and mean silhouette; the centres in the data's own units (with curves, each centre a curve against X). <em>Compare up to</em> runs every number of clusters from 2 to the one typed and lists their sums of squares and silhouettes side by side, to help choose; a number of clusters is the user's choice, not the analysis's.</p>
 <h2 id="hclust">Hierarchical clustering</h2>
 <p>${MP("Analyze › Statistics › Multivariate › Hierarchical clustering…")}: the two nearest observations or clusters joined, again and again, until one is left, as SciPy's linkage does. ${DL([["Ward's","The two whose joining raises the within sum of squares least: compact clusters of similar size. Needs Euclidean distances."],["Average","The mean distance between their members."],["Complete","The farthest pair."],["Single","The nearest pair: long chains."]])} <em>Distance</em> is Euclidean in the scaled values, or 1 − r between two observations (alike in shape, whatever their size: curves that differ only in height are close). <em>Cut</em> into a number of clusters, or at a height. The result sheet holds each observation's cluster, the merges with their heights (the last fifteen in the report), and the cophenetic correlation (how well the tree's heights keep the distances).</p>
-<p>From the report: <em>Dendrogram</em> (the tree, the observations named along X, the cut dashed), <em>Plot the clusters</em> (on two of the columns ticked, a curve a cluster) or <em>Cluster means</em> (curves), <em>Silhouette plot</em>, <em>Plot against k</em>, and <em>Put the clusters in the data</em> (columns only: each row's cluster as a categorical column at the end of the data's sheet, a copy that a recalculation leaves alone, ready to group a box chart or a scores plot by). A clustering may read a principal component analysis's scores: open it with the PCA's sheet in front.</p>
+<p>From the report: <em>Dendrogram</em> (the tree, the observations named along X, the cut dashed), <em>Heat map</em> (hierarchical clustering: ${DA("stcharts#heat","the data as a map with both dendrograms")}), <em>Plot the clusters</em> (on two of the columns ticked, a curve a cluster) or <em>Cluster means</em> (curves), <em>Silhouette plot</em>, <em>Plot against k</em>, and <em>Put the clusters in the data</em> (columns only: each row's cluster as a categorical column at the end of the data's sheet, a copy that a recalculation leaves alone, ready to group a box chart or a scores plot by). A clustering may read a principal component analysis's scores: open it with the PCA's sheet in front.</p>
 <h2 id="lda">Discriminant analysis</h2>
 <p>${MP("Analyze › Statistics › Multivariate › Discriminant analysis…")}: groups known in advance (a column of text, <em>Groups</em>) told apart by the columns of numbers ticked. Columns are the variables; for curves, whose points outnumber them, work out their principal components first and discriminate on the scores (with the PCA's sheet in front). The result sheet and the report hold:</p>
 ${DL([["Each variable alone","Its Wilks' Λ (the share of its spread within the groups) and F: how well it separates the groups by itself."],["Canonical functions","The combinations of the variables that separate the groups most, one fewer than the groups at most: each one's eigenvalue, share, canonical correlation, and Wilks' Λ of it and those after it with Bartlett's χ² and p."],["Coefficients","Unstandardised (the scores' within-group variance is 1, the constant making their mean 0), standardised (each times the variable's pooled SD, to compare variables in different units), and the structure (each variable's within-group correlation with each function)."],["Classification","Fisher's classification functions, each row's probability of each group and the group it is classified in, the table of true against classified groups with the share correct, and the same with each row left out of the fit that classifies it."]])}

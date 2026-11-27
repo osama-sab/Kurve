@@ -262,6 +262,240 @@ if (section("7.1")) {
   }, { name: "budgets", timeout: 120000 });
 }
 
+/* A quality table: Width in subgroups of five (a shift in subgroup 7), Lot (text), Defects of Inspected, two methods measuring the
+   same things; and a table of studies. */
+const qc = async p => {
+  await p.evaluate(async () => {
+    const n = 50, v = [], lot = [], d = [], sz = [], a = [], b = [];
+    for (let i = 0; i < n; i++) { v.push(+(10 + Math.sin(i * 1.3) * 1.5 + (i >= 30 && i < 35 ? 4 : 0)).toFixed(3)); lot.push(["Scratch", "Dent", "Scratch", "Paint", "Crack", "Scratch", "Dent"][i % 7]); d.push(3 + (i * 7 % 5) + (i === 20 ? 14 : 0)); sz.push(80 + (i * 13 % 40)); a.push(+(50 + i * 2 + Math.cos(i) * 3).toFixed(2)); b.push(+(50 + i * 2 * 1.01 + Math.sin(i) * 2).toFixed(2)); }
+    const tc = (nm, arr) => Object.assign(makeCol("ignore", nm, ""), { data: arr.map(() => null), fmt: "text", txt: Object.fromEntries(arr.map((t, i) => [i, t])) });
+    const cols = [Object.assign(makeCol("x", "Row", ""), { data: v.map((_, i) => i + 1) }), Object.assign(makeCol("y", "Width", "mm"), { data: v, pipe: [], mask: [] }), tc("Defect", lot),
+      Object.assign(makeCol("y", "Defects", ""), { data: d, pipe: [], mask: [] }), Object.assign(makeCol("ignore", "Inspected", ""), { data: sz }),
+      Object.assign(makeCol("y", "Method A", "mg"), { data: a, pipe: [], mask: [] }), Object.assign(makeCol("y", "Method B", "mg"), { data: b, pipe: [], mask: [] })];
+    await createProject(Object.assign(blankProject("Quality"), { cols, activeY: cols[1].id }), "test"); await new Promise(r => setTimeout(r, 120)); renderAll();
+  });
+  await p.waitForTimeout(400);
+  return p.evaluate(() => Object.fromEntries(sheetCols(curSheet()).map(c => [c.name, c.id])));
+};
+const runKind = async (p, kind, cols, set, o = {}) => {
+  await p.evaluate(([k, c, o]) => { anaDlg(k, Object.assign({ cols: c }, o)); }, [kind, cols, o]); await p.waitForSelector("#formOk"); await p.waitForTimeout(150);
+  if (set) await set(); if (await p.evaluate(() => document.querySelector("#formOk").disabled)) return { disabled: true };
+  const n0 = await p.evaluate(k => anaList().filter(a => a.kind === k).length, kind);
+  await p.click("#formOk"); await p.waitForFunction(([k, n0]) => anaList().filter(a => a.kind === k).length > n0 && anaList().filter(a => a.kind === k).slice(-1)[0].res, [kind, n0], { timeout: 30000 }).catch(() => {});
+  await p.waitForTimeout(250);
+  return lastAna(p, kind); };
+const lastAna = (p, kind) => p.evaluate(k => { const as = anaList().filter(x => x.kind === k), a = as[as.length - 1]; if (!a) return null;
+  const col = key => { const c = P().cols.find(c => c.ana === a.id && c.ak === key); return c ? (c.data || []).map((v, i) => v == null && c.txt && c.txt[i] != null ? c.txt[i] : v) : null; };
+  const keys = P().cols.filter(c => c.ana === a.id).map(c => c.ak);
+  return { id: a.id, p: a.p, err: a.res.err || null, notes: a.res.notes || [], method: a.res.report && a.res.report.method, rep: a.res.report || null,
+    secs: a.res.report && a.res.report.sections.map(s => ({ t: s.title, h: s.tables[0].head, r: s.tables[0].rows })), keys, cols: Object.fromEntries(keys.map(k => [k, col(k)])) }; }, kind);
+const near = (a, b, t = 1e-12) => a != null && b != null && Math.abs(a - b) <= t * Math.max(1, Math.abs(b));
+const allNear = (a, b, t) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => (v == null && b[i] == null) || near(v, b[i], t));
+const noVerdict = r => !/in control|out of control|significant|good agreement|poor|excellent|recommend|suggest|acceptable/i.test(JSON.stringify(r));
+
+if (section("7.2")) {
+  console.log("7.2 Statistical charts");
+  await page(async p => {
+    const id = await qc(p);
+    // The menu: Analyze › Statistics › Statistical charts, its five items.
+    const items = await p.evaluate(() => { const st = menuItems("analyze").find(i => i.label === "Statistics"), sub = typeof st.sub === "function" ? st.sub() : st.sub, sc = sub.find(i => i.label === "Statistical charts"); return (typeof sc.sub === "function" ? sc.sub() : sc.sub).map(i => i.label); });
+    check("Analyze › Statistics › Statistical charts: Q–Q plot, Pareto chart, Control chart, Bland–Altman plot, Forest plot", items.join("|") === "Q–Q plot…|Pareto chart…|Control chart…|Bland–Altman plot…|Forest plot…", items.join("|"));
+    // X̄ and R from the column ticked, subgroups of five by size.
+    let form = null;
+    let r = await runKind(p, "ctrl", [id.Width], async () => { form = await p.evaluate(() => ({ k: document.querySelector("#aChK").value, v: document.querySelector("#aChV").value, n: document.querySelector("#aChN").value, zHidden: document.querySelector("#aChZ").hidden, pHidden: document.querySelector("#aChP").hidden })); });
+    check("the dialog: X̄ and R, Values the column ticked, size 5, the attributes' fields hidden", form.k === "xbar-r" && form.v === id.Width && form.n === "5" && form.zHidden && form.pHidden, JSON.stringify(form));
+    let want = await p.evaluate(i => { const R = ctrlChart({ chart: "xbar-r", x: colById(i).data, size: 5, rules: "we" }); return { v: R.A.v, cl: R.A.cl, ucl: R.A.ucl, lcl: R.A.lcl, v2: R.B.v, ucl2: R.B.ucl, marks: R.marks, sigma: R.sigma, d2: R.consts.d2 }; }, id.Width);
+    check("each subgroup's mean, the centre and limits as ctrlChart gives them, exactly", allNear(r.cols.v, want.v, 0) && allNear(r.cols.cl, want.cl, 0) && allNear(r.cols.ucl, want.ucl, 0) && allNear(r.cols.lcl, want.lcl, 0) && allNear(r.cols.v2, want.v2, 0) && allNear(r.cols.ucl2, want.ucl2, 0), JSON.stringify([r.cols.ucl && r.cols.ucl[0], want.ucl[0]]));
+    check("…subgroup 7 breaks rule 1, marked with its rule; the others not", want.marks.length && want.marks.some(m => m.i === 6 && m.rules.includes(1)) && r.cols.mark.filter(v => v != null).length === want.marks.length && r.cols.rule[6] === want.marks.find(m => m.i === 6).rules.join(", "), JSON.stringify([want.marks, r.cols.rule]));
+    const chart = r.secs.find(s => s.t === "Chart");
+    check("the report: σ̂ and d₂, d₃, c₄; the points that break a rule; the method naming Montgomery and the four rules", chart && chart.r.some(q => q[0] === "σ̂" && q[1] === want.sigma) && chart.r.some(q => q[0] === "d₂" && q[1] === want.d2) && r.secs.some(s => s.t === "Points that break a rule") && /Montgomery/.test(r.method) && /Western Electric's four rules/.test(r.method), JSON.stringify(r.secs));
+    check("…numbers only: nothing says the process is in control or not", noVerdict(r), r.method);
+    // Drawn: a figure of two panels sharing X, the limits red and dashed, the point ringed and labelled by its rule.
+    const g0 = await p.evaluate(() => P().graphs.length);
+    await p.evaluate(a => ctrlPlot(a), r.id); await p.waitForTimeout(600);
+    let g = await p.evaluate(() => { const gs = P().graphs, f = gs.find(q => q.fig), pan = f ? f.fig.cells.map(c => graphOf(c.gid)) : [];
+      return { n: gs.length, fig: !!f, shareX: f && f.fig.shareX, rows: f && f.fig.rows, panels: pan.map(q => q.cols.map(i => colById(i).name)), yt: pan.map(q => ((q.plot.ax || {}).y || {}).title), leg: pan.map(q => q.plot.legend),
+        ring: document.querySelectorAll('#figure [data-ser] path, #plot [data-ser] path').length, lab: [...document.querySelectorAll("#plot [data-plab] text")].map(t => t.textContent), win: f ? winState(f.id).g : null }; });
+    check("Control chart: a figure of two panels, one above the other, sharing X", g.fig && g.shareX && g.rows === 2 && g.n === g0 + 3, JSON.stringify(g));
+    check("…X̄ with its centre, limits and the points that break a rule; R with its centre and limits (no empty curve of points)", g.panels[0].join("|") === "X̄ of Width|Centre|Upper limit|Lower limit|Breaks a rule" && g.panels[1].join("|") === "R of Width|R, centre|R, upper limit|R, lower limit", JSON.stringify(g.panels));
+    check("…each panel titled, its legend outside on the right, the rule's number beside the point", g.yt[0] === "X̄ of Width" && g.yt[1] === "R" && g.leg.every(l => l === "out") && g.lab.includes("1"), JSON.stringify([g.yt, g.leg, g.lab]));
+    check("…the figure takes the room its two graphs had together, the desk's height", g.win && g.win[3] > 0.95, JSON.stringify(g.win));
+    await p.evaluate(() => undo()); await p.waitForTimeout(300);
+    check("one undo takes the figure and its graphs away", await p.evaluate(g0 => P().graphs.length === g0, g0));
+    // Nelson's rules, X̄ and S.
+    r = await runKind(p, "ctrl", [id.Width], async () => { await p.selectOption("#aChK", "xbar-s"); await p.selectOption("#aChR", "nelson"); });
+    want = await p.evaluate(i => { const R = ctrlChart({ chart: "xbar-s", x: colById(i).data, size: 5, rules: "nelson" }); return { ucl: R.A.ucl, v2: R.B.v, marks: R.marks.map(m => m.i + ":" + m.rules.join(",")) }; }, id.Width);
+    check("X̄ and S with Nelson's rules: as ctrlChart gives them; the method names the eight", allNear(r.cols.ucl, want.ucl, 0) && allNear(r.cols.v2, want.v2, 0) && /Nelson's eight rules/.test(r.method) && r.secs.find(s => s.t === "Centre and limits").r[1][0] === "S", JSON.stringify([r.method, r.secs[0]]));
+    // A p chart of Defects of Inspected: its limits change with each size, drawn as steps.
+    r = await runKind(p, "ctrl", [id.Defects, id.Inspected], async () => { await p.selectOption("#aChK", "p"); await p.waitForTimeout(80);
+      form = await p.evaluate(() => ({ v: document.querySelector("#aChV").value, lab: document.querySelector('label[for="aChV"]').textContent, z: document.querySelector("#aChZ").hidden, s: document.querySelector("#aChS").hidden })); await p.selectOption("#aChZ", id.Inspected); });
+    check("p: Defectives the column ticked, Sizes offered, Subgroups hidden", form.v === id.Defects && form.lab === "Defectives" && !form.z && form.s, JSON.stringify(form));
+    want = await p.evaluate(([d, n]) => { const R = ctrlChart({ chart: "p", x: colById(d).data, n: colById(n).data, rules: "we" }); return { v: R.A.v, ucl: R.A.ucl, lcl: R.A.lcl, marks: R.marks.map(m => m.i) }; }, [id.Defects, id.Inspected]);
+    check("…each proportion and its own limits as ctrlChart gives them; row 21's jump marked", allNear(r.cols.v, want.v, 0) && allNear(r.cols.ucl, want.ucl, 0) && allNear(r.cols.lcl, want.lcl, 0) && want.marks.includes(20) && r.cols.mark[20] != null, JSON.stringify(want.marks));
+    await p.evaluate(a => ctrlPlot(a), r.id); await p.waitForTimeout(500);
+    g = await p.evaluate(() => { const gr = graphOf(GID()); return { cols: gr.cols.map(i => colById(i).name), types: gr.cols.map(i => ((gr.plot.series || {})[i] || {}).type) }; });
+    check("…one graph (no second chart), its limits drawn as steps", g.cols.length === 5 && g.types[2] === "step" && g.types[3] === "step", JSON.stringify(g));
+    await p.evaluate(() => undo()); await p.waitForTimeout(200);
+    // Refusals: a size of 1 keeps OK waiting; a column of one value refused in words.
+    r = await runKind(p, "ctrl", [id.Width], async () => { await p.fill("#aChN", "1"); await p.dispatchEvent("#aChN", "input"); });
+    check("a subgroup size of 1: Work it out waits", r.disabled === true, JSON.stringify(r));
+    await p.keyboard.press("Escape"); await p.waitForTimeout(150);
+    r = await runKind(p, "ctrl", [id.Defects], async () => { await p.selectOption("#aChK", "c"); });
+    check("c: each count, the centre c̄ and c̄ ± 3√c̄", r.err == null && near(r.cols.cl[0], r.cols.v.reduce((s, v) => s + v, 0) / r.cols.v.length, 1e-14) && near(r.cols.ucl[0], r.cols.cl[0] + 3 * Math.sqrt(r.cols.cl[0]), 1e-14), JSON.stringify([r.err, r.cols.cl && r.cols.cl[0], r.cols.ucl && r.cols.ucl[0]]));
+
+    // Pareto: the defects counted, then Defects summed by type.
+    r = await runKind(p, "pareto", [id.Defect], async () => { form = await p.evaluate(() => ({ c: document.querySelector("#aPaC").value, v: document.querySelector("#aPaV").value })); });
+    check("Pareto: Categories the text column ticked, Amounts none (count the rows)", form.c === id.Defect && form.v === "", JSON.stringify(form));
+    want = await p.evaluate(i => { const c = colById(i), R = paretoOf(c.data.map((_, k) => c.txt[k]), null); return R.rows.map(q => [q.key, q.v, q.pct, q.cum]); }, id.Defect);
+    check("…from the largest, each count, share and running share as paretoOf gives them", JSON.stringify(r.cols.lev) === JSON.stringify(want.map(q => q[0])) && allNear(r.cols.n, want.map(q => q[1]), 0) && allNear(r.cols.cum, want.map(q => q[3]), 0) && r.cols.lev[0] === "Scratch" && r.cols.cum[r.cols.cum.length - 1] === 100, JSON.stringify([r.cols.lev, r.cols.n]));
+    await p.evaluate(a => paretoPlot(a), r.id); await p.waitForTimeout(500);
+    g = await p.evaluate(() => { const gr = graphOf(GID()), ax = gr.plot.ax || {}; return { cols: gr.cols.map(i => colById(i).name), t: gr.cols.map(i => (gr.plot.series[i] || {}).type), r: curveUse(gr.cols[1], gr.plot).ax, y2: ax.y2, ymin: (ax.y || {}).min, xt: [...document.querySelectorAll("#plot text")].map(t => t.textContent).filter(t => /Scratch|Dent|Paint|Crack/.test(t)) }; });
+    check("…drawn: columns from the largest, the running share a line on a right axis from 0 to 100 %, the categories named along X", g.t[0] === "column" && g.r === "r" && g.y2 && g.y2.min === 0 && g.y2.max === 100 && g.ymin === 0 && g.xt.slice(0, 4).join("|") === "Scratch|Dent|Paint|Crack", JSON.stringify(g));
+    await p.evaluate(() => undo()); await p.waitForTimeout(200);
+    r = await runKind(p, "pareto", [id.Defect, id.Defects], async () => { await p.selectOption("#aPaV", id.Defects); });
+    want = await p.evaluate(([c, d]) => { const C = colById(c), D = colById(d), R = paretoOf(C.data.map((_, k) => C.txt[k]), D.data); return R.rows.map(q => q.v); }, [id.Defect, id.Defects]);
+    check("…Defects summed by type: the sums as paretoOf gives them, the column named Sum of Defects", allNear(r.cols.n, want, 0) && r.secs[0].h[1] === "Sum of Defects", JSON.stringify([r.cols.n, want, r.secs[0].h]));
+
+    // Bland–Altman.
+    r = await runKind(p, "bland", [id["Method A"], id["Method B"]], async () => { form = await p.evaluate(() => ({ a: document.querySelector("#aBaA").value, b: document.querySelector("#aBaB").value })); }, { two: true });
+    check("Bland–Altman: Method A and B the two columns ticked", form.a === id["Method A"] && form.b === id["Method B"], JSON.stringify(form));
+    want = await p.evaluate(([a, b]) => { const R = blandAltman(colById(a).data, colById(b).data, { mode: "diff", conf: 0.95 }); return { d: R.d, bias: R.bias, lo: R.lo, hi: R.hi, ci: R.biasCI.concat(R.loCI, R.hiCI) }; }, [id["Method A"], id["Method B"]]);
+    const ag = r.secs[0].r;
+    check("…each difference, the bias, the limits and their intervals as blandAltman gives them", allNear(r.cols.d, want.d, 0) && ag[1][1] === want.bias && ag[3][1] === want.lo && ag[4][1] === want.hi && [ag[1][2], ag[1][3], ag[3][2], ag[3][3], ag[4][2], ag[4][3]].every((v, i) => v === want.ci[i]), JSON.stringify([ag, want]));
+    check("…the method: Bland and Altman (1999), numbers only", /Bland and Altman \(1999\)/.test(r.method) && noVerdict(r), r.method);
+    await p.evaluate(a => blandPlot(a), r.id); await p.waitForTimeout(500);
+    g = await p.evaluate(() => { const gr = graphOf(GID()); return { n: gr.cols.length, drawn: document.querySelectorAll("#plot g[data-ser]").length, fills: [...document.querySelectorAll("#plot path")].filter(e => /fill-opacity/.test(e.outerHTML) || (e.getAttribute("fill") && e.getAttribute("fill") !== "none" && e.getAttribute("opacity"))).length, leg: [...document.querySelectorAll("#plot text")].map(t => t.textContent).filter(t => /^(Bias|Upper limit|Lower limit)$/.test(t)) }; });
+    check("…drawn: the differences against the means, every line of the ten drawn, the bias and limits in the legend", g.n === 10 && g.drawn === 10 && g.leg.length === 3, JSON.stringify(g));
+    await p.evaluate(() => undo()); await p.waitForTimeout(200);
+    r = await runKind(p, "bland", [id["Method A"], id["Method B"]], async () => { await p.selectOption("#aBaM", "ratio"); }, { two: true });
+    want = await p.evaluate(([a, b]) => blandAltman(colById(a).data, colById(b).data, { mode: "ratio" }).bias, [id["Method A"], id["Method B"]]);
+    check("…as ratios: the bias as blandAltman's", r.secs[0].r[1][1] === want && /ratio/.test(r.method), JSON.stringify([r.secs[0].r[1], want]));
+
+    // Q–Q: two columns, a figure of two; Weibull fitted, against qqData.
+    r = await runKind(p, "qq", [id["Method A"], id["Method B"]], async () => { await p.selectOption("#aQqD", "weibull"); await p.selectOption("#aQqP", "blom"); });
+    want = await p.evaluate(i => { const R = qqData(colById(i).data, { dist: "weibull", pos: "blom", conf: 0.95 }); return { x: R.x, y: R.y, lo: R.lo, hi: R.hi, par: R.par }; }, id["Method A"]);
+    check("Q–Q: each column's sorted values against the Weibull's quantiles at Blom's positions, the band as qqData gives them", allNear(r.cols.qx0, want.x, 0) && allNear(r.cols.qy0, want.y, 0) && allNear(r.cols.qlo0, want.lo, 0) && allNear(r.cols.qhi0, want.hi, 0) && r.cols.qy1 && r.secs[0].r.length === 2, JSON.stringify([r.cols.qx0 && r.cols.qx0.slice(0, 2), want.x.slice(0, 2)]));
+    check("…the fitted parameters in the report and the method", /k = /.test(r.secs[0].r[0][2]) && /maximum likelihood/.test(r.method) && /Blom/.test(r.method), JSON.stringify([r.secs[0].r[0], r.method]));
+    await p.evaluate(a => qqKindPlot(a), r.id); await p.waitForTimeout(600);
+    g = await p.evaluate(() => { const f = P().graphs.find(q => q.fig); return f ? { panels: f.fig.cells.length, names: f.fig.cells.map(c => graphOf(c.gid).cols.map(i => colById(i).name)[0]) } : null; });
+    check("…drawn: a figure of two Q–Q plots, one a column", g && g.panels === 2 && g.names.join("|") === "Method A|Method B", JSON.stringify(g));
+    await p.evaluate(() => undo()); await p.waitForTimeout(200);
+    // A Weibull with a value at or below zero is refused in words.
+    await p.evaluate(i => { const c = colById(i); pushUndo("t"); c.data = c.data.slice(); c.data[2] = -1; save({ cols: P().cols }, "typed"); }, id.Width); await p.waitForTimeout(300);
+    r = await runKind(p, "qq", [id.Width], async () => { await p.selectOption("#aQqD", "weibull"); });
+    check("a Weibull Q–Q plot of a column with a value below zero: refused in words", /Width: A Weibull distribution needs values above zero/.test(r.err || ""), r.err);
+    await p.evaluate(() => undo()); await p.waitForTimeout(1500);
+    r = await lastAna(p, "qq");
+    check("…the value put back: the analysis worked out again by itself", !r.err && r.cols.qy0 && r.cols.qy0.length === 50, JSON.stringify(r.err));
+
+    // Followed: a value typed into Width moves the X̄ chart's first mean.
+    const first = await p.evaluate(() => { const a = anaList().find(x => x.kind === "ctrl"); return P().cols.find(c => c.ana === a.id && c.ak === "v").data[0]; });
+    await p.evaluate(i => { const c = colById(i); pushUndo("t"); c.data = c.data.slice(); c.data[0] += 5; save({ cols: P().cols }, "typed"); }, id.Width); await p.waitForTimeout(1500);
+    const after = await p.evaluate(() => { const a = anaList().find(x => x.kind === "ctrl"); return P().cols.find(c => c.ana === a.id && c.ak === "v").data[0]; });
+    check("a value typed: the control chart worked out again by itself, the first mean up by a fifth of it", near(after - first, 1, 1e-9), JSON.stringify([first, after]));
+    // Junk settings from storage read as the defaults.
+    const junk = await p.evaluate(() => { const ins = [{ id: "a", name: "W", unit: "", vals: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], rows: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] }];
+      const c = ANA_KINDS.ctrl.run(ins, { chart: "junk", rules: 7, size: "x" }), q = ANA_KINDS.qq.run(ins, { dist: "nope", pos: {}, conf: "x" }), b = ANA_KINDS.bland.run(ins.concat([{ id: "b", name: "V", unit: "", vals: [2, 3, 3, 5, 7, 6, 8, 8, 10, 11], rows: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] }]), { mode: 3, conf: 9 });
+      return { c: c.fail || null, q: q.fail || q.report.method, b: b.fail || b.report.sections[0].r || b.report.sections[0].title }; });
+    check("junk settings from storage: X̄ and R asks for a size, the Q–Q plot normal, Bland–Altman differences at 95 %", /size/.test(junk.c || "") && /the normal distribution's quantiles/.test(junk.q) && junk.b === "Agreement", JSON.stringify(junk));
+    // A reload keeps every analysis.
+    const k0 = await p.evaluate(() => anaList().length);
+    await p.reload(); await ready(p); await p.waitForTimeout(800);
+    check("after a reload every analysis is there", await p.evaluate(k0 => anaList().length === k0 && anaList().every(a => a.res), k0));
+  }, { name: "7.2 control, Pareto, Bland–Altman, Q–Q", timeout: 180000 });
+
+  await page(async p => {
+    // A forest plot: estimates with standard errors; then odds ratios with their intervals, on a log scale.
+    await p.evaluate(async () => { const nm = ["Smith 2001", "Jones 2004", "Lee 2008", "Kim 2010", "Patel 2015", "Brown 2019"], e = [0.42, 0.18, 0.55, 0.31, 0.05, 0.28], se = [0.12, 0.2, 0.15, 0.09, 0.25, 0.11];
+      const or = [1.8, 1.2, 2.4, 1.5, 0.9, 1.4], lo = [1.1, 0.7, 1.3, 1.15, 0.45, 1.0], hi = [2.95, 2.06, 4.43, 1.96, 1.8, 1.96];
+      const tc = Object.assign(makeCol("ignore", "Study", ""), { data: nm.map(() => null), fmt: "text", txt: Object.fromEntries(nm.map((t, i) => [i, t])) }), y = (n, d) => Object.assign(makeCol("y", n, ""), { data: d, pipe: [], mask: [] });
+      const cols = [Object.assign(makeCol("x", "Row", ""), { data: nm.map((_, i) => i + 1) }), tc, y("Effect", e), y("SE", se), y("Odds ratio", or), y("OR from", lo), y("OR to", hi)];
+      await createProject(Object.assign(blankProject("Studies"), { cols, activeY: cols[2].id }), "test"); await new Promise(r => setTimeout(r, 120)); renderAll(); });
+    await p.waitForTimeout(400);
+    const id = await p.evaluate(() => Object.fromEntries(sheetCols(curSheet()).map(c => [c.name, c.id])));
+    let form;
+    let r = await runKind(p, "meta", [id.Study, id.Effect, id.SE], async () => { form = await p.evaluate(() => ({ n: document.querySelector("#aMaN").value, e: document.querySelector("#aMaE").value, s: document.querySelector("#aMaS").value, l: document.querySelector("#aMaL").hidden })); });
+    check("Forest plot: names, estimates and standard errors from the columns ticked; the intervals' fields hidden", form.n === id.Study && form.e === id.Effect && form.s === id.SE && form.l, JSON.stringify(form));
+    let want = await p.evaluate(([e, s]) => { const R = metaAnalysis(colById(e).data, colById(s).data.map(v => v * v), { conf: 0.95 }); return { f: [R.fixed.est, R.fixed.se, R.fixed.lo, R.fixed.hi], r: [R.random.est, R.random.se, R.random.lo, R.random.hi], Q: R.Q, I2: R.I2, tau2: R.tau2, w: R.random.w }; }, [id.Effect, id.SE]);
+    const pool = r.secs.find(s => s.t === "Pooled").r, het = r.secs.find(s => s.t === "Heterogeneity").r;
+    check("…the fixed and random effects, their errors and intervals; Q, I², τ² as metaAnalysis gives them", pool[0].slice(1, 5).every((v, i) => v === want.f[i]) && pool[1].slice(1, 5).every((v, i) => v === want.r[i]) && het[0][1] === want.Q && het[3][1] === want.I2 && het[5][1] === want.tau2 && allNear(r.cols.w, want.w, 0), JSON.stringify([pool, het]));
+    check("…the studies named, the method DerSimonian–Laird, numbers only", r.secs[0].r.map(q => q[0]).join("|") === "Smith 2001|Jones 2004|Lee 2008|Kim 2010|Patel 2015|Brown 2019" && /DerSimonian–Laird/.test(r.method) && noVerdict(r), r.method);
+    await p.evaluate(a => forestPlot(a), r.id); await p.waitForTimeout(600);
+    let g = await p.evaluate(() => { const gr = graphOf(GID()), ax = gr.plot.ax || {}, v = S.geo.v; const an = (P().annos || []).filter(a => a.g === gr.id);
+      return { cats: (ax.y.cats || []).map(c => c[1]), tshow: ax.y.tshow, x: [ax.x.min, ax.x.max], v: [v.x0, v.x1], ann: an.map(a => a.t + ":" + a.x), names: [...document.querySelectorAll("#plot text")].map(t => t.textContent).filter(t => /Smith|Brown|Fixed|Random/.test(t)), sq: (gr.plot.series[gr.cols[0]] || {}).scol }; });
+    check("…drawn: every study and both pooled estimates named down Y, no Y title, the squares sized by weight", g.names.join("|") === "Smith 2001|Brown 2019|Fixed effect|Random effects" || (g.names.length === 4 && g.cats.length === 8), JSON.stringify(g));
+    check("…X over every interval and the line of no effect at 0, dashed", g.x[0] < -0.2 && g.x[1] > 0.8 && g.ann.includes("v:0") && g.tshow === false && !!g.sq, JSON.stringify(g));
+    await p.evaluate(() => undo()); await p.waitForTimeout(200);
+    // Odds ratios with intervals: combined as logarithms, shown back as ratios on a log axis.
+    r = await runKind(p, "meta", [id.Study, id["Odds ratio"], id["OR from"], id["OR to"]], async () => { await p.selectOption("#aMaE", id["Odds ratio"]); await p.selectOption("#aMaK", "ci"); await p.waitForTimeout(80);
+      await p.selectOption("#aMaL", id["OR from"]); await p.selectOption("#aMaH", id["OR to"]); await p.selectOption("#aMaG", "log"); });
+    want = await p.evaluate(([o, l, h]) => { const z = DIST.norm.isf(0.025), O = colById(o).data, L = colById(l).data, H = colById(h).data; const R = metaAnalysis(O.map(Math.log), O.map((_, i) => ((Math.log(H[i]) - Math.log(L[i])) / (2 * z)) ** 2), { conf: 0.95 }); return [Math.exp(R.random.est), Math.exp(R.random.lo), Math.exp(R.random.hi)]; }, [id["Odds ratio"], id["OR from"], id["OR to"]]);
+    const pr = r.secs.find(s => s.t === "Pooled").r[1];
+    check("odds ratios with intervals: pooled on the logarithms, the random effects' ratio and interval back as ratios", near(pr[1], want[0], 1e-15) && near(pr[3], want[1], 1e-15) && near(pr[4], want[2], 1e-15) && /logarithms/.test(r.method), JSON.stringify([pr, want]));
+    await p.evaluate(a => forestPlot(a), r.id); await p.waitForTimeout(500);
+    g = await p.evaluate(() => { const gr = graphOf(GID()); return { logX: gr.plot.logX, ann: (P().annos || []).filter(a => a.g === gr.id).map(a => a.x), xt: (gr.plot.ax.x || {}).title }; });
+    check("…drawn on a log axis, the line of no effect at 1", g.logX === true && g.ann.includes(1) && /log scale/.test(g.xt), JSON.stringify(g));
+    // Refused: one study.
+    r = await p.evaluate(() => ANA_KINDS.meta.run([{ id: "e", name: "E", unit: "", vals: [0.3], rows: [0] }, { id: "s", name: "S", unit: "", vals: [0.1], rows: [0] }], { est: "e", se: "s" }).fail);
+    check("one study refused in words", /two studies/.test(r || ""), r);
+  }, { name: "7.2 forest plot", timeout: 120000 });
+
+  await page(async p => {
+    // Hierarchical clustering's heat map: the scaled data as a matrix in the dendrogram's order, the two dendrograms beside it.
+    await p.evaluate(async () => { const n = 24, names = ["Na", "K", "Ca", "Mg", "Cl", "SO4"], cols = [];
+      names.forEach((v, j) => { const d = []; for (let i = 0; i < n; i++) { const g = i % 3; d.push(+(10 + (g === 0 ? j : g === 1 ? -j : j * 0.3) * 1.5 + Math.sin(i * 1.7 + j) * 0.8 + (j < 3 ? g * 2 : 0)).toFixed(3)); } cols.push(Object.assign(makeCol("y", v, "mg/L"), { data: d, pipe: [], mask: [] })); });
+      await createProject(Object.assign(blankProject("Waters"), { cols, activeY: cols[0].id }), "test"); await new Promise(r => setTimeout(r, 120)); renderAll(); });
+    await p.waitForTimeout(400);
+    await p.evaluate(() => { anaDlg("hclust", { all: true }); }); await p.waitForSelector("#formOk"); await p.click("#formOk"); await p.waitForTimeout(800);
+    const aid = await p.evaluate(() => anaList().slice(-1)[0].id);
+    const acts = await p.evaluate(id => anaActs(anaOf(id)).map(x => x.label), aid);
+    check("hierarchical clustering's report offers Heat map", acts.includes("Heat map"), JSON.stringify(acts));
+    const g0 = await p.evaluate(() => ({ g: P().graphs.length, m: matBooks().length }));
+    await p.evaluate(id => heatDendro(id), aid); await p.waitForTimeout(900);
+    let r = await p.evaluate(id => { const a = anaOf(id), h = a.res.report.clu.heat, s = anaMatSheet(a), lord = P().cols.find(c => c.ana === id && c.ak === "lord").data, f = P().graphs.find(g => g.fig);
+      // each cell against the column's own values scaled to unit variance, row r the observation at place r + 1
+      let worst = 0; const cols = h.vnames.map(nm => P().cols.find(c => c.name === nm && !c.ana).data);
+      cols.forEach((x, c) => { const n = x.length, mu = x.reduce((s, v) => s + v, 0) / n, sd = Math.sqrt(x.reduce((s, v) => s + (v - mu) ** 2, 0) / (n - 1));
+        x.forEach((v, i) => { const z = s.z[(lord[i] - 1) * s.nx + c]; worst = Math.max(worst, Math.abs(z - (v - mu) / sd)); }); });
+      // the variables' order is the linkage of the variables themselves
+      const data = P().cols.filter(c => c.role === "y" && !c.ana), Z = data.map(c => { const x = c.data, n = x.length, mu = x.reduce((s, v) => s + v, 0) / n, sd = Math.sqrt(x.reduce((s, v) => s + (v - mu) ** 2, 0) / (n - 1)); return Float64Array.from(x, v => (v - mu) / sd); });
+      const m = Z.length, n = Z[0].length, Rv = new Float64Array(m * n); Z.forEach((z, j) => Rv.set(z, j * n)); const vl = dendroXY(linkage(mvDist(Rv, m, n, "euclidean"), m, "ward"), m).leaves.map(j => data[j].name);
+      const cell = gid => f.fig.cells.find(c => c.gid === gid), byCol = k => f.fig.cells.map(c => graphOf(c.gid)).find(g => g.cols.some(id => colById(id).ak === k));
+      const top = byCol("vdy"), left = byCol("hy"), map = f.fig.cells.map(c => graphOf(c.gid)).find(g => g.plot.mat);
+      return { nx: s.nx, ny: s.ny, worst, vn: h.vnames, vl, fig: { rows: f.fig.rows, cols: f.fig.cols, sx: f.fig.shareX, sy: f.fig.shareY, top: top && cell(top.id), left: left && cell(left.id), map: map && cell(map.id) },
+        revL: left && left.plot.revX, revM: map && map.plot.revX, cm: map && map.plot.cmap, rng: map && map.plot.matRng, xl: map && ((map.plot.ax || {}).x || {}).min, method: a.res.report.method,
+        names: [...document.querySelectorAll("#figure text, #plot text")].map(t => t.textContent).filter(t => /^(Na|K|Ca|Mg|Cl|SO4)$/.test(t)).length }; }, aid);
+    check("the heat map's matrix: 24 rows and 6 columns, each cell its value scaled to unit variance, the rows in the dendrogram's order", r.nx === 6 && r.ny === 24 && r.worst < 1e-12, JSON.stringify([r.nx, r.ny, r.worst]));
+    check("…the variables in the order their own Ward linkage puts them", r.vn.join() === r.vl.join(), JSON.stringify([r.vn, r.vl]));
+    check("…a figure of three panels: the variables' dendrogram above the map, the observations' to its left, X shared down the column and Y along the row", r.fig.rows === 2 && r.fig.cols === 2 && r.fig.sx === "col" && r.fig.sy === "row" && r.fig.top.r === 0 && r.fig.top.c === 1 && r.fig.left.r === 1 && r.fig.left.c === 0 && r.fig.map.r === 1 && r.fig.map.c === 1, JSON.stringify(r.fig));
+    check("…the side dendrogram's root at the left, the map not turned, cool to warm about 0, the axes at the cells' edges, the variables named", r.revL === true && r.revM === false && r.cm === "coolwarm" && r.rng[0] === -r.rng[1] && r.xl === 0.5 && r.names >= 6, JSON.stringify(r));
+    check("…the method says how the heat map was made", /The heat map: the scaled values, the observations in the dendrogram's order, the variables joined by ward/i.test(r.method), r.method);
+    // Followed: a value typed changes its cell.
+    const before = await p.evaluate(id => anaMatSheet(anaOf(id)).z.slice(), aid);
+    await p.evaluate(() => { const c = P().cols.find(c => c.role === "y" && !c.ana); pushUndo("t"); c.data = c.data.slice(); c.data[0] += 3; save({ cols: P().cols }, "typed"); }); await p.waitForTimeout(1500);
+    const after = await p.evaluate(id => anaMatSheet(anaOf(id)).z.slice(), aid);
+    check("a value typed: the heat map's matrix worked out again by itself", after.some((v, i) => v !== before[i]), "");
+    await p.evaluate(() => undo()); await p.waitForTimeout(400);
+    await p.evaluate(() => undo()); await p.waitForTimeout(400);
+    r = await p.evaluate(id => ({ g: P().graphs.length, m: matBooks().length, heat: !!(anaOf(id).p || {}).heat }), aid);
+    check("one undo takes the figure, its graphs, the matrix and the heat map's columns away", r.g === g0.g && r.m === g0.m && !r.heat, JSON.stringify([r, g0]));
+    await p.evaluate(id => heatDendro(id), aid); await p.waitForTimeout(800);
+    await p.reload(); await ready(p); await p.waitForTimeout(800);
+    r = await p.evaluate(() => ({ f: P().graphs.some(g => g.fig && g.fig.cells.length === 3), m: matBooks().length }));
+    check("after a reload the figure and its matrix are there", r.f && r.m === 1, JSON.stringify(r));
+  }, { name: "7.2 heat map with dendrograms", timeout: 120000 });
+
+  await page(async p => {
+    // The forms at 390 px: nothing wider than the screen.
+    await qc(p);
+    const out = [];
+    for (const k of ["ctrl", "pareto", "bland", "meta", "qq"]) { await p.evaluate(k => { anaDlg(k, { two: k === "bland" }); }, k); await p.waitForSelector("#formOk"); await p.waitForTimeout(200);
+      out.push(await p.evaluate(k => { const m = document.querySelector("#formModal .modal, .modal:not([hidden])") || document.querySelector("#formBody"); const r = m.getBoundingClientRect(); return { k, w: Math.round(r.width), over: [...document.querySelectorAll("#formBody *")].filter(e => e.getBoundingClientRect().right > innerWidth + 1).length }; }, k));
+      await p.keyboard.press("Escape"); await p.waitForTimeout(150); }
+    check("each dialog fits a phone's width", out.every(o => o.over === 0 && o.w <= 390), JSON.stringify(out));
+  }, { name: "7.2 at 390 px", vw: { width: 390, height: 800 } });
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

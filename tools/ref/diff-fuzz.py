@@ -1389,6 +1389,155 @@ def plscv_post(c, out):
     e = float(np.max(np.abs(a - b)) / w["ys"]); return e, f"predictions {e:.2e}"
 POST["plsCvFlat"] = plscv_post
 
+import mpmath as mp
+import pandas as pd
+# ---- wave 7 (PLOT2_SPEC 7.1, 7.2): the charts' numbers against exact rationals, 30-digit mpmath, pandas and SciPy
+from fractions import Fraction as _Fr
+def _vals7(n):
+    """Values as a chart takes them: spread over scales, sometimes on a large offset, with ties now and then."""
+    v = rng.normal(0, 1, n) * lognum(-3, 3) + float(edge([0.0, 1e6, -1e3], lambda: rng.uniform(-50, 50)))
+    if rng.random() < 0.2: v = np.round(v, int(rng.integers(0, 3)))
+    return v
+def _msd7(x):
+    F = [_Fr(float(t)) for t in x]; n = len(F); m = sum(F) / n
+    var = sum((t - m) ** 2 for t in F) / (n - 1) if n > 1 else None
+    return float(m), (math.sqrt(float(var)) if var is not None else None), m, var
+@gen("catSummary", 1e-14, 0.3)
+def _():
+    n = int(edge([1, 2, 3], lambda: int(rng.integers(2, 300)))); x = _vals7(n); stat = str(rng.choice(["mean", "median", "sum", "count"]))
+    err = str(rng.choice(["sd", "se", "ci"] if stat == "mean" else ["iqr", "ci"] if stat == "median" else ["none"])); conf = float(rng.choice([0.9, 0.95, 0.99]))
+    w = {"n": n}
+    if stat == "count": w["v"] = n
+    elif stat == "sum": w["v"] = float(sum(_Fr(float(t)) for t in x))
+    elif stat == "median":
+        s = np.sort(x); w["v"] = float(np.median(x))
+        if err == "iqr": w["lo"], w["hi"] = float(np.percentile(x, 25)), float(np.percentile(x, 75))
+        else:
+            a1 = (1 - conf) / 2; k = 0
+            while k + 1 <= n and stats.binom.cdf(k, n, 0.5) <= a1: k += 1
+            w["lo"], w["hi"] = (float(s[k - 1]), float(s[n - k])) if k >= 1 else (None, None)
+    else:
+        m, sd, _, _ = _msd7(x); w["v"] = m
+        if sd is not None:
+            h = sd if err == "sd" else sd / math.sqrt(n) if err == "se" else float(stats.t.isf((1 - conf) / 2, n - 1)) * sd / math.sqrt(n)
+            w["lo"], w["hi"] = m - h, m + h
+    w["sc"] = float(max(np.max(np.abs(x)), 1e-300))
+    return [x.tolist(), {"stat": stat, "err": err, "conf": conf}], w
+def cats_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or out.get("n") != w["n"]: return float("inf"), f"refused or N differs: {str(out)[:80]}"
+    e = 0.0
+    for k in ("v", "lo", "hi"):
+        if k not in w: continue
+        if (w[k] is None) != (out.get(k) is None): return float("inf"), f"{k}: {out.get(k)} where {w[k]}"
+        if w[k] is not None: e = max(e, abs(val(out[k]) - w[k]) / w["sc"])
+    return e, f"the statistic and interval {e:.2e} of the largest |value|"
+POST["catSummary"] = cats_post
+@gen("pieSlices", 1e-15, 0.3)
+def _():
+    n = int(rng.integers(1, 120)); v = (10 ** rng.uniform(-3, 3, n) * lognum(-200, 200)).tolist()
+    for _ in range(int(rng.integers(0, 3))): v[int(rng.integers(n))] = float(rng.choice([0.0, -1.0]))
+    sort = str(rng.choice(["data", "desc"])); keep = [(i, x) for i, x in enumerate(v) if x > 0]
+    if not keep: raise ValueError("no slice")
+    if sort == "desc": keep.sort(key=lambda z: (-z[1], z[0]))
+    tot = sum(_Fr(x) for _, x in keep); acc = _Fr(0); sl = []
+    for i, x in keep:
+        a = acc / tot; acc += _Fr(x); sl.append([i, float(_Fr(x) / tot), float(a), float(acc / tot)])
+    return [[{"i": i, "v": x} for i, x in enumerate(v)], sort], {"sl": sl, "left": len(v) - len(keep)}
+def pie_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or "slices" not in out: return float("inf"), f"refused: {str(out)[:80]}"
+    S = out["slices"]
+    if [s["i"] for s in S] != [q[0] for q in w["sl"]] or out.get("left") != w["left"]: return float("inf"), "the slices differ"
+    e = max(max(abs(val(s["share"]) - q[1]), abs(val(s["a"]) - q[2]), abs(val(s["b"]) - q[3])) for s, q in zip(S, w["sl"]))
+    return e, f"shares and ends {e:.2e} of a turn"
+POST["pieSlices"] = pie_post
+@gen("blandAltman", 1e-14, 0.3)
+def _():
+    n = int(edge([3, 4], lambda: int(rng.integers(3, 200)))); t = rng.uniform(1, 100, n) * lognum(-2, 4) + float(edge([0.0, 1e6], lambda: 0.0))
+    a = t + rng.normal(0, 1, n) * lognum(-3, 0) * np.mean(np.abs(t)) * 0.01; b = t * (1 + rng.normal(0, 0.01)) + rng.normal(0, 1, n) * lognum(-3, 0) * np.mean(np.abs(t)) * 0.01
+    mode = str(rng.choice(["diff", "ratio", "pct"])); conf = float(rng.choice([0.9, 0.95, 0.99]))
+    d = a - b if mode == "diff" else a / b if mode == "ratio" else (a - b) / ((a + b) / 2) * 100
+    m, sd, M, V = _msd7(d)
+    if not sd: raise ValueError("no spread")
+    z = float(stats.norm.isf((1 - conf) / 2)); t_ = float(stats.t.isf((1 - conf) / 2, n - 1))
+    return [a.tolist(), b.tolist(), {"mode": mode, "conf": conf}], {"bias": m, "sd": sd, "lo": m - z * sd, "hi": m + z * sd, "bci": [m - t_ * sd / math.sqrt(n), m + t_ * sd / math.sqrt(n)],
+             "lci": [m - z * sd - t_ * sd * math.sqrt(3 / n), m - z * sd + t_ * sd * math.sqrt(3 / n)], "sc": max(abs(m), sd)}
+def ba_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or "bias" not in out: return float("inf"), f"refused: {str(out)[:80]}"
+    e = max(abs(val(out[k]) - w[k]) for k in ("bias", "sd", "lo", "hi")) / w["sc"]
+    e = max(e, *(abs(val(out["biasCI"][i]) - w["bci"][i]) / w["sc"] for i in (0, 1)), *(abs(val(out["loCI"][i]) - w["lci"][i]) / w["sc"] for i in (0, 1)))
+    return e, f"bias, limits and intervals {e:.2e} of max(|bias|, SD)"
+POST["blandAltman"] = ba_post
+@gen("metaAnalysis", 1e-13, 0.3)
+def _():
+    k = int(edge([2, 3], lambda: int(rng.integers(2, 60)))); se = rng.uniform(0.05, 1, k) * lognum(-2, 2); tau = float(edge([0.0], lambda: rng.uniform(0, 2))) * np.median(se)
+    y = rng.normal(float(rng.uniform(-3, 3)), 1, k) * tau + rng.normal(0, 1, k) * se + float(rng.uniform(-5, 5)) * np.median(se); conf = float(rng.choice([0.9, 0.95, 0.99]))
+    with mp.workdps(40):
+        Y = [mp.mpf(float(t)) for t in y]; Vv = [mp.mpf(float(t)) ** 2 for t in se]; W = [1 / t for t in Vv]; sw = mp.fsum(W)
+        yF = mp.fsum(w_ * t for w_, t in zip(W, Y)) / sw; Q = mp.fsum(w_ * (t - yF) ** 2 for w_, t in zip(W, Y)); df = k - 1
+        C = sw - mp.fsum(w_ * w_ for w_ in W) / sw; tau2 = max(mp.mpf(0), (Q - df) / C); z = mp.mpf(float(stats.norm.isf((1 - conf) / 2)))
+        def pool(Ws):
+            s = mp.fsum(Ws); est = mp.fsum(w_ * t for w_, t in zip(Ws, Y)) / s; sE = 1 / mp.sqrt(s); return [float(est), float(sE), float(est - z * sE), float(est + z * sE)]
+        F = pool(W); R = pool([1 / (t + tau2) for t in Vv]); I2 = float(max(0, (Q - df) / Q) * 100) if Q > 0 else 0.0
+    return [y.tolist(), (se ** 2).tolist(), {"conf": conf}], {"F": F, "R": R, "Q": float(Q), "tau2": float(tau2), "I2": I2, "sc": float(np.max(np.abs(y))), "v0": float(np.min(se ** 2))}
+def meta_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or "fixed" not in out: return float("inf"), f"refused: {str(out)[:80]}"
+    e = 0.0
+    for key, W in (("fixed", w["F"]), ("random", w["R"])):
+        o = out[key]; e = max(e, *(abs(val(o[k]) - W[i]) / max(w["sc"], W[1]) for i, k in enumerate(("est", "se", "lo", "hi"))))
+    e = max(e, abs(val(out["Q"]) - w["Q"]) / max(w["Q"], 1), abs(val(out["tau2"]) - w["tau2"]) / max(w["tau2"], w["v0"]), abs(val(out["I2"]) - w["I2"]) / 100)
+    return e, f"pooled estimates, Q, tau2 and I2 {e:.2e}"
+POST["metaAnalysis"] = meta_post
+@gen("paretoOf", 1e-15, 0.2)
+def _():
+    n = int(rng.integers(1, 200)); L = [f"k{j}" for j in range(int(rng.integers(1, 15)))]; keys = [str(rng.choice(L)) if rng.random() > 0.05 else None for _ in range(n)]
+    vals = None if rng.random() < 0.4 else [float(np.round(rng.uniform(0, 100), int(rng.integers(0, 3)))) if rng.random() > 0.03 else None for _ in range(n)]
+    df = pd.DataFrame({"k": keys, "v": vals if vals is not None else [1.0] * n}); df = df[df["k"].notna() & df["v"].notna()]
+    if not len(df) or df["v"].sum() == 0: raise ValueError("nothing")
+    order = {k: i for i, k in enumerate(dict.fromkeys(df["k"]))}
+    g = df.groupby("k", sort=False)["v"].sum().reset_index(); g["o"] = g["k"].map(order); g = g.sort_values(["v", "o"], ascending=[False, True], kind="stable")
+    tot = sum(_Fr(float(t)) for t in df["v"]); acc = _Fr(0); rows = []
+    for r in g.itertuples():
+        s = sum(_Fr(float(t)) for t in df[df["k"] == r.k]["v"]); acc += s; rows.append([r.k, float(s), float(s / tot * 100), float(acc / tot * 100)])
+    return [keys, vals], {"rows": rows}
+def par_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or "rows" not in out: return float("inf"), f"refused: {str(out)[:80]}"
+    if [r["key"] for r in out["rows"]] != [q[0] for q in w["rows"]]: return float("inf"), "the order differs"
+    e = max(max(abs(val(r["v"]) - q[1]) / max(abs(q[1]), 1e-300), abs(val(r["pct"]) - q[2]) / 100, abs(val(r["cum"]) - q[3]) / 100) for r, q in zip(out["rows"], w["rows"]))
+    return e, f"sums and shares {e:.2e}"
+POST["paretoOf"] = par_post
+@gen("qqData", 1e-12, 0.3)
+def _():
+    dist = str(rng.choice(["normal", "lognormal", "exp", "weibull", "gamma"])); n = int(edge([3, 4], lambda: int(rng.integers(3, 150))))
+    x = np.sort(rng.normal(float(rng.uniform(-5, 5)), 1, n) * lognum(-2, 2) if dist == "normal" else (rng.weibull(float(rng.uniform(0.6, 4)), n) if dist == "weibull" else rng.gamma(float(rng.uniform(0.5, 8)), 1, n) if dist == "gamma" else rng.lognormal(0, float(rng.uniform(0.2, 1.5)), n)) * lognum(-2, 3))
+    if len(set(x.tolist())) < 2: raise ValueError("one value")
+    pk = str(rng.choice(["r", "blom", "filliben", "weibull", "hazen"])); i = np.arange(1, n + 1)
+    p = {"blom": (i - 0.375) / (n + 0.25), "weibull": i / (n + 1), "hazen": (i - 0.5) / n}.get(pk)
+    if pk == "filliben": p = np.empty(n); p[-1] = 0.5 ** (1 / n); p[0] = 1 - p[-1]; p[1:-1] = (np.arange(2, n) - 0.3175) / (n + 0.365)
+    if pk == "r": a = 0.375 if n <= 10 else 0.5; p = (i - a) / (n + 1 - 2 * a)
+    with mp.workdps(30):
+        X = [mp.mpf(float(t)) for t in x]
+        if dist == "normal": m, s = _msd7(x)[:2]; Q = lambda u: m + s * stats.norm.ppf(u)
+        elif dist == "lognormal": L = np.log(x); m, s = _msd7(L)[:2]; Q = lambda u: np.exp(m + s * stats.norm.ppf(u))
+        elif dist == "exp": lam = 1 / float(mp.fsum(X) / n); Q = lambda u: -np.log1p(-u) / lam
+        elif dist == "weibull":
+            Lg = [mp.log(t) for t in X]; mL = mp.fsum(Lg) / n; g = lambda k: mp.fsum(t ** k * l for t, l in zip(X, Lg)) / mp.fsum(t ** k for t in X) - 1 / k - mL
+            k = mp.findroot(g, mp.mpf(stats.weibull_min.fit(x, floc=0)[0])); sc = float((mp.fsum(t ** k for t in X) / n) ** (1 / k)); k = float(k); Q = lambda u: stats.weibull_min.ppf(u, k, scale=sc)
+        else:
+            mm = mp.fsum(X) / n; s_ = mp.log(mm) - mp.fsum(mp.log(t) for t in X) / n; a = mp.findroot(lambda a: mp.log(a) - mp.digamma(a) - s_, mp.mpf(stats.gamma.fit(x, floc=0, method="MLE")[0]))
+            sc = float(mm / a); a = float(a); Q = lambda u: stats.gamma.ppf(u, a, scale=sc)
+    return [x.tolist(), {"dist": dist, "pos": pk, "conf": 0.95}], {"x": np.asarray(Q(p), float).tolist(), "sc": float(np.max(np.abs(x)))}
+def qq_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or "x" not in out: return float("inf"), f"refused: {str(out)[:80]}"
+    e = max(abs(val(a) - b) for a, b in zip(out["x"], w["x"])) / w["sc"]
+    return e, f"quantiles {e:.2e} of the largest |value|"
+POST["qqData"] = qq_post
+
 cases = []
 ONLY = os.environ.get("ONLY")  # ONLY=name,name: those generators alone
 for name, (f, tol) in GEN.items():

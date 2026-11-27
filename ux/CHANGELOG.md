@@ -1024,6 +1024,36 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Plots, wave 7, slice 7.2: statistical charts (2026-11-27)
+
+`ux/spec/PLOT2_SPEC.md` slice 7.2. Analyze › Statistics › Statistical charts; each chart is an analysis with a result sheet and a
+report, followed when its data change, and its report's button draws it from the sheet's columns in one undo step.
+- **Control charts**: X̄ and R, X̄ and S (subgroups of different sizes too, each with its own limits), individuals and moving range,
+  p, np, c and u; subgroups by a column or a size; the centre and σ, or p̄, c̄ and ū, typed or from the data; d₂ and d₃ worked out
+  from the range's distribution for any size up to 1000, not read from a table. The points that break Western Electric's four rules
+  or Nelson's eight are ringed and labelled with the rules' numbers; two charts are a figure sharing X, the limits red and dashed,
+  steps where they change. Nothing says a process is in or out of control.
+- **Pareto charts**: a column of categories counted, or amounts summed by category, from the largest, with the running share on a
+  right axis from 0 to 100 %.
+- **Bland–Altman plots**: two methods' differences (or ratios, or percentages) against their means, the bias and the limits of
+  agreement each with its interval, shaded.
+- **Forest plots**: studies' estimates with standard errors or intervals, the fixed and DerSimonian–Laird effects, Q, I², τ²; the
+  studies named down Y (names along Y, as along X), squares sized by weight, diamonds for the pooled estimates, a line of no effect;
+  ratios combined as logarithms and drawn on a log axis.
+- **Q–Q plots** against the normal, log-normal, exponential, Weibull or gamma fitted to the values, at R's, Blom's, Filliben's,
+  Weibull's or Hazen's plotting positions, with the line and a band from the order statistics; a figure of one for each column.
+- **A heat map with dendrograms**: hierarchical clustering's report draws the scaled data as a map in the dendrogram's order, the
+  observations' dendrogram beside it and the variables' (joined the same way) above, each leaf in line with its row or column.
+- The dialogs' lists of columns start from the columns ticked; a figure made of graphs just plotted takes their room together;
+  a matrix's map takes names along its axes.
+
+Checked so far: `tools/plot2-drive.mjs` 7.2 (56: each dialog's defaults from the columns ticked, every chart's numbers against its pure
+function, each drawn, undone, a value followed, junk settings, refusals, a reload; the heat map's cells against the scaled data and its
+order against the variables' own linkage; every dialog at 390 px); `tools/stats-test.mjs` (each run rule's marks on 400 000 in-control
+points at its exact rate, σ̂ unbiased, the Bland–Altman and fixed-effect intervals' coverage); the fuzzer's new generators (catSummary,
+pieSlices, blandAltman, metaAnalysis, paretoOf, qqData: 1.7e-16 to 5.8e-15; Kurve's digamma, 1e-11 off, extended); ana-drive and
+mv-drive unchanged. The control-chart constants' 24-digit reference is still being worked out.
+
 ## Plots, wave 7, slice 7.1: charts of categories (2026-11-26)
 
 `ux/spec/PLOT2_SPEC.md` (wave 7, plots; its spec written this day) slice 7.1.

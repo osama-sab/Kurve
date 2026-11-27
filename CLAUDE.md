@@ -1635,6 +1635,40 @@ graph first, with the taskbar kept at the bottom of the screen.
   rows both scores have; the sheet those tables (Youden's keys `y…`, the comparisons' `c…`) and each curve's `fpr<k>` (X),
   `tpr<k>`, `thr<k>`, and the diagonal `dx`, `dy`), form `#aRg`, `#aRp`, `#aRdir`, `#aCf`; the report's *ROC curve*
   (`anaRocPlot`: the curves and the diagonal dashed, the Y axis Sensitivity); Analyze › Statistics › ROC curve….
+  **Statistical charts** (PLOT2_SPEC 7.2; pure in the ANA block, before the categories' summaries): `ctrlConst(n)` (d₂ and d₃ of
+  the range of n normals by `gkInt` over `rangeSf`, n = 2 closed, c₄ by `lgam`; A₂, D₃, D₄, A₃, B₃, B₄; memoised in `CTRLC`, n 2 to
+  1000), `CTRL_RULES` (Western Electric's four, Nelson's eight), `ctrlRules(z, set, v)` (`[{i, rules}]`, a point marked with the
+  rules whose pattern it completes, a gap breaking a run), `CTRL_CHARTS`, `ctrlChart(o)` (`{chart, x, n, sub | size, rules, mu,
+  sigma, p0, c0}` → `{chart, k, labels, sizes, A {name, v, cl, ucl, lcl, z}, B, centre, sigma, consts, left, marks, marksB}` or
+  `{fail}` in words: X̄–R (R̄/d₂), X̄–S (S̄/c₄; sizes that differ by the pooled S, each limit by its size), I–MR (MR̄/d₂ of 2), p, np,
+  c, u (limits by each size, the lower at 0 at most)), `paretoOf(keys, vals)` (summed or counted, from the largest, ties first seen;
+  `{rows [{key, v, pct, cum}], tot, left}`), `blandAltman(a, b, {mode diff|ratio|pct, conf})` (`{n, m, d, bias, sd, z, lo, hi, biasCI,
+  loCI, hiCI}`: the limits bias ± z·SD, the intervals t·s/√n and t·s·√(3/n)), `metaAnalysis(y, v, {conf})` (`{fixed, random {est,
+  se, lo, hi, z, p, w (%)}, Q, df, pQ, I2 (%), H, tau2}`, DerSimonian–Laird's τ² truncated at 0), `digammaFn`, `trigammaFn`,
+  `gammaFit` (Newton on ln a − ψ(a)), `weibFit` (bisection on the shape's equation), `QQ_DISTS`, `QQ_POS` (R's ppoints, Blom,
+  Filliben as SciPy's probplot, Weibull, Hazen), `qqPositions`, `qqData(vals, {dist, pos, conf, line})` (`{x, y, lo, hi, line {a, b},
+  par, names, n}`: the band each order statistic's beta interval through the fitted quantile function; the line y = x or through the
+  quartiles). Kinds (all `noMiss`, the forms `noGroup`; `anaByRow(q)` an input's values by row): `ctrl` (`cats`, `xs`; `p.chart`,
+  `val`, `sub`, `size`, `ncol`, `rules`, `mu`, `sigma`, `p0`, `c0`; sections Centre and limits, Chart (σ̂, d₂, d₃, c₄), Points that
+  break a rule; the sheet `i` (an X), `lab`, `v`, `cl`, `ucl`, `lcl`, `mark`, `rule` and the second chart's `v2`, `cl2`, `ucl2`,
+  `lcl2`, `mark2`; `report.ctrl {two, vary, varyB, name, bname, val, n}`), `pareto` (`cats`, `xs`; `p.cat`, `val`; `lev` (an X, text),
+  `n`, `pct`, `cum`), `bland` (`p.a`, `b`, `mode`, `conf`; `m` (an X), `d`, `lx` (an X, the means' unit) and the lines `lb`, `lu`,
+  `ll` and their intervals' ends `lbl`, `lbh`, `lul`, `luh`, `lll`, `llh`), `meta` (`cats`, `xs`; `p.name`, `est`, `se` or `lo` and
+  `hi` with `cconf` their level, `scale` linear|log, `conf`; `e` (an X), `pos` (each study's place down Y), `eminus`/`eplus` (X errors
+  of `pos`, `anaWrite`'s `side`), `w`, `name`, `pe` (an X), `ppos`, `pminus`, `pplus`; `report.meta {k, log, names, pos, null}`), `qq`
+  (`p.dist`, `pos`, `line`, `conf`; per column `qx<t>` (an X), `qy<t>`, `ql<t>`, `qlo<t>`, `qhi<t>`). Forms `ST_FORMS` (in
+  `ANA_FORMS`): `stNum`, `stTxt`, `stVal`, `stFirst` (a list starts from a column ticked, `S.anaSel`, set by `anaDlg`), `stShow`,
+  `stNumv`; `#aChK`, `#aChV`, `#aChS`, `#aChN`, `#aChZ`, `#aChR`, `#aChM`, `#aChG`, `#aChP`, `#aChC` (each shown for its charts);
+  `#aPaC`, `#aPaV`; `#aBaA`, `#aBaB`, `#aBaM`; `#aMaN`, `#aMaE`, `#aMaK`, `#aMaS`, `#aMaL`, `#aMaH`, `#aMaC`, `#aMaG`; `#aQqD`,
+  `#aQqP`, `#aQqL`. The report's actions, each one undo step from the result columns (`stCol`, `stGraph`, `stAxes`, `stFigure`: graphs
+  made one by one put in a figure that takes their windows' room together, its first panel in hand): `ctrlPlot` (a figure of two
+  panels sharing X where there are two charts; the limits red and dashed, steps where they vary; the points that break a rule ringed
+  and labelled by their rules; the legends outside), `paretoPlot` (columns, the running share on a right axis 0 to 100 %),
+  `blandPlot` (the lines, each interval shaded), `forestPlot` (the studies named down Y, `ax.y.cats`, no Y title, squares sized by
+  weight, the pooled diamonds, a dashed line of no effect, X over every interval, a log axis for ratios), `qqKindPlot` (a graph a
+  column, a figure past one). Names along Y (`ax.y.cats`, as X's) in `buildPlot`'s `yCatsAll`. Analyze › Statistics › Statistical
+  charts; Help `stcharts`. `tools/ref/plot2_stats.py` → `fixtures/plot2-stats.json`; ref-test's `ctrlConst`, `ctrlChart.limits`,
+  `.rules`, `paretoOf`, `blandAltman`, `metaAnalysis`, `qqData.quantiles`, `.fit`.
   `tools/ref/refs.py`'s `hf` and `desc_ref` are the exact reference
   (rationals), shared by the fixtures (`desc.json`) and the fuzzer (`quantileType`, `descStats@<key>`, which
   `run.mjs` reads as one field of the result).
@@ -2008,11 +2042,18 @@ graph first, with the taskbar kept at the bottom of the screen.
   against the groups), `KM_MAX` (2·10⁵), `HC_MAX` (3000), `ANA_KINDS.kmeans` (`resIn`; `obs`, `cl` text, `grp`, `dist`, `sil`; `kc`,
   `kn`, `kss`, `ksil`; `svx<j>`/`svy<j>` the silhouettes; `kk`, `kin`, `ksi` k compared; `report.clu {k, lay, rows, vids, pair,
   scan, sil}`) and `ANA_KINDS.hclust` (`obs`, `cl`, `grp`, `lord`; `mi`, `ma`, `mb`, `mh`, `ms` the merges; `dx`/`dy` the dendrogram,
-  `cx`/`cy` the cut; `report.clu {…, leaves, n, hcut}`). A series' `gap` (true) breaks its line where a row is empty (`seriesSvg`).
+  `cx`/`cy` the cut; `report.clu {…, leaves, n, hcut, heat}`; with `p.heat` (PLOT2_SPEC 7.2, set by the report's *Heat map*) also
+  `vdx` (an X)/`vdy` the variables' dendrogram (their own linkage on the scaled columns, columns of data only), `hx` (an X, the
+  heights)/`hy` (the leaves' places) the dendrogram sideways, `mat` the scaled values in the dendrogram's order (row r the r-th leaf at
+  Y = r + 1, X 1 … m in the variables' order, or a curve's X), `heat {vclu, vnames, m, cur, M, sym}`). A series' `gap` (true) breaks its
+  line where a row is empty (`seriesSvg`).
   Page: `mvPairHtml` (`#aKx`, `#aKy`), `mvPairWire`, `mvPairRead`, `mvPairOk`, `ANA_FORMS.kmeans` (`#aKk`, `#aKs`, `#aKr`, `#aKm`),
   `ANA_FORMS.hclust` (`#aHm`, `#aHd` (1 − r off for Ward's), `#aHc` with `#aHk`/`#aHh`), `cluPlot(id, "dendro"|"clus"|"sil"|"scan")`,
-  `cluPut(id)` (a categorical column `Cluster (<name>)` at the end of the data's sheet, a record entry). Analyze › Statistics ›
-  Multivariate › k-means clustering…, Hierarchical clustering….
+  `cluPut(id)` (a categorical column `Cluster (<name>)` at the end of the data's sheet, a record entry), `heatDendro(id)` (the heat map:
+  `p.heat` set and worked out once, then a figure of the variables' dendrogram above the map, the observations' to its left with
+  `revX`, the map a graph of the analysis's matrix in cool to warm about 0 (`matRng`), X shared down the column and Y along the row, the
+  axes' limits at the cells' edges, the names along the map's X and the dendrogram's Y (a matrix's axes take names, `catsOf`); one
+  undo step). Analyze › Statistics › Multivariate › k-means clustering…, Hierarchical clustering….
   **6.4**: `lda(C, gi, G, {priors: "prop"|"equal", names, cov})` (the within-group deviations whitened by their own SVD, each
   variable by its pooled SD, the group means' spread by a second SVD: `{G, p, n, q, ng, pri, mu, mean, sd, ev (of W⁻¹B), wl, bart
   [{x2, df, p}], raw, cst, std, struct, scores, cen, cf, c0 (Fisher's), post, pred, loo, ploo, uni [{L, F, p}]}`; S_w = W/(n − G),
@@ -5902,7 +5943,9 @@ Next, in order:
    on unscaled columns and now as NIPALS; the measured-against-predicted curves renamed, found by the screenshots; every dialog of
    the wave at 1024 and 390 px; a 40-minute lab day with the wave's dialogs, 1 123 actions, memory and listeners flat; every sheet shown no longer drawn twice, found measuring the analyses' time on the page). Wave 7's plan is `ux/spec/PLOT2_SPEC.md`
    (plots, eight slices 7.1 to 7.8 in that order; its nine decisions, 26.11); slice 7.1, charts of categories (pies and doughnuts,
-   dot plots, means with intervals, columns by category, a panel for each value of a column), done 26.11
+   dot plots, means with intervals, columns by category, a panel for each value of a column), done 26.11; slice 7.2, statistical
+   charts (control charts with Western Electric's and Nelson's rules, Pareto, Bland–Altman and forest plots, Q–Q plots against five
+   distributions with a band, a heat map with dendrograms), done 27.11
 
 Then, 19.11, the user's request: qudi's confocal files read with their positions, and ImageJ's statistics on them; the plan is
 `ux/spec/QUDI_SPEC.md` (eight decisions, four slices: Q.1 reading qudi's files, Q.2 a TIFF ImageJ opens with its calibration, Q.3
@@ -6158,6 +6201,12 @@ selected at once in the Project Explorer and acted on together, each command one
   dots are circles of the curve's symbol size; means, medians, sums and counts only (no geometric mean, no weighted mean), the
   median's interval from the order statistics at the level reached; a trellis is made once from Group by (a new level typed later is
   no new panel)
+- Statistical charts: control charts with 3σ limits only (no CUSUM, EWMA, moving average or Hotelling's T² chart, no limits other than
+  3σ, no phase I and II, no runs restarted after a change), the rules Western Electric's or Nelson's (not chosen one by one); a Pareto
+  chart of one column of categories (no second level, no "Other" gathered); Bland–Altman without a regression of the differences on
+  the means (no proportional bias); forest plots of the fixed and DerSimonian–Laird effects only (no Hartung–Knapp, no REML, no
+  subgroups, no funnel plot); Q–Q plots of five distributions with the location 0 (no three-parameter Weibull or gamma); the heat
+  map's rows and columns by the clustering's linkage (not reordered by hand), its variables clustered on columns of data only
 - Box and violin charts: one box per spectrum on the graph, in the table's order, or each split
   by a column of groups on the active curve's sheet (60 groups at most, numbers only, in
   ascending order: the worksheet has no text cells to name them; the grouping is set on the

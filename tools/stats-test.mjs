@@ -731,5 +731,35 @@ check("binomial with p = 0 or 1", D.binom.cdf(0, 10, 0) === 1 && D.binom.sf(9, 1
   check("implicit: a formula with no parameter refused", /no parameter to fit/.test(fit([0, 1, 2, 3], [0, 1, 0, 1], "formula", { formula: "x^2 + y^2 - 1" }).fail || ""));
   check("implicit: a point that is not a number refused", /not a number/.test(fit([0, 1, NaN, 3], [0, 1, 0, 1], "circle").fail || ""));
 }
+{ // Statistical charts (PLOT2_SPEC 7.2): each run rule's marks on in-control points at its exact rate; intervals' coverage
+  const cr = get("ctrlRules"), cc = get("ctrlChart"), ba = get("blandAltman"), ma = get("metaAnalysis"), mc = get("mulberry32")(72);
+  const bm = () => { let u = 0; while (!(u > 0)) u = mc(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * mc()); };
+  const N = 400000, z = Array.from({ length: N }, bm), Phi = x => D.norm.cdf(x), p3 = 2 * (1 - Phi(3)), q2 = 1 - Phi(2), q1 = 1 - Phi(1);
+  const r2 = 2 * q2 * (1 - (1 - q2) ** 2), r3 = 2 * q1 * (4 * q1 ** 3 * (1 - q1) + q1 ** 4), zig = 2 * 199360981 / 87178291200;   // E₁₄, the zigzag number
+  const rate = set => { const c = new Array(9).fill(0); cr(z, set).forEach(m => m.rules.forEach(r => c[r]++)); return c; };
+  const ok = (got, p, L, infl) => { const e = p * (N - L + 1); return Math.abs(got - e) < 5 * Math.sqrt(e) * infl; };
+  const we = rate("we"), ne = rate("nelson");
+  check("Western Electric on 400 000 in-control points: each rule at its exact rate (beyond 3σ, 2 of 3, 4 of 5, eight on a side)",
+    ok(we[1], p3, 1, 1) && ok(we[2], r2, 3, 1.5) && ok(we[3], r3, 5, 2) && ok(we[4], 2 / 256, 8, 3), JSON.stringify([we.slice(1, 5), [p3, r2, r3, 2 / 256].map(p => Math.round(p * N))]));
+  check("Nelson's eight at their exact rates (nine on a side, six rising or falling, fourteen alternating, fifteen within 1σ, eight beyond 1σ on both sides)",
+    ok(ne[1], p3, 1, 1) && ok(ne[2], 2 / 512, 9, 3) && ok(ne[3], 2 / 720, 6, 3) && ok(ne[4], zig, 14, 3) && ok(ne[5], r2, 3, 1.5) && ok(ne[6], r3, 5, 2) && ok(ne[7], (1 - 2 * q1) ** 15, 15, 4) && ok(ne[8], (2 * q1) ** 8 * (1 - 2 / 256), 8, 3),
+    JSON.stringify([ne.slice(1), [p3, 2 / 512, 2 / 720, zig, r2, r3, (1 - 2 * q1) ** 15, (2 * q1) ** 8 * (1 - 2 / 256)].map(p => Math.round(p * N))]));
+  // X̄ and R of in-control subgroups: σ̂ = R̄/d₂ unbiased for σ, the limits' false alarms near 0.27 % a subgroup
+  { let s = 0, al = 0, K = 0; for (let t = 0; t < 400; t++) { const x = Array.from({ length: 125 }, () => 5 + 2 * bm()), R = cc({ chart: "xbar-r", x, size: 5 }); s += R.sigma; al += R.marks.filter(m => m.rules.includes(1)).length; K += R.k; }
+    check("X̄ and R: σ̂ = R̄/d₂ unbiased (400 charts of 25 subgroups), the 3σ limits crossed about 0.27 % of the time", Math.abs(s / 400 - 2) < 0.02 && al / K < 0.0055, JSON.stringify([s / 400, al / K])); }
+  { let s = 0; for (let t = 0; t < 400; t++) { const x = Array.from({ length: 120 }, () => 5 + 2 * bm()); s += cc({ chart: "xbar-s", x, size: 8 }).sigma; }
+    check("X̄ and S: σ̂ = S̄/c₄ unbiased", Math.abs(s / 400 - 2) < 0.02, s / 400); }
+  check("a chart refuses one subgroup, a subgroup size of 1, a p chart of no defectives, in words",
+    /two subgroups/.test(cc({ chart: "xbar-r", x: [1, 2, 3], size: 3 }).fail || "") && /size \(2 or more\)/.test(cc({ chart: "xbar-r", x: [1, 2, 3, 4], size: 1 }).fail || "") && /No defectives/.test(cc({ chart: "p", x: [0, 0, 0], n: 50 }).fail || ""));
+  // Bland–Altman: the bias's interval covers the true mean difference 95 % of the time; the limits' approximate ones near it
+  { let hb = 0, hl = 0; const K = 4000; for (let t = 0; t < K; t++) { const a = [], b = []; for (let i = 0; i < 30; i++) { const T = 50 + 10 * bm(); a.push(T + 0.7 + 2 * bm() / Math.SQRT2); b.push(T + 2 * bm() / Math.SQRT2); }
+      const R = ba(a, b, { conf: 0.95 }); if (R.biasCI[0] <= 0.7 && 0.7 <= R.biasCI[1]) hb++; if (R.hiCI[0] <= 0.7 + 1.959963984540054 * 2 && 0.7 + 1.959963984540054 * 2 <= R.hiCI[1]) hl++; }
+    check("Bland–Altman: the bias's 95 % interval covers 95 % of 4000 (Student's t), the upper limit's within two points of it", Math.abs(hb / K - 0.95) < 0.012 && Math.abs(hl / K - 0.95) < 0.02, JSON.stringify([hb / K, hl / K])); }
+  // Meta-analysis: the fixed effect's interval covers the common effect 95 % of the time with known variances
+  { let h = 0; const K = 4000; for (let t = 0; t < K; t++) { const v = Array.from({ length: 8 }, () => (0.1 + mc()) ** 2), y = v.map(x => 0.3 + Math.sqrt(x) * bm()), R = ma(y, v, { conf: 0.95 }); if (R.fixed.lo <= 0.3 && 0.3 <= R.fixed.hi) h++; }
+    check("meta-analysis: the fixed effect's 95 % interval covers 95 % of 4000 homogeneous sets", Math.abs(h / K - 0.95) < 0.012, h / K); }
+  check("meta-analysis: τ² is 0, the random effects the fixed effect, when Q is below its degrees of freedom",
+    (() => { const R = ma([0.30, 0.31, 0.29, 0.30], [0.01, 0.02, 0.01, 0.03]); return R.tau2 === 0 && R.random.est === R.fixed.est && R.I2 === 0; })());
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

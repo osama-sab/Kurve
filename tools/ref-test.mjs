@@ -460,6 +460,46 @@ if (fixtures["plot2-cats"]) {
     note("pieSlices", e, at); }
 }
 
+/* ---- Statistical charts (PLOT2_SPEC 7.2): control-chart constants against 20-digit integrals and charts against Montgomery's formulas
+   written again in NumPy; Pareto against pandas; Bland–Altman against NumPy and SciPy; meta-analysis against statsmodels; Q–Q plots
+   against SciPy's fits and quantiles (tools/ref/plot2_stats.py). ---- */
+if (fixtures["plot2-stats"]) {
+  const F = fixtures["plot2-stats"], CC = get("ctrlConst"), CH = get("ctrlChart"), PA = get("paretoOf"), BA = get("blandAltman"), MA = get("metaAnalysis"), QQ = get("qqData");
+  for (const k of F.const) { const c = CC(k.n); note("ctrlConst", Math.max(...["d2", "d3", "c4"].map(q => Math.abs(c[q] - k[q]) / k[q])), `n = ${k.n}`); }
+  const rel = (a, b, sc) => a == null || b == null ? (a == b ? 0 : Infinity) : Math.abs(a - b) / (sc || Math.max(Math.abs(b), 1e-300));
+  for (const c of F.charts) { const r = CH(c.o), w = c.want; if (r.fail) { refBad.push(`ctrlChart ${c.name}: ${r.fail}`); continue; }
+    const sc = Math.max(...r.A.v.map(Math.abs)) || 1; let e = r.k === w.k ? 0 : Infinity, at = c.name;
+    const cmp = (got, want, lab) => { const d = rel(got, want, sc); if (d > e) { e = d; at = `${c.name}: ${lab}`; } };
+    if (w.v) w.v.forEach((v, i) => cmp(r.A.v[i], v, `point ${i + 1}`));
+    if (w.cl != null) cmp(r.A.cl[0], w.cl, "centre"); if (w.ucl != null) cmp(r.A.ucl[0], w.ucl, "upper limit"); if (w.lcl != null) cmp(r.A.lcl[0], w.lcl, "lower limit");
+    if (w.ucla != null) cmp(r.A.ucl[0], w.ucla, "upper limit as x̄̄ + A₂R̄");
+    if (w.uclv) w.uclv.forEach((v, i) => cmp(r.A.ucl[i], v, `upper limit ${i + 1}`)); if (w.lclv) w.lclv.forEach((v, i) => cmp(r.A.lcl[i], v, `lower limit ${i + 1}`));
+    if (w.sigma != null) cmp(r.sigma, w.sigma, "σ̂");
+    if (w.B) { const B = r.B, sb = Math.max(...B.v.filter(v => v != null).map(Math.abs)) || 1; if (w.B.v) w.B.v.forEach((v, i) => { const d = rel(B.v[i], v, sb); if (d > e) { e = d; at = `${c.name}: ${B.name} ${i + 1}`; } });
+      for (const [k, lab] of [["cl", "centre"], ["ucl", "upper"], ["lcl", "lower"]]) { if (w.B[k] != null) { const d = rel(B[k][0], w.B[k], sb); if (d > e) { e = d; at = `${c.name}: ${B.name} ${lab}`; } } if (w.B[k + "v"]) w.B[k + "v"].forEach((v, i) => { const d = rel(B[k][i], v, sb); if (d > e) { e = d; at = `${c.name}: ${B.name} ${lab} ${i + 1}`; } }); } }
+    note("ctrlChart.limits", e, at);
+    const m = JSON.stringify(r.marks), mw = JSON.stringify(w.marks); note("ctrlChart.rules", m === mw ? 0 : Infinity, `${c.name}: ${m.slice(0, 120)} against ${mw.slice(0, 120)}`); }
+  for (const c of F.pareto) { const r = PA(c.keys, c.vals); let e = r.rows.length === c.rows.length ? 0 : Infinity, at = c.name;
+    r.rows.forEach((z, i) => { const w = c.rows[i]; if (!w || z.key !== w.key) { e = Infinity; at = `${c.name}: row ${i} is ${z.key}`; return; } const d = Math.max(rel(z.v, w.v), rel(z.pct, w.pct), rel(z.cum, w.cum)); if (d > e) { e = d; at = `${c.name}, ${z.key}`; } });
+    note("paretoOf", e, at); }
+  for (const c of F.bland) { const r = BA(c.a, c.b, { mode: c.mode, conf: c.conf }), w = c.want, sc = Math.max(...w.d.map(Math.abs)); let e = r.n === w.n ? 0 : Infinity;
+    w.d.forEach((v, i) => { e = Math.max(e, rel(r.d[i], v, sc), rel(r.m[i], w.m[i])); });
+    for (const [k, i] of [["bias"], ["sd"], ["lo"], ["hi"]]) e = Math.max(e, rel(r[k], w[k], sc));
+    for (const k of ["biasCI", "loCI", "hiCI"]) e = Math.max(e, rel(r[k][0], w[k][0], sc), rel(r[k][1], w[k][1], sc));
+    note("blandAltman", e, c.name); }
+  for (const c of F.meta) { const r = MA(c.y, c.v, { conf: c.conf }), w = c.want; let e = 0;
+    ["fixed", "random"].forEach(k => { const R = r[k], W = w[k], sc = Math.max(Math.abs(W[0]), W[1]); e = Math.max(e, rel(R.est, W[0], sc), rel(R.se, W[1]), rel(R.lo, W[2], sc), rel(R.hi, W[3], sc)); });
+    e = Math.max(e, rel(r.Q, w.Q), r.df === w.df ? 0 : Infinity, rel(r.tau2, w.tau2, Math.max(w.tau2, 1e-12)), rel(r.I2, w.I2, Math.max(w.I2, 1e-12)));
+    w.wF.forEach((v, i) => { e = Math.max(e, rel(r.fixed.w[i], v), rel(r.random.w[i], w.wR[i])); });
+    note("metaAnalysis", e, c.name); }
+  for (const c of F.qq) { const r = QQ(c.vals, { dist: c.dist, pos: c.pos, line: "quartiles" }), w = c.want; if (r.fail) { refBad.push(`qqData ${c.name}: ${r.fail}`); continue; }
+    const sc = Math.max(...c.vals.map(Math.abs)); let e = 0, ep = 0, at = c.name;
+    w.x.forEach((v, i) => { const d = Math.max(rel(r.x[i], v, sc), rel(r.lo[i], w.lo[i], sc), rel(r.hi[i], w.hi[i], sc)); if (d > e) { e = d; at = `${c.name}, point ${i + 1}`; } });
+    e = Math.max(e, rel(r.line.a, w.qa, sc), rel(r.line.b, w.qb));
+    c.par.forEach((v, i) => { ep = Math.max(ep, rel(r.par[i], v)); });
+    note("qqData.quantiles", e, at); note("qqData.fit", ep, c.name); }
+}
+
 /* ---- The shift between two scans (QUDI_SPEC Q.8): Guizar-Sicairos, Thurman and Fienup's registration written again in NumPy,
    tools/ref/shift_fixtures.py; the shift the same grid point, the correlation at it to the rounding ---- */
 if (fixtures.shift) {

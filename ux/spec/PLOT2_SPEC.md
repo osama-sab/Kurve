@@ -239,6 +239,12 @@ typed in the menu).
 
 ## 7.2 Statistical charts
 
+Done 27.11, as below, with these changes of plan: the Q–Q plot is a kind of its own (`qq`), the normality tests' Q–Q columns
+left as they were; the heat map is the hierarchical clustering's report action, with the analysis keeping its matrix (its `p.heat`)
+so the map follows the data, and a matrix's map takes names along its axes; a Pareto chart's names along X come from its text X,
+not `ax.x.cats`; graphs made one by one into a figure take their windows' room together (`stFigure`); the dialogs' lists start from
+the columns ticked. Measured: still to come (the constants' 24-digit reference).
+
 **What.**
 - **Q–Q plots further**: against the normal, log-normal, exponential, Weibull and gamma
   distributions (parameters by maximum likelihood, said), the plotting positions chosen (R's
