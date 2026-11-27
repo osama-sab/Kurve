@@ -1024,6 +1024,27 @@ people type (`CMDK_SYN`).
 
 `tools/ds-test.mjs` has 9 new checks (145).
 
+## Plots, wave 7, slice 7.5: vectors and radar charts (2026-11-27)
+
+`ux/spec/PLOT2_SPEC.md` slice 7.5. Plot › Plot the selected columns › Vectors: angle and length, Vectors to a point, and Radar; Plot
+setup's cards of the same names.
+- **Vectors**: a curve's points as arrows, by an angle (counterclockwise from X on the graph, degrees or radians) and a length from two
+  more columns, every arrow of the graph at one scale with a key of a round length in the corner; or to a second point from two more
+  columns. Heads filled, open or none, a scale typed, the key off, *Draw as a curve again*, from the curve's right-click; the status bar
+  names the arrow under the pointer. Plot setup's roles Angle and Length, X₂ and Y₂, with a note until each curve has both.
+- **Radar charts**: each row a spoke (named by its X, text best) and each curve a polygon, or the other way round; one range for every
+  spoke (from 0, or typed) with its numbers up the first spoke, or each spoke its own, said under its name; polygons or circles for the
+  grid, filled or not; a polygon with a value missing left open; the status bar says the spoke, the polygon and the value.
+
+Checked: `tools/ref/plot2_vectors.py` (each arrow's end and head and each radar corner from the definitions in mpmath at 40 digits; 286
+arrows with angles of many turns, lengths below 0 and missing values, 412 corners of three to forty spokes) through ref-test (ends
+1.3e-13 px, heads 2.5e-13, corners 1.3e-13: the last bit of coordinates up to 1400 px); the fuzzer's `vecFlat` and `radarFlat` (1.2e-15 and
+4.8e-16 of the largest coordinate); `tools/plot2-drive.mjs` 7.5 (31: every arrow at its place from its angle and length, a scale typed, open
+heads, the key, the readout, an export, back to a curve and undone, arrows to a point, Plot setup's roles and note, every radar corner on
+one range and on each spoke's own, the open polygon, the readout, spokes by curves, a range typed, the menus and Format pane, junk, a
+reload, 390 px). Found on the way: radians reduced by a double 2π lost 5e-15 of an angle at twenty turns (now left to Math.cos, which
+reduces exactly), and the radar's automatic range started a step below 0.
+
 ## Plots, wave 7, slice 7.4: ternary graphs (2026-11-27)
 
 `ux/spec/PLOT2_SPEC.md` slice 7.4. Plot › Plot the selected columns › Ternary, or Plot setup's *Ternary* under *Coordinates*.

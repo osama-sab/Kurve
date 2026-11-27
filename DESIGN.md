@@ -910,6 +910,19 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-27: Vectors and radar charts (PLOT2_SPEC 7.5)
+
+- **Arrows are a way of drawing a curve.** A curve's arrows come from two more columns read in its rows (an angle and a length, or
+  a second point), as a colour comes from a colour column; so the curve keeps its axes, colour, undo and export, and *Draw as a
+  curve again* takes the arrows away. The angle is on the graph as drawn, counterclockwise from X, so the picture shows the angle
+  the column holds whatever the axes' units.
+- **One scale for every arrow, and its key.** Lengths are drawn at one scale for the whole graph (automatic: the longest a twelfth
+  of the plot), so two arrows compare at a glance; the key in the corner says what length an arrow of its size is. A scale typed is
+  pixels a unit, the only measure a screen and a page share.
+- **A radar chart is rows against curves.** Each row a spoke and each curve a polygon (Origin's way), or the other way round; one
+  range for every spoke so the polygons compare, or each spoke its own (said under its name) when the variables are of different
+  kinds. A polygon with a value missing is left open, not closed across the gap or filled as if the value were zero.
+
 ### 2026-11-27: Ternary graphs (PLOT2_SPEC 7.4)
 
 - **A curve with two more columns.** A ternary curve is a column of values (its first part) and two columns read in the same rows

@@ -800,6 +800,153 @@ if (section("7.4")) {
   }, { name: "7.4 at 390 px", vw: { width: 390, height: 800 } });
 }
 
+/* 7.5 Vectors: a field on an 11 × 11 grid (angle and speed), and the same as second points; radar: three cars on six qualities. */
+const fieldData = async p => {
+  await p.evaluate(async () => { const x = [], y = [], a = [], m = [], x2 = [], y2 = []; for (let i = 0; i < 11; i++) for (let j = 0; j < 11; j++) { const X = i - 5, Y = j - 5; x.push(X); y.push(Y); a.push(+(Math.atan2(X, -Y) * 180 / Math.PI).toFixed(3)); m.push(+(Math.hypot(X, Y) / 2).toFixed(3)); x2.push(X - Y * 0.2); y2.push(Y + X * 0.2); }
+    a[3] = null; m[7] = null;
+    const mk = (r, n, u, d) => Object.assign(makeCol(r, n, u, d), r === "y" ? { pipe: [], mask: [] } : {});
+    const cols = [mk("x", "X", "m", x), mk("y", "Y", "m", y), mk("ignore", "Angle", "°", a), mk("ignore", "Speed", "m/s", m), mk("ignore", "X end", "m", x2), mk("ignore", "Y end", "m", y2)];
+    await createProject(Object.assign(blankProject("Field"), { cols, activeY: cols[1].id }), "test"); await new Promise(r => setTimeout(r, 100)); renderAll(); });
+  await p.waitForTimeout(400);
+  return p.evaluate(() => sheetCols(curSheet()).map(c => ({ id: c.id, d: c.data.slice() })));
+};
+const vecRead = p => p.evaluate(() => { const sh = (document.querySelector("#plot [data-vecshaft]") || { getAttribute: () => "" }).getAttribute("d"), hd = (document.querySelector("#plot [data-vechead]") || { getAttribute: () => "" }).getAttribute("d"), g = S.geo;
+  const geo = { L: g.L, T: g.T, pw: g.pw, mh: g.mh, v: g.v };
+  return { shafts: [...sh.matchAll(/M([-\d.]+),([-\d.]+)L([-\d.]+),([-\d.]+)/g)].map(m => [+m[1], +m[2], +m[3], +m[4]]), heads: (hd.match(/M/g) || []).length, open: !!document.querySelector('#plot [data-vechead][fill="none"]'),
+    key: (document.querySelector("#plot [data-veckey]") || {}).textContent || "", scr: (xs, ys) => null, geo }; });
+
+if (section("7.5")) {
+  console.log("7.5 Vectors and radar");
+  await page(async p => {
+    const cs = await fieldData(p), [X, Yc, A, M, X2, Y2] = cs;
+    // Plot's menu: Y, Angle and Speed as arrows.
+    const it = await p.evaluate(ids => { const m = plotItems(ids).find(q => q && q.label === "Vectors: angle and length"); if (m) m.run(); return !!m; }, [Yc.id, A.id, M.id]); await p.waitForTimeout(600);
+    let r = await p.evaluate(() => ({ ser: plotCfg().series, toast: (document.querySelector("#toast") || {}).textContent || "", off: [...document.querySelectorAll("#ws .hoff")].length }));
+    check("Plot's menu has Vectors: angle and length, the curve's arrows from the next two columns, said in the message", it && r.ser[Yc.id].vec.kind === "am" && r.ser[Yc.id].vec.a === A.id && r.ser[Yc.id].vec.m === M.id && /Arrows: Y by Angle and Speed/.test(r.toast) && r.off === 0, JSON.stringify(r));
+    // Every arrow where the definition puts it: from the point, by its angle on the graph, its length at the graph's scale.
+    let V = await vecRead(p);
+    const want = await p.evaluate(({ x, y, a, m }) => { const g = S.geo, k = (() => { let mx = 0; m.forEach(v => { if (v != null && Math.abs(v) > mx) mx = Math.abs(v); }); return Math.min(g.pw, g.mh) / 12 / mx; })(), X = v => toScreenX ? toScreenX(v) : null;
+      return { k, pts: x.map((xx, i) => a[i] == null || m[i] == null ? null : { i, x0: g.sx ? g.L + g.sx.f(xx) * g.pw : null, xx, yy: y[i], a: a[i], m: m[i] }) }; }, { x: X.d, y: Yc.d, a: A.d, m: M.d }).catch(() => null);
+    const want2 = await p.evaluate(({ x, y, a, m }) => { const g = S.geo, vx = g.v, sx = (v) => g.L + (v - vx.x0) / (vx.x1 - vx.x0) * g.pw, sy = (v) => g.T + g.mh - (v - vx.y0) / (vx.y1 - vx.y0) * g.mh;
+      let mx = 0; m.forEach(v => { if (v != null && Math.abs(v) > mx) mx = Math.abs(v); }); const k = Math.min(g.pw, g.mh) / 12 / mx;
+      return x.map((xx, i) => { if (a[i] == null || m[i] == null) return null; const x0 = sx(xx), y0 = sy(y[i]), t = a[i] * Math.PI / 180; return [x0, y0, x0 + m[i] * k * Math.cos(t), y0 - m[i] * k * Math.sin(t)]; }).filter(Boolean); }, { x: X.d, y: Yc.d, a: A.d, m: M.d });
+    const off = Math.max(...want2.map(w => Math.min(...V.shafts.map(q => Math.max(Math.hypot(q[0] - w[0], q[1] - w[1]), Math.hypot(q[2] - w[2], q[3] - w[3]))))));
+    check("every arrow from its point by its angle (counterclockwise from X on the graph) and its length at one scale (within the SVG's 0.005 px); a row with no angle or no length has none", V.shafts.length === 119 && want2.length === 119 && off <= 0.0072, JSON.stringify([V.shafts.length, off]));
+    check("each arrow has a filled head (the one of length 0 at the origin none); the key says a round length in the length's unit", V.heads === 118 && !V.open && /^\d+(\.\d+)? m\/s$/.test(V.key), JSON.stringify([V.heads, V.key]));
+    // The readout names the arrow under the pointer.
+    const at = await p.evaluate(() => { const q = S.geo.vecPts[40], svg = document.querySelector("#plot"), bb = svg.getBoundingClientRect(), k = bb.width / svg.viewBox.baseVal.width; return { x: bb.left + q.x * k, y: bb.top + q.y * k, txt: q.txt }; });
+    await p.mouse.move(at.x, at.y); await p.waitForTimeout(150);
+    const ro = await p.evaluate(() => document.querySelector("#readout").textContent);
+    check("the status bar names the arrow under the pointer: its angle and length", ro.includes(at.txt) && /angle .+° {3}length .+ m\/s/.test(at.txt), `${ro} | ${at.txt}`);
+    // The curve's Vectors menu: open heads, a scale typed, the key off, radians; undo each.
+    const menu = await p.evaluate(id => { const it = graphMenuItems(id).find(q => q && q.label === "Vectors"); return it ? it.sub().filter(q => q && q.label).map(q => q.label) : null; }, Yc.id);
+    check("the curve's right-click has Vectors: heads, the angle's unit, the length scale, the key, the columns, back to a curve", menu && ["Heads", "Angle in", "Length scale…", "Key", "Columns…", "Draw as a curve again"].every(l => menu.includes(l)), JSON.stringify(menu));
+    await p.evaluate(id => { vecMenuItems(colById(id))[0].sub().find(q => q.label === "Open").run(); }, Yc.id); await p.waitForTimeout(200);
+    V = await vecRead(p); check("open heads", V.open, "");
+    await p.evaluate(() => undo()); await p.waitForTimeout(150);
+    await p.evaluate(id => { vecMenuItems(colById(id)).find(q => q.label === "Length scale…").run(); }, Yc.id); await p.waitForSelector("#vsK"); await p.fill("#vsK", "20"); await p.click("#formOk"); await p.waitForTimeout(300);
+    const k20 = await p.evaluate(() => { const sh = document.querySelector("#plot [data-vecshaft]").getAttribute("d"), m = [...sh.matchAll(/M([-\d.]+),([-\d.]+)L([-\d.]+),([-\d.]+)/g)].map(q => Math.hypot(+q[3] - +q[1], +q[4] - +q[2])); return Math.max(...m); });
+    check("a scale of 20 px a unit typed: the longest arrow (3.536 m/s) 70.7 px", Math.abs(k20 - 3.536 * 20) < 0.02, k20);
+    await p.evaluate(() => undo()); await p.waitForTimeout(150);
+    await p.evaluate(id => { vecMenuItems(colById(id)).find(q => q.label === "Key").run(); }, Yc.id); await p.waitForTimeout(150);
+    check("the key off from the menu", await p.evaluate(() => !document.querySelector("#plot [data-veckey]")));
+    await p.evaluate(() => undo()); await p.waitForTimeout(150);
+    // Export: the PDF draws them.
+    const ex = await p.evaluate(async () => { const svg = buildPlot(640, 480, readPalette(true), true); const v = await svgToVector(svg, { kind: "pdf", wPt: 400, hPt: 300, title: "vectors", embed: false }); const t = await v.blob.text();
+      return { shafts: (svg.match(/data-vecshaft/g) || []).length, key: (svg.match(/data-veckey/g) || []).length, pdf: t.slice(0, 5), miss: v.miss || [] }; });
+    check("an export draws the arrows and the key; its PDF misses no character", ex.shafts === 1 && ex.key === 1 && ex.pdf === "%PDF-" && ex.miss.length === 0, JSON.stringify(ex));
+    // Drawn as a curve again: the arrows go, one undo brings them back.
+    await p.evaluate(id => { vecMenuItems(colById(id)).find(q => q.label === "Draw as a curve again").run(); }, Yc.id); await p.waitForTimeout(200);
+    check("Draw as a curve again: no arrows; undone, the arrows back", await p.evaluate(() => !document.querySelector("#plot [data-vecshaft]")) && await (async () => { await p.evaluate(() => undo()); await p.waitForTimeout(200); return p.evaluate(() => !!document.querySelector("#plot [data-vecshaft]")); })());
+    // To a second point, from the menu: each arrow ends at its point.
+    await p.evaluate(ids => { plotItems(ids).find(q => q && q.label === "Vectors to a point").run(); }, [Yc.id, X2.id, Y2.id]); await p.waitForTimeout(600);
+    V = await vecRead(p);
+    const w3 = await p.evaluate(({ x, y, x2, y2 }) => { const g = S.geo, v = g.v, sx = q => g.L + (q - v.x0) / (v.x1 - v.x0) * g.pw, sy = q => g.T + g.mh - (q - v.y0) / (v.y1 - v.y0) * g.mh; return x.map((xx, i) => [sx(xx), sy(y[i]), sx(x2[i]), sy(y2[i])]); }, { x: X.d, y: Yc.d, x2: X2.d, y2: Y2.d });
+    const off3 = Math.max(...w3.map(w => Math.min(...V.shafts.map(q => Math.max(Math.hypot(q[0] - w[0], q[1] - w[1]), Math.hypot(q[2] - w[2], q[3] - w[3]))))));
+    check("Vectors to a point: 121 arrows, each from its point to its second point, no key", V.shafts.length === 121 && off3 <= 0.0072 && !V.key, JSON.stringify([V.shafts.length, off3, V.key]));
+  }, { name: "7.5 vectors", timeout: 120000 });
+
+  await page(async p => {
+    const cs = await fieldData(p), [X, Yc, A, M] = cs;
+    // Plot setup on Vectors: angle and length, the roles, a note until each curve has its angle and length.
+    await p.evaluate(ids => { S.plotDlgKind = "vecam"; openPlotDlg(ids); }, [Yc.id]); await p.waitForTimeout(400);
+    let r = await p.evaluate(() => ({ roles: [...document.querySelectorAll(".psu-rh")].map(e => e.textContent), need: ($("#psuNeed") || {}).textContent || "", ok: $("#formOk").disabled }));
+    check("Plot setup on Vectors: angle and length: the roles Angle and Length, a note, Plot waiting", ["X", "Y", "Angle", "Length"].every(k => r.roles.includes(k)) && /mark a column as Angle and one as Length/.test(r.need) && r.ok, JSON.stringify(r));
+    await p.click(`input[data-prole="va"][data-pcol="${A.id}"]`); await p.waitForTimeout(150); await p.click(`input[data-prole="vm"][data-pcol="${M.id}"]`); await p.waitForTimeout(150);
+    await p.click("#psuAdd"); await p.waitForTimeout(250);
+    r = await p.evaluate(() => ({ need: ($("#psuNeed") || {}).textContent || "", parts: [...document.querySelectorAll('select[data-cpart="va"], select[data-cpart="vm"]')].map(e => e.value) }));
+    check("Angle and Length marked and added: the curve's line shows them, the note goes", r.parts.join() === `${A.id},${M.id}` && !r.need, JSON.stringify(r));
+    await p.click("#formOk"); await p.waitForTimeout(500);
+    check("OK draws the arrows", await p.evaluate(() => document.querySelectorAll("#plot [data-vecshaft]").length === 1));
+  }, { name: "7.5 Plot setup for vectors" });
+
+  await page(async p => {
+    // A radar chart: six qualities (a column of text) as spokes, three cars as polygons.
+    await p.evaluate(async () => { const names = ["Speed", "Range", "Comfort", "Safety", "Price", "Economy"];
+      const X = makeCol("x", "Quality", "", names.map(() => null)); X.txt = {}; names.forEach((t, i) => X.txt[i] = t); X.fmt = "text";
+      const mk = (n, d) => Object.assign(makeCol("y", n, "", d), { pipe: [], mask: [] });
+      const cols = [X, mk("Car A", [8, 6, 7, 9, 4, 6]), mk("Car B", [6, 9, 5, 7, 7, 8]), mk("Car C", [5, 4, 9, 8, 9, null])];
+      await createProject(Object.assign(blankProject("Cars"), { cols, activeY: cols[1].id }), "test"); await new Promise(r => setTimeout(r, 100)); renderAll(); });
+    await p.waitForTimeout(400);
+    const ids = await p.evaluate(() => yCols().map(c => c.id)), vals = [[8, 6, 7, 9, 4, 6], [6, 9, 5, 7, 7, 8], [5, 4, 9, 8, 9, null]];
+    await p.evaluate(ids => { plotItems(ids).find(q => q && q.label === "Radar").run(); }, ids); await p.waitForTimeout(600);
+    const rr = () => p.evaluate(() => { const G = S.geo.radar; return { F: G.F, K: G.K, rng: G.rng, o: G.o, left: G.left, spokes: [...document.querySelectorAll("#plot [data-radarspoke]")].map(e => e.textContent), nums: [...document.querySelectorAll("#plot [data-radarnum]")].map(e => e.textContent),
+      polys: [...document.querySelectorAll("#plot [data-radarpoly]")].map(g => ({ d: (g.querySelector("[data-radarline]") || { getAttribute: () => "" }).getAttribute("d"), fill: (g.querySelector("[data-radarline]") || { getAttribute: () => "" }).getAttribute("fill"), v: [...((g.querySelector("[data-radarvert]") || { getAttribute: () => "" }).getAttribute("d") || "").matchAll(/M([-\d.]+),([-\d.]+)/g)].map(m => [+m[1], +m[2]]) })) }; });
+    let R = await rr();
+    const place = (R, k, v, lo, hi) => { const ph = (90 - 360 * k / R.K) * Math.PI / 180, rho = (v - lo) / (hi - lo); return [R.F.cx + R.F.R * rho * Math.cos(ph), R.F.cy - R.F.R * rho * Math.sin(ph)]; };
+    let off = 0; vals.forEach((row, j) => row.forEach((v, k) => { if (v == null) return; const q = place(R, k, v, 0, 10), m = Math.min(...R.polys[j].v.map(w => Math.hypot(w[0] - q[0], w[1] - q[1]))); off = Math.max(off, m); }));
+    check("Plot's menu has Radar: six spokes named by the text X, three polygons, one range 0 to 10 up the first spoke, each corner at its value (within 0.005 px)", R.K === 6 && R.spokes.join() === "Speed,Range,Comfort,Safety,Price,Economy" && R.polys.length === 3 && R.rng[0].join() === "0,10" && R.nums.join() === "2,4,6,8,10" && off <= 0.0072, JSON.stringify([R.spokes, R.rng[0], R.nums, off]));
+    check("a polygon with a value missing is not closed across it nor filled; the whole ones are", /Z$/.test(R.polys[0].d) && R.polys[0].fill !== "none" && !/Z$/.test(R.polys[2].d) && R.polys[2].fill === "none" && R.polys[2].v.length === 5, JSON.stringify(R.polys.map(q => [q.d.slice(-4), q.fill, q.v.length])));
+    // The readout.
+    const at = await p.evaluate(() => { const q = S.geo.radar.verts[3], svg = document.querySelector("#plot"), bb = svg.getBoundingClientRect(), k = bb.width / svg.viewBox.baseVal.width; return { x: bb.left + q.x * k, y: bb.top + q.y * k }; });
+    await p.mouse.move(at.x, at.y); await p.waitForTimeout(150);
+    check("the status bar says the spoke, the polygon and the value under the pointer", await p.evaluate(() => document.querySelector("#readout").textContent) === "Safety   Car A   9", await p.evaluate(() => document.querySelector("#readout").textContent));
+    // Each spoke its own range; each curve a spoke; circles; unfilled.
+    const menu = await p.evaluate(() => { const it = graphMenuItems().find(q => q && q.label === "Radar"); return it ? it.sub().filter(q => q && q.label).map(q => q.label) : null; });
+    check("the graph's menu has Radar: spokes, range, range from and to, grid, filled", menu && ["Spokes", "Range", "Range from and to…", "Grid", "Filled"].every(l => menu.includes(l)), JSON.stringify(menu));
+    await p.evaluate(() => { radarMenuItems().find(q => q.label === "Range").sub().find(q => /own/.test(q.label)).run(); }); await p.waitForTimeout(200);
+    R = await rr();
+    const rngs = await p.evaluate(() => [...document.querySelectorAll("#plot [data-radarrng]")].map(e => e.textContent));
+    off = 0; vals.forEach((row, j) => row.forEach((v, k) => { if (v == null) return; const [lo, hi] = R.rng[k], q = place(R, k, v, lo, hi), m = Math.min(...R.polys[j].v.map(w => Math.hypot(w[0] - q[0], w[1] - q[1]))); off = Math.max(off, m); }));
+    check("each spoke its own range, said under its name, each corner on it", R.o.scale === "own" && rngs.length === 6 && rngs.every(t => /^0 to \d+$/.test(t)) && off <= 0.0072, JSON.stringify([rngs, off]));
+    await p.evaluate(() => undo()); await p.waitForTimeout(150);
+    await p.evaluate(() => { radarMenuItems().find(q => q.label === "Spokes").sub().find(q => /curve a spoke/.test(q.label)).run(); }); await p.waitForTimeout(200);
+    R = await rr();
+    check("each curve a spoke: three spokes named by the cars, six polygons named by the qualities", R.K === 3 && R.spokes.join() === "Car A,Car B,Car C" && R.polys.length === 6, JSON.stringify([R.spokes, R.polys.length]));
+    await p.evaluate(() => undo()); await p.waitForTimeout(150);
+    await p.evaluate(() => { radarMenuItems().find(q => q.label === "Range from and to…").run(); }); await p.waitForSelector("#rrA"); await p.fill("#rrA", "5"); await p.fill("#rrB", "10"); await p.click("#formOk"); await p.waitForTimeout(300);
+    R = await rr(); const lft = await p.evaluate(() => (document.querySelector("#plot [data-radarleft]") || {}).textContent || "");
+    check("a range typed, 5 to 10: the two values below it (a 4 each for Car A and Car C) left out and said", R.rng[0].join() === "5,10" && R.left === 2 && /2 values outside the range/.test(lft), JSON.stringify([R.rng[0], R.left, lft]));
+    await p.evaluate(() => undo()); await p.waitForTimeout(150);
+    // The Format pane.
+    await p.evaluate(() => openPlotDetails(null, "layout")); await p.waitForTimeout(250);
+    const f = await p.evaluate(() => ["pdRb", "pdRs", "pdRg", "pdRf"].map(id => !!document.getElementById(id)));
+    check("the Format pane's Layout page has the spokes, range, grid and filled", f.every(Boolean), JSON.stringify(f));
+    await p.selectOption("#pdRg", "circle"); await p.waitForTimeout(600); await p.evaluate(() => { pdCommit && pdCommit(); closePlotDetails(); }); await p.waitForTimeout(200);
+    check("circles chosen there are the graph's", await p.evaluate(() => radarOpts(plotCfg()).grid === "circle" && /A/.test(document.querySelector("#plot [data-radargrid]").getAttribute("d"))));
+    // Export, junk, reload.
+    const ex = await p.evaluate(async () => { const svg = buildPlot(640, 480, readPalette(true), true); const v = await svgToVector(svg, { kind: "pdf", wPt: 400, hPt: 300, title: "radar", embed: false }); const t = await v.blob.text();
+      return { polys: (svg.match(/data-radarpoly/g) || []).length, pdf: t.slice(0, 5), miss: v.miss || [] }; });
+    check("an export draws the three polygons; its PDF misses no character", ex.polys === 3 && ex.pdf === "%PDF-" && ex.miss.length === 0, JSON.stringify(ex));
+    await p.evaluate(() => { const g = graphOf(GID()); g.plot = Object.assign({}, g.plot, { radarBy: 7, radarScale: {}, radarGrid: "x", radarR0: "a" }); renderPlot(); });
+    const jo = await p.evaluate(() => radarOpts(plotCfg()));
+    check("junk settings read as the defaults", jo.by === "rows" && jo.scale === "one" && jo.grid === "poly" && jo.r0 === null, JSON.stringify(jo));
+    await p.evaluate(() => { const g = graphOf(GID()); ["radarBy", "radarScale", "radarGrid", "radarR0"].forEach(k => delete g.plot[k]); savePlot({ radarFill: false }, "t"); });
+    await p.reload(); await ready(p); await p.waitForTimeout(600);
+    check("after a reload the graph is a radar, unfilled", await p.evaluate(() => plotCfg().layout === "radar" && document.querySelectorAll('#plot [data-radarline][fill="none"]').length === 3));
+  }, { name: "7.5 radar", timeout: 120000 });
+
+  await page(async p => {
+    await p.evaluate(async () => { const names = ["Speed", "Range", "Comfort", "Safety", "Price", "Economy"];
+      const X = makeCol("x", "Quality", "", names.map(() => null)); X.txt = {}; names.forEach((t, i) => X.txt[i] = t); X.fmt = "text";
+      const cols = [X, Object.assign(makeCol("y", "Car A", "", [8, 6, 7, 9, 4, 6]), { pipe: [], mask: [] }), Object.assign(makeCol("y", "Car B", "", [6, 9, 5, 7, 7, 8]), { pipe: [], mask: [] })];
+      await createProject(Object.assign(blankProject("Cars"), { cols, activeY: cols[1].id }), "test"); await new Promise(r => setTimeout(r, 100)); renderAll(); plotCols(yCols().map(c => c.id), { layout: "radar", quiet: true }); });
+    await p.waitForTimeout(600);
+    const w = await p.evaluate(() => { const svg = document.querySelector("#plot"), r = svg.getBoundingClientRect(); return { R: S.geo.radar.F.R, over: [...document.querySelectorAll("#plot text")].filter(t => { const b = t.getBoundingClientRect(); return b.width && (b.right > r.right + 1 || b.left < r.left - 1); }).length }; });
+    check("at 390 px the radar fits the graph and no name runs off it", w.R > 60 && w.over === 0, JSON.stringify(w));
+  }, { name: "7.5 at 390 px", vw: { width: 390, height: 800 } });
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
 process.exit(fail ? 1 : 0);

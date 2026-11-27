@@ -3499,7 +3499,30 @@ graph first, with the taskbar kept at the bottom of the screen.
   with a multiple of three curves and no parts: grouped by threes, at the dialog's start and on picking the card), a curve's column
   ticked as B or C leaves the list for the curve on its left. The worksheet counts a curve's `tB`, `tC`, `zcol`, `scol` as plotted.
   Help `ternary`. `tools/ref/plot2_ternary.py` (mpmath at 40 digits; each place checked against python-ternary's projection) →
-  `fixtures/plot2-ternary.json`; ref-test's `ternFrame`, `ternFwd`, `ternGrid`, `ternInv`; the fuzzer's `ternFlat`. **Columns** (`PLOT_TYPES` `column`): bars from zero, as wide as
+  `fixtures/plot2-ternary.json`; ref-test's `ternFrame`, `ternFwd`, `ternGrid`, `ternInv`; the fuzzer's `ternFlat`.
+  **Vectors** (PLOT2_SPEC 7.5): a curve's `series[id].vec` (`vecOf`: `{kind: "am", a, m}` an angle and a length column, or `{kind: "xy",
+  x2, y2}` a second point's; `serStyle` carries it) draws its points as arrows (`seriesSvg` → `vecSvg(pts, st, X, Y, geo)`: each read at its
+  row, `[data-vecshaft]` one path of shafts, `[data-vechead]` the heads, `geo.vecPts` for the readout's *angle … length …* or *to …*). In
+  the ANA block, pure: `vecEnd(x, y, a, m, k, unit)` (the angle on the graph, counterclockwise from X: degrees less their whole turns, exact,
+  radians as they are, which `Math.cos` reduces exactly; y down), `vecHead(x0, y0, x1, y1, h, w)` (a triangle shortened to two fifths of a
+  short arrow), `vecFlat` (the bench's). `buildPlot`: one scale for every arrow by angle and length (`vecK`: cfg.`vecScale` px a unit, else
+  the longest a twelfth of the plot's shorter side) handed on by `zSt` (`vk`, `vu` cfg.`vecUnit`, `vhead` cfg.`vecHead` (`VEC_HEADS`), `vhs`
+  cfg.`vecHs`), and the key `[data-veckey]` (a round length, `niceWidth` of half the longest, in the length column's unit; cfg.`vecKey`).
+  `vecMenuItems(c)` (the curve's right-click *Vectors*: Heads, Angle in, Length scale… (`#vsK`), Key, Columns… (`plotsOf`), Draw as a curve
+  again), `vectorsFrom(cids, kind)` (`plotItems`' *Vectors: angle and length* and *Vectors to a point*: each three columns a curve and its
+  two; else Plot setup on the kind). Plot setup: kinds `vecam`, `vecxy` (`MORE_KINDS` `need` "vam", "vxy"), roles `va`, `vm`, `vx2`, `vy2`
+  (Angle, Length, X₂, Y₂) on a curve's line, `psuVec(q, kind)` what is written. The worksheet counts their columns as plotted.
+  **Radar charts** (PLOT2_SPEC 7.5): the layout `radar`. In the ANA block: `radarAng(k, K)` (90° − 360°·k/K, the first spoke up, clockwise),
+  `radarFrame(L, T, pw, mh)` (the middle, half the shorter side), `radarPlace(F, k, K, v, lo, hi)` (null outside [lo, hi]), `radarFlat` (the
+  bench's). The page: `RADAR_BY`, `radarOpts(cfg)` (cfg.`radarBy` rows | cols, `radarScale` one | own, `radarGrid` poly | circle, `radarFill`,
+  `radarR0`, `radarR1`), `radarRange(vals, r0, r1)` (from 0, or the smallest below 0, to the largest, on round numbers), `radarSvg(o)` (each
+  row a spoke named by `pieName` and each curve a polygon, or each curve a spoke and each row a polygon (40 at most); `[data-radargrid]`,
+  `[data-radarnum]` up the first spoke, `[data-radarspoke]` the names, `[data-radarrng]` each spoke's own range, `g[data-radarpoly]` with
+  `[data-radarline]` (open across a missing value, unfilled then) and `[data-radarvert]`, `[data-radarleft]` the values out of range;
+  `S.geo.radar {F, K, o, verts, rng, left}`, the readout the spoke, polygon and value; no zoom or pan), `radarMenuItems()` (the graph menu's
+  *Radar*: Spokes, Range, Range from and to… (`#rrA`, `#rrB`), Grid, Filled), the Format pane's Layout page (`#pdRb`, `#pdRs`, `#pdRg`,
+  `#pdRf`), `plotItems`' *Radar*, Plot setup's card under *Coordinates*. Help `vectors`, `radar`. `tools/ref/plot2_vectors.py` (mpmath at
+  40 digits) → `fixtures/plot2-vectors.json`; ref-test's `vecEnd`, `vecHead`, `radarPlace`; the fuzzer's `vecFlat`, `radarFlat`. **Columns** (`PLOT_TYPES` `column`): bars from zero, as wide as
   a histogram's bins (`histOf(id)`, the step's `bins.w`) or 0.8 of the median spacing, several
   spectra as columns side by side (`colGrp`, `cgk`/`cgn` through `zSt`); a graph of columns
   stands on zero and is widened to whole columns when nothing is typed or zoomed. **Stacked**
@@ -6014,7 +6037,8 @@ Next, in order:
    gradians, any zero and direction, a hole, a sector, lines the short way round, a matrix as a polar map; every place within 6e-13 px
    of 40-digit mpmath), done 27.11; slice 7.4, ternary graphs (each row's three parts, B and C a curve's columns as a colour is,
    fractions or percentages, either way round, the rows with no place said; within the doubles' last bit of 40-digit mpmath and
-   python-ternary's projection), done 27.11
+   python-ternary's projection), done 27.11; slice 7.5, vectors and radar charts (a curve's points as arrows by angle and length at
+   one scale with a key, or to a second point; radar charts by rows or by curves, one range or each spoke its own), done 27.11
 
 Then, 19.11, the user's request: qudi's confocal files read with their positions, and ImageJ's statistics on them; the plan is
 `ux/spec/QUDI_SPEC.md` (eight decisions, four slices: Q.1 reading qudi's files, Q.2 a TIFF ImageJ opens with its calibration, Q.3
@@ -6276,6 +6300,9 @@ selected at once in the Project Explorer and acted on together, each command one
   wind rose (stacked bars by direction), no Smith chart
 - Ternary graphs: symbols and straight lines (no ternary contours or filled regions, no zoom into a part of the triangle, no
   ternary error bars), the grid at tenths or fifths, a curve's B and C its own columns read in its rows (not from another sheet)
+- Vectors: the automatic view covers the arrows' starts, not their ends (an arrow at the edge is clipped); one scale for every arrow
+  of a graph by angle and length; heads of one size; no streamlines or vector fields from a matrix. Radar charts: forty polygons at
+  most when each row is a polygon; no radar of a matrix, no axes turned or ordered by hand
 - Statistical charts: control charts with 3σ limits only (no CUSUM, EWMA, moving average or Hotelling's T² chart, no limits other than
   3σ, no phase I and II, no runs restarted after a change), the rules Western Electric's or Nelson's (not chosen one by one); a Pareto
   chart of one column of categories (no second level, no "Other" gathered); Bland–Altman without a regression of the differences on

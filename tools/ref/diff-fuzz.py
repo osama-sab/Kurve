@@ -1612,6 +1612,49 @@ def tern_post(c, out):
     e /= w["sc"]
     return e, f"{at}: {e:.2e} of the largest coordinate"
 POST["ternFlat"] = tern_post
+# Vectors and radar charts (PLOT2_SPEC 7.5): random arrows (angles of many turns, lengths of either sign and any scale) and radar
+# frames (any box, 3 to 60 spokes, values in and out of the range); against plot2_vectors.py's mpmath, relative to the largest coordinate.
+@gen("vecFlat", 1.5e-15, 0.3)
+def _():
+    import plot2_vectors as PV
+    unit = str(rng.choice(["deg", "rad"])); k = float(lognum(-3, 2)); n = int(rng.integers(1, 40)); h = float(rng.uniform(2, 20)); w = float(rng.uniform(1, 15))
+    T = 360 if unit == "deg" else 2 * math.pi
+    rows = [[float(rng.uniform(-100, 3000)), float(rng.uniform(-100, 3000)), float(rng.uniform(-20, 20) * T), float(rng.uniform(-1, 1) * lognum(-3, 3))] for _ in range(n)]
+    W = PV.vec_flat(rows, k, unit, h, w)
+    sc = max([max(abs(r[0]), abs(r[1])) for r in rows] + [max(abs(q["e"][0]), abs(q["e"][1])) for q in W if q])
+    return [rows, k, unit, h, w], {"w": W, "sc": sc}
+def vec_post(c, out):
+    w = c["want"]
+    if not isinstance(out, list): return float("inf"), f"refused: {str(out)[:80]}"
+    e = 0.0
+    for q, wq in zip(out, w["w"]):
+        if (q is None) != (wq is None): return float("inf"), "an arrow has an end in one and none in the other"
+        if q is None: continue
+        e = max(e, math.hypot(val(q["e"][0]) - wq["e"][0], val(q["e"][1]) - wq["e"][1]))
+        if (q["head"] is None) != (wq["head"] is None): return float("inf"), "a head in one and none in the other"
+        if q["head"]: e = max(e, max(math.hypot(val(a[0]) - b[0], val(a[1]) - b[1]) for a, b in zip(q["head"], wq["head"])))
+    return e / w["sc"], f"ends and heads {e / w['sc']:.2e} of the largest coordinate"
+POST["vecFlat"] = vec_post
+@gen("radarFlat", 1.5e-15, 0.3)
+def _():
+    import plot2_vectors as PV
+    box = [float(rng.uniform(-50, 80)), float(rng.uniform(-50, 80)), float(lognum(0.5, 3.6)), float(lognum(0.5, 3.6))]; K = int(rng.integers(3, 61))
+    lo = float(rng.uniform(-1, 1) * lognum(-3, 6)); hi = lo + float(lognum(-3, 6))
+    vals = [[int(rng.integers(K)), float(rng.uniform(lo - 0.1 * (hi - lo), hi + 0.1 * (hi - lo)))] for _ in range(int(rng.integers(1, 60)))]
+    F = PV.radar_frame(box); pts = []
+    for kk, v in vals:
+        q = PV.radar_place(F, kk, K, v, lo, hi); pts.append(None if q is None else [float(q[0]), float(q[1])])
+    return [box, K, vals, lo, hi], {"F": [float(F["cx"]), float(F["cy"]), float(F["R"])], "pts": pts, "sc": float(max(abs(F["cx"]), abs(F["cy"])) + F["R"])}
+def radar_post(c, out):
+    w = c["want"]
+    if not isinstance(out, dict) or "pts" not in out: return float("inf"), f"refused: {str(out)[:80]}"
+    e = max(abs(val(out["F"][k]) - w["F"][i]) for i, k in enumerate(("cx", "cy", "R")))
+    for q, wq in zip(out["pts"], w["pts"]):
+        if (q is None) != (wq is None):
+            return float("inf"), f"a value has a place in one and none in the other: {q} against {wq}"
+        if q is not None: e = max(e, math.hypot(val(q[0]) - wq[0], val(q[1]) - wq[1]))
+    return e / w["sc"], f"{e / w['sc']:.2e} of the largest coordinate"
+POST["radarFlat"] = radar_post
 
 cases = []
 ONLY = os.environ.get("ONLY")  # ONLY=name,name: those generators alone

@@ -309,6 +309,11 @@ export; undo.
 
 ## 7.5 Vectors and radar
 
+Done 27.11, as below, with these changes of plan: vectors are kinds that need columns (Plot setup's roles Angle and Length, or X₂ and
+Y₂), not a layout; the angle is on the graph as drawn; the length scale and heads are the graph's (`vecScale`, `vecHead`), not a
+curve's; radar charts by rows (Origin's) or by curves. Measured: every arrow's end and head, and every radar corner, within the doubles'
+last bit of 40-digit mpmath (the fuzzer: 1.2e-15 of the largest coordinate).
+
 **What.** Vectors: a curve's points as arrows, from (X, Y) by an angle and a length, or to a second
 point (X₂, Y₂), heads of the arrow kinds, a scale for the length and its key in a corner. Radar:
 each spoke a variable, each polygon an observation (or the transpose), its own range or one for

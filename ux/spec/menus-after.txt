@@ -234,6 +234,9 @@ Plot
     Pie chart  ## new (PLOT2_SPEC 7.1)
     Polar  ## new (PLOT2_SPEC 7.3): X the angle, Y the radius
     Ternary  ## new (PLOT2_SPEC 7.4): each three columns the parts of a whole
+    Radar  ## new (PLOT2_SPEC 7.5): each row a spoke, each column a polygon
+    Vectors: angle and length  ## new (PLOT2_SPEC 7.5): arrows from a curve's points
+    Vectors to a point  ## new (PLOT2_SPEC 7.5)
     Add to a graph
       (each graph)
   Plot a matrix  ## new (SHEET_SPEC 3.6): a matrix drawn as a map on a graph of its own

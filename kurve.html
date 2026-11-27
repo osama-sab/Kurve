@@ -8015,6 +8015,25 @@ function ternFlat(box,rows,vs,cw,scr){ const F=ternFrame(box[0],box[1],box[2],bo
   return {A:F.A,B:F.B,C:F.C,xy:(rows||[]).map(([a,b,c])=>{ const f=ternNorm(a,b,c); return f?ternFwd(F,f[0],f[1],f[2]):null; }),
     grid:TERN_K.map(k=>(vs||[]).map(v=>ternGrid(F,k,v))),tick:TERN_K.map(k=>(vs||[]).map(v=>{ const t=ternTick(F,k,v,cw); return [t.x,t.y,t.dx,t.dy]; })),
     inv:(scr||[]).map(([x,y])=>ternInv(F,x,y))}; }
+/* ---- Vectors and radar charts (PLOT2_SPEC 7.5), pure ----
+   An arrow from a point by an angle and a length (XYAM): the angle on the graph as drawn, counterclockwise from its X direction, in
+   degrees or radians (less its whole turns first, exactly, as the polar graph's), the length times k pixels a unit: the end x + m·k
+   cos a, y − m·k sin a (y down). A negative length points the other way. Its head: a triangle of length h and width w at the end,
+   along the arrow, shortened to two fifths of an arrow shorter than h/0.4. A radar chart: K spokes from the centre, the first up and
+   the rest clockwise (spoke k at 90° − 360°·k/K), a value v at (v − lo)/(hi − lo) of the radius along its spoke; a value outside
+   [lo, hi] or not finite has no place. */
+// Degrees less their whole turns (exact) before the conversion; radians as they are, which Math.cos reduces exactly (a double 2π is not 2π).
+function vecEnd(x,y,a,m,k,unit){ if(![x,y,a,m,k].every(Number.isFinite)) return null; const t=unit==="rad"?a:(a%360)*Math.PI/180;
+  return [x+m*k*Math.cos(t),y-m*k*Math.sin(t)]; }
+function vecHead(x0,y0,x1,y1,h,w){ const dx=x1-x0, dy=y1-y0, L=Math.hypot(dx,dy); if(!(L>0)) return null; const s=Math.min(1,0.4*L/h), H=h*s, W=w*s, ux=dx/L, uy=dy/L, bx=x1-ux*H, by=y1-uy*H;
+  return [[x1,y1],[bx-uy*W/2,by+ux*W/2],[bx+uy*W/2,by-ux*W/2]]; }
+const radarAng=(k,K)=>90-360*k/K;
+function radarFrame(L,T,pw,mh){ const R=Math.max(4,Math.min(pw,mh)/2); return {cx:L+pw/2,cy:T+mh/2,R}; }
+function radarPlace(F,k,K,v,lo,hi){ if(!Number.isFinite(v)||!(hi>lo)||v<lo-1e-12*(hi-lo)||v>hi+1e-12*(hi-lo)) return null;
+  const rho=(v-lo)/(hi-lo), ph=radarAng(k,K)*Math.PI/180; return [F.cx+F.R*rho*Math.cos(ph),F.cy-F.R*rho*Math.sin(ph)]; }
+// For the bench: arrows' ends and heads, and a radar's corners.
+function vecFlat(rows,k,unit,h,w){ return rows.map(([x,y,a,m])=>{ const e=vecEnd(x,y,a,m,k,unit); return e?{e,head:vecHead(x,y,e[0],e[1],h,w)}:null; }); }
+function radarFlat(box,K,vals,lo,hi){ const F=radarFrame(box[0],box[1],box[2],box[3]); return {F,pts:vals.map(([k,v])=>radarPlace(F,k,K,v,lo,hi))}; }
 /* ---- Statistical charts (PLOT2_SPEC 7.2), pure ----
    Control charts (Montgomery, Introduction to Statistical Quality Control, 2019): `ctrlConst(n)` the constants of a subgroup of
    n normal values, d₂ = E[R]/σ and d₃ = SD(R)/σ worked out from the range's distribution (∫₀^∞ P(R > w) dw over `rangeSf`, and
@@ -16985,11 +17004,11 @@ function histCurve(c,kind){
   const u=out.xu?" "+out.xu:"", f=(v,e)=>fmtPM(v,e).replace(/<[^>]+>/g,"");
   const nm=(DIST_KINDS.find(q=>q[0]===kind)||[,kind])[1], ps=fit.names.map((n,i)=>`${n} = ${f(fit.p[i],fit.e[i])}${kind==="normal"?u:""}`).join(", ")+(kind==="exp"?` (mean ${fmt(fit.mean,4)}${u})`:"");
   return m[key]={fit,y,kind,text:`${nm}: ${ps}`,tip:`${nm} fitted to the ${fit.n} values by maximum likelihood: ${ps}. Kolmogorov–Smirnov D = ${fmt(fit.ks,3)}, p ≈ ${fmt(fit.pks,2)}.`}; }
-const LAYOUTS=[["overlay","Overlay"],["offset","Offset (waterfall)"],["stack","Stacked panels"],["dy","Two Y axes"],["heat","Heat map"],["box","Box chart"],["violin","Violin plot"],["dot","Dot plot"],["mean","Means with intervals"],["catbar","Columns by category"],["pie","Pie chart"],["polar","Polar"],["ternary","Ternary"]];
+const LAYOUTS=[["overlay","Overlay"],["offset","Offset (waterfall)"],["stack","Stacked panels"],["dy","Two Y axes"],["heat","Heat map"],["box","Box chart"],["violin","Violin plot"],["dot","Dot plot"],["mean","Means with intervals"],["catbar","Columns by category"],["pie","Pie chart"],["polar","Polar"],["ternary","Ternary"],["radar","Radar"]];
 // The charts of categories (PLOT2_SPEC 7.1): every curve, or every group of a column, a category along X.
 const DIST_LAYOUTS=["box","violin","dot","mean","catbar"], isDistLayout=l=>DIST_LAYOUTS.includes(l);
 // Kinds that are not curves against X and Y: the layouts only one curve list can be drawn as.
-const KIND_LAYOUTS=DIST_LAYOUTS.concat(["pie","polar","ternary"]), isKindLayout=l=>KIND_LAYOUTS.includes(l);
+const KIND_LAYOUTS=DIST_LAYOUTS.concat(["pie","polar","ternary","radar"]), isKindLayout=l=>KIND_LAYOUTS.includes(l);
 /* What a chart of means or of columns by category shows (cfg.distStat, distErr, distConf) and its words. */
 const DIST_STATS=[["mean","Mean"],["median","Median"],["sum","Sum"],["count","Count"]];
 const DIST_ERRS={mean:[["none","None"],["sd","± SD"],["se","± SE"],["ci","Confidence interval"]],median:[["none","None"],["iqr","Quartiles"],["ci","Confidence interval"]],sum:[["none","None"]],count:[["none","None"]]};
@@ -17025,8 +17044,27 @@ function serStyle(id,active,pal,forExport,cfg){
   return {type:o.type||gtype||(hb?"column":!cfg.style||cfg.style==="auto"?autoType(id):active?cfg.style:"line"), bw:hb?((finalOf(colById(id)).bins)||{}).w||null:null, color:o.color||gcol||yTint(id,forExport,sc), lw:o.lw!=null?+o.lw:(active?1.4:1.2), leg:o.leg!==false,
     dash:o.dash||mono, sym:o.sym||gsym||"circle", ss:o.ss!=null?+o.ss:null, fill:o.fill!=null?+o.fill:0.18, label:o.label||"", op:o.op!=null?+o.op:(active?1:0.8),
     eb:o.eb||"bars", ebColor:o.ebColor||"", ebLw:o.ebLw!=null?+o.ebLw:1, ebCap:o.ebCap!=null?+o.ebCap:5, ebOp:o.ebOp!=null?+o.ebOp:0.22,
-    conn:o.conn||"straight", lord:LORD_KINDS.some(q=>q[0]===o.lord)?o.lord:"auto", gap:o.gap===true, zcol:o.zcol||"", scol:o.scol||"", hatch:o.hatch||"none", fillTo:o.fillTo||"", fill2:o.fill2||"", tkind:TMAP_KINDS.some(q=>q[0]===o.tkind)?o.tkind:"image"};
+    conn:o.conn||"straight", lord:LORD_KINDS.some(q=>q[0]===o.lord)?o.lord:"auto", gap:o.gap===true, zcol:o.zcol||"", scol:o.scol||"", hatch:o.hatch||"none", fillTo:o.fillTo||"", fill2:o.fill2||"", tkind:TMAP_KINDS.some(q=>q[0]===o.tkind)?o.tkind:"image", vec:vecOf(o.vec)};
 }
+// A curve's arrows (PLOT2_SPEC 7.5): {kind:"am", a, m} (an angle and a length column) or {kind:"xy", x2, y2} (a second point's), or null.
+function vecOf(v){ if(!v||typeof v!=="object") return null; const ok=x=>typeof x==="string"&&x;
+  return v.kind==="am"&&ok(v.a)&&ok(v.m)?{kind:"am",a:v.a,m:v.m}:v.kind==="xy"&&ok(v.x2)&&ok(v.y2)?{kind:"xy",x2:v.x2,y2:v.y2}:null; }
+const VEC_HEADS=[["end","Filled"],["open","Open"],["none","None"]];
+// The arrows of a curve: from each point by its angle and length (the graph's scale st.vk, px a unit) or to its second point.
+function vecSvg(pts,st,X,Y,geo){ const v=st.vec, f2=x=>x.toFixed(2), col=st.color;
+  const A=v.kind==="am"?colById(v.a):null, M=v.kind==="am"?colById(v.m):null, X2=v.kind==="xy"?colById(v.x2):null, Y2=v.kind==="xy"?colById(v.y2):null;
+  if(v.kind==="am"&&!(A&&M)||v.kind==="xy"&&!(X2&&Y2)) return "";
+  const head=st.vhead||"end", hs=st.vhs||8; let sh="", hd="";
+  if(!geo.full&&!geo.vecPts) geo.vecPts=[];
+  pts.forEach(q=>{ const i=q.i, x0=X(q.x), y0=Y(q.y); if(!Number.isFinite(x0)||!Number.isFinite(y0)||i==null) return; let e, txt;
+    if(A){ const a=A.data[i], m=M.data[i]; if(a==null||m==null) return; e=vecEnd(x0,y0,+a,+m,st.vk,st.vu); txt=`angle ${fmt(+a,5)}${st.vu==="rad"?" rad":"°"}   length ${fmt(+m,5)}${M.unit?" "+M.unit:""}`; }
+    else { const xx=X2.data[i], yy=Y2.data[i]; if(xx==null||yy==null) return; e=[X(+xx),Y(+yy)]; txt=`to ${fmt(+xx,5)}, ${fmt(+yy,5)}`; }
+    if(!e||!Number.isFinite(e[0])||!Number.isFinite(e[1])) return;
+    sh+=`M${f2(x0)},${f2(y0)}L${f2(e[0])},${f2(e[1])}`; if(geo.vecPts) geo.vecPts.push({x:x0,y:y0,txt});
+    if(head!=="none"){ const H=vecHead(x0,y0,e[0],e[1],hs,hs*0.75); if(H) hd+=head==="open"?`M${f2(H[1][0])},${f2(H[1][1])}L${f2(H[0][0])},${f2(H[0][1])}L${f2(H[2][0])},${f2(H[2][1])}`:`M${f2(H[0][0])},${f2(H[0][1])}L${f2(H[1][0])},${f2(H[1][1])}L${f2(H[2][0])},${f2(H[2][1])}Z`; } });
+  const dsh=DASHES[st.dash]||"";
+  return (sh?`<path data-vecshaft="1" d="${sh}" fill="none" stroke="${col}" stroke-width="${st.lw}" stroke-linecap="round"${dsh?` stroke-dasharray="${dsh}"`:""} opacity="${st.op}"/>`:"")
+    +(hd?`<path data-vechead="1" d="${hd}" fill="${head==="open"?"none":col}" stroke="${col}" stroke-width="${head==="open"?st.lw:0.6}" stroke-linejoin="round" opacity="${st.op}"/>`:""); }
 function symD(t,x,y,r){
   const f=v=>v.toFixed(1), b=t.replace(/^o/,"");
   if(b==="square") return `M${f(x-r)},${f(y-r)}h${f(2*r)}v${f(2*r)}h${f(-2*r)}Z`;
@@ -17231,6 +17269,7 @@ function seriesSvg(pts,st,X,Y,geo,pal,masked){
   // On screen, only the points in view (DESIGN.md, Large data), when X runs one way.
   const vs=st.type==="column"||st.type==="tmap"?null:viewSlice(pts,geo), pv=vs?pts.slice(vs[0],vs[1]):pts;
   const keep=masked?pv.filter(q=>!masked(q.i)):pv;
+  if(st.vec) return vecSvg(keep,st,X,Y,geo);
   // A map from X, Y and the colour column: an image between the points, contour lines if asked.
   if(st.type==="tmap"){ const m=triMapOf(keep,colById(st.zcol)); if(m.fail) return ""; const tk=st.tkind||"image", cm=st.tcm||"viridis", lo=st.zlo, hi=st.zhi;
     let o="";
@@ -17560,6 +17599,22 @@ function ternMenuItems(){ const cfg=plotCfg(), ro=S.readOnly||!P(), o=ternOpts(c
     {label:"Clockwise",checked:o.cw,enabled:!ro,title:"Each part's numbers run clockwise round the triangle, else anticlockwise",run:()=>setPlotKey("ternCw",o.cw?null:true,o.cw?"ran the numbers anticlockwise":"ran the numbers clockwise")},
     {label:"Grid lines",checked:o.grid,enabled:!ro,run:()=>setPlotKey("ternGrid",o.grid?false:null,o.grid?"took the grid lines off":"drew the grid lines")},
     "-",{label:"Parts B and C…",enabled:!ro&&!!GID(),title:"The columns of each curve's second and third parts (its values are the first)",run:()=>plotsOf()}]; }
+// The graph menu's Radar: what the spokes are, one range or each spoke's own, the grid's shape, filled or not.
+function radarMenuItems(){ const cfg=plotCfg(), ro=S.readOnly||!P(), o=radarOpts(cfg);
+  return [{label:"Spokes",note:o.by==="rows"?"the rows":"the curves",sub:()=>RADAR_BY.map(([k,l])=>({label:l,radio:true,checked:o.by===k,enabled:!ro,run:()=>setPlotKey("radarBy",k==="rows"?null:k,k==="rows"?"made each row a spoke":"made each curve a spoke")}))},
+    {label:"Range",note:o.scale==="one"?"one for every spoke":"each spoke its own",sub:()=>[["one","One for every spoke"],["own","Each spoke its own"]].map(([k,l])=>({label:l,radio:true,checked:o.scale===k,enabled:!ro,run:()=>setPlotKey("radarScale",k==="one"?null:k,k==="one"?"gave every spoke one range":"gave each spoke its own range")}))},
+    o.scale==="one"?{label:"Range from and to…",enabled:!ro,note:o.r0!=null||o.r1!=null?"typed":"automatic",run:async()=>{ const v=x=>x==null?"":String(x), r=await formDlg({title:"The radar's range",html:`<div class="fdlg"><div class="grid2"><label for="rrA">From</label><input id="rrA" type="text" inputmode="decimal" placeholder="automatic" value="${esc(v(o.r0))}"><label for="rrB">To</label><input id="rrB" type="text" inputmode="decimal" placeholder="automatic" value="${esc(v(o.r1))}"></div></div>`,ok:"Apply",
+      valid:x=>[x.rrA,x.rrB].every(t=>t===""||Number.isFinite(parseNum(t)))&&!(x.rrA!==""&&x.rrB!==""&&!(parseNum(x.rrB)>parseNum(x.rrA)))}); if(!r) return; pushUndo("the radar's range"); savePlot({radarR0:r.rrA===""?null:parseNum(r.rrA),radarR1:r.rrB===""?null:parseNum(r.rrB)},`set the radar's range ${r.rrA||r.rrB?`from ${r.rrA||"auto"} to ${r.rrB||"auto"}`:"to the data's"}`); }}:null,
+    {label:"Grid",note:o.grid==="poly"?"polygons":"circles",sub:()=>[["poly","Polygons"],["circle","Circles"]].map(([k,l])=>({label:l,radio:true,checked:o.grid===k,enabled:!ro,run:()=>setPlotKey("radarGrid",k==="poly"?null:k,`drew the radar's grid as ${l.toLowerCase()}`)}))},
+    {label:"Filled",checked:o.fill,enabled:!ro,run:()=>setPlotKey("radarFill",o.fill?false:null,o.fill?"left the polygons unfilled":"filled the polygons")}].filter(Boolean); }
+// A curve drawn as arrows: their heads, the angle's unit, the scale and its key (the graph's), the columns, back to a curve.
+function vecMenuItems(c){ const cfg=plotCfg(), ro=S.readOnly||!P(), v=vecOf(((cfg.series||{})[c.id]||{}).vec), hd=VEC_HEADS.some(h=>h[0]===cfg.vecHead)?cfg.vecHead:"end", typed=+cfg.vecScale>0?+cfg.vecScale:null;
+  return [{label:"Heads",note:(VEC_HEADS.find(h=>h[0]===hd)||VEC_HEADS[0])[1].toLowerCase(),sub:()=>VEC_HEADS.map(([k,l])=>({label:l,radio:true,checked:hd===k,enabled:!ro,run:()=>setPlotKey("vecHead",k==="end"?null:k,`drew the arrows' heads ${l.toLowerCase()}`)}))},
+    v&&v.kind==="am"?{label:"Angle in",note:cfg.vecUnit==="rad"?"radians":"degrees",sub:()=>[["deg","Degrees"],["rad","Radians"]].map(([k,l])=>({label:l,radio:true,checked:(cfg.vecUnit==="rad"?"rad":"deg")===k,enabled:!ro,run:()=>setPlotKey("vecUnit",k==="deg"?null:k,`read the arrows' angles in ${l.toLowerCase()}`)}))}:null,
+    v&&v.kind==="am"?{label:"Length scale…",note:typed?`${fmt(typed,4)} px a unit`:"automatic",enabled:!ro,title:"How many pixels a unit of length is; empty: the longest arrow a twelfth of the plot",run:async()=>{ const r=await formDlg({title:"The arrows' length scale",html:`<div class="fdlg"><div class="grid2"><label for="vsK" class="tipd" title="Pixels a unit of the length column; empty: automatic">Pixels a unit</label><input id="vsK" type="text" inputmode="decimal" placeholder="automatic" value="${typed?esc(String(typed)):""}"></div></div>`,ok:"Apply",valid:x=>x.vsK===""||parseNum(x.vsK)>0}); if(!r) return; const k=r.vsK===""?null:parseNum(r.vsK); setPlotKey("vecScale",k,k?`scaled the arrows ${fmt(k,4)} px a unit`:"scaled the arrows automatically"); }}:null,
+    v&&v.kind==="am"?{label:"Key",checked:cfg.vecKey!==false,enabled:!ro,run:()=>setPlotKey("vecKey",cfg.vecKey===false?null:false,cfg.vecKey===false?"drew the arrows' key":"took the arrows' key off")}:null,
+    "-",{label:"Columns…",enabled:!ro&&!!GID(),title:"Each curve's angle and length, or second point, in What it plots…",run:()=>plotsOf()},
+    {label:"Draw as a curve again",enabled:!ro,run:()=>{ const sr=Object.assign({},(GP().series||{})[c.id]); delete sr.vec; pushUndo("drawing it as a curve"); savePlot({series:Object.assign({},GP().series,{[c.id]:sr})},`drew ${specName(c)} as a curve again`); }}].filter(Boolean); }
 function pieMenuItems(){ const cfg=plotCfg(), ro=S.readOnly||!P(), o=pieOpts(cfg), hasPull=graphCols().some(c=>Object.keys(((cfg.series||{})[c.id]||{}).pull||{}).length);
   const togLab=k=>{ const a=o.labs.includes(k)?o.labs.filter(q=>q!==k):PIE_LABS.map(q=>q[0]).filter(q=>q===k||o.labs.includes(q)); setPlotKey("pieLab",a,a.length?`labelled the slices with ${andList(a.map(q=>(PIE_LABS.find(z=>z[0]===q)||[,q])[1].toLowerCase()))}`:"took the labels off the slices"); };
   return [{group:"Labels"},...PIE_LABS.map(([k,l])=>({label:l,checked:o.labs.includes(k),enabled:!ro,run:()=>togLab(k)})),
@@ -18849,6 +18904,76 @@ function ternarySvg(o){ const {W,H,pal,colEx,cfg,TS,forExport}=o, f1=v=>(+v).toF
     s+=`</g>`; }
   if(cfg.figLetter){ const ls=Math.round(TS.title.size); s+=`<text x="${(L+7).toFixed(1)}" y="${(T+ls+3).toFixed(1)}"${tAt(Object.assign({},TS.title,{size:ls,b:true,i:false,u:false}),pal.ink)} stroke="${pal.bg}" stroke-width="3" stroke-linejoin="round" paint-order="stroke" pointer-events="none">${esc(cfg.figLetter)}</text>`; }
   return s+`</svg>`; }
+/* Radar charts (PLOT2_SPEC 7.5): spokes from the centre, the first up and the rest clockwise (radarPlace). cfg.radarBy "rows" (the
+   usual): each row a spoke (named as a pie's slice is, pieName) and each curve a polygon; "cols": each curve a spoke and each row a
+   polygon (40 at most). cfg.radarScale "one" (one range for every spoke: cfg.radarR0, radarR1 typed, else from 0, or the smallest
+   below 0, to the largest, rounded) or "own" (each spoke its own, from 0 or its smallest to its largest, rounded, said at its end).
+   cfg.radarGrid "poly" or "circle", cfg.radarFill; a value missing breaks its polygon, one outside the range has no place. */
+const RADAR_BY=[["rows","Each row a spoke, each curve a polygon"],["cols","Each curve a spoke, each row a polygon"]];
+function radarOpts(cfg){ return {by:cfg.radarBy==="cols"?"cols":"rows",scale:cfg.radarScale==="own"?"own":"one",grid:cfg.radarGrid==="circle"?"circle":"poly",fill:cfg.radarFill!==false,
+  r0:numKey(cfg.radarR0),r1:numKey(cfg.radarR1)}; }
+// A range from the values: from 0 (or the smallest when one is below 0) to the largest, on round numbers.
+function radarRange(vals,r0,r1){ let lo=Infinity, hi=-Infinity; vals.forEach(v=>{ if(Number.isFinite(v)){ if(v<lo) lo=v; if(v>hi) hi=v; } });
+  if(!(hi>=lo)){ lo=0; hi=1; } if(lo>0) lo=0; if(!(hi>lo)) hi=lo+1; const t=niceTicks(lo,hi,4), st=t.step||1;
+  let a=r0!=null?r0:Math.floor(lo/st+1e-9)*st, b=r1!=null?r1:Math.ceil(hi/st-1e-9)*st; if(!(b>a)) b=a+st; return [a,b]; }
+function radarSvg(o){ const {W,H,pal,colEx,cfg,TS,forExport}=o, f1=v=>(+v).toFixed(1), f2=v=>(+v).toFixed(2), ro=radarOpts(cfg);
+  let s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><rect width="${W}" height="${H}" fill="${pal.bg}"/>`;
+  let T=10, L=10, R=10, B=10;
+  if(cfg.title){ const ta=TS.title.align||"center"; T+=TS.title.size*1.25+6;
+    s+=richText(cfg.title,{attrs:forExport?"":` data-axtitle="title" style="cursor:move"`,x:(ta==="left"?L:ta==="right"?W-R:W/2)+numOr(cfg.titleDx,0),y:6+TS.title.size*0.95+numOr(cfg.titleDy,0),anchor:ta==="left"?"start":ta==="right"?"end":"middle",st:TS.title,fill:pal.ink}); }
+  // The spokes and the polygons, by rows or by curves.
+  const cur=o.curves, c0=cur[0]&&cur[0].c, rows=[], seen=new Set(), byRow=cur.map(z=>{ const m=new Map(); z.pts.forEach(q=>{ if(q.i==null) return; m.set(q.i,q.y); if(!seen.has(q.i)){ seen.add(q.i); rows.push(q); } }); return m; });
+  rows.sort((a,b)=>a.i-b.i);
+  let spokes, polys;
+  if(ro.by==="rows"){ spokes=rows.map(q=>({name:pieName(c0,q,cfg),i:q.i})); polys=cur.map((z,k)=>({name:specName(z.c),id:z.c.id,st:serStyle(z.c.id,z.act,pal,forExport,cfg),vals:spokes.map(sp=>byRow[k].has(sp.i)?byRow[k].get(sp.i):null)})); }
+  else { spokes=cur.map(z=>({name:specName(z.c),id:z.c.id,unit:finalOf(z.c).yu||""})); polys=rows.slice(0,40).map((q,j)=>({name:pieName(c0,q,cfg),i:q.i,st:{color:tintAt(j,forExport,cfg.scheme||"kurve"),lw:1.3,op:1,dash:"solid",leg:true},vals:cur.map((z,k)=>byRow[k].has(q.i)?byRow[k].get(q.i):null)})); }
+  const K=spokes.length, all=polys.flatMap(p=>p.vals);
+  const rng=ro.scale==="one"?Array(K).fill(radarRange(all,ro.r0,ro.r1)):spokes.map((_,k)=>radarRange(polys.map(p=>p.vals[k]),null,null));
+  // The legend: the polygons, when two or more.
+  const LS=TS.legend, lfs=LS.size, lh=lfs*numOr(cfg.legendSp,1)+5, lpad=6, ents=polys.filter(p=>p.st.leg!==false), legOn=cfg.legend!=="off"&&ents.length>(cfg.legend==="auto"||cfg.legend==null?1:0);
+  const legW=lpad*2+ents.reduce((m,e)=>Math.max(m,richW(e.st.label||e.name,LS)),20)+30, legH=ents.length*lh+lpad; if(legOn) R+=legW+14;
+  // Room for the spokes' names round the outside.
+  const TK=TS.ticks, nw=Math.min(140,spokes.reduce((m,sp)=>Math.max(m,textW(sp.name,TK)),0)), ow=ro.scale==="own"?TK.size*1.3:0, mx=nw+16, my=TK.size*1.4+ow+12;
+  const pw=Math.max(40,W-L-R), mh=Math.max(40,H-T-B), F=radarFrame(L+mx,T+my,Math.max(20,pw-2*mx),Math.max(20,mh-2*my));
+  const geo={L,pw,T,mh,v:{x0:0,x1:1,y0:0,y1:1,xu:null},full:!!colEx,logY:false,logX:false,W,H,X:x=>L+x*pw,Y:y=>T+mh-y*mh,revX:false,handles:[],heat:true,dist:true,radar:{F,K,o:ro,verts:[],rng},axes:null};
+  if(!forExport){ S.geo=geo; S.shownPts=[]; S.ps=o.ps; }
+  const annoCtx={cfg,pal,X:geo.X,Y:geo.Y,ps:o.ps,forExport,colEx,fs:o.fs,sans:o.sans,L,pw,T,mh,heat:true,dist:true,TS,ptsAll:[],tk:o.tk};
+  if(K<3){ s+=`<text x="${f1(L+pw/2)}" y="${f1(T+mh/2)}" text-anchor="middle"${tAt(TS.labels,pal.muted)}>A radar chart needs three spokes or more: ${ro.by==="rows"?"three rows":"three curves"}</text>`;
+    return s+`</svg>`; }
+  const at=(k,rho)=>{ const ph=radarAng(k,K)*Math.PI/180; return [F.cx+F.R*rho*Math.cos(ph),F.cy-F.R*rho*Math.sin(ph)]; };
+  // The grid: rings at the numbers (one scale) or fifths (each its own), and the spokes.
+  const fr=ro.scale==="one"?niceTicks(rng[0][0],rng[0][1],5).ticks.filter(v=>v>rng[0][0]+1e-9*(rng[0][1]-rng[0][0])&&v<=rng[0][1]+1e-9*(rng[0][1]-rng[0][0])).map(v=>(v-rng[0][0])/(rng[0][1]-rng[0][0])):[0.2,0.4,0.6,0.8,1];
+  if(!fr.includes(1)&&!fr.some(x=>Math.abs(x-1)<1e-9)) fr.push(1);
+  let gd=""; fr.forEach(x=>{ if(ro.grid==="circle"){ gd+=`M${f2(F.cx+F.R*x)},${f2(F.cy)}A${f2(F.R*x)},${f2(F.R*x)} 0 1 0 ${f2(F.cx-F.R*x)},${f2(F.cy)}A${f2(F.R*x)},${f2(F.R*x)} 0 1 0 ${f2(F.cx+F.R*x)},${f2(F.cy)}`; }
+    else { for(let k=0;k<=K;k++){ const q=at(k%K,x); gd+=(k?"L":"M")+f2(q[0])+","+f2(q[1]); } } });
+  for(let k=0;k<K;k++){ const q=at(k,1); gd+=`M${f2(F.cx)},${f2(F.cy)}L${f2(q[0])},${f2(q[1])}`; }
+  s+=`<path data-radargrid="1" d="${gd}" fill="none" stroke="${esc(cfg.gridColor||pal.grid)}" stroke-width="${numOr(cfg.gridLw,0.8)}"/>`;
+  s+=annoSvg("under",annoCtx);
+  // One scale: its numbers up the first spoke.
+  if(ro.scale==="one") fr.forEach(x=>{ const v=rng[0][0]+x*(rng[0][1]-rng[0][0]), q=at(0,x); s+=`<text data-radarnum="${fmt(v,8)}" x="${f1(q[0]+4)}" y="${f1(q[1]-3)}"${tAt(TK,pal.muted)} stroke="${pal.bg}" stroke-width="3" paint-order="stroke">${esc(fmt(v,6))}</text>`; });
+  // The spokes' names, out beyond the rim (and each its own range).
+  spokes.forEach((sp,k)=>{ const ph=radarAng(k,K)*Math.PI/180, c=Math.cos(ph), sn=Math.sin(ph), x=F.cx+(F.R+10)*c, y=F.cy-(F.R+10)*sn, an=c>0.3?"start":c<-0.3?"end":"middle", dy=sn>0.3?-ow-(k===0&&ro.scale==="one"?8:0):sn<-0.3?TK.size*0.9:TK.size*0.35;
+    s+=`<text data-radarspoke="${k}" x="${f1(x)}" y="${f1(y+dy)}" text-anchor="${an}"${tAt(TK,pal.ink)}>${esc(sp.name.length>40?sp.name.slice(0,39)+"…":sp.name)}</text>`;
+    if(ro.scale==="own") s+=`<text data-radarrng="${k}" x="${f1(x)}" y="${f1(y+dy+TK.size*1.15)}" text-anchor="${an}"${tAt(Object.assign({},TK,{size:TK.size*0.85}),pal.muted)}>${esc(`${fmt(rng[k][0],5)} to ${fmt(rng[k][1],5)}`)}</text>`; });
+  // The polygons: each vertex at its value along its spoke, a value missing breaking it, closed when whole.
+  let left=0;
+  polys.forEach((pg,j)=>{ const st=pg.st, col=st.color, pts=pg.vals.map((v,k)=>{ if(v==null) return null; const q=radarPlace(F,k,K,v,rng[k][0],rng[k][1]); if(!q) left++; return q; });
+    const whole=pts.every(Boolean); let d=""; pts.forEach((q,k)=>{ if(!q) return; d+=(k&&pts[k-1]?"L":"M")+f2(q[0])+","+f2(q[1]); }); if(whole) d+="Z"; else if(pts[0]&&pts[K-1]) { const q=pts[0]; d+="L"+f2(q[0])+","+f2(q[1]); }
+    let g=`<g data-ser="${pg.id||""}" data-radarpoly="${j}">`;
+    if(d) g+=`<path data-radarline="1" d="${d}" fill="${ro.fill&&whole?col:"none"}" fill-opacity="${ro.fill&&whole?0.14:0}" stroke="${col}" stroke-width="${st.lw||1.3}" stroke-linejoin="round"${DASHES[st.dash]?` stroke-dasharray="${DASHES[st.dash]}"`:""}/>`;
+    let dd=""; pts.forEach((q,k)=>{ if(!q) return; dd+=`M${f2(q[0])},${f2(q[1])}h0`; if(!forExport) geo.radar.verts.push({x:q[0],y:q[1],txt:`${spokes[k].name}   ${pg.name}   ${fmt(pg.vals[k],6)}`}); });
+    if(dd) g+=`<path data-radarvert="1" d="${dd}" stroke="${col}" stroke-width="5" stroke-linecap="round" fill="none"/>`;
+    s+=g+`</g>`; });
+  geo.radar.left=left;
+  if(left) s+=`<text data-radarleft="${left}" x="${f1(L+4)}" y="${f1(H-6)}"${tAt(TS.labels,pal.muted)}>${left} ${left===1?"value":"values"} outside the range left out</text>`;
+  s+=annoSvg("lines",annoCtx)+annoSvg("top",annoCtx);
+  if(legOn){ let bx=W-legW-8, by=T+4; if(cfg.legend==="custom"&&cfg.legendPos){ bx=Math.max(2,Math.min(W-legW-2,L+cfg.legendPos.fx*pw)); by=Math.max(2,Math.min(H-legH-2,T+cfg.legendPos.fy*mh)); }
+    if(!forExport) geo.legend={x:bx,y:by,w:legW,h:legH};
+    s+=`<g class="legend"${forExport?"":` data-legbox="1" style="cursor:move"`}>`;
+    if(cfg.legendFrame!==false) s+=`<rect x="${f1(bx)}" y="${f1(by)}" width="${f1(legW)}" height="${f1(legH)}" fill="${esc(cfg.legendFill||pal.bg)}" fill-opacity="${numOr(cfg.legendOp,0.85)}" stroke="${esc(cfg.legendBd||pal.grid)}" stroke-width="${numOr(cfg.legendLw,1)}" rx="${numOr(cfg.legendR,3)}"/>`;
+    ents.forEach((e,i)=>{ const yy=by+lpad/2+lh*i+lh/2; s+=`<g data-legradar="${i}"><rect x="${f1(bx+lpad)}" y="${f1(yy-5)}" width="18" height="10" fill="${e.st.color}" fill-opacity="${ro.fill?0.25:0}" stroke="${e.st.color}" stroke-width="${e.st.lw||1.3}"/>`+richText(e.st.label||e.name,{x:bx+lpad+24,y:yy+lfs*0.35,st:LS,fill:pal.ink})+`</g>`; });
+    s+=`</g>`; }
+  return s+`</svg>`; }
 function buildPlot(W,H,pal,colEx,opt){
   const ins=opt&&opt.inset||null, forExport=colEx||!!ins;
   const p=P(), cfg=plotCfg(), logY=!!cfg.logY, logX=!!cfg.logX;
@@ -18893,6 +19018,9 @@ function buildPlot(W,H,pal,colEx,opt){
   // A polar graph: θ and r, or a matrix as a polar map (PLOT2_SPEC 7.3).
   if(layout==="polar"&&!ins&&(MAT||act)){ const curves=MAT?[]:yCols().filter(c=>c===act||oser.some(o=>o.c===c)).map(c=>({c,act:c===act,pts:c===act?pts:oser.find(o=>o.c===c).pts}));
     return polarSvg({W,H,pal,colEx,cfg,TS,ps,forExport,fs,sans,tk,curves,MAT}); }
+  // A radar chart: rows and curves as spokes and polygons (PLOT2_SPEC 7.5).
+  if(layout==="radar"&&!ins&&!MAT&&act){ const curves=yCols().filter(c=>c===act||oser.some(o=>o.c===c)).map(c=>({c,act:c===act,pts:c===act?pts:oser.find(o=>o.c===c).pts}));
+    return radarSvg({W,H,pal,colEx,cfg,TS,ps,forExport,fs,sans,tk,curves}); }
   // A ternary graph: each curve's values and its two columns as the parts of a whole (PLOT2_SPEC 7.4).
   if(layout==="ternary"&&!ins&&!MAT&&act){ const curves=yCols().filter(c=>c===act||oser.some(o=>o.c===c)).map(c=>Object.assign({c,act:c===act,pts:c===act?pts:oser.find(o=>o.c===c).pts},ternCols(c,cfg)));
     return ternarySvg({W,H,pal,colEx,cfg,TS,ps,forExport,fs,sans,tk,curves}); }
@@ -19379,7 +19507,13 @@ function buildPlot(W,H,pal,colEx,opt){
   // A series' symbols coloured or sized by a column, and its hatching's own ids.
   // Several spectra as columns on one graph stand side by side, in the table's order.
   const colGrp=layout==="overlay"?yCols().filter(c=>(c===act||oser.some(o=>o.c===c))&&serStyle(c.id,c===act,pal,colEx,cfg).type==="column").map(c=>c.id):[];
-  const zSt=(st,q,id)=>{ const cg=colStk?-1:colGrp.indexOf(id); st=cg>=0&&colGrp.length>1?Object.assign({},st,{cgk:cg,cgn:colGrp.length}):st;
+  // Vectors (PLOT2_SPEC 7.5): one scale for every arrow by angle and length on the graph (cfg.vecScale px a unit of length, else the
+  // longest a twelfth of the plot's shorter side), and a key of a round length in the corner.
+  let vecK=1, vecKey=null; { const vc=[act?{c:act,pts}:null].concat(oL).filter(z=>z&&z.c).map(z=>({z,v:vecOf(((cfg.series||{})[z.c.id]||{}).vec)})).filter(o=>o.v&&o.v.kind==="am");
+    if(vc.length){ let mx=0, unit=null; vc.forEach(({z,v})=>{ const M=colById(v.m); if(!M) return; if(unit==null) unit=M.unit||""; z.pts.forEach(q=>{ const m=q.i!=null?+M.data[q.i]:NaN; if(Number.isFinite(m)&&Math.abs(m)>mx) mx=Math.abs(m); }); });
+      const typed=+cfg.vecScale; vecK=typed>0?typed:mx>0?Math.min(pw,mh)/12/mx:1; if(mx>0&&cfg.vecKey!==false){ const Lv=niceWidth(mx/2); vecKey={v:Lv,px:Lv*vecK,unit:unit||""}; } } }
+  const zSt=(st,q,id)=>{ if(st.vec) return Object.assign({},st,{vk:vecK,vu:cfg.vecUnit==="rad"?"rad":"deg",vhead:VEC_HEADS.some(h=>h[0]===cfg.vecHead)?cfg.vecHead:"end",vhs:numOr(cfg.vecHs,8)});
+    const cg=colStk?-1:colGrp.indexOf(id); st=cg>=0&&colGrp.length>1?Object.assign({},st,{cgk:cg,cgn:colGrp.length}):st;
     if(colStk&&colStk.m[id]) st=Object.assign({},st,{stk:colStk.m[id],eb:"none"}); const z=st.zcol&&(st.type==="scatter"||st.type==="linesym"||st.type==="tmap")?zMapOf(st.zcol,q,cfg.cmap,"color"):null, sz=st.scol&&(st.type==="scatter"||st.type==="linesym")?zMapOf(st.scol,q,cfg.cmap,"size"):null;
     return Object.assign({},st,{zf:z?z.at:null,sf:sz?sz.at:null,hid:id},st.type==="tmap"&&z?{zlo:z.lo,zhi:z.hi,tcm:cfg.cmap||"viridis",tlev:numOr(cfg.mapLevels,8)}:{}); };
   // The area between two spectra, filled, under them all (overlaid only).
@@ -19644,6 +19778,11 @@ function buildPlot(W,H,pal,colEx,opt){
   // Text and labels on the graph, then the legend over them.
   if(!heat&&!dist) s+=annoSvg("inset",annoCtx);
   s+=bandsSvg("top",Object.assign({layout},annoCtx));
+  // The arrows' key: a round length's arrow at the plot's lower right, said in the length's unit.
+  if(vecKey&&vecKey.px>2&&!heat&&!dist){ const kx1=L+pw-10, kx0=kx1-vecKey.px, ky=T+mh-12, H=vecHead(kx0,ky,kx1,ky,8,6), t=`${fmt(vecKey.v,6)}${vecKey.unit?" "+vecKey.unit:""}`, tw=textW(t,TS.labels);
+    s+=`<g data-veckey="${vecKey.v}"><rect x="${(Math.min(kx0,kx1-tw)-6).toFixed(1)}" y="${(ky-TS.labels.size-10).toFixed(1)}" width="${(Math.max(vecKey.px,tw)+12).toFixed(1)}" height="${(TS.labels.size+18).toFixed(1)}" fill="${pal.bg}" fill-opacity="0.85" stroke="${pal.grid}" rx="3"/>`
+      +`<path d="M${kx0.toFixed(2)},${ky.toFixed(2)}L${kx1.toFixed(2)},${ky.toFixed(2)}" stroke="${pal.ink}" stroke-width="1.3"/>`+(H?`<path d="M${H.map(q=>q[0].toFixed(2)+","+q[1].toFixed(2)).join("L")}Z" fill="${pal.ink}"/>`:"")
+      +`<text x="${((kx0+kx1)/2).toFixed(1)}" y="${(ky-6).toFixed(1)}" text-anchor="middle"${tAt(TS.labels,pal.ink)}>${esc(t)}</text></g>`; }
   s+=annoSvg("top",annoCtx);
   // While something is dragged or drawn: alignment guides, the arrow being drawn, a point it snaps to.
   if(!forExport){
@@ -20577,6 +20716,7 @@ function graphMenuItems(id,at){
       ...(st.type==="scatter"||st.type==="linesym"?[{label:"Symbol…",note:symName(st.sym),enabled:!ro,title:"Every symbol, to see and choose from",
         run:()=>{ const a=at&&$("#ctxAnchor")?$("#ctxAnchor"):$("#ctxBtn:not([hidden])")||$("#plot"); openSymbolGrid(a,st.sym,(k,v)=>setSeriesStyle(c.id,k?{sym:k}:{ss:v},k?`gave ${specName(c)} the symbol ${symName(k).toLowerCase()}`:`sized the symbols of ${specName(c)} ${v}`),{color:st.color,size:st.ss==null?3:st.ss}); }}]:[]),
       ...(st.type==="tmap"?[{label:"Map",note:(TMAP_KINDS.find(q=>q[0]===st.tkind)||TMAP_KINDS[0])[1],sub:()=>tmapItems(c)}]:[]),
+      ...(st.vec?[{label:"Vectors",note:st.vec.kind==="am"?"angle and length":"to a second point",sub:()=>vecMenuItems(c)}]:[]),
       ...(st.type==="column"?[{label:"Columns",note:(COL_STACK.find(q=>q[0]===(cfg.colStack||"side"))||COL_STACK[0])[1],sub:()=>colStackItems()}]:[]),
       {label:"Connect",sub:()=>CONN_KINDS.map(([k,l])=>({label:l,radio:true,checked:st.conn===k,enabled:!ro,run:()=>setSeriesStyle(c.id,{conn:k},`joined the points of ${specName(c)} by ${l.toLowerCase()}`)}))},
       {label:"Join the points",note:st.lord==="auto"?"":(LORD_KINDS.find(q=>q[0]===st.lord)||LORD_KINDS[0])[1].replace(/^In the order /,"").replace(/^of /,"by "),title:"The order the line goes through them",sub:()=>LORD_KINDS.map(([k,l])=>({label:l,radio:true,checked:st.lord===k,enabled:!ro,title:LORD_TIPS[k],run:()=>setSeriesStyle(c.id,{lord:k},`joined the points of ${specName(c)} ${k==="auto"?"in the order chosen for them":l.toLowerCase()}`)}))},
@@ -20630,6 +20770,7 @@ function graphMenuItems(id,at){
     cfg.layout==="pie"?{label:"Pie chart",sub:()=>pieMenuItems()}:null,
     cfg.layout==="polar"?{label:"Polar",sub:()=>polMenuItems()}:null,
     cfg.layout==="ternary"?{label:"Ternary",sub:()=>ternMenuItems()}:null,
+    cfg.layout==="radar"?{label:"Radar",sub:()=>radarMenuItems()}:null,
     {label:"What it plots…",run:()=>plotsOf(),enabled:!ro&&!!GID(),title:"Its curves: add, replace, take off and order them, and what each draws"},
     {label:"Format graph…",run:()=>openPlotDetails(id||(act&&act.id),id&&id!=="__fit"?"series":"frame")},
     {label:"Copy the graph as a picture",run:copyGraphPicture,enabled:has,title:"A PNG on the clipboard, to paste into a document or slides"},
@@ -21186,6 +21327,8 @@ function renderPlotDetails(o){
         +`<label for="pdQu">Angle in</label>${sel("pdQu",POL_UNITS,o.unit,"polUnit")}<label for="pdQz">Zero at</label>${sel("pdQz",POL_ZEROS,o.zero,"polZero")}`
         +`<label for="pdQh">Hole</label>${sel("pdQh",POL_HOLES.map(q=>[String(q[0]),q[1]]).concat(POL_HOLES.some(q=>Math.abs(q[0]-o.hole)<1e-9)?[]:[[String(o.hole),fmt(o.hole*100,3)+" %"]]),String((POL_HOLES.find(q=>Math.abs(q[0]-o.hole)<1e-9)||[o.hole])[0]),"polHole")}`
         +chk("pdQcw","polCw",o.cw,"Clockwise")+chk("pdQgr","polGridR",o.gridR,"Circles")+chk("pdQgt","polGridT",o.gridT,"Spokes"); })():"")
+      +(cfg.layout==="radar"?(()=>{ const o=radarOpts(cfg); return `<label for="pdRb">Spokes</label>${sel("pdRb",RADAR_BY,o.by,"radarBy")}<label for="pdRs">Range</label>${sel("pdRs",[["one","One for every spoke"],["own","Each spoke its own"]],o.scale,"radarScale")}`
+        +`<label for="pdRg">Grid</label>${sel("pdRg",[["poly","Polygons"],["circle","Circles"]],o.grid,"radarGrid")}`+chk("pdRf","radarFill",o.fill,"Filled"); })():"")
       +(cfg.layout==="ternary"?(()=>{ const o=ternOpts(cfg); return `<label for="pdTs">Each row adds up to</label>${sel("pdTs",[["1","1"],["100","100 (percentages)"]],String(o.sum),"ternSum")}`
         +chk("pdTcw","ternCw",o.cw,"Clockwise")+chk("pdTg","ternGrid",o.grid,"Grid lines"); })():"")
       +(cfg.layout==="overlay"||!cfg.layout?`<label for="pdCs">Columns</label>${sel("pdCs",COL_STACK,cfg.colStack==="stack"||cfg.colStack==="pct"?cfg.colStack:"side","colStack")}`:"")
@@ -21306,7 +21449,7 @@ function pdAnnoEditor(a,o){
 }
 // Every graph takes this one's frame, axes, text, legend and colours; data,
 // ranges, titles and annotations stay their own.
-const FMT_KEYS=["frame","frameLw","frameColor","grid","gridMinor","gridColor","gridLw","gridDash","gridX","gridY","plotBg","mL","mR","mT","mB","txt","font","fontFam","fontName","titleItalic","legend","legendPos","legendText","legendFrame","legendCols","legendLine","legendSp","legendFill","legendOp","legendBd","legendLw","legendR","scheme","peakScheme","peakLab","peakLabRot","peakLabDec","peakLabShow","peakLabTpl","peakLabErr","peakLabUnit","peakLabSep","peakLabPos","peakLabMk","peakLabCol","peakLabBox","axisMatch","resid","bandConf","bandPred","sizeLeg","distWhisk","distPts","distNotch","colStack","distStat","distErr","distConf","distJoin","dotKind","dotLine","pieStart","pieCw","pieHole","pieLab","pieLabPos","pieDec","pieSort","polMap","polUnit","polZero","polCw","polHole","polGridR","polGridT","ternSum","ternCw","ternGrid"];
+const FMT_KEYS=["frame","frameLw","frameColor","grid","gridMinor","gridColor","gridLw","gridDash","gridX","gridY","plotBg","mL","mR","mT","mB","txt","font","fontFam","fontName","titleItalic","legend","legendPos","legendText","legendFrame","legendCols","legendLine","legendSp","legendFill","legendOp","legendBd","legendLw","legendR","scheme","peakScheme","peakLab","peakLabRot","peakLabDec","peakLabShow","peakLabTpl","peakLabErr","peakLabUnit","peakLabSep","peakLabPos","peakLabMk","peakLabCol","peakLabBox","axisMatch","resid","bandConf","bandPred","sizeLeg","distWhisk","distPts","distNotch","colStack","distStat","distErr","distConf","distJoin","dotKind","dotLine","pieStart","pieCw","pieHole","pieLab","pieLabPos","pieDec","pieSort","polMap","polUnit","polZero","polCw","polHole","polGridR","polGridT","ternSum","ternCw","ternGrid","vecHead","vecHs","vecKey","radarFill","radarGrid","radarScale"];
 const FMT_AX=["tst","ticks","tlen","mlen","tw","mirror","mticks","mlabs","labs","lrot","color","lw","pos","at","off","talign","line","fmt","dec","minor","tshow"];
 /* A graph's settings with another's format laid over them: frame, grid, text,
    legend, colours and each axis's style; a key the format lacks goes back to
@@ -21719,7 +21862,7 @@ function setupGraph(){
       S.lgdrag={x0:x,y0:y,box:Object.assign({},S.geo.legend),moved:false,hit:le?"leg:"+le.dataset.leg:ev.target.closest("[data-legtitle]")?"title":"box"}; return; }
     const pan=S.mode==="pan"||ev.button===1;
     // A pie has no axes to zoom, pan or mask along: a press there selects its curve, through the click.
-    if((S.geo.pie||S.geo.tern)&&(pan||S.mode==="zoom"||S.mode==="mask"||S.mode==="range"||S.mode==="reader"||S.mode==="cross")) return;
+    if((S.geo.pie||S.geo.tern||S.geo.radar)&&(pan||S.mode==="zoom"||S.mode==="mask"||S.mode==="range"||S.mode==="reader"||S.mode==="cross")) return;
     // A polar graph: the Pan tool turns it about its centre; no box, mask or reader along axes it has not got.
     if(S.geo.polar&&!pan&&(S.mode==="zoom"||S.mode==="mask"||S.mode==="range"||S.mode==="reader"||S.mode==="cross")) return;
     drag={x0:x,y0:y,x1:x,y1:y,moved:false,pan,v:Object.assign({},S.geo.v),rx:S.geo.rx,ry:S.geo.ry,brk:S.geo.brk};
@@ -21733,6 +21876,7 @@ function setupGraph(){
       // On a map: X, where up the side (the series value, or the spectrum), and the value there.
       if(g.pie){ const h=pieHit(g,x,y), c=h&&colById(h.ring.id), u=c?finalOf(c).yu||"":"";
         ro.textContent=h?`${h.z.name}   ${fmt(h.z.v,6)}${u?" "+u:""}   ${(h.z.share*100).toFixed(Math.max(1,g.pie.o.dec))} % of ${c?specName(c):"the ring"}`:""; }
+      else if(g.radar){ const h=g.radar.verts.reduce((b,q)=>{ const r=Math.hypot(q.x-x,q.y-y); return r<=10&&(!b||r<b.r)?{r,q}:b; },null); ro.textContent=h?h.q.txt:""; }
       else if(g.tern){ const G=g.tern, f=ternInv(G.F,x,y), ok=f.every(v=>v>=-1e-9);
         ro.textContent=ok?f.map((v,i)=>`${texPlain(G.names[i])} ${fmt(Math.max(0,v)*G.o.sum,5)}${G.o.sum===100?" %":""}`).join("   "):""; }
       else if(g.polar){ const G=g.polar, iv=polarInv(G.F,x,y), inside=iv.rho>=G.F.hole-1e-9&&iv.rho<=1+1e-9&&!!polarFwd(G.F,iv.th,iv.r), m=G.mat?matOf(G.mat):null, z=inside&&G.z?G.z(iv.th,iv.r):null;
@@ -21744,7 +21888,8 @@ function setupGraph(){
         ro.textContent=c?`x ${fmt(c.x,6)}${xu?" "+xu:""}   y ${fmt(c.y,6)}${yu?" "+yu:""}   ${m&&m.zname||"value"} ${c.v==null?"empty":fmt(c.v,6)}${m&&m.zunit?" "+m.zunit:""}   (row ${c.i+1}, column ${c.j+1})`:`x ${fmt(d.x,6)}   y ${fmt(d.y,6)}`; }
       else if(g.heat&&d&&d.inside){ const z=g.mapZ?g.mapZ(d.x,d.y):null, near=mapNearest(d.y);
         ro.textContent=`x ${fmt(d.x,6)}${xu?" "+xu:""}   ${g.mapSeries?`${seriesLabel()} ${fmt(d.y,5)}`:near?specName(near.c):""}   ${z!=null?`value ${fmt(z,5)}${yu?" "+yu:""}`:""}`; }
-      else { const ze=d&&d.inside&&g.tmapErr?g.tmapErr(x,y):null, tz=ze?null:d&&d.inside&&g.tmapZ?g.tmapZ(x,y):null; ro.textContent=d&&d.inside?`x ${fmt(d.x,6)}${xu?" "+xu:""}   y ${fmt(d.y,5)}${yu?" "+yu:""}${ze?`   value ${fmtPM(ze.z,ze.e)}`:tz!=null?`   value ${fmt(tz,5)}`:""}`:""; } }
+      else { const ze=d&&d.inside&&g.tmapErr?g.tmapErr(x,y):null, tz=ze?null:d&&d.inside&&g.tmapZ?g.tmapZ(x,y):null, va=g.vecPts&&d&&d.inside?g.vecPts.reduce((b,q)=>{ const r=Math.hypot(q.x-x,q.y-y); return r<=8&&(!b||r<b.r)?{r,q}:b; },null):null;
+        ro.textContent=d&&d.inside?`x ${fmt(d.x,6)}${xu?" "+xu:""}   y ${fmt(d.y,5)}${yu?" "+yu:""}${ze?`   value ${fmtPM(ze.z,ze.e)}`:tz!=null?`   value ${fmt(tz,5)}`:""}${va?"   "+va.q.txt:""}`:""; } }
     if(S.xhdrag){ xhMove(x,y); return; }
     if(S.polyDraft&&S.mode==="shape"&&!drag){ S.polyDraft.cur=[x,y]; renderPlot(); return; }
     if(S.andrag){ dragAnno(x,y); return; }
@@ -21877,7 +22022,7 @@ function setupGraph(){
   svg.addEventListener("dblclick",ev=>{ if(Date.now()-(S.noDbl||0)<600) return; onGraphDouble(downEl&&document.contains(downEl)?downEl:ev.target); });
   svg.addEventListener("contextmenu",ev=>{ const an=ev.target.closest&&ev.target.closest("[data-anc]"); if(an&&anchorStep()&&!S.readOnly){ ev.preventDefault(); removeAnchor(+an.dataset.anc); return; } hideTip(); openGraphMenu(ev); });
   svg.addEventListener("wheel",ev=>{ if(S.geo&&S.geo.polar&&P()){ ev.preventDefault(); const v=S.geo.v, k=ev.deltaY>0?1.18:1/1.18; S.view=Object.assign({},v,{pol:true,y1:v.y0+(v.y1-v.y0)*k}); renderPlot(); return; }
-    if(!S.geo||!P()||S.geo.pie||S.geo.tern) return; ev.preventDefault(); const [x,y]=localXY(ev); const c=toData(x,y); const v=S.geo.v; const k=ev.deltaY>0?1.18:1/1.18;
+    if(!S.geo||!P()||S.geo.pie||S.geo.tern||S.geo.radar) return; ev.preventDefault(); const [x,y]=localXY(ev); const c=toData(x,y); const v=S.geo.v; const k=ev.deltaY>0?1.18:1/1.18;
     if(S.geo.fx||S.geo.fy){ const g=S.geo, sx=axScale(v.x0,v.x1,g.fx||g.logX,[],0), sy=axScale(v.y0,v.y1,g.fy||g.logY,[],0), tx=sx.f(c.x), ty=sy.f(c.y);
       const nx=[sx.inv(tx-tx*k),sx.inv(tx+(1-tx)*k)], ny=[sy.inv(ty-ty*k),sy.inv(ty+(1-ty)*k)], okx=nx.every(q=>Number.isFinite(q)&&(!g.fx||g.fx.ok(q))), oky=ny.every(q=>Number.isFinite(q)&&(!g.fy||g.fy.ok(q)));
       if(!(nx[1]>nx[0])||!(ny[1]>ny[0])) return;
@@ -23439,7 +23584,7 @@ function wsModel(){
   const cols=sheetCols(), n=nRows(), actRoot=rootOf(activeYCol()), xs=cols.filter(c=>c.role==="x"), hid=new Set(wsHideOf(p).cols);
   // "Not plotted" is a column with values on no graph at all, whichever graph is in front.
   // On a graph: its curves, and the columns a curve draws with (a ternary curve's B and C, a colour, a size).
-  const onG=new Set(); (p.graphs||[]).forEach(g=>{ if(!g.fig){ const sr=(g.plot||{}).series||{}; g.cols.forEach(k=>{ onG.add(k); const z=sr[k]; if(z) ["tB","tC","zcol","scol"].forEach(q=>{ if(z[q]) onG.add(z[q]); }); }); } });
+  const onG=new Set(); (p.graphs||[]).forEach(g=>{ if(!g.fig){ const sr=(g.plot||{}).series||{}; g.cols.forEach(k=>{ onG.add(k); const z=sr[k]; if(z){ ["tB","tC","zcol","scol"].forEach(q=>{ if(z[q]) onG.add(z[q]); }); const v=vecOf(z.vec); if(v) [v.a,v.m,v.x2,v.y2].forEach(q=>{ if(q) onG.add(q); }); } }); } });
   const FC=filtOf(p);
   const mc=cols.map((c,i)=>{ const isY=c.role==="y", isAct=c===actRoot, off=isY&&!onG.has(c.id)&&c.data.some(v=>v!=null), L=wsLetter(i), w=hid.has(c.id)?WS_HIDW:W[c.id]||WS_W;
     if(hid.has(c.id)) return {id:c.id, col:c, letter:L, role:ROLE_LABEL[c.role]||c.role, w, hidden:true, lab:{name:c.name||"",unit:c.unit||"",comm:c.comm||"",fx:c.fx?fxShow(c):""}, calc:!!c.fx,
@@ -35869,6 +36014,21 @@ ${DL([["Coordinates","X is the angle and Y the radius (the usual), or X the radi
 <p>In the graph's right-click menu under <em>Ternary</em>, and in the Format pane's Layout page:</p>
 ${DL([["Each row adds up to","1 (fractions) or 100 (percentages): only the numbers change."],["Clockwise","Each part's numbers run clockwise round the triangle (A along the left side, B along the bottom, C along the right), else anticlockwise (A along the right, B along the left, C along the bottom)."],["Grid lines","Lines at the numbers, parallel to the sides."],["Parts B and C…","Opens <em>What it plots…</em>, to choose each curve's B and C."]])}
 <p>Curves are drawn as symbols, or as lines straight between their rows (a straight line in the parts is a straight line in the triangle). A ternary graph has no zoom or pan; it is always the whole triangle.</p>`},
+{id:"vectors", g:"Graph", t:"Vectors: arrows from points", kw:"vector vectors arrow arrows field flow wind velocity direction quiver xyam xyxy angle magnitude length speed gradient displacement",
+ lead:"Each point of a curve as an arrow: by an angle and a length from two more columns, or to a second point.",
+ body:`<h2>Making them</h2>
+<p>Select three columns, the first a curve and the next two its angle and length (or its second point's X and Y), and choose ${MP("Plot › Plot the selected columns")} › <em>Vectors: angle and length</em> or <em>Vectors to a point</em>; six columns make two curves, and so on. Or pick either card under <em>With another column</em> in <em>Plot setup…</em> and mark the columns as <em>Angle</em> and <em>Length</em>, or <em>X₂</em> and <em>Y₂</em>, beside each curve. The values are read in the curve's rows.</p>
+${DL([["Angle and length","The angle on the graph as drawn, counterclockwise from the X axis, in degrees (or radians); the length drawn at one scale for every such arrow of the graph, so the longest is a twelfth of the plot unless a scale is typed (pixels a unit of length). A key in the lower right corner says what length an arrow of its size is. A negative length points the other way."],["To a second point","An arrow from the point to the second point, both in the graph's units, whatever the axes' scales."]])}
+<h2 id="set">Their settings</h2>
+<p>A curve's right-click › <em>Vectors</em>: the heads (filled, open or none), the angle's unit, the length scale, the key, the columns (in <em>What it plots…</em>) and <em>Draw as a curve again</em>. The status bar names the arrow under the pointer: its angle and length, or its end. Arrows are clipped at the plot's edge; the automatic view covers their starts.</p>`},
+{id:"radar", g:"Graph", t:"Radar charts", kw:"radar spider star web chart polygon polygons spokes profile profiles comparison variables categories kiviat",
+ lead:"Spokes from the centre and a polygon round them for each set of values: each row a spoke and each curve a polygon, or the other way round.",
+ body:`<h2>Making one</h2>
+<p>Select the columns and choose ${MP("Plot › Plot the selected columns")} › <em>Radar</em>, or pick <em>Radar</em> under <em>Coordinates</em> in <em>Plot setup…</em>. Each row is a spoke, named by its X (a column of text names it best), and each curve a polygon joining its values along the spokes; the first spoke points up and the rest go clockwise.</p>
+<h2 id="set">Its settings</h2>
+<p>In the graph's right-click menu under <em>Radar</em>, and in the Format pane's Layout page:</p>
+${DL([["Spokes","Each row a spoke and each curve a polygon, or each curve a spoke and each row a polygon (forty at most)."],["Range","One for every spoke (from 0, or the smallest value when one is below 0, to the largest, rounded; or typed in <em>Range from and to…</em>), its numbers up the first spoke; or each spoke its own, said under its name. A value outside its range is not drawn, and the chart says how many."],["Grid","Polygons or circles at the numbers (or at fifths, each spoke its own)."],["Filled","The polygons filled faintly; a polygon with a value missing is not closed across the gap, nor filled."]])}
+<p>The status bar says the spoke, the polygon and the value under the pointer. A radar chart has no zoom or pan.</p>`},
 {id:"dists", g:"Graph", t:"Distributions: histograms, boxes and violins", kw:"histogram bins bin width frequency count probability density percent cumulative distribution stacked stack bar bars category categories names labels grouped group groups notch notched normal gaussian log-normal lognormal exponential maximum likelihood kolmogorov smirnov goodness distfit box chart box plot boxplot whisker whiskers quartile quartiles median interquartile iqr outlier outliers tukey violin kernel density kde bandwidth silverman column chart bar chart columns bars categories",
  lead:"How a column's values are spread: counted into bins as a histogram, or summed up per column as boxes or violins side by side.",
  body:`<h2>Histograms</h2>
@@ -36606,6 +36766,7 @@ function helpFor(win){
   if(isFigId(graphOfWin(win))) return "panels";
   if(graphOfWin(win)&&(plotOf(graphOfWin(win))||{}).layout==="polar") return "polar";
   if(graphOfWin(win)&&(plotOf(graphOfWin(win))||{}).layout==="ternary") return "ternary";
+  if(graphOfWin(win)&&(plotOf(graphOfWin(win))||{}).layout==="radar") return "radar";
   if(matGraph(graphOfWin(win))) return "matrices";
   if(graphOfWin(win)) return multiGraph()?"graphs":"graph";
   if(WINS[win]&&WINS[win].trend) return "batch#desk";
@@ -38754,7 +38915,10 @@ function plotItems(cids){
     {label:"Columns by category", enabled:!ro, title:"A column for each column of values: its mean, with its interval", run:()=>plotCols(cids,{layout:"catbar"})},
     {label:"Pie chart", enabled:!ro, title:"Each value a slice, its share of the whole; several columns concentric rings", run:()=>plotCols(cids,{layout:"pie"})},
     {label:"Polar", enabled:!ro, title:"Each column's X as the angle and its values as the radius", run:()=>plotCols(cids,{layout:"polar"})},
-    {label:"Ternary", enabled:!ro, title:"Three columns as the parts of a whole, each row a point in a triangle: the first a curve, the next two its B and C", run:()=>ternaryFrom(cids)});
+    {label:"Ternary", enabled:!ro, title:"Three columns as the parts of a whole, each row a point in a triangle: the first a curve, the next two its B and C", run:()=>ternaryFrom(cids)},
+    {label:"Radar", enabled:!ro, title:"Each row a spoke and each column a polygon round them", run:()=>plotCols(cids,{layout:"radar"})},
+    {label:"Vectors: angle and length", enabled:!ro, title:"An arrow from each point: three columns, the first a curve, the next its angle and its length", run:()=>vectorsFrom(cids,"vecam")},
+    {label:"Vectors to a point", enabled:!ro, title:"An arrow from each point to a second one: three columns, the first a curve, the next the second point's X and Y", run:()=>vectorsFrom(cids,"vecxy")});
   if(many) out.push("-",{label:"Stacked panels", enabled:!ro, run:()=>plotCols(cids,{layout:"stack"})},{label:"Offset (waterfall)", enabled:!ro, run:()=>plotCols(cids,{layout:"offset"})},{label:"Contour map against the series", enabled:!ro, title:"Each column at its value of the series variable, with contour lines over the colours", run:()=>plotCols(cids,{layout:"heat",plot:{mapKind:"both",mapY:"series"}})},{label:"Heat map", enabled:!ro, run:()=>plotCols(cids,{layout:"heat"})});
   const gs=drawGraphIds(), shut=id=>{ const f=figOf(id); return graphShut(f?f.id:id); };
   if(gs.length) out.push("-",{label:"Add to a graph", enabled:!ro, sub:()=>gs.map(id=>({label:graphTitle(id), note:shut(id)?"closed":"", run:()=>plotCols(cids,{into:id})}))});
@@ -38768,8 +38932,8 @@ function plotItems(cids){
 const PLOT_DLG_KINDS=[
   ["line","Line","type"],["scatter","Symbols","type"],["linesym","Line + symbols","type"],["column","Columns","type"],["area","Area","type"],["step","Steps","type"],["stick","Drop lines","type"],
   ["stack","Stacked panels","layout"],["offset","Offset (waterfall)","layout"],["dy","Two Y axes","layout"],["heat","Heat map","layout"],["box","Box chart","layout"],["violin","Violin plot","layout"],["hist","Histogram","hist"],
-  ["bubble","Bubbles","more","Symbols sized by a column"],["cmap","Colour by value","more","Symbols coloured by a column, with a colour bar"],["labels","Labelled points","more","Each point labelled with a column's value in its row"],["errbox","Error boxes","more","X and Y errors drawn as a box round each point"],["tmap","Map from X, Y, Z","more","A colour map between the points, of a column's values at each, by triangles"],
-  ["dot","Dot plot","layout","Every value a dot, in a column for each curve or each group of a column"],["mean","Means with intervals","layout","Each curve's or group's mean with its SD, SE or confidence interval"],["catbar","Columns by category","layout","A column for each curve or group: its mean, median, sum or count"],["pie","Pie chart","layout","Each value a slice: its share of the whole, named by its row's X or labels"],["polar","Polar","layout","Each curve's X as the angle and Y as the radius (or the other way round)"],["ternary","Ternary","layout","Three columns as the parts of a whole: each row a point in a triangle"]];
+  ["bubble","Bubbles","more","Symbols sized by a column"],["cmap","Colour by value","more","Symbols coloured by a column, with a colour bar"],["labels","Labelled points","more","Each point labelled with a column's value in its row"],["errbox","Error boxes","more","X and Y errors drawn as a box round each point"],["tmap","Map from X, Y, Z","more","A colour map between the points, of a column's values at each, by triangles"],["vecam","Vectors: angle and length","more","An arrow from each point, by an angle and a length from two columns"],["vecxy","Vectors to a point","more","An arrow from each point to a second point, its X and Y from two columns"],
+  ["dot","Dot plot","layout","Every value a dot, in a column for each curve or each group of a column"],["mean","Means with intervals","layout","Each curve's or group's mean with its SD, SE or confidence interval"],["catbar","Columns by category","layout","A column for each curve or group: its mean, median, sum or count"],["pie","Pie chart","layout","Each value a slice: its share of the whole, named by its row's X or labels"],["polar","Polar","layout","Each curve's X as the angle and Y as the radius (or the other way round)"],["ternary","Ternary","layout","Three columns as the parts of a whole: each row a point in a triangle"],["radar","Radar","layout","Each row a spoke and each curve a polygon (or the other way round)"]];
 // Where the gallery's kinds start a new row, and its heading.
 const PLOT_DLG_SEP={stack:"With several columns",bubble:"With another column",dot:"Categories",polar:"Coordinates"};
 // What each kind that needs another column draws, and what it needs beside every curve.
@@ -38777,9 +38941,14 @@ const MORE_KINDS={bubble:{need:"scol",words:"bubbles",say:"Bubbles take their si
   cmap:{need:"zcol",words:"symbols coloured by a column",say:"The colour comes from a column: mark one as Colour beside each curve, and Add."},
   labels:{need:"lab",words:"labelled points",say:"The labels come from a column: mark one as Labels beside each curve, and Add."},
   tmap:{need:"zcol",words:"a map of a column's values over X and Y",say:"The map's values come from a column: mark one as Z beside each curve, and Add."},
+  vecam:{need:"vam",words:"arrows by angle and length",say:"An arrow needs an angle and a length: mark a column as Angle and one as Length beside each curve, and Add."},
+  vecxy:{need:"vxy",words:"arrows to a second point",say:"An arrow needs its second point: mark a column as X₂ and one as Y₂ beside each curve, and Add."},
   errbox:{need:"xy",eb:"box",words:"error boxes",say:"A box needs errors in X and in Y: mark an X error and a Y error beside each curve, and Add."}};
 // The plot type a kind gives each curve: its own for a type, symbols for one that needs more columns, none for a layout.
 const psuType=k=>{ const K=PLOT_DLG_KINDS.find(q=>q[0]===k); return !K?null:K[2]==="type"?k:K[2]==="more"?(k==="tmap"?"tmap":"scatter"):null; };
+// A curve's arrows from its parts: by angle and length, or to a second point (the kind chosen first, else whichever it has both of).
+function psuVec(q,kind){ const am=q.va&&q.vm?{kind:"am",a:q.va.id,m:q.vm.id}:null, xy=q.vx2&&q.vy2?{kind:"xy",x2:q.vx2.id,y2:q.vy2.id}:null;
+  return kind==="vecam"?am:kind==="vecxy"?xy:kind?null:am||xy; }
 // Ternary chosen with three columns (or six…) as curves and none with its parts: each three a curve and its B and C, as Plot's menu does.
 function psuTernGroup(st){ if(st.kind!=="ternary"||st.gid||!st.curves.length||st.curves.length%3||st.curves.some(q=>q.tb||q.tc||q.y.src)) return;
   const out=[]; for(let i=0;i<st.curves.length;i+=3){ const q=st.curves[i], b=st.curves[i+1].y, c=st.curves[i+2].y; q.tb=b; q.tc=c; st.use[b.id]="tb"; st.use[c.id]="tc"; out.push(q); }
@@ -38788,7 +38957,7 @@ function psuTernGroup(st){ if(st.kind!=="ternary"||st.gid||!st.curves.length||st
 function psuNeed(st){ if(st.kind==="ternary"&&st.curves.length){ const lack=st.curves.filter(q=>!q.tb||!q.tc);
     return lack.length?`A ternary curve has three parts: its values and two more columns. Mark them as B and C beside each curve, and Add. ${lack.length===st.curves.length?"":`(${andList(lack.map(q=>specName(q.y)))} ${lack.length===1?"has":"have"} none.)`}`.trim():""; }
   const M=MORE_KINDS[st.kind]; if(!M||!st.curves.length) return "";
-  const lack=st.curves.filter(q=>M.need==="xy"?!(q.e.some(e=>e.k[0]==="x")&&q.e.some(e=>e.k[0]==="y")):!q[M.need]);
+  const lack=st.curves.filter(q=>M.need==="xy"?!(q.e.some(e=>e.k[0]==="x")&&q.e.some(e=>e.k[0]==="y")):M.need==="vam"?!(q.va&&q.vm):M.need==="vxy"?!(q.vx2&&q.vy2):!q[M.need]);
   return lack.length?`${M.say} ${lack.length===st.curves.length?"":`(${andList(lack.map(q=>specName(q.y)))} ${lack.length===1?"has":"have"} none.)`}`.trim():""; }
 // A small picture of each kind of plot, drawn in the text colour.
 function plotKindIcon(k){
@@ -38816,6 +38985,9 @@ function plotKindIcon(k){
     bubble:[[7,26,2],[14,18,4],[22,22,3],[29,10,5.5],[35,20,2.5]].map(([x,y,r])=>`<circle cx="${x}" cy="${y}" r="${r}" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.2"/>`).join(""),
     cmap:[[5,29],[10,22],[16,25],[22,13],[28,17],[35,9]].map(([x,y],i)=>`<circle cx="${x}" cy="${y}" r="2.6" fill="currentColor" opacity="${(0.25+0.15*i).toFixed(2)}"/>`).join(""),
     tmap:`<path d="M4 30L14 6L24 26L36 8L36 30Z" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M14 6L14 30M24 26L4 30M24 26L36 30M24 26L14 6M24 26L36 8" stroke="currentColor" stroke-width=".8" opacity=".7"/>`,
+    radar:`<path d="M20 4L34 14L29 31L11 31L6 14Z" fill="none" stroke="currentColor" stroke-width="1" stroke-opacity=".5"/><path d="M20 18V4M20 18L34 14M20 18L29 31M20 18L11 31M20 18L6 14" stroke="currentColor" stroke-width=".8" stroke-opacity=".5"/><path d="M20 7L30 15L25 26L14 28L10 16Z" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>`,
+    vecam:`<path d="M6 28L14 20M16 30L26 24M22 16L32 8M8 12L16 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M14 20l-4.2 .9 1.8-3.6ZM26 24l-4.6-.3 2.6-3.3ZM32 8l-3 3.4-1.1-3.9ZM16 9l-3.6 2.4-.7-3.9Z" fill="currentColor"/>`,
+    vecxy:`<circle cx="7" cy="27" r="2" fill="currentColor"/><circle cx="20" cy="22" r="2" fill="currentColor"/><path d="M7 27L17 13M20 22L33 10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M17 13l-.8 4.3-3.1-2.3ZM33 10l-1.6 4-2.4-3Z" fill="currentColor"/>`,
     labels:[[6,28],[16,20],[26,12],[35,18]].map(([x,y],i)=>`<circle cx="${x}" cy="${y}" r="2.2" fill="currentColor"/><path d="M${x+1},${y-3}h4" stroke="currentColor" stroke-width="1.4"/>`).join(""),
     errbox:[[8,26],[19,16],[30,20]].map(([x,y])=>`<rect x="${x-4}" y="${y-4}" width="8" height="8" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.2"/><circle cx="${x}" cy="${y}" r="1.8" fill="currentColor"/>`).join("")}[k]||"";
   return `<svg viewBox="0 0 40 36" class="pkic" aria-hidden="true">${body}</svg>`; }
@@ -38835,6 +39007,11 @@ function plotDraw(ser,kind,L,T,pw,ph,max){
   if(kind==="hist"){ const b=histBins(ser[0].Y,{rule:"fd"}); if(b.fail) return "";
     const K=b.counts.length, top=Math.max(...b.counts)||1, w=pw/K;
     out.push(`<path d="${b.counts.map((n,i)=>`M${f1(L+i*w+w*0.08)},${f1(T+ph)}V${f1(T+ph-n/top*ph*0.92)}`).join("")}" stroke="${ser[0].col}" stroke-width="${f1(Math.max(1,w*0.84))}"/>`); return out.join(""); }
+  // A radar card: the first curves' first rows round six spokes.
+  if(kind==="radar"){ const cx=L+pw/2, cy=T+ph/2, Rr=Math.min(pw,ph)*0.44, K=Math.max(3,Math.min(8,(ser[0]||{Y:[]}).Y.length||6)), pt=(k,r)=>[cx+Rr*r*Math.cos((90-360*k/K)*Math.PI/180),cy-Rr*r*Math.sin((90-360*k/K)*Math.PI/180)];
+    out.push(`<path d="${Array.from({length:K+1},(_,k)=>{ const q=pt(k%K,1); return (k?"L":"M")+f1(q[0])+","+f1(q[1]); }).join("")}" fill="none" stroke="${pal.grid}"/>`);
+    ser.slice(0,3).forEach(z=>{ const ys=z.Y.slice(0,K), mx=Math.max(...ys.map(Math.abs))||1; if(ys.length<3) return; out.push(`<path d="${ys.map((y,k)=>{ const q=pt(k,Math.max(0,y)/mx); return (k?"L":"M")+f1(q[0])+","+f1(q[1]); }).join("")}Z" fill="${z.col}" fill-opacity=".2" stroke="${z.col}" stroke-width="1.3"/>`); });
+    return out.join(""); }
   // A ternary card: the triangle, and the first three curves' values as the parts of each row (or a few points).
   if(kind==="ternary"){ const sd=Math.min(pw,ph*2/Math.sqrt(3))*0.92, h=sd*Math.sqrt(3)/2, x0=L+(pw-sd)/2, y0=T+(ph-h)/2, A=[x0+sd/2,y0], B=[x0,y0+h], C=[x0+sd,y0+h];
     out.push(`<path d="M${f1(A[0])},${f1(A[1])}L${f1(B[0])},${f1(B[1])}L${f1(C[0])},${f1(C[1])}Z" fill="none" stroke="${pal.ink}" stroke-width="0.9"/>`);
@@ -38875,6 +39052,8 @@ function plotDraw(ser,kind,L,T,pw,ph,max){
         if(kind==="bubble") out.push(`<circle cx="${f1(x)}" cy="${f1(y)}" r="${f1(1.2+4.5*t)}" fill="${s.col}" fill-opacity=".3" stroke="${s.col}" stroke-width="1"/>`);
         else if(kind==="cmap") out.push(`<circle cx="${f1(x)}" cy="${f1(y)}" r="2.2" fill="#${cmapAt("viridis",t).map(v=>v.toString(16).padStart(2,"0")).join("")}"/>`);
         else if(kind==="tmap"){ if(i===0){ for(let a=0;a<12;a++) for(let b=0;b<5;b++){ const t=(Math.sin(a/2.2)*0.5+0.5)*0.6+b/5*0.4; out.push(`<rect x="${f1(L+a*pw/12)}" y="${f1(T+b*ph/5)}" width="${f1(pw/12+0.4)}" height="${f1(ph/5+0.4)}" fill="#${cmapAt("viridis",t).map(v=>v.toString(16).padStart(2,"0")).join("")}"/>`); } } }
+        else if(kind==="vecam"||kind==="vecxy"){ const a=(i*47+30)*Math.PI/180, l=kind==="vecam"?4+6*t:8, ex=x+l*Math.cos(a), ey=y-l*Math.sin(a), H=vecHead(x,y,ex,ey,3.5,2.8);
+          out.push(`<path d="M${f1(x)},${f1(y)}L${f1(ex)},${f1(ey)}" stroke="${s.col}" stroke-width="1"/>`+(H?`<path d="M${H.map(q=>f1(q[0])+","+f1(q[1])).join("L")}Z" fill="${s.col}"/>`:"")); }
         else if(kind==="labels") out.push(`<circle cx="${f1(x)}" cy="${f1(y)}" r="1.6" fill="${s.col}"/>`+(i%(3*step)===0?`<path d="M${f1(x+2)},${f1(y-4)}h5" stroke="${s.col}" stroke-width="1.3"/>`:""));
         else { const bw=Math.max(2,pw/30), bh=Math.max(2,ph/10); out.push(`<rect x="${f1(x-bw)}" y="${f1(y-bh)}" width="${f1(2*bw)}" height="${f1(2*bh)}" fill="${s.col}" fill-opacity=".18" stroke="${s.col}" stroke-width="1"/><circle cx="${f1(x)}" cy="${f1(y)}" r="1.5" fill="${s.col}"/>`); } } });
     return out.join(""); }
@@ -38903,13 +39082,13 @@ function plotDlgSketch(st,kind,ser){
 // Each kind's card: the selected columns drawn that way (PLOT_DLG_KINDS's own picture while none is ticked).
 function plotDlgCard(k,ser){ const inner=ser&&ser.length?plotDraw(ser,k,6,5,148,54,90):"";
   return inner?`<svg viewBox="0 0 160 64" preserveAspectRatio="none" aria-hidden="true">${inner}</svg>`:`<svg viewBox="0 0 160 64" aria-hidden="true"><g transform="translate(60,10) scale(1.2)" style="color:var(--data)">${plotKindIcon(k).replace(/<\/?svg[^>]*>/g,"")}</g></svg>`; }
-const PSU_USES=[["","—"],["x","X"],["y","Y"],["e:y","Y error ±"],["e:y+","Y error +"],["e:y-","Y error −"],["e:x","X error ±"],["e:x+","X error +"],["e:x-","X error −"],["lab","Labels"],["col","Colour"],["size","Size"],["e:z","Z error"],["tb","B"],["tc","C"]];
+const PSU_USES=[["","—"],["x","X"],["y","Y"],["e:y","Y error ±"],["e:y+","Y error +"],["e:y-","Y error −"],["e:x","X error ±"],["e:x+","X error +"],["e:x-","X error −"],["lab","Labels"],["col","Colour"],["size","Size"],["e:z","Z error"],["tb","B"],["tc","C"],["va","Angle"],["vm","Length"],["vx2","X₂"],["vy2","Y₂"]];
 /* The roles a kind takes, as the grid's columns (PLOT_SPEC slice 7): each its header, the use it marks and
    its tooltip, in the grid's order. Z is the colour column of a map from X, Y, Z, so the two are one use. */
 const PSU_ROLE={x:["X","x","What the curves after it are plotted against"],y:["Y","y","A curve"],ey:["Y error","e:y","Error bars in Y, of the nearest Y to its left"],ex:["X error","e:x","Error bars in X, of the nearest Y to its left"],
-  lab:["Labels","lab","Each point labelled with its value in the row"],tb:["B","tb","A ternary curve's second part (its values are the first), read in the same rows"],tc:["C","tc","A ternary curve's third part, read in the same rows"],size:["Size","size","The symbols sized by its values"],col:["Colour","col","The symbols coloured by its values"],z:["Z","col","The map's values"],ez:["Z error","e:z","The error of the map's values"]};
-const PSU_KROLES={polar:["x","y","ey"],ternary:["y","tb","tc"],tmap:["x","y","z","ez"],bubble:["x","y","size","ey","ex"],cmap:["x","y","col","ey","ex"],labels:["x","y","lab"],errbox:["x","y","ey","ex"],box:["y"],violin:["y"],dot:["y"],mean:["y"],catbar:["y"],pie:["x","y","lab"],hist:["y"],heat:["x","y"]};
-const useRole=(u,tm)=>!u?"":u==="x"||u==="y"||u==="lab"||u==="size"||u==="tb"||u==="tc"?u:u.startsWith("e:y")?"ey":u.startsWith("e:x")?"ex":u==="e:z"?"ez":u==="col"?(tm?"z":"col"):"";
+  lab:["Labels","lab","Each point labelled with its value in the row"],tb:["B","tb","A ternary curve's second part (its values are the first), read in the same rows"],tc:["C","tc","A ternary curve's third part, read in the same rows"],va:["Angle","va","Each arrow's angle, counterclockwise from the X axis, read in the same rows"],vm:["Length","vm","Each arrow's length, read in the same rows"],vx2:["X₂","vx2","Each arrow's end: its X, read in the same rows"],vy2:["Y₂","vy2","Each arrow's end: its Y, read in the same rows"],size:["Size","size","The symbols sized by its values"],col:["Colour","col","The symbols coloured by its values"],z:["Z","col","The map's values"],ez:["Z error","e:z","The error of the map's values"]};
+const PSU_KROLES={polar:["x","y","ey"],ternary:["y","tb","tc"],vecam:["x","y","va","vm"],vecxy:["x","y","vx2","vy2"],tmap:["x","y","z","ez"],bubble:["x","y","size","ey","ex"],cmap:["x","y","col","ey","ex"],labels:["x","y","lab"],errbox:["x","y","ey","ex"],box:["y"],violin:["y"],dot:["y"],mean:["y"],catbar:["y"],pie:["x","y","lab"],hist:["y"],heat:["x","y"]};
+const useRole=(u,tm)=>!u?"":u==="x"||u==="y"||u==="lab"||u==="size"||u==="tb"||u==="tc"||u==="va"||u==="vm"||u==="vx2"||u==="vy2"?u:u.startsWith("e:y")?"ey":u.startsWith("e:x")?"ex":u==="e:z"?"ez":u==="col"?(tm?"z":"col"):"";
 const roleUse=(k,u)=>k==="ey"||k==="ex"?(u&&u.startsWith("e:"+k[1])?u:"e:"+k[1]):PSU_ROLE[k][1];
 // The grid's roles: the kind's, and any a column shown is marked with besides (so nothing marked is hidden).
 function psuRoles(st,cols){ const tm=st.kind==="tmap"||!st.kind&&st.curves.some(q=>q.type==="tmap"), base=(st.kind&&PSU_KROLES[st.kind])||(tm?PSU_KROLES.tmap:["x","y","ey","ex","lab"]), all=new Set(base);
@@ -38918,19 +39097,19 @@ function psuRoles(st,cols){ const tm=st.kind==="tmap"||!st.kind&&st.curves.some(
 const PSU_SYMK=new Set(["scatter","linesym","bubble","cmap","labels","errbox"]);
 // Why a column cannot be used so here, or "": its role changes only where nothing is lost.
 function psuWhyNot(c,u){
-  if(!u||u==="lab"||u==="col"||u==="size"||u==="tb"||u==="tc") return "";
+  if(!u||u==="lab"||u==="col"||u==="size"||u==="tb"||u==="tc"||u==="va"||u==="vm"||u==="vx2"||u==="vy2") return "";
   if(u==="x") return c.role==="x"||c.role==="ignore"?"":c.role==="y"?"A Y column: make it an X column in the worksheet first":"Error bars: make it an X column in the worksheet first";
   if(u==="y") return c.role==="y"||c.role==="ignore"?"":c.role==="x"?"An X column: make it a Y column in the worksheet first":"Error bars: make it a Y column in the worksheet first";
   return c.role==="e"||c.role==="ignore"?"":c.role==="x"?"An X column: make it other data in the worksheet first":"A Y column: make it other data in the worksheet first"; }
 // What a curve is made of, to tell two apart.
-const psuSig=q=>[q.y.id,q.x?q.x.id:"row",q.e.map(e=>e.c.id+e.k).sort().join(","),q.lab?q.lab.id:"",q.zcol?q.zcol.id:"",q.scol?q.scol.id:"",q.ez?q.ez.id:"",q.tb?q.tb.id:"",q.tc?q.tc.id:""].join("|");
+const psuSig=q=>[q.y.id,q.x?q.x.id:"row",q.e.map(e=>e.c.id+e.k).sort().join(","),q.lab?q.lab.id:"",q.zcol?q.zcol.id:"",q.scol?q.scol.id:"",q.ez?q.ez.id:"",q.tb?q.tb.id:"",q.tc?q.tc.id:"",q.va?q.va.id:"",q.vm?q.vm.id:"",q.vx2?q.vx2.id:"",q.vy2?q.vy2.id:""].join("|");
 // The curves to start with (the columns selected, or the active one) and the marks they make.
 function psuStart(cids){
   const sel=(cids||[]).map(colById).filter(Boolean), xs=sel.filter(c=>c.role==="x"), ys=sel.filter(c=>c.role==="y"||c.role==="ignore"), act=activeYCol(), all=allCols();
   const Y=ys.length?ys:act?[act]:yCols().slice(0,1), use={};
   // As plotCols reads a selection: each Y against the selected X nearest to its left, else its own.
   const curves=Y.map(y=>{ let x=null; if(xs.length){ const i=all.indexOf(y); for(let j=i-1;j>=0&&!x;j--) if(xs.includes(all[j])) x=all[j]; x=x||xs[0]; } else x=xColFor(y);
-    const eo=errColsOf(y.id); return {y,x,e:Object.keys(eo).filter(k=>k!=="z").map(k=>({c:eo[k],k})),lab:null,zcol:null,scol:null,ez:null,tb:null,tc:null}; });
+    const eo=errColsOf(y.id); return {y,x,e:Object.keys(eo).filter(k=>k!=="z").map(k=>({c:eo[k],k})),lab:null,zcol:null,scol:null,ez:null,tb:null,tc:null,va:null,vm:null,vx2:null,vy2:null}; });
   curves.forEach(q=>{ if(!q.y.src) use[q.y.id]="y"; if(q.x) use[q.x.id]="x"; q.e.forEach(({c,k})=>{ use[c.id]="e:"+k; }); });
   return {use,curves}; }
 // A graph's curves as the dialog's list, with what each uses and the marks they make.
@@ -38939,10 +39118,11 @@ function psuFromGraph(g){
   const curves=graphCols(g.id).map(y=>{ const u=curveUse(y.id,pl), eo=errColsOf(y.id), s=ser[y.id]||{}, col=k=>{ const c=k&&colById(k); return c||null; };
     if(u.rng) rng[y.id]=Object.assign({},u.rng); if(u.ax==="r") ax[y.id]="r"; if(u.grp) grp[y.id]=u.grp;
     if(s.sym) sym[y.id]=s.sym; if(s.ss!=null) ssz[y.id]=s.ss; const zc=col(s.zcol);
-    return {y,x:xColFor(y),e:Object.keys(eo).filter(k=>k!=="z").map(k=>({c:eo[k],k})),lab:col(u.lab),zcol:zc,scol:col(s.scol),ez:zc?errColsOf(zc.id).z||null:null,tb:col(s.tB),tc:col(s.tC),type:s.type||(!pl.style||pl.style==="auto"?autoType(y.id):pl.style)}; });
+    return {y,x:xColFor(y),e:Object.keys(eo).filter(k=>k!=="z").map(k=>({c:eo[k],k})),lab:col(u.lab),zcol:zc,scol:col(s.scol),ez:zc?errColsOf(zc.id).z||null:null,tb:col(s.tB),tc:col(s.tC),...(()=>{ const v=vecOf(s.vec); return {va:v&&v.kind==="am"?col(v.a):null,vm:v&&v.kind==="am"?col(v.m):null,vx2:v&&v.kind==="xy"?col(v.x2):null,vy2:v&&v.kind==="xy"?col(v.y2):null}; })(),type:s.type||(!pl.style||pl.style==="auto"?autoType(y.id):pl.style)}; });
   curves.forEach(q=>{ if(!q.y.src) use[q.y.id]="y"; if(q.x) use[q.x.id]="x"; q.e.forEach(({c,k})=>{ use[c.id]="e:"+k; });
     if(q.lab&&!use[q.lab.id]) use[q.lab.id]="lab"; if(q.zcol&&!use[q.zcol.id]) use[q.zcol.id]="col"; if(q.scol&&!use[q.scol.id]) use[q.scol.id]="size"; if(q.ez&&!use[q.ez.id]) use[q.ez.id]="e:z";
-    if(q.tb&&!use[q.tb.id]) use[q.tb.id]="tb"; if(q.tc&&!use[q.tc.id]) use[q.tc.id]="tc"; });
+    if(q.tb&&!use[q.tb.id]) use[q.tb.id]="tb"; if(q.tc&&!use[q.tc.id]) use[q.tc.id]="tc";
+    ["va","vm","vx2","vy2"].forEach(k=>{ if(q[k]&&!use[q[k].id]) use[q[k].id]=k; }); });
   return {use,curves,rng,ax,grp,grps:clone(pl.grps||{}),sym,ss:ssz}; }
 // The dialog's groups in the order of their first curves (a group of one too, so others can join it).
 function psuGroups(st){ const out=[]; st.curves.forEach(q=>{ const g=st.grp[q.y.id]; if(!g) return; let o=out.find(z=>z.g===g); if(!o){ o={g,ids:[]}; out.push(o); } o.ids.push(q.y.id); });
@@ -38951,11 +39131,11 @@ function psuGroups(st){ const out=[]; st.curves.forEach(q=>{ const g=st.grp[q.y.
 function psuBuild(st){
   const out=[];
   sheetList().forEach(s=>{ const cols=sheetCols(s.id), here=[]; let X=null;
-    cols.forEach(c=>{ const u=st.use[c.id]||""; if(u==="x") X=c; else if(u==="y"){ const own=xColFor(c); here.push({y:c,x:own&&st.use[own.id]==="x"?own:(X||own),e:[],lab:null,zcol:null,scol:null,ez:null,tb:null,tc:null}); } });
+    cols.forEach(c=>{ const u=st.use[c.id]||""; if(u==="x") X=c; else if(u==="y"){ const own=xColFor(c); here.push({y:c,x:own&&st.use[own.id]==="x"?own:(X||own),e:[],lab:null,zcol:null,scol:null,ez:null,tb:null,tc:null,va:null,vm:null,vx2:null,vy2:null}); } });
     cols.forEach((c,i)=>{ const u=st.use[c.id]||""; if(!u||u==="x"||u==="y"||u==="e:z") return; let t=c.role==="e"&&c.of?here.find(q=>q.y.id===c.of)||null:null;
       for(let j=i-1;j>=0&&!t;j--) if(st.use[cols[j].id]==="y") t=here.find(q=>q.y===cols[j])||null;
       if(!t) t=here.find(q=>cols.indexOf(q.y)>i)||null; if(!t) return;
-      if(u.startsWith("e:")) t.e.push({c,k:u.slice(2)}); else if(u==="lab") t.lab=c; else if(u==="col") t.zcol=c; else if(u==="size") t.scol=c; else if(u==="tb") t.tb=c; else if(u==="tc") t.tc=c; });
+      if(u.startsWith("e:")) t.e.push({c,k:u.slice(2)}); else if(u==="lab") t.lab=c; else if(u==="col") t.zcol=c; else if(u==="size") t.scol=c; else if(u==="tb") t.tb=c; else if(u==="tc") t.tc=c; else if(u==="va"||u==="vm"||u==="vx2"||u==="vy2") t[u]=c; });
     // A Z error goes to the curve whose Z it already belongs to, else whose Z is the nearest to its left.
     cols.forEach((c,i)=>{ if(st.use[c.id]!=="e:z") return; let t=c.role==="e"&&c.ax==="z"?here.find(q=>q.zcol&&q.zcol.id===c.of)||null:null;
       for(let j=i-1;j>=0&&!t;j--) if(st.use[cols[j].id]==="col") t=here.find(q=>q.zcol===cols[j])||null; if(t) t.ez=c; });
@@ -38990,6 +39170,7 @@ function plotSetupPv(st,kind,W,H){
       const s=Object.assign({},tp.series[y.id]); if(K&&psuType(kind)) s.type=psuType(kind); if(K&&MORE_KINDS[kind]&&MORE_KINDS[kind].eb) s.eb=MORE_KINDS[kind].eb;
       if(q.zcol) s.zcol=q.zcol.id; else if(g0) delete s.zcol; if(q.scol) s.scol=q.scol.id; else if(g0) delete s.scol;
       if(q.tb) s.tB=q.tb.id; else if(g0) delete s.tB; if(q.tc) s.tC=q.tc.id; else if(g0) delete s.tC;
+      { const vv=psuVec(q,st.kind); if(vv) s.vec=vv; else if(g0||K) delete s.vec; }
       if(st.sym[y.id]) s.sym=st.sym[y.id]; if(st.ss[y.id]!=null) s.ss=st.ss[y.id]; tp.series[y.id]=s; });
     cur.filter(q=>q.y.src).forEach(q=>{ const s=Object.assign({},tp.series[q.y.id]); if(K&&psuType(kind)) s.type=psuType(kind); tp.series[q.y.id]=s; });
     const pcols=g0?ids:(into?into.cols.filter(k=>!ids.includes(k)):[]).concat(ids);
@@ -39098,12 +39279,13 @@ async function openPlotDlg(cids,o){
     return `<table class="ptab psu-t"><thead><tr><th class="l">Column</th><th class="r psu-n">Rows</th><th class="psu-spk"></th>${keys.map(k=>`<th class="psu-rh" title="${esc(PSU_ROLE[k][2])}">${PSU_ROLE[k][0]}</th>`).join("")}</tr></thead><tbody>${h}</tbody></table>`; };
   // What a curve can take for a part: the columns of its sheet with values that may be used so.
   const candOf=(q,role)=>{ if(q.y.src) return []; const use=roleUse(role,""); return sheetCols(sheetOf(q.y)).filter(c=>c!==q.y&&c!==q.x&&hasVals(c)&&!psuWhyNot(c,use)&&(role!=="ez"||c!==q.zcol)); };
-  const partCol=(q,role)=>role==="ey"||role==="ex"?((q.e.find(e=>e.k[0]===role[1])||{}).c||null):role==="tb"?q.tb:role==="tc"?q.tc:role==="lab"?q.lab:role==="size"?q.scol:role==="col"||role==="z"?q.zcol:role==="ez"?q.ez:null;
+  const partCol=(q,role)=>role==="ey"||role==="ex"?((q.e.find(e=>e.k[0]===role[1])||{}).c||null):role==="tb"?q.tb:role==="tc"?q.tc:role==="va"||role==="vm"||role==="vx2"||role==="vy2"?q[role]:role==="lab"?q.lab:role==="size"?q.scol:role==="col"||role==="z"?q.zcol:role==="ez"?q.ez:null;
   const partSide=(q,role)=>{ const e=q.e.find(e=>e.k[0]===role[1]); return e?e.k.slice(1):""; };
   // The parts a curve's line shows: those it has, and (for a kind that needs one) the one it lacks.
   const tmOn=()=>st.kind==="tmap"||!st.kind&&st.curves.some(q=>q.type==="tmap");
   const ternOn=()=>st.kind==="ternary"||!st.kind&&g0&&(g0.plot||{}).layout==="ternary";
   const partsOf=q=>{ const tm=tmOn(), need=(MORE_KINDS[st.kind]||{}).need, out=ternOn()?["tb","tc"]:[q.tb?"tb":null,q.tc?"tc":null].filter(Boolean);
+    (need==="vam"?["va","vm"]:need==="vxy"?["vx2","vy2"]:[]).concat(["va","vm","vx2","vy2"].filter(r=>q[r])).forEach(r=>{ if(!out.includes(r)) out.push(r); });
     ["ey","ex","lab","size",tm?"z":"col","ez"].forEach(r=>{ if(partCol(q,r)||need==="scol"&&r==="size"||need==="zcol"&&(r==="z"||r==="col")||need==="lab"&&r==="lab"||need==="xy"&&(r==="ey"||r==="ex")) out.push(r); });
     return out; };
   const addable=q=>{ const R=psuRoles(st,[]).keys.filter(k=>k!=="x"&&k!=="y"), have=partsOf(q); return R.concat(q.zcol&&!R.includes("ez")?["ez"]:[]).filter(r=>!have.includes(r)&&(r!=="ez"||q.zcol)&&candOf(q,r).length); };
@@ -39181,7 +39363,7 @@ async function openPlotDlg(cids,o){
   const setPart=(q,role,c)=>{ const old=partCol(q,role), side=role==="ey"||role==="ex"?partSide(q,role):"";
     if(old&&st.use[old.id]&&useRole(st.use[old.id],tmOn())===role) delete st.use[old.id];
     if(role==="ey"||role==="ex"){ q.e=q.e.filter(e=>e.k[0]!==role[1]).concat(c?[{c,k:role[1]+side}]:[]); }
-    else if(role==="tb") q.tb=c; else if(role==="tc") q.tc=c; else if(role==="lab") q.lab=c; else if(role==="size") q.scol=c; else if(role==="col"||role==="z"){ q.zcol=c; if(!c) q.ez=null; } else if(role==="ez") q.ez=c;
+    else if(role==="tb") q.tb=c; else if(role==="tc") q.tc=c; else if(role==="va"||role==="vm"||role==="vx2"||role==="vy2") q[role]=c; else if(role==="lab") q.lab=c; else if(role==="size") q.scol=c; else if(role==="col"||role==="z"){ q.zcol=c; if(!c) q.ez=null; } else if(role==="ez") q.ez=c;
     if(c) st.use[c.id]=role==="ey"||role==="ex"?"e:"+role[1]+side:PSU_ROLE[role][1]; refresh(true); };
   cur.addEventListener("change",e=>{ const t=e.target;
     if(t.matches("[data-cx]")){ const q=st.curves.find(q=>q.y.id===t.dataset.cx); if(q){ q.x=t.value?colById(t.value):null; if(!t.value||psuSpan(q).mono===false) { if(st.rng[q.y.id]&&st.rng[q.y.id].by==="x") delete st.rng[q.y.id]; } } refresh(); return; }
@@ -39224,7 +39406,8 @@ function psuApply(st,o){ const g0=o.g0||null, into=o.into;
   if(g0){ psuSetGraph(g0.id,curves,st,kind,ov,said); return; }
   const use={}, series={};
   curves.forEach(q=>{ const y=q.y, u={}; if(st.rng[y.id]&&rngOk(st.rng[y.id])) u.rng=st.rng[y.id]; if(st.ax[y.id]==="r"&&q!==curves[0]&&ov) u.ax="r"; if(q.lab) u.lab=q.lab.id; if(st.grp[y.id]) u.grp=st.grp[y.id]; if(Object.keys(u).length) use[y.id]=u;
-    if(q.zcol||q.scol||q.tb||q.tc||(M&&M.eb)||st.sym[y.id]||st.ss[y.id]!=null) series[y.id]=Object.assign({},q.zcol?{zcol:q.zcol.id}:{},q.scol?{scol:q.scol.id}:{},q.tb?{tB:q.tb.id}:{},q.tc?{tC:q.tc.id}:{},M&&M.eb?{eb:M.eb}:{},st.sym[y.id]?{sym:st.sym[y.id]}:{},st.ss[y.id]!=null?{ss:st.ss[y.id]}:{}); });
+    const vv=psuVec(q,st.kind);
+    if(q.zcol||q.scol||q.tb||q.tc||vv||(M&&M.eb)||st.sym[y.id]||st.ss[y.id]!=null) series[y.id]=Object.assign({},q.zcol?{zcol:q.zcol.id}:{},q.scol?{scol:q.scol.id}:{},q.tb?{tB:q.tb.id}:{},q.tc?{tC:q.tc.id}:{},vv?{vec:vv}:{},M&&M.eb?{eb:M.eb}:{},st.sym[y.id]?{sym:st.sym[y.id]}:{},st.ss[y.id]!=null?{ss:st.ss[y.id]}:{}); });
   // Group by: each curve's place taken by a curve per value, one group a column (1.2d).
   const by=o.by?colById(o.by):null; let ids2=ids, grps=st.grps, split="";
   if(by&&!g0){ const sp=psuSplit(curves,by,use,series); if(sp){ ids2=sp.ids; grps=Object.assign({},st.grps||{},sp.grps); split=`${andList(curves.map(q=>specName(q.y)))} split by ${by.name||colRef(by)} into ${sp.ids.length} curves`; } }
@@ -39281,6 +39464,15 @@ function psuColChanges(curves){
 /* A graph's curves set from Plot setup's list (What it plots…): their order, what each draws (its
    range, axis and labels), colour and size from a column, and the kind when one was chosen; a
    curve taken off loses what it used here. One save, after psuColChanges. */
+// Arrows from columns chosen: each three, in the sheet's order, a curve and its angle and length (or its second point's X and Y);
+// else Plot setup on the kind.
+function vectorsFrom(cids,kind){ const p=P(); if(!p||S.readOnly) return;
+  const all=allCols(), cs=(cids||[]).map(colById).filter(c=>c&&!c.src&&hasVals(c)).sort((a,b)=>all.indexOf(a)-all.indexOf(b));
+  const ok=cs.length&&cs.length%3===0&&cs.every((c,i)=>i%3||c.role==="y"||c.role==="ignore");
+  if(!ok){ S.plotDlgKind=kind; openPlotDlg(cids); return; }
+  const ids=[], series={}; for(let i=0;i<cs.length;i+=3){ ids.push(cs[i].id); series[cs[i].id]={type:"scatter",vec:kind==="vecam"?{kind:"am",a:cs[i+1].id,m:cs[i+2].id}:{kind:"xy",x2:cs[i+1].id,y2:cs[i+2].id}}; }
+  const parts=[]; for(let i=0;i<cs.length;i+=3) parts.push(`${specName(cs[i])} by ${kind==="vecam"?`${specName(cs[i+1])} and ${specName(cs[i+2])}`:`to ${specName(cs[i+1])}, ${specName(cs[i+2])}`}`);
+  plotCols(ids,{series,say:`Arrows: ${parts.join("; ")}.`}); }
 // A ternary graph from columns chosen: each three, in the sheet's order, a curve (the first) and its B and C; else Plot setup on the kind.
 function ternaryFrom(cids){ const p=P(); if(!p||S.readOnly) return;
   const cs=(cids||[]).map(colById).filter(c=>c&&!c.src&&(c.role==="y"||c.role==="ignore")&&hasVals(c)), all=allCols(); cs.sort((a,b)=>all.indexOf(a)-all.indexOf(b));
@@ -39300,6 +39492,7 @@ function psuSetGraph(gid,curves,st,kind,ov,said){
     if(Object.keys(u).length) use[y.id]=u; else delete use[y.id];
     const s=Object.assign({},ser[y.id]); if(q.zcol) s.zcol=q.zcol.id; else delete s.zcol; if(q.scol) s.scol=q.scol.id; else delete s.scol;
     if(q.tb) s.tB=q.tb.id; else delete s.tB; if(q.tc) s.tC=q.tc.id; else delete s.tC;
+    { const vv=psuVec(q,st.kind); if(vv) s.vec=vv; else if(kind||!(q.va||q.vm||q.vx2||q.vy2)) delete s.vec; }
     if(st.sym[y.id]) s.sym=st.sym[y.id]; if(st.ss[y.id]!=null) s.ss=st.ss[y.id];
     if(kind&&psuType(st.kind)) s.type=psuType(st.kind); if(kind&&MORE_KINDS[st.kind]&&MORE_KINDS[st.kind].eb) s.eb=MORE_KINDS[st.kind].eb; if(Object.keys(s).length) ser[y.id]=s; else delete ser[y.id]; });
   tp.use=use; tp.series=ser; g.cols=ids; tp.grps=clone(st.grps||{}); grpClean(tp); grpShareTypes(tp,ids);

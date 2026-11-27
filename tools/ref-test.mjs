@@ -538,6 +538,21 @@ if (fixtures["plot2-ternary"]) {
     note("ternInv", ei, c.name); }
 }
 
+/* ---- Vectors and radar charts (PLOT2_SPEC 7.5): vecEnd and vecHead, radarFrame and radarPlace against mpmath at 40 digits from the
+   definitions (tools/ref/plot2_vectors.py): angles in degrees and radians, of many turns, lengths below 0, a tiny scale, a missing
+   value; radar frames of three to forty spokes, values outside the range with no place; in pixels. ---- */
+if (fixtures["plot2-vectors"]) {
+  const VF = get("vecFlat"), RF = get("radarFlat"), d2 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  for (const c of fixtures["plot2-vectors"].vectors) { const r = VF(c.rows, c.k, c.unit, c.h, c.w); let e = 0, eh = 0, at = c.name;
+    r.forEach((q, i) => { const w = c.want[i]; if ((q == null) !== (w == null)) { e = Infinity; at = `${c.name}: arrow ${i} has an end in one and none in the other`; return; } if (!q) return;
+      const d = d2(q.e, w.e); if (d > e) { e = d; at = `${c.name}: arrow ${i}`; }
+      if ((q.head == null) !== (w.head == null)) { eh = Infinity; return; } if (q.head) eh = Math.max(eh, ...q.head.map((p, j) => d2(p, w.head[j]))); });
+    note("vecEnd", e, at); note("vecHead", eh, c.name); }
+  for (const c of fixtures["plot2-vectors"].radar) { const r = RF(c.box, c.K, c.vals, c.lo, c.hi), w = c.want; let e = Math.max(Math.abs(r.F.cx - w.F[0]), Math.abs(r.F.cy - w.F[1]), Math.abs(r.F.R - w.F[2])), at = c.name;
+    r.pts.forEach((q, i) => { const wq = w.pts[i], d = wq == null ? (q == null ? 0 : Infinity) : q == null ? Infinity : d2(q, wq); if (!(d <= e)) { e = d; at = `${c.name}: ${JSON.stringify(c.vals[i])}`; } });
+    note("radarPlace", e, at); }
+}
+
 /* ---- The shift between two scans (QUDI_SPEC Q.8): Guizar-Sicairos, Thurman and Fienup's registration written again in NumPy,
    tools/ref/shift_fixtures.py; the shift the same grid point, the correlation at it to the rounding ---- */
 if (fixtures.shift) {

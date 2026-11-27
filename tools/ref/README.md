@@ -138,6 +138,11 @@ run); the grid lines and ticks from their definitions, the inverse by areas; fra
 1e-200 to 1e200 and the rows with no place. `fixtures/plot2-ternary.json`; ref-test's `ternFrame`, `ternFwd`, `ternGrid`, `ternInv`; the
 fuzzer's `ternFlat` imports its functions.
 
+`tools/ref/plot2_vectors.py` (PLOT2_SPEC 7.5) is the arrows' and radar charts': an arrow's end from its point, angle (degrees or radians,
+of many turns) and length at a scale, its head's corners, in mpmath at 40 digits; a radar chart's frame and each value's corner along
+its spoke, none outside the range. `fixtures/plot2-vectors.json`; ref-test's `vecEnd`, `vecHead`, `radarPlace`; the fuzzer's `vecFlat` and
+`radarFlat` import its functions.
+
 ImageJ's own readout, where its jar may be run:
 
 ```sh

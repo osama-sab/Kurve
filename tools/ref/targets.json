@@ -144,6 +144,15 @@
  "ternInv": {
   "tol": 1e-15
  },
+ "vecEnd": {
+  "tol": 4e-13
+ },
+ "vecHead": {
+  "tol": 6e-13
+ },
+ "radarPlace": {
+  "tol": 4e-13
+ },
  "regShift.shift": {
   "tol": 1e-12
  },
@@ -1284,5 +1293,7 @@
   "plsFlat.fail": {"tol": 0},
   "plsCvFlat.pred": {"tol": 1e-12},
   "polarFlat": {"tol": 4e-15},
-  "ternFlat": {"tol": 1.5e-15}
+  "ternFlat": {"tol": 1.5e-15},
+  "vecFlat": {"tol": 1.5e-15},
+  "radarFlat": {"tol": 1.5e-15}
 }
