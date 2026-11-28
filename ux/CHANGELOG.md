@@ -3188,3 +3188,31 @@ drives, odd-test's 300 and 2000 files; the suite.
 **Checked:** `tools/flows/subject.mjs`, the story through the interface only (sample B's graphs combined from the Explorer, a curve
 clicked and Subtract baseline… opening on it, a column of another sheet clicked with the graph in front staying, a graph opened,
 the arrow keys, Ctrl+Z taking back the combining and not a choice, a reload): 14 checks; the other flows and the drives; the suite.
+
+## Stabilisation S.6: the bug bash on workbooks, imports and the subject (2026-11-28)
+
+**How:** six scripts doing what people do with S.3 to S.5 (files of every kind and size at once, a folder, workbooks renamed,
+moved and deleted from the Explorer by the pointer and keys, the subject's odd cases, two tabs changing workbooks at the same
+moment), a lab day of 40 minutes with the imports, the Explorer, workbooks and the subject twenty times as likely, three seeds of
+the worksheet fuzzer, and the suite.
+
+**Found and fixed:**
+- **A step waiting in the Tool window stayed on the old column** when a curve or column was chosen elsewhere: the status bar and
+  the window named two columns. It goes with the subject now (`toolFollow`), as the window's Column list moves it.
+- **At 390 px the status bar squeezed *Working on …* to nothing.** Below 520 px the point count and fit state give way to it.
+- **Folders made, renamed, deleted and moved left no line in the log**, though each is an undo step. Each says what it did.
+- **With forty workbooks every save took 300 ms**: each redrew the pictures of 39 workbook windows nobody was looking at. A
+  picture is drawn again only when its sheet changes: 60 ms.
+- **Two tabs: a rename lost, an order lost.** Making the first workbook stamps every sheet with it, and the merge of two tabs'
+  writes compared whole sheets, so the other tab's rename at the same moment was lost; a sheet moved after a new workbook's own
+  sheet went back before it; an undo in the other tab could not take its rename back. Sheets and workbooks changed in both now
+  meet field by field, and the tab that reordered leads the order, in the store and in undo.
+- **After importing forty files as forty workbooks, the last file's workbook was in front with the grid while the first file's
+  column was active**, so a command acted on a sheet nobody saw, and the next import went into the last file's folder. The first
+  file's workbook comes forward now (`tools/flows/import.mjs` checks it, and that a folder imported next goes under its folder).
+- (Already in S.5's commit: a sheet or workbook renamed to a taken name was refused without a word.)
+
+**Checked:** each fix in a flow or a drive: `tools/flows/subject.mjs` (the waiting step following a graph opened in the Explorer,
+the status bar at 390 px), `tools/flows/books.mjs` (a folder renamed by F2 and deleted by Delete, each with its log line, and
+undone), `tools/odd-test.mjs`'s two tabs (a workbook made and a sheet moved in one while the other renames and undoes; it failed on
+the commit before, `ONLY="two tabs"` runs it). The lab day gains a probe for a page holding too many elements.

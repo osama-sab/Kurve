@@ -1047,7 +1047,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   after what each holds (its placeholders given up, `dropBlanks`; sharing the last X of its sheet when `sameAxis`; a file of one
   spectrum named after it beside others), `fid` and `file`, one save with `tree`, `books`, `sheets`, `cols`, `raw`, `activeY`
   (a blank project takes the files' name and header), the arrangement remembered (`impArrKeep`, `kurve.imparr` per project;
-  `impArrStart`: a folder's files as their folders, else the remembered, else each on its own). **The dialog** (`batchImport(items,
+  `impArrStart`: a folder's files as their folders, else the remembered, else each on its own), then the first file's sheet
+  shown (`showSheet(first)`, after the render that makes the new workbooks' windows: the newest took the grid, so with forty files
+  the last file's workbook was in front and the first file's column active; S.6). **The dialog** (`batchImport(items,
   o)`, `formDlg` in `.sheet.bimpw`): `#biGroup`, `#biField`, `#biAs`, `#biInto` (a new project), `#biBack`; a row per file
   (`tr[data-bik]`, `.bipts` its points and X range, ticks `biT<k>` and `#biTAll`, fields `biN<k>` name, `biG<k>` group, `biS<k>`
   sheet, `biB<k>` workbook, `biF<k>` folder with `#biDlS`, `#biDlB`, `#biDlF`; typed ones `.typed`, a field typed on a ticked
@@ -1326,7 +1328,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   press or key, not while a cell is typed in or a button held); a graph opened by `activateGraph`. `syncSubject()` (`syncHandCol`)
   makes the subject active before `openTool` and every menu item's run (`menuItems` wraps `menuItems0` by `menuHand`). The graph
   draws no draft or estimate over curves not the active column's (`actOff` in `buildPlot`). The status bar's first words
-  (`#sbSubj`, `renderSubj()` from `renderSbStats` and `renderStatusBar`): *Working on Intensity (s2!B)*. **Inside a render** (`inRender(fn)`: `renderAll`, after its
+  (`#sbSubj`, `renderSubj()` from `renderSbStats` and `renderStatusBar`): *Working on Intensity (s2!B)*; below 520 px the point
+  count and fit state give way to it. A tool's step waiting in the Tool window goes with the subject (`toolFollow(id)`, from
+  `pickCol` and `activateGraph`: `retargetTool`, as its Column list does), unless it goes on every column. **Inside a render** (`inRender(fn)`: `renderAll`, after its
   `normalize`; `renderPlot`, `renderWs`, `renderWin`, `runSnaps`) the answers about the columns
   are worked out once (`colMemo()`, `CM`, valid while `S.proj`, its `cols` and their length are
   the memo's; `save` and `onProjects` drop it): `colById` (a map), `yCols`/`yCount`/`yIndex(id)`
@@ -1807,7 +1811,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   `moveWsLive(to, {keepSheet})`: an edit entered first, each sheet's selection and scroll kept in `S.wsMem`, the window left a
   picture of `bookShown`). `wsReconcile` (first in `renderWs0`) moves the grid to the window of a sheet code has shown. The
   others show `.ws.wssnap` (`SW_SNAP`), drawn by `wsSnapHtml(sid, top, n)` (the grid's own `wsModel` and `wsRowHtml` with that
-  sheet in place for the moment) in `renderSwSnap(id)` (`renderWin0`; the window's subtitle the sheet's name), the wheel
+  sheet in place for the moment) in `renderSwSnap(id)` (`renderWin0`; the window's subtitle the sheet's name; drawn again only
+  when `swSig(sid, top, n)` changes, the sheet's columns but their values as JSON, each array of values by identity, the graphs'
+  lists and the worksheet's view of it: with forty workbooks a save redrew 39 pictures, 300 ms; S.6), the wheel
   scrolling it (`S.swTop`), a press bringing it forward with the cell pressed selected (`wireSwSnap`). `syncSheetWins` (in
   `renderAll`) makes, names and removes them (a book gone, a project left; the grid back first) and offers, once a project,
   the sheets this browser had in windows of their own (`LAYOUT.swin`, read once: `swinOffer`, a toast with *Make them
@@ -2499,7 +2505,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   the project), called from `renderAll` and `renderTaskbar`. `xSelect` changes the selection in
   place (redrawing on the first click would lose the double click); `xOpen` opens (a graph:
   `showGraph`; a sheet: `showSheet`); `xMenu(r)` is each kind's menu with Move to; `xNewFolder`,
-  `xRenameFolder`, `xDeleteFolder` (what it held moves up), `xMove` (no folder into itself);
+  `xRenameFolder`, `xDeleteFolder` (what it held moves up), `xMove` (no folder into itself), each a log line naming
+  what it did (`xKeyName(key)`, “the workbook Raw”, “Graph 3”; `xWhere(fid)`; S.6);
   F2 and Delete on a sheet are `renameSheet` and `deleteSheet`. **Several at once** (25.11, the
   user's request): `xSelect(key, focus, how)` (`toggle` Ctrl+click, `range` Shift+click and
   Shift+arrows from `S.xplAnchor`, `keep`; Ctrl+A every row, Esc back to one), `S.xplMany` (`{pid,
@@ -3229,7 +3236,9 @@ graph first, with the taskbar kept at the bottom of the screen.
   other parts too (`afterK`), and each is put back by `undoMergeKey(k, after, step, now)`: as it was
   when nobody else changed it; thing by thing for the lists of things with ids (`UNDO_BYID`: graphs,
   annotations, sheets, trend graphs, functions, fit settings, line lists, formats; `mergeById`:
-  this window's changes undone, another's kept, a thing changed since elsewhere theirs); the log
+  this window's changes undone, another's kept, a thing changed since elsewhere theirs with each field this change made put
+  back where nobody changed it since (matrices, compared as values, whole), in the order as it is now unless this change was a
+  reordering, `mergeOrder`); the log
   and the record keeping the lines and entries added elsewhere; any other part another window
   changed since keeping that change (`jsonEq`). Destructive actions confirm themselves with a toast that
   carries an Undo button (`toast(msg,{action,run})`).
@@ -3248,7 +3257,10 @@ graph first, with the taskbar kept at the bottom of the screen.
   the arrays the project no longer names. When the stored `_rev` is not the one this tab last read
   or wrote, another tab wrote in between: `mergeProj(base, mine, theirs)` puts the two together
   (each part from where it changed; `mergeCols` column by column and, a column changed in both,
-  cell by cell; both tabs' log lines and raw-data record entries, the check code recomputed) and
+  cell by cell; sheets and workbooks one by one, one changed in both field by field (making the first workbook stamps every
+  sheet, which must not take back the other tab's rename), in the order of the tab that reordered them (`mergeOrder(base, mine,
+  theirs, items)`: the other tab's new ones after their neighbour there); both tabs' log lines and raw-data record entries, the
+  check code recomputed) and
   memory takes the result. Tabs tell each other by a `BroadcastChannel` (`kurve.store`: `p`, `del`,
   `c`), and `heard` reads the record in unless this tab is writing that project (its write merges).
   `pend` counts saves not yet written; `flushSync()` (from `flushEdits`, on `pagehide`,
@@ -4187,7 +4199,9 @@ imported, screen sizes, the theme, a sheet's own window, a matrix made, typed in
 Calculus' and Statistics › Multivariate's dialogs with their lists and ticks changed at random and run or left, their tools' steps kept or cancelled, coffee breaks), sampling
 memory, page elements, listeners, lag, long tasks and storage every 30 s into a CSV, and at the end reloading and comparing
 every project; run it for a long while (40 minutes) after touching windows, storage or rendering. `BIAS=text` makes the
-actions whose name holds the text twenty times as likely, to watch a new one closely.
+actions whose name holds the text twenty times as likely, to watch a new one closely (`BIAS="import|Explorer"` either). A page
+that holds more than 300 000 elements is a failure, said with the largest subtree followed down from the body (`[too many
+elements]`).
 `node tools/plot-drive.mjs [path]` (Playwright) checks what each slice of `ux/spec/PLOT_SPEC.md`
 added (slice 1: a curve on the right axis and undone, ranges by rows and by X for one curve or
 every one, labels from a column, an export, junk from storage; slice 2: Plot setup opened on a
@@ -4424,12 +4438,12 @@ accents, escapes, limits). Each takes an optional path to test a working copy in
 `kurve.html`. `node tools/contrast-test.mjs [path]` (Playwright) measures the interface's
 colours as the browser resolves them, in both themes and both styles, against DESIGN.md's
 rules; run it after touching a token or a state's look.
-`node tools/odd-test.mjs [path]` (Playwright with Chromium) runs every example end to end (the
+`node tools/odd-test.mjs [path]` (Playwright with Chromium; `ONLY="two tabs"` runs the sections so named) runs every example end to end (the
 Raman band fitted and its peaks found without the spike, the decay fitted, the infrared bands
 found and fitted, the raw polystyrene's Overview steps applied and its bands found; each report
 and CSV written, no page errors), and drives the app in unusual ways that
 once hung it, lost data or drew nonsense: 300 turns of the wheel, a nanosecond time axis, equal
-and crossed axis limits, two tabs saving (and adding a column each at once), a project of a
+and crossed axis limits, two tabs saving (and adding a column each at once; one making a workbook and moving a sheet into it while the other renames a sheet, and undoes it), a project of a
 million rows kept and quick to save, a change saved just before a reload, a refused write (Not
 saved, said again on opening the project, stored by the next write), a full localStorage (no
 IndexedDB), the old single-key store moved into IndexedDB and a corrupt

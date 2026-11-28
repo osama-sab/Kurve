@@ -910,6 +910,27 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-28: the bug bash on workbooks, imports and the subject (QUALITY_SPEC S.6)
+
+Six scripts did what people do with S.3 to S.5 (files of every kind at once, workbooks renamed, moved and deleted, the Explorer's
+gestures, odd subjects, two tabs at once) and a lab day of 40 minutes leant on them. What they found decided these:
+
+- **One subject includes a step waiting to be applied.** With Subtract baseline open on one column, a curve clicked elsewhere made
+  the status bar name it while the step stayed on the first: two subjects on one screen, the class of the 27.11 reports. The
+  waiting step goes with the subject, as the Tool window's own Column list moves it.
+- **After an import, what is in front is what is active.** Forty files as forty workbooks left the last file's in front with the
+  grid and the first file's column active. The first file's workbook comes forward; where the next files go follows it.
+- **On a phone the subject comes first.** The status bar squeezed *Working on …* to nothing at 390 px; below 520 px the point count
+  and fit state give way to it (the graph and Results say them).
+- **An undo step has a line in the log.** Making, renaming, deleting and moving folders could be undone but left no line, so the
+  record and Edit › Undo list disagreed. A refusal says why where it is typed (a name taken), never in silence.
+- **What another window shows is drawn again only when it changed.** With forty workbooks every save redrew 39 pictures of
+  sheets nobody was looking at: 300 ms a save. A picture keeps what it was drawn from and is redrawn when that changes.
+- **Two tabs' changes meet field by field, and in the order one of them chose.** Making the first workbook stamps every sheet with
+  it; a merge that compared whole sheets took that stamp for a change and lost the other tab's rename, and an undo could not take
+  a rename back. A sheet changed in both keeps each field from the tab that changed it, and the tab that reordered a list leads its
+  order, both in the store and in undo.
+
 ### 2026-11-28: one subject for every command (QUALITY_SPEC S.5, SUBJECT_SPEC)
 
 - **What a command acts on is what the person last chose, wherever they chose it.** A curve clicked on the graph, a column

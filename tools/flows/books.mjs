@@ -134,6 +134,19 @@ await page("Last week's project, made before workbooks", async p => {
   await row(p, "B_01").click(); await W(p, 500);
   const tb = await tabs(p);
   check("one click on B_01: its workbook's window, B's tabs only", tb.tabs.join() === "B_01,B_02", JSON.stringify(tb));
+  // The folder Sample B renamed by F2 and deleted by Delete: each an undo step with its line in the log (the bug bash of S.6).
+  const last = () => read(p, () => ((P().log || []).slice(-1)[0] || {}).text || "");
+  const held = name => read(p, n => { const t = treeOf(), f = t.folders.find(f => f.name === n); return f ? Object.keys(t.at).filter(k => t.at[k] === f.id).sort() : null; }, name);
+  const inB = await held("Sample B");
+  check("the folder Sample B holds its workbook and its two graphs", (inB || []).length === 3, JSON.stringify(inB));
+  await row(p, "Sample B").click(); await W(p, 300); await p.keyboard.press("F2"); await W(p, 500);
+  await p.keyboard.press("Control+a"); await p.keyboard.type("Sample B 2024"); await p.keyboard.press("Enter"); await W(p, 600);
+  check("F2 on the folder Sample B: renamed, holding what it held, and the log says so", JSON.stringify(await held("Sample B 2024")) === JSON.stringify(inB) && /renamed the folder Sample B to Sample B 2024/.test(await last()), await last());
+  await row(p, "Sample B 2024").click(); await W(p, 300); await p.keyboard.press("Delete"); await W(p, 600);
+  const top = await read(p, ks => ks.every(k => !treeOf().at[k]), inB);
+  check("Delete on it: the folder goes, what it held at the top, and the log says so", (await held("Sample B 2024")) === null && top && /deleted the folder Sample B 2024; what it held is at the top of the project now/.test(await last()), await last());
+  await p.keyboard.press("Control+z"); await W(p, 700);
+  check("Ctrl+Z: the folder back, holding the same", JSON.stringify(await held("Sample B 2024")) === JSON.stringify(inB), JSON.stringify(await held("Sample B 2024")));
   check("the document's rules hold", (await read(p, () => projCheck())).length === 0, JSON.stringify(await read(p, () => projCheck())));
 });
 await done();

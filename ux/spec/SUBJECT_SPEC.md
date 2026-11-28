@@ -68,3 +68,8 @@ As decided, with these choices made on the way:
   curve fit's starting values) with that column, as bringing a graph forward did.
 - **The header's right-click** does not select the column (its menu acts on that column by itself); a column's menu *Active*
   (the graph bar's) is the quiet choice like any other.
+- **A tool's step waiting in the Tool window goes with the subject** (found by the bug bash, S.6): with Subtract baseline open on
+  one column, a curve clicked or a column chosen elsewhere moves the step there, as the window's Column list does, so the status
+  bar and the window never name two columns. A step for every column stays as it is.
+- **On a phone the subject comes first** in the status bar: below 520 px the point count and the fit state give way, and the
+  selection's statistics shrink before it.

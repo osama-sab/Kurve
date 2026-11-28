@@ -2,6 +2,7 @@
    data or drew nonsense, each checked in a fresh page.
    Needs Playwright with Chromium. Usage:
      node tools/odd-test.mjs [path/to/kurve.html]
+   ONLY="two tabs" runs the sections whose name holds it.
    Set PLAYWRIGHT=/path/to/playwright/index.mjs if `playwright` is not
    installed where node can find it. */
 import { fileURLToPath } from "node:url";
@@ -38,6 +39,8 @@ const browser = await chromium.launch();
 // Ready: the page has a project on the desk. A fixed wait was too short on a busy machine.
 const ready = async (p) => { await p.waitForFunction(() => typeof S !== "undefined" && S.pid && S.proj && S.projects && S.projects.length, null, { timeout: 15000 }).catch(() => {}); await p.waitForTimeout(150); };
 async function page(fn, opt = {}) {
+  // ONLY="two tabs" runs the sections whose name holds it.
+  if (process.env.ONLY && !String(opt.name || "").includes(process.env.ONLY)) return;
   const ctx = await browser.newContext({ viewport: opt.vw || { width: 1440, height: 900 } });
   const p = await ctx.newPage(); const errors = [];
   p.on("pageerror", e => errors.push(e.message));
@@ -152,6 +155,18 @@ await page(async (p, ctx) => {
   check("two tabs adding a column each at once keep both columns", ra[0] === "From A+From B", JSON.stringify(ra));
   check("…and the cells each changed in one column", ra[1] === 1000 && ra[2] === 2000, JSON.stringify(ra));
   check("…and both tabs show both", ra[3] === "From A+From B" && rb[3] === "From A+From B", JSON.stringify([ra, rb]));
+  // At the same moment one tab makes a workbook and moves a sheet to its end, the other renames another sheet (S.6's bug bash):
+  // the move keeps its place among the workbook's tabs, and the rename stays.
+  await p.evaluate(() => { newSheet(); }); await p.waitForTimeout(600);
+  const [mv] = await Promise.all([p.evaluate(() => { newBook({ name: "Made in A", quiet: true }); const s = sheetList()[0], nb = bookList().find(q => q.name === "Made in A"); moveSheetToBook(s.id, nb.id, { quiet: true, stay: true }); return s.name; }),
+    b.evaluate(() => { const s = sheetList()[1]; pushUndo("renaming a sheet"); save({ sheets: sheetList().map(q => q.id === s.id ? Object.assign({}, q, { name: "Renamed in B" }) : q) }, "renamed"); })]);
+  await p.waitForTimeout(900);
+  const bk = t => t.evaluate(() => JSON.stringify(bookList().map(q => [q.name, bookSheets(q.id).map(s => s.name)])));
+  const ka = await bk(p), kb = await bk(b), first = await p.evaluate(() => (bookList().find(q => q.name === "Made in A") ? bookSheets(bookList().find(q => q.name === "Made in A").id).map(s => s.name) : []));
+  check("a sheet moved to a new workbook in one tab while another tab renames a sheet: both kept, the moved one after the workbook's own", ka === kb && first.length === 2 && first[1] === mv && /Renamed in B/.test(ka), JSON.stringify([mv, ka, kb]));
+  await b.evaluate(() => { undo(); }); await p.waitForTimeout(900);
+  const ua = await bk(p), ub = await bk(b), f2 = JSON.parse(ua).find(q => q[0] === "Made in A");
+  check("…the other tab's undo takes back its rename and keeps this tab's order", ua === ub && !/Renamed in B/.test(ua) && f2 && f2[1][1] === mv, JSON.stringify([ua, ub]));
 }, { name: "two tabs" });
 await page(async p => {
   // A project of a million rows: kept, quick to save, and back after a reload.

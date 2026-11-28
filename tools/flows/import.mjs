@@ -86,13 +86,18 @@ await page("A run of six files into last week's project", async (p, ctx) => {
   for (const [n, t] of [csv("c_01"), csv("c_02")]) writeFileSync(join(top, "sampleC", n), t);
   writeFileSync(join(top, "sampleD", csv("d_01")[0]), csv("d_01")[1]);
   writeFileSync(join(top, csv("blank")[0]), csv("blank")[1]);
+  // Files go where the workbook in front is filed (IMPORT_SPEC; after the last import, the first file's: sampleA, in Run 3).
+  const at = await read(p, () => { const t = treeOf(), path = []; let f = t.at["wb:" + winBook(wsLiveWin())] || null;
+    while (f) { const o = t.folders.find(x => x.id === f); if (!o) break; path.unshift(o.name); f = o.parent; } return path.join(" › "); });
+  const pre = at ? at + " › " : "";
+  check("after the import the first file's workbook is in front: sampleA, in Run 3", at === "Run 3" && await read(p, () => bookName(winBook(wsLiveWin()))) === "sampleA", at);
   const fc3 = p.waitForEvent("filechooser"); await menu(p, "file", "Import a folder"); await (await fc3).setFiles(top); await W(p, 1200);
   d = await dialog(p);
   check("File › Import a folder…: its four files listed, As their folders the arrangement", d.open && d.rows.length === 4 && d.group === "path" && d.as === "folder", JSON.stringify({ g: d.group, as: d.as, n: d.rows.length }));
   check("…the tree shows run4 › sampleC and sampleD", /run4/.test(d.tree) && /sampleC/.test(d.tree) && /sampleD/.test(d.tree), d.tree);
   await p.click("#formOk"); await W(p, 1500);
   bs = await books(p);
-  check("…the project has the same folders, each a workbook, a sheet a file", (book(bs, "sampleC") || {}).folder === "run4 › sampleC" && book(bs, "sampleC").sheets.join() === "c_01,c_02" && (book(bs, "sampleD") || {}).folder === "run4 › sampleD" && (book(bs, "run4") || {}).folder === "run4" && book(bs, "run4").sheets.join() === "blank", JSON.stringify(bs.slice(-3)));
+  check("…the same folders, each a workbook, a sheet a file, under the folder of the workbook in front", (book(bs, "sampleC") || {}).folder === pre + "run4 › sampleC" && book(bs, "sampleC").sheets.join() === "c_01,c_02" && (book(bs, "sampleD") || {}).folder === pre + "run4 › sampleD" && (book(bs, "run4") || {}).folder === pre + "run4" && book(bs, "run4").sheets.join() === "blank", JSON.stringify(bs.slice(-3)));
 
   // A reload keeps it.
   const kept = await books(p);

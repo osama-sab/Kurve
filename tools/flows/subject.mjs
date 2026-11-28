@@ -48,12 +48,13 @@ await page("A curve, a column, a graph: the subject of every command", async p =
   check("…and the graph in front is still sample B's: choosing brought no graph forward", s2.gid === g.gid, JSON.stringify([s2.gid, g.gid]));
   await menu(p, "data", "Baseline", "Subtract baseline"); await W(p, 600);
   check("Data › Baseline › Subtract baseline… opens on A_01's column", await toolOn(p) === A1, String(await toolOn(p)));
-  await p.click("#tlCancel"); await W(p, 400);
 
-  // A graph clicked in the Explorer.
+  // A graph clicked in the Explorer while the step waits: its curve is the subject, and the step goes with it.
   await row(p, "Graph 2").click(); await W(p, 600);
   const s3 = await subj(p);
   check("Graph 2 clicked in the Explorer: its curve (A_02's) is the subject", s3.act === A2 && s3.bar.includes("A_02"), JSON.stringify(s3));
+  check("…and the step waiting in the Tool window goes with it: one subject", await toolOn(p) === A2, String(await toolOn(p)));
+  await p.click("#tlCancel"); await W(p, 400);
 
   // B_01's column chosen with the keys: its first cell, then Right and Down; the choice taken once the keys rest.
   await row(p, "B_01").click(); await W(p, 600);
@@ -67,6 +68,12 @@ await page("A curve, a column, a graph: the subject of every command", async p =
   const u = await read(p, gid => !!graphOf(gid), g.gid);
   check("Ctrl+Z takes back the graphs' combining, the last change: no choice was an undo step", !u);
   await p.keyboard.press("Control+y"); await W(p, 800);
+
+  // On a phone the status bar keeps the subject whole.
+  await p.setViewportSize({ width: 390, height: 844 }); await W(p, 700);
+  const ph = await read(p, () => { const e = document.getElementById("sbSubj"); return { w: e.clientWidth, sw: e.scrollWidth, t: e.textContent }; });
+  check("at 390 px the status bar shows the subject whole", ph.t.startsWith("Working on") && ph.w > 0 && ph.sw <= ph.w + 1, JSON.stringify(ph));
+  await p.setViewportSize({ width: 1600, height: 950 }); await W(p, 700);
 
   const kept = (await subj(p)).act;
   await p.reload(); await p.waitForFunction(() => typeof S !== "undefined" && S.pid && S.proj, null, { timeout: 20000 }); await W(p, 800);

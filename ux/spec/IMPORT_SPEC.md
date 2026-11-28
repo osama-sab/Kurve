@@ -87,3 +87,6 @@ As decided, with these choices made on the way:
 - **The older entry** `doBatchImport(items, skip, o)` (the tests', a series of spectra) goes through the same plan, all together on
   one sheet unless `o.arr` says otherwise.
 - At most 200 files at once; a folder's hidden files are left out.
+- **The first file's workbook comes forward** with the grid after an import, its column the active one (found by the bug bash,
+  S.6: the newest workbook's window took the grid, so the last file's was in front while the first file's column was active, and
+  the next import went into the last file's folder).

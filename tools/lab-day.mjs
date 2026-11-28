@@ -39,6 +39,14 @@ const issue = (kind, text) => { issues.push({ kind, at: lastAct, text: String(te
 const browser = await chromium.launch({ args: ["--enable-precise-memory-info"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 await ctx.addInitScript(() => { window.__lt = []; try { new PerformanceObserver(l => { for (const e of l.getEntries()) window.__lt.push([Math.round(e.startTime), Math.round(e.duration)]); }).observe({ entryTypes: ["longtask"] }); } catch (e) {} });
+// A page that holds far more elements than any screen needs (300 000) says where they are: the largest subtree followed down
+// from the body, each step with its size. Checked a frame after anything is added to the page.
+await ctx.addInitScript(() => { let due = false, said = 0;
+  const look = () => { due = false; const n = document.getElementsByTagName("*").length; if (n < 300000 || Date.now() - said < 5000) return; said = Date.now();
+    const size = e => e.getElementsByTagName("*").length, name = e => e.tagName.toLowerCase() + (e.id ? "#" + e.id : "") + (e.className && typeof e.className === "string" ? "." + e.className.trim().split(/\s+/).slice(0, 2).join(".") : "");
+    let e = document.body, path = []; for (let i = 0; i < 12 && e; i++) { path.push(name(e) + " " + size(e)); let best = null, bs = -1; for (const c of e.children) { const k = size(c); if (k > bs) { bs = k; best = c; } } if (!best || bs < n / 4) break; e = best; }
+    console.error("[too many elements] " + n + ": " + path.join(" > ")); };
+  new MutationObserver(() => { if (!due) { due = true; requestAnimationFrame(look); } }).observe(document, { childList: true, subtree: true }); });
 const page = await ctx.newPage();
 const wire = (pg, tag) => {
   pg.on("pageerror", e => issue("pageerror", tag + e.message));
