@@ -19,7 +19,7 @@ the pointer tools Zoom / Pan / Mask / Label / Arrow / Shape (a box or an ellipse
 shared project only) / Reader / X–Y lines, show-all, and the Reverse X / Log Y / Grid toggles, off until there is data, the
 graph's group (`.tg`) only while a graph is on the desk; it keeps to one row, dropping labels
 in stages while it would wrap and last the Explorer's switch (not on a phone), `fitToolbar`); the **Project Explorer** docked at the desk's left
-(the project as a tree, as Origin's: folders and subfolders of your own, the worksheet's sheets
+(the project as a tree, as Origin's: folders and subfolders of your own, the workbooks with their sheets
 (not the files' columns again: the worksheet shows them), every graph, closed ones marked hidden,
 and the trend graphs; Alt+1 or the toolbar's first button shows it, its edge drags; 220 px wide, and below 1600 px a
 drawer over the desk);
@@ -53,7 +53,7 @@ under one button, puts what does not fit in one row under a "n more" button (lea
 used first, never the front window), and has Tile and Cascade. **Window** lists the windows in
 use as Excel's Switch Windows does (the front one ticked, minimised ones marked; a search past
 a dozen), **Window › Tool windows** every panel ticked while in use (Origin's View menu), New
-worksheet window (a sheet in a window of its own, beside the worksheet window), Minimise
+workbook (a workbook of its own in a window beside the others), Minimise
 the others, Close the tool windows, Graphs (every graph, Combine graphs…, A figure of panels…, the linked
 zoom), and Theme and Style as submenus. Every title bar has a **?** that opens
 the window's article in the **Help window** (F1 does it for the window in front; a tool's
@@ -1737,26 +1737,55 @@ graph first, with the taskbar kept at the bottom of the screen.
   when it is empty. A sheet that holds only placeholders (a new sheet's empty X and Y: `blankCol`,
   no values, formula, name, unit, comment, steps or mask, on no graph, named by no column) gives
   them up to what comes in (`dropBlanks(list, sid, p)`, in `doImport`'s Add, `autoImport`,
-  `doBatchImport` and `bringIn`), so they never sit between a file's columns. The Explorer has a row per sheet (`ws:<id>`; the older `ws` key is the first
-  sheet's, `treeOf`).
-  **Worksheet windows** (SHEET_SPEC 3.2; before `sheetsMenuItems`): a sheet in a window of its own, `sw-<sheet id>`
-  (`swId`, `swSid`; `WINS[id].swin`, a document: `isDoc`, `docWinIds`, the taskbar, closed by its ×), which sheets have one
-  this browser's per project (`LAYOUT.swin`, `swList`, `swHas`, `swSave`; cleaned in `loadLayout`). As the graph windows
-  share one live plot, the worksheet windows share one live grid (the bar, `#ws`, the tabs, the foot), held by the one in
-  front (`S.wsLive`, `wsLiveWin`; `syncWsLive` at the end of `applyWins` moves it to the worksheet window with the highest
-  z, `moveWsLive(to, {keepSheet})`: an edit entered first, each sheet's selection and scroll kept in `S.wsMem`, the
-  worksheet window's sheet in `S.wsMain` (`mainSheet`), the window left a picture). `wsReconcile` (first in `renderWs0`)
-  moves the grid to the window of a sheet code has shown (`wsWinOf`). The others show `.ws.wssnap` (`SW_SNAP`), drawn by
-  `wsSnapHtml(sid, top, n)` (the grid's own `wsModel` and `wsRowHtml` with that sheet in place for the moment) in
-  `renderSwSnap(id)` (`renderWin0`; the worksheet window's subtitle the sheet's name), the wheel scrolling it (`S.swTop`),
-  a press bringing it forward with the cell pressed selected (`wireSwSnap`). `syncSheetWins` (in `renderAll`) makes,
-  names and removes the windows (a sheet deleted, a project left; the grid back first). `wsShown`, `wsFront` (the
-  window that holds the grid, brought forward). `showSheet` of a sheet with a window brings it forward; the worksheet
-  window's tab for one is `.own`. `openSheetWin(sid)` (the worksheet window keeps a sheet: the last one is refused;
-  it takes the left half), `closeSheetWin(sid)`, `sheetWinItems(sid)` (the tab's and the Explorer's menus),
-  `newSheetWinItems` (Window › New worksheet window), `wsDropSheet(x, y)` (a column's letter dragged onto another
-  worksheet window or its taskbar button, outlined `.dropin`, goes to its sheet: `moveColsToSheet(ids, sid, {undo})`,
-  the toast with Undo).
+  `doBatchImport` and `bringIn`), so they never sit between a file's columns. The Explorer has a row per workbook (`wb:<id>`)
+  with a row per sheet inside it (`ws:<id>`; the older `ws` key is the first book's, `treeOf`).
+  **Workbooks** (QUALITY_SPEC S.3, `ux/spec/BOOK_SPEC.md`; after `sheetName`): a project holds books, each holding its sheets,
+  as Origin's and Excel's. `p.books` (`[{id, name}]` in order, in `UNDO_KEYS` and `UNDO_BYID`, merged book by book in
+  `mergeProj` with the sheets; none: one book, `BOOK0` "Book 1"), each sheet naming its book (`s.book`, kept by `normalize`;
+  one naming none, or a book gone, is in the first); `bookList(p)`, `bookOfSheet(s, p)`, `bookOf(sid)`, `bookSheets(bid)`,
+  `bookName`, `newBookId`, `nextBookName`, `bookNameFor`. Sheet names stay unique in the project, so `Sheet2!B` needs no book.
+  **v6** (`migrateBooks` in `migrate`, `DOC_V` 6, the upgrade saved once by `normalize`): the sheets of a project from before
+  are grouped by the folder each was filed in, the top level's one book (`b1`, Book 1), each folder's one named after it
+  (`bk_<folder id>`) and filed there; the tree's `ws:` entries go (a project whose sheets were all at the top keeps no list).
+  **Rules in `save`** (one place, as `xFileRule`): `bookRule(p, patch)` gives a new sheet that names no book the book
+  `bookTarget(p)` says (the book whose window holds the grid, unless the Project Explorer was the last place pressed,
+  `S.xplTouch` set by `setupCtx`'s listener, and what is selected there is in another folder: then that folder's first book,
+  or one made there; several new sheets of one save together), stamps every sheet with its book once there are several, and
+  drops a book left with no sheet; `sheetNameRule(p, patch)` renames a sheet still called `Sheet n` that held only
+  placeholders when a file's columns (`c.file`) come into it. `projCheck` adds: book ids and names once, every sheet's book
+  there, every book a sheet. **Commands** (each one undo step and a log line): `newBook({folder, name, quiet})` (a book with
+  an empty X and Y, filed in the folder given or the one selected; File and Window › New workbook, a folder's *New workbook
+  here*), `renameBook`, `deleteBook` (its sheets through `deleteSheet` in one `undoGroup`; a project keeps one book),
+  `moveSheetToBook(sid, bid|"new", {stay, quiet})` (after the sheets already there; a new book filed where the old one is),
+  `sheetToFolder(sid, fid)` (into the folder's first book, or a book made there; a book's only sheet moves its book),
+  `bookMoveItems(sid)` (*Move to workbook ›*: the tab's menu, the Explorer's, Data › Sheets), `folderBook(fid)`,
+  `newSheetIn(fid)` (a folder's *New sheet here*), `importHere({folder|book})` (*Import files here…*: an empty sheet of that
+  book, else a new one, then the picker), `booksExplicit(p)` (the list with every sheet naming its book, for a change), and
+  for imports `bookNewIn(p, patch, name, fid)` and `bookForFolder(p, patch, fid)`: a drop on a folder (`autoImport`'s
+  `o.folder`) goes on a sheet of its own in that folder's book, an Excel workbook (`importBook`) is a book of its own named
+  after its file; an analysis's result sheet goes into its first input's book. Excel's export writes the books' sheets in
+  order, each named `Book · Sheet` when there are several.
+  **Workbook windows** (SHEET_SPEC 3.2 grown; before `sheetsMenuItems`): the first book's window is the worksheet window
+  (`sheet`, titled by the book's name when there are several, else Worksheet); another's `wb-<book id>` (`WINS[id].book`, a
+  document: `isDoc`, `docWinIds`, the taskbar; minimised, never closed, no ×; made beside the worksheet window, which gives up
+  its right half). `bkWin(bid)`, `winBook(id)`, `isBookWin(id)`, `bookWins()` (the books with windows of their own),
+  `wsWinOf(sid)` (its book's), `bookShown(bid)` (the sheet a book's window shows: the grid's when it is there, else the one it
+  showed last, `S.bookAt[pid:bid]`, `bookAtSet`, else its first), `mainSheet()` (the first book's). As the graph windows share
+  one live plot, the book windows share one live grid (the bar, `#ws`, the tabs, the foot), held by the one in front
+  (`S.wsLive`, `wsLiveWin`; `syncWsLive` at the end of `applyWins` moves it to the book window with the highest z,
+  `moveWsLive(to, {keepSheet})`: an edit entered first, each sheet's selection and scroll kept in `S.wsMem`, the window left a
+  picture of `bookShown`). `wsReconcile` (first in `renderWs0`) moves the grid to the window of a sheet code has shown. The
+  others show `.ws.wssnap` (`SW_SNAP`), drawn by `wsSnapHtml(sid, top, n)` (the grid's own `wsModel` and `wsRowHtml` with that
+  sheet in place for the moment) in `renderSwSnap(id)` (`renderWin0`; the window's subtitle the sheet's name), the wheel
+  scrolling it (`S.swTop`), a press bringing it forward with the cell pressed selected (`wireSwSnap`). `syncSheetWins` (in
+  `renderAll`) makes, names and removes them (a book gone, a project left; the grid back first) and offers, once a project,
+  the sheets this browser had in windows of their own (`LAYOUT.swin`, read once: `swinOffer`, a toast with *Make them
+  workbooks*). `showSheet(sid)` brings its book's window forward with the grid; `sheetForward` the shown sheet's book's.
+  `renderWsTabs` lists `bookSheets(bookOf(curSheet()))`; a tab dragged (pointer events from `wireWsTabs`, a ghost `.gghost`,
+  `wsDropBook(x, y, from)`: another book's window or taskbar button, outlined `.dropin`) is `moveSheetToBook`, and its click
+  then ignored (`S.tabDragged`). `wsDropSheet(x, y)`: a column's letter dragged onto another book's window or its taskbar
+  button goes to the sheet it shows (`moveColsToSheet(ids, sid, {undo})`, the toast with Undo). `moveSheet` moves a tab within
+  its book; `sheetsMenuItems` lists the sheets under their books, with New workbook and Move to workbook.
 - **Matrices** (SHEET_SPEC 3.6): the pure `==MAT:START/END==` block (after ANA; loaded by `tools/ref/run.mjs`, the
   bench and the compute worker): a matrix is `{nx, ny, x, y, z}`, `z` row major (`z[r*nx + c]`, a row a Y), null for
   missing, `x`/`y` each `{a, b}` (from a to b as NumPy's linspace: k·step + a, the last b exactly) or `{v}`; `MAT_MAX`
@@ -2427,9 +2456,11 @@ graph first, with the taskbar kept at the bottom of the screen.
   as a tree, as Origin's. `p.tree` (in `UNDO_KEYS`) is `{folders:[{id, name, parent}], at:{key:
   folderId}}`, read through `treeOf(p)` (folders whose parent is gone go to the top, `at`
   entries naming no folder dropped) and written by `saveTree(t, log, {noUndo, undo})`, which also
-  drops entries for items the project no longer has (`xKeys`). Items are keyed `ws:<sheet id>` (a
-  sheet, its tooltip the columns holding values, `hasVals`; the files and their columns are not
-  listed since 11.11: the worksheet shows them, and the file row's count disagreed with its list),
+  drops entries for items the project no longer has (`xKeys`). Items are keyed `wb:<book id>` (a
+  workbook, filed as a whole, open by default to its sheets, rows `ws:<sheet id>` inside it that are not filed themselves:
+  a sheet is where its book is, `xActiveFolder` reads a sheet's as its book's; a sheet's tooltip the columns holding values,
+  `hasVals`; a sheet dragged onto a book row, `data-xbook`, moves there, onto a folder `sheetToFolder`; the files and their
+  columns are not listed since 11.11: the worksheet shows them, and the file row's count disagreed with its list),
   `g:<id>` (graphs, closed ones marked hidden with `i-eyeoff`), `t:<id>` (trend graphs).
   `xRows()` flattens it (folders open unless closed, a figure's panels inside it, `S.xplExp` per
   project; a filter `S.xplQ` keeps matches and their ancestors), `renderXpl()` draws `.xr` rows
@@ -4088,7 +4119,8 @@ person's task done through the interface alone (clicks, keys, the file picker, d
 (`READ`; `node tools/flows/lint.mjs` refuses anything else and any `evaluate`). A flow starts from a lived-in project
 (`tools/flows/fixtures/*.kurve`, made by `node tools/flows/make-fixtures.mjs`, which may use the app's internals): folders inside
 folders, several files whose columns share their names, graphs filed with their sheets, a figure, steps, analyses. `week.mjs` is
-the first (last week's project carried on). **The document's rules** (`projCheck(p)`: ids unique, sheet names unique, every
+the first (last week's project carried on); `books.mjs` the workbooks' (two samples, a workbook each, a sheet moved between them,
+last week's project opened with its sheets where they were). **The document's rules** (`projCheck(p)`: ids unique, sheet names unique, every
 error column's owner, every derived column's source, the active column a Y there, graphs' curves and panels there, annotations'
 graphs, folders' parents and no circle, every tree entry's folder and item, no two Y columns shown under one name) are checked
 after every save on a page served from 127.0.0.1 or with `kurve.check` set (`projCheckOn`, `projCheckAfter`, `S.checkFails`): a
@@ -5425,6 +5457,12 @@ their own: `postNodeComment`, `setTie` and `editUserFn` can be driven directly.
 - **Two notions of "what I am working on" disagree.** The worksheet's selection and the active column were different things, and
   a command took the one the person could not see. What is selected is what is worked on.
 - **A name shown must name one thing.** "Intensity" three times in a list is no choice at all.
+- **Bash reads a script as it runs it.** `tools/suite.sh` was edited while a run of it was under way, and the run read the new
+  lines from the old offsets and ended in a syntax error, its summary lost. Run the suite on a snapshot (`--snap`) when its
+  files may change meanwhile, or leave them alone until it ends.
+- **A drop target can lie under the window dragged from.** A workbook's tab dragged onto another workbook's window fell on the
+  first window, which covered the second; the drop is offered on the taskbar button too, and a test aims, as a person does, at
+  what is visible.
 
 ## Roadmap
 
@@ -6143,13 +6181,18 @@ checked after every action, one rule in one place, a bug fixed as a class, bug b
 own, done meaning used. **Features stop** (wave 7 at 7.6, its code kept, its documents to come) for its stabilisation: S.2
 invariants and the lived-in projects, S.3 workbooks (books of sheets, a window and a folder each, as Origin's and Excel's), S.4 an
 import of many files that puts each in a folder, book and sheet of its own choosing, S.5 one subject for every command, S.6 a bug
-bash on all of it.
+bash on all of it. S.2 done 27.11 (`projCheck` after every save, `tools/flows/`, a lived-in project). S.3 done 28.11
+(`ux/spec/BOOK_SPEC.md`): workbooks, each a window with its own sheets' tabs, filed in a folder as a whole; New workbook from
+File, Window and a folder's menu; a folder's New sheet here and Import files here going into its workbook; a tab dragged onto
+another workbook, or Move to workbook ›; a drop on a folder into its workbook, an Excel file a workbook of its own, a result
+sheet in its input's; older projects grouped by their folders (document version 6); `tools/flows/books.mjs` the story.
 
 ## Known gaps
 
-- A project has one workbook (QUALITY_SPEC S.3): the sheets of different folders share one worksheet window and its tabs, a folder
-  files sheets and not books, and a formula reads any sheet of the project. Several files are put on sheets by one rule for all of
-  them (S.4)
+- Workbooks (QUALITY_SPEC S.3): sheet names are the project's (two workbooks cannot each have a Sheet1, as Excel's can), so a
+  formula reads any sheet by its name alone; books are not reordered (the first is the worksheet window's); a book's window is
+  never closed, only minimised; a book cannot be saved alone as a file. Several files chosen together still go on one sheet,
+  by one rule for all of them (S.4)
 
 - Two displays: a graph (not a figure) and five tool windows (Results, Statistics, Help, the
   Overview, Discussion) can go into a window of their own; the worksheet, the History and the
@@ -6592,10 +6635,9 @@ bash on all of it.
 - Worksheet formulas are whole-column (row by row, another row read by `B[i-1]`); there are no
   cell formulas, no relative formulas when filling right, no replace in find, and sorting never
   reorders the recorded data (by design)
-- Worksheet windows: one sheet a window, two windows never on one sheet; the window behind is a
-  picture (its first 40 columns, scrolled by the wheel, not dragged; no selection shown); which
-  sheets have windows is this browser's (a colleague opens the project with one worksheet window);
-  the Processed view shows the active column whichever window it is in
+- Workbook windows: one window a book, showing one of its sheets; the windows behind are pictures
+  (their first 40 columns, scrolled by the wheel, not dragged; no selection shown); the Processed
+  view shows the active column whichever window it is in
 - Matrices: one grid a sheet (not several matrix objects in one, as Origin's), real values only (no complex), no 3D
   surface yet (PARITY_SPEC 7.8), no gridding of scattered points into one (5.7), a picture read as one channel or grey
   (not kept in colour); a formula reads x, y, i, j, constants and other matrices of the same size, cell by cell (no

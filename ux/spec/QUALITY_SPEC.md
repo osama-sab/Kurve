@@ -150,7 +150,9 @@ What it finds is fixed before S.3. Done 27.11: `projCheck` after every save on 1
 - undo, two tabs, project files, Excel files (a workbook is a book), the report and the check code
   know books.
 
-Its own specification (`ux/spec/BOOK_SPEC.md`) comes first, with its decisions, and its flows.
+Its own specification (`ux/spec/BOOK_SPEC.md`) comes first, with its decisions, and its flows. Done 28.11 (BOOK_SPEC, As built): a formula reads
+another workbook's sheet by its name alone, since sheet names stay the project's (BOOK_SPEC decision 5, in place of the
+`[Book2]Sheet2!B` above); `tools/flows/books.mjs` is its story.
 
 **S.4 Importing many files.** One dialog for one file or many (it replaces the batch dialog): a row
 per file (its name, rows, columns, X range, what was detected) and, for each, where it goes: a

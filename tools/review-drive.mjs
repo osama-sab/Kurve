@@ -554,7 +554,8 @@ console.log("27.11: folders and sheets, the Explorer's one click, messages, same
 await page(async p => {
   const W = ms => p.waitForTimeout(ms || 300);
   const row = n => p.locator("#xplTree .xr").filter({ has: p.locator(".xn", { hasText: new RegExp("^" + n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$") }) }).first();
-  const where = () => p.evaluate(() => { const t = treeOf(); return Object.fromEntries(sheetList().map(s => [s.name, t.at["ws:" + s.id] ? xFolderName(t.at["ws:" + s.id]) : "top"])); });
+  // Where each sheet is: where its workbook is filed (BOOK_SPEC: a sheet goes where its workbook goes).
+  const where = () => p.evaluate(() => { const t = treeOf(); return Object.fromEntries(sheetList().map(s => { const f = t.at["wb:" + bookOf(s.id)]; return [s.name, f ? xFolderName(f) : "top"]; })); });
   const spec = (n, x0, k) => "Wavenumber,Intensity\n" + Array.from({ length: n }, (_, i) => `${x0 + i},${(200 + 0.3 * i + 900 * k * Math.exp(-(((i - n / 2) / 9) ** 2))).toFixed(3)}`).join("\n");
   const pick = async (name, text) => { await p.setInputFiles("#fileIn", [{ name, mimeType: "text/csv", buffer: Buffer.from(text) }]); await W(700); };
   const importAs = async mode => { const r = p.locator(`#impModal input[name="impmode"][value="${mode}"]`); const n = await r.count(); if (n) await r.check(); await p.click("#impGo"); await W(800); return n > 0; };

@@ -399,7 +399,7 @@ body.filling,body.filling *{cursor:crosshair!important;user-select:none}
 .win-b>.wssnap{flex:1;min-height:0;overflow:hidden;cursor:cell}
 .wssnap .grid{pointer-events:auto}
 .wssnap:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
-.win.wswin .wstabs{display:none!important}
+
 .wstab.own{font-style:italic}
 .xlpick{display:grid;gap:var(--sp-3);justify-items:start}
 .xlpick .xlall{margin-top:var(--sp-2);padding-top:var(--sp-4);border-top:1px solid var(--rule);justify-self:stretch}
@@ -15086,7 +15086,7 @@ function qudiIqo(all,name){ const meta={}, gen={}; let sec="", i=0, end=-1;
    output; the raw data stays exactly as it was imported, with a fingerprint
    that proves it.
    ============================================================ */
-const DOC_V=5;
+const DOC_V=6;
 const mean=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:null;
 
 /* ---- Columns ------------------------------------------------------------
@@ -15133,6 +15133,38 @@ function sheetOf(c,p){ p=p||P(); const ss=sheetList(p); let r=c, k=0; while(r&&r
   const id=r&&r.sheet; return ss.some(s=>s.id===id)?id:ss[0].id; }
 function curSheet(){ const ss=sheetList(), id=(S.sheetAt||{})[S.pid]; return ss.some(s=>s.id===id)?id:ss[0].id; }
 const sheetName=id=>{ const s=sheetList().find(q=>q.id===id); return s?s.name:""; };
+/* Workbooks (ux/spec/BOOK_SPEC.md, QUALITY_SPEC S.3): a project holds books, each holding its sheets, as Origin's and Excel's do.
+   p.books [{id, name}] in order (none: one book, BOOK0); each sheet names its book (s.book), and a sheet naming none, or a book
+   that has gone, is in the first. A book is one window (bkWin: the first's is the worksheet window, "sheet"; another's wb-<id>)
+   with its own sheets' tabs, and is filed in a folder as a whole (the tree's wb:<id>). Sheet names stay unique in the project, so
+   a formula's Sheet2!B needs no book. */
+const BOOK0={id:"b1",name:"Book 1"};
+function bookList(p){ p=p||P(); return p&&Array.isArray(p.books)&&p.books.length?p.books:[BOOK0]; }
+function bookOfSheet(s,p){ const bs=bookList(p), b=s&&s.book; return b&&bs.some(x=>x.id===b)?b:bs[0].id; }
+function bookOf(sid,p){ p=p||P(); return bookOfSheet(sheetList(p).find(q=>q.id===sid),p); }
+function bookSheets(bid,p){ p=p||P(); return sheetList(p).filter(s=>bookOfSheet(s,p)===bid); }
+const bookName=(bid,p)=>{ const b=bookList(p).find(x=>x.id===bid); return b?b.name:""; };
+const newBookId=()=>"b"+Math.random().toString(36).slice(2,9);
+function nextBookName(bs){ const used=new Set((bs||bookList()).map(b=>b.name)); let n=1; while(used.has("Book "+n)) n++; return "Book "+n; }
+function bookNameFor(base,bs){ const used=new Set((bs||bookList()).map(b=>b.name)), b=String(base||"").trim().slice(0,40)||nextBookName(bs); let nm=b, k=2; while(used.has(nm)) nm=`${b} (${k++})`; return nm; }
+/* v6: the sheets of a project from before books are grouped by the folder each was filed in: the top level's one book (Book 1),
+   each folder's one book named after it and filed there, so nothing moves on screen but the tabs, which now are their folder's.
+   A project whose sheets were all at the top keeps one book and needs no list. The ids come from the folders', so the old form
+   read again gives the same books. */
+function migrateBooks(p){
+  if(Array.isArray(p.books)&&p.books.length) return;
+  const t=p.tree&&typeof p.tree==="object"?p.tree:null, at=t&&t.at&&typeof t.at==="object"?t.at:{}, fs=t&&Array.isArray(t.folders)?t.folders:[];
+  const fids=new Map(fs.filter(f=>f&&typeof f.id==="string").map(f=>[f.id,f])), ss=Array.isArray(p.sheets)&&p.sheets.length?p.sheets:[SHEET0];
+  if(at.ws){ const k="ws:"+ss[0].id; if(!at[k]) at[k]=at.ws; delete at.ws; }
+  const groups=[], byF=new Map();
+  ss.forEach(s=>{ const f=at["ws:"+s.id], fid=f&&fids.has(f)?f:null; if(!byF.has(fid)){ byF.set(fid,[]); groups.push(fid); } byF.get(fid).push(s); });
+  Object.keys(at).forEach(k=>{ if(k.startsWith("ws:")) delete at[k]; });
+  if(groups.length===1&&groups[0]===null) return;
+  const books=[];
+  groups.forEach(fid=>{ const id=fid?"bk_"+fid:BOOK0.id, name=bookNameFor(fid?fids.get(fid).name:BOOK0.name,books); books.push({id,name}); if(fid) at["wb:"+id]=fid; });
+  const of=new Map(); groups.forEach((fid,i)=>byF.get(fid).forEach(s=>of.set(s.id,books[i].id)));
+  p.sheets=ss.map(s=>Object.assign({},s,{book:of.get(s.id)})); p.books=books; if(t) t.at=at;
+}
 // A sheet's columns (the sheet shown when none is named): recorded and computed ones, in the table's order.
 function sheetCols(sid){ sid=sid||curSheet(); const m=colMemo(); if(!m) return allCols().filter(c=>!c.src&&sheetOf(c)===sid);
   let l=m.sh.get(sid); if(!l){ l=m.cols.filter(c=>!c.src&&sheetOf(c)===sid); m.sh.set(sid,l); } return l.slice(); }
@@ -15669,6 +15701,7 @@ function migrate(p){
     p._sealFit=true;
   }
   if(p.v<5){ migrateGraphs(p); p.v=5; }
+  if(p.v<6){ migrateBooks(p); p.v=6; }
   // Keys of older versions can come back from storage after an upgrade.
   ["x","y","e","xLong","xUnit","yLong","yUnit","eLong","eUnit","steps","mask","plot"].forEach(k=>{ if(k in p) delete p[k]; });
   p.cols.forEach(c=>{ c.data=c.data||[]; if(c.role==="y"){ c.pipe=c.pipe||[]; c.mask=c.mask||[]; } cleanTxt(c); cleanCat(c); if(c.fmt!==undefined&&c.fmt!=="text"&&c.fmt!=="num") delete c.fmt; });
@@ -15718,7 +15751,7 @@ function migrateGraphs(p){
 }
 /* Undo is per-session and local: it rewinds your own edits, not other
    people's. Cross-user undo in a shared document is a different problem. */
-const UNDO_KEYS=["cols","activeY","meta","fit","annos","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","fitSets","lines","rawLock","tree","wsAlign","wsHide","sheets","detcal","ana","consts","wsFilter","wsCf","mats"];
+const UNDO_KEYS=["cols","activeY","meta","fit","annos","name","log","raw","fits","userFns","found","integ","graphs","batch","series","trends","formats","fitSets","lines","rawLock","tree","wsAlign","wsHide","sheets","detcal","ana","consts","wsFilter","wsCf","mats","books"];
 const undoStack=[], redoStack=[], UNDO_MAX=40;
 /* Raw values are replaced, never changed in place, so a snapshot keeps each
    column's data array as it is and copies the rest: with 20 spectra of 50 000
@@ -15748,7 +15781,7 @@ function undoAfter(stack){ const t=stack[stack.length-1], p=P(); if(!(t&&t.after
    trend graphs, functions, saved settings, line lists, formats) is put back thing by thing, this
    window's changes undone and another's kept; the log keeps the lines added elsewhere; any other
    part another window changed since keeps that change (an undo never takes back theirs). */
-const UNDO_BYID=new Set(["graphs","annos","sheets","trends","userFns","fitSets","lines","formats","ana","consts","mats"]);
+const UNDO_BYID=new Set(["graphs","annos","sheets","trends","userFns","fitSets","lines","formats","ana","consts","mats","books"]);
 const jsonEq=(a,b)=>a===b||JSON.stringify(a)===JSON.stringify(b), jsonEq0=jsonEq, clone0=o=>clone(o);
 function mergeById(after,step,now,eq,cp){ const jsonEq=eq||jsonEq0, clone=cp||clone0;
   const ok=l=>Array.isArray(l)&&l.every(o=>o&&typeof o==="object"&&o.id!=null);
@@ -16132,6 +16165,11 @@ function mergeProj(base,mine,theirs){ const out=Object.assign({},theirs), same0=
     const outK=L(theirs.consts).filter(k=>!(B.has(k.id)&&!M.has(k.id))).map(k=>{ const m=M.get(k.id); return m&&!same(m,B.get(k.id))?m:k; });
     L(mine.consts).forEach(k=>{ if(!B.has(k.id)&&!outK.some(o=>o.id===k.id||o.name===k.name)) outK.push(k); });
     if(outK.length) out.consts=outK; else delete out.consts; }
+  // The sheets and the workbooks: each tab's added, renamed, moved and deleted, one by one (a name taken twice keeps the other tab's).
+  ["sheets","books"].forEach(k=>{ if(same(mine[k],base[k])||same(theirs[k],base[k])) return; const L=v=>Array.isArray(v)?v:[], B=new Map(L(base[k]).map(s=>[s.id,s])), M=new Map(L(mine[k]).map(s=>[s.id,s]));
+    const o=L(theirs[k]).filter(s=>!(B.has(s.id)&&!M.has(s.id))).map(s=>{ const m=M.get(s.id); return m&&!same(m,B.get(s.id))?m:s; });
+    L(mine[k]).forEach(s=>{ if(!B.has(s.id)&&!o.some(x=>x.id===s.id||x.name===s.name)) o.push(s); });
+    if(o.length) out[k]=o; else delete out[k]; });
   // The matrices: each tab's books added, changed and deleted, book by book (a book changed in both keeps this tab's).
   if(!matsEq(mine.mats,base.mats)&&!matsEq(theirs.mats,base.mats)){ const L=v=>Array.isArray(v)?v:[], B=new Map(L(base.mats).map(b=>[b.id,b])), M=new Map(L(mine.mats).map(b=>[b.id,b]));
     const outM=L(theirs.mats).filter(b=>!(B.has(b.id)&&!M.has(b.id))).map(b=>{ const m=M.get(b.id); return m&&!matsEq1(m,B.get(b.id))?m:b; });
@@ -16265,7 +16303,7 @@ async function save(patch, logText){ CM=null; SPN.dirty=true;
   // takes the waiting edit's line with it: that edit is what is being undone.
   let pendLog=null;
   if(Object.keys(wsPatch).length&&wsPid===S.pid){ clearTimeout(wsTimer); pendLog=patch&&"log" in patch?null:wsLog; patch=Object.assign({},wsPatch,patch); wsPatch={}; wsLog=null; }
-  const p=S.proj, fileNew=xFileRule(p,patch); Object.assign(p,patch); p.updated=Date.now(); patch.updated=p.updated;
+  const p=S.proj; bookRule(p,patch); sheetNameRule(p,patch); const fileNew=xFileRule(p,patch); Object.assign(p,patch); p.updated=Date.now(); patch.updated=p.updated;
   if(fileNew) fileNew();
   if(patch.cols) recalcFx(p);         // formula columns follow the columns they use
   else if(("fit" in patch||"batch" in patch)&&p.cols.some(c=>c.fx&&c.fx.fit)&&recalcFx(p)) patch.cols=p.cols;   // and the fit's, a new fit
@@ -20977,7 +21015,9 @@ function setupCtx(){
   // The menus, the toolbar, dialogs and the status bar are where a command is chosen, not a place worked in: a press there
   // leaves the worksheet the last place worked in, so the command acts on what is selected there (wsHandCol).
   window.addEventListener("pointerdown",e=>{ const t=e.target; if(t&&t.closest&&t.closest(".titlebar,.toolbar,.menu,.modal,#toast,.statusbar,.fpick,.cpick,.sympick")) return;
-    const inWs=!!(t&&t.closest&&t.closest("#ws")); S.wsTouch=inWs; if(!inWs&&t&&t.closest&&t.closest("#plot")) S.ctxFromWs=false; },true);
+    const inWs=!!(t&&t.closest&&t.closest("#ws")); S.wsTouch=inWs; if(!inWs&&t&&t.closest&&t.closest("#plot")) S.ctxFromWs=false;
+    // The Project Explorer the last place pressed, or a window (its tabs and bar, where a new sheet is asked for, aside): bookTarget.
+    if(t&&t.closest){ if(t.closest("#xpl")) S.xplTouch=true; else if((t.closest(".win")||t.closest(".tk"))&&!t.closest(".wbar,.wstabs")) S.xplTouch=false; } },true);
   window.addEventListener("keydown",e=>{ const t=e.target; if(t&&t.closest&&t.closest("#ws")) S.wsTouch=true; },true);
 }
 // A click (or a right-click) on the graph chooses what is selected; announced for a screen reader.
@@ -25319,7 +25359,10 @@ async function anaDlg(kind,o){ o=o||{}; const K=ANA_KINDS[kind], F=ANA_FORMS[kin
   pushUndo(K.label.toLowerCase()); stampSheets(q);
   const base=K.baseOf?K.baseOf(kp):K.base, used=new Set(ana.map(x=>x.name).concat(sheetList(q).map(s=>s.name))); let n=1; while(used.has(`${base} ${n}`)) n++;
   const name=`${base} ${n}`, sh={id:newSheetId(),name}, a={id:newAnaId(),kind,name,in:inp,p:kp,out:{sheet:sh.id},recalc:v.aRc==="manual"?"manual":"auto",at:Date.now(),by:who()};
-  sh.ana=a.id; const ss=sheetList(q).concat([sh]); q.sheets=ss; ana.push(a); const lt=runAna(a,q);
+  sh.ana=a.id;
+  // The result sheet goes into the workbook of the first column it reads (BOOK_SPEC; one with none, where a new sheet goes).
+  { const c0=((inp&&inp.cols)||[]).map(colById).find(Boolean); if(c0&&Array.isArray(q.books)&&q.books.length) sh.book=bookOf(sheetOf(c0,q),q); }
+  const ss=sheetList(q).concat([sh]); q.sheets=ss; ana.push(a); const lt=runAna(a,q);
   const tw=typeof K.typedWhat==="function"?K.typedWhat(kp):K.typedWhat;
   save(anaPatch({ana,sheets:ss,cols:q.cols},q),`worked out ${name} (${K.label.toLowerCase()}) of ${K.typed?(tw||"the counts typed"):andList(cols.map(id=>colRef(colById(id))))}`);
   if(K.opensMat){ if(lt==="later"){ S.anaOpen=a.id; toast(`${name} is being worked out; its window opens when it is done.`); } else ijProcOpen(a.id,true); return; }
@@ -25974,7 +26017,7 @@ function setupWs(){
     const mv=ev=>{ if(!drag) return;
       if(drag.kind==="colmove"){ if(!drag.moving&&Math.abs(ev.clientX-drag.x0)<6) return; drag.moving=true; document.body.classList.add("colmoving");
         // Over another worksheet window (or its taskbar button) the columns would go to its sheet (SHEET_SPEC 3.2).
-        const t=swList().length?wsDropSheet(ev.clientX,ev.clientY):null; document.querySelectorAll(".dropin").forEach(el=>{ if(!t||el!==t.el) el.classList.remove("dropin"); });
+        const t=bookWins().length?wsDropSheet(ev.clientX,ev.clientY):null; document.querySelectorAll(".dropin").forEach(el=>{ if(!t||el!==t.el) el.classList.remove("dropin"); });
         if(t&&t.sid&&t.sid!==curSheet()){ t.el.classList.add("dropin"); drag.sheet=t.sid; drag.to=null; wsMoveMark(null); return; }
         drag.sheet=null; drag.to=wsMoveMark(ev.clientX); return; }
       if(as){ as.move(ev.clientX,ev.clientY); const c=as.clamp(ev.clientX,ev.clientY); at(c[0],c[1]); } };
@@ -26453,13 +26496,13 @@ function sheetNameFor(base,ss){ const used=new Set((ss||sheetList()).map(s=>s.na
 function stampSheets(p){ p=p||P(); (p.cols||[]).forEach(c=>{ if(!c.src) c.sheet=sheetOf(c,p); }); }
 function showSheet(sid,o){ const p=P(); if(!p||!sheetList().some(s=>s.id===sid)) return;
   if(S.ws&&S.ws.edit) wsCommit(0,0,true);
-  // A sheet in a window of its own is shown there; another, in the worksheet window, which comes forward with it.
-  if(swHas(sid)){ const w=swId(sid); if(!winOpen(w)) openWin(w); else focusWin(w); renderXpl(); return; }
-  if(wsLiveWin()!=="sheet"){ (S.wsMain||(S.wsMain={}))[S.pid]=sid; if(!winOpen("sheet")) openWin("sheet"); else focusWin("sheet"); renderWs(); renderXpl(); return; }
+  // A sheet of another workbook is shown in that workbook's window, which comes forward and takes the grid.
+  const w=wsWinOf(sid); bookAtSet(sid);
+  if(wsLiveWin()!==w){ syncSheetWins(); if(!WINS[w]) return; if(!winOpen(w)) openWin(w); else focusWin(w); if(wsLiveWin()!==w) moveWsLive(w); renderWs(); renderXpl(); return; }
   if(curSheet()!==sid){ S.sheetAt=S.sheetAt||{}; S.sheetAt[S.pid]=sid; S.sheet="raw"; S.wsSort=null; S.wsFind=null;
     { const fb=$("#wsFind"); if(fb) fb.hidden=true; } S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.wsm=null;
     const box=$("#ws"); if(box){ box.scrollTop=0; box.scrollLeft=0; } }
-  if(!(o&&o.quiet)){ if(!winOpen("sheet")) openWin("sheet"); else focusWin("sheet"); }
+  if(!(o&&o.quiet)){ if(!winOpen(w)) openWin(w); else focusWin(w); }
   renderWs(); renderXpl(); }
 /* A sheet's placeholders: the empty X and Y a new sheet (or a new project) starts with, a column
    with no values, formula, name, unit or comment, no steps or mask, on no graph and named by no
@@ -26473,7 +26516,7 @@ function newSheet(o){ o=o||{}; const p=P(); if(!p||S.readOnly) return null;
   if(S.ws&&S.ws.edit) wsCommit(0,0,true);
   if(!o.noUndo) pushUndo("adding a sheet");
   stampSheets(p);
-  const id=newSheetId(), name=o.name||nextSheetName(), ss=sheetList(p).concat([{id,name}]);
+  const id=newSheetId(), name=o.name||nextSheetName(), ss=sheetList(p).concat([Object.assign({id,name},o.book&&bookList(p).some(b=>b.id===o.book)?{book:o.book}:{})]);
   // A new sheet starts as a new project does: an empty X column and an empty Y column.
   p.cols=p.cols.concat([Object.assign(makeCol("x","",""),{sheet:id}),Object.assign(makeCol("y","",""),{pipe:[],mask:[],sheet:id})]); p.sheets=ss;
   save({sheets:ss,cols:p.cols},`added the sheet ${name}`);
@@ -26485,8 +26528,10 @@ function renameSheet(sid){ const p=P(), s=sheetList().find(q=>q.id===sid); if(!p
     pushUndo("renaming the sheet"); stampSheets(q);
     save({sheets:sheetList(q).map(x=>x.id===sid?Object.assign({},x,{name:v}):x),cols:q.cols},`renamed the sheet ${s.name} "${v}"`); renderWs(); renderXpl(); });
 }
-function moveSheet(sid,dir){ const p=P(), ss=sheetList(p).slice(), i=ss.findIndex(s=>s.id===sid), j=i+dir; if(!p||S.readOnly||i<0||j<0||j>=ss.length) return;
-  pushUndo("moving the sheet"); stampSheets(p); const [s]=ss.splice(i,1); ss.splice(j,0,s);
+function moveSheet(sid,dir){ const p=P(), ss=sheetList(p).slice(), i=ss.findIndex(s=>s.id===sid); if(!p||S.readOnly||i<0) return;
+  // Within its workbook: past the next tab of that workbook.
+  const bid=bookOf(sid), mine=ss.map((s,k)=>k).filter(k=>bookOfSheet(ss[k],p)===bid), at=mine.indexOf(i), j=mine[at+dir]; if(j==null) return;
+  pushUndo("moving the sheet"); stampSheets(p); const s=ss[i]; ss[i]=ss[j]; ss[j]=s;
   save({sheets:ss,cols:p.cols},`moved the sheet ${s.name} ${dir<0?"left":"right"}`); renderWs(); renderXpl(); }
 /* A sheet deleted takes its columns, the columns made from them and their error
    bars (off every graph too); one undo entry, and a raw-data record entry when
@@ -26503,7 +26548,8 @@ async function deleteSheet(sid,o){ o=o||{};
   while(grew){ grew=false; q.cols.forEach(o=>{ if(gone.has(o.id)) return; if((o.src&&gone.has(o.src))||(o.role==="e"&&gone.has(o.of))){ gone.add(o.id); grew=true; } }); }
   q.cols=q.cols.filter(o=>!gone.has(o.id)); const nss=ss.filter(x=>x.id!==sid); q.sheets=nss;
   migrate(q); S.draft=null; S.pdraft=null; S.stage=null; S.selStep=null;
-  if(curSheet()===sid||(S.sheetAt||{})[S.pid]===sid){ S.sheetAt=S.sheetAt||{}; S.sheetAt[S.pid]=nss[Math.max(0,ss.indexOf(s)-1)].id; S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.wsm=null; S.wsSort=null; }
+  if(curSheet()===sid||(S.sheetAt||{})[S.pid]===sid){ const sib=bookSheets(bookOf(sid,q),q).filter(x=>x.id!==sid), k=bookSheets(bookOf(sid,q),q).findIndex(x=>x.id===sid);
+    S.sheetAt=S.sheetAt||{}; S.sheetAt[S.pid]=(sib.length?sib[Math.max(0,k-1)]:nss[Math.max(0,ss.indexOf(s)-1)]).id; S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.wsm=null; S.wsSort=null; }
   const raw=nv?recordRaw(`deleted the sheet ${s.name} (${nv} value${nv===1?"":"s"})`):null;
   save(Object.assign({sheets:nss,cols:q.cols,activeY:q.activeY},raw?{raw}:{},Array.isArray(q.ana)?{ana:q.ana}:{}),`deleted the sheet ${s.name}${gone.size?` and its ${gone.size} column${gone.size===1?"":"s"}`:""}`);
   renderAll(); toast(`Deleted ${s.name}${gone.size?` and its ${gone.size} column${gone.size===1?"":"s"}`:""}.`,{action:"Undo",run:undo}); }
@@ -26533,14 +26579,14 @@ function moveColsToSheet(ids,sid,o){ o=o||{};
   save(Object.assign({sheets:ss,cols:p.cols},raw?{raw}:{}),`moved ${what} from ${sheetName(from)} to ${nm}`); renderAll();
   // Dropped on a window that shows that sheet, the toast offers Undo rather than to show it.
   toast(`Moved ${what} to ${nm}.${kept.length?` ${andList(kept.map(y=>specName(y)))} ${kept.length===1?"keeps its":"keep their"} X column.`:""}`,o.undo?{action:"Undo",run:undo}:{action:`Show ${nm}`,run:()=>showSheet(sid)}); }
-function sheetMenuItems(sid){ const ro=S.readOnly||!P(), ss=sheetList(), i=ss.findIndex(s=>s.id===sid), a=anaOfSheet(sid);
+function sheetMenuItems(sid){ const ro=S.readOnly||!P(), ss=bookSheets(bookOf(sid)), i=ss.findIndex(s=>s.id===sid), a=anaOfSheet(sid);
   return (a?anaMenuItems(a):[]).concat([{group:sheetName(sid),plain:true},
     {label:"Show it",enabled:sid!==curSheet(),run:()=>showSheet(sid)},
-    ...sheetWinItems(sid),
+    ...bookMoveItems(sid),
     {label:"Rename…",kbd:"F2",enabled:!ro,run:()=>renameSheet(sid)},
     {label:"Move left",enabled:!ro&&i>0,run:()=>moveSheet(sid,-1)},{label:"Move right",enabled:!ro&&i<ss.length-1,run:()=>moveSheet(sid,1)},
-    "-",{label:"A new sheet",enabled:!ro,run:()=>newSheet()},
-    "-",{label:"Delete the sheet…",danger:true,enabled:!ro&&ss.length>1,title:ss.length>1?"Its columns go with it; Undo brings them back":"A project keeps one sheet",run:()=>deleteSheet(sid)}]); }
+    "-",{label:"A new sheet",enabled:!ro,run:()=>newSheet({book:bookOf(sid)})},
+    "-",{label:"Delete the sheet…",danger:true,enabled:!ro&&sheetList().length>1,title:sheetList().length>1?"Its columns go with it; Undo brings them back":"A project keeps one sheet",run:()=>deleteSheet(sid)}]); }
 /* ---- Matrices (ux/spec/SHEET_SPEC.md, slice 3.6) ----
    A matrix book of matrix sheets, each a grid of Z with its X and Y (the MAT block). p.mats: [{id,
    name, sheets: [{id, name, nx, ny, x, y, z, xname, xunit, yname, yunit, zname, zunit, fx?, raw?}]}],
@@ -27851,63 +27897,75 @@ function matDataItems(){ const ro=S.readOnly||!P(), sid=matFront(), s=matOf(sid)
 // Plot › Plot a matrix.
 function matPlotItems(){ const all=matAll(); if(!all.length) return [{label:"No matrix yet: Data › Matrix makes one",enabled:false}];
   return all.map(({b,s})=>({label:b.sheets.length>1?`${b.name} › ${s.name}`:s.name,note:`${s.ny} × ${s.nx}`,sub:()=>MAT_KINDS.map(([k,l])=>({label:l,enabled:!S.readOnly,run:()=>plotMatrix(s.id,k)}))})); }
-/* ---- Worksheet windows (SHEET_SPEC 3.2) -----------------------------------------------------
-   A sheet in a window of its own (`sw-<sheet id>`) beside the worksheet window. As the graph
-   windows share one live plot, the worksheet windows share one live grid (the bar, the grid, the
-   foot), held by the one in front of them (`S.wsLive`); the others show a picture of their sheet's
-   cells (`.wssnap`), which the wheel scrolls, and a press on one brings it forward with the cell
-   pressed selected. The worksheet window keeps its tabs (a sheet with a window of its own: its tab
-   brings that window forward) and shows a sheet with none; a sheet's window has no tabs, its title
-   the sheet's name. Which sheets have windows is this browser's, per project (LAYOUT.swin), as the
-   windows' places are; closing one leaves the sheet, deleting the sheet closes it. */
-const swId=sid=>"sw-"+sid, swSid=id=>WINS[id]&&WINS[id].swin||null;
-function swList(p){ p=p||P(); if(!p) return []; const L=(LAYOUT.swin||{})[p.id], ids=new Set(sheetList(p).map(s=>s.id));
-  return Array.isArray(L)?[...new Set(L.filter(s=>typeof s==="string"&&ids.has(s)))]:[]; }
-const swHas=sid=>swList().includes(sid);
-const wsWinOf=sid=>swHas(sid)?swId(sid):"sheet";
+/* ---- Workbook windows (SHEET_SPEC 3.2, BOOK_SPEC) -------------------------------------------
+   Each workbook is a window: the first's the worksheet window ("sheet"), another's wb-<book id>. As the graph windows share
+   one live plot, the workbook windows share one live grid (the bar, the grid, the tabs, the foot), held by the one in front of
+   them (`S.wsLive`); the others show a picture of the sheet they show (`.wssnap`), which the wheel scrolls, and a press on one
+   brings it forward with the cell pressed selected. A window's tabs are its workbook's sheets; each window remembers the sheet
+   it showed (`S.bookAt`). A workbook's window is a document: minimised, never closed; deleting the workbook takes it. */
+const bkWin=bid=>{ const bs=bookList(); return !bid||bid===bs[0].id?"sheet":"wb-"+bid; };
+const winBook=id=>id==="sheet"?bookList()[0].id:(WINS[id]&&WINS[id].book)||null;
+const isBookWin=id=>id==="sheet"||!!(WINS[id]&&WINS[id].book);
+// The workbooks with a window of their own (every one but the first, whose window is the worksheet window).
+function bookWins(p){ p=p||P(); return p?bookList(p).slice(1).map(b=>b.id):[]; }
+const wsWinOf=sid=>bkWin(bookOf(sid));
 const wsLiveWin=()=>S.wsLive&&WINS[S.wsLive]?S.wsLive:"sheet";
 const wsShown=()=>winOpen(wsLiveWin());
 // The worksheet window that holds the grid, brought forward (or opened) for something done in it.
 function wsFront(){ const w=wsLiveWin(); if(!winOpen(w)) openWin(w,{render:true}); else focusWin(w); }
-// The sheet the worksheet window shows: the one it showed last, else the first with no window of its own.
-function mainSheet(){ const p=P(); if(!p) return null; if(wsLiveWin()==="sheet") return curSheet();
-  const w=(S.wsMain||{})[S.pid], free=sheetList().filter(s=>!swHas(s.id)); return free.some(s=>s.id===w)?w:(free[0]||sheetList()[0]).id; }
-function swSave(list){ const p=P(); if(!p) return; LAYOUT.swin=LAYOUT.swin&&typeof LAYOUT.swin==="object"?LAYOUT.swin:{};
-  if(list.length) LAYOUT.swin[p.id]=list; else delete LAYOUT.swin[p.id]; saveLayout(); }
-// The windows of the project's sheets: made, named after their sheets, and taken away with them (the live grid first).
-function syncSheetWins(){ const p=P(), list=swList(p), want=new Set(list.map(swId));
+// The sheet a workbook's window shows: the grid's when it is there, else the one it showed last, else its first.
+function bookShown(bid){ const p=P(); if(!p) return null; bid=bid||bookList()[0].id; const ss=bookSheets(bid); if(!ss.length) return null;
+  if(winBook(wsLiveWin())===bid){ const c=curSheet(); if(ss.some(s=>s.id===c)) return c; }
+  const w=(S.bookAt||{})[S.pid+":"+bid]; return ss.some(s=>s.id===w)?w:ss[0].id; }
+const bookAtSet=sid=>{ if(!sid||!S.pid) return; (S.bookAt||(S.bookAt={}))[S.pid+":"+bookOf(sid)]=sid; };
+// The sheet the worksheet window (the first workbook's) shows.
+function mainSheet(){ return P()?bookShown(bookList()[0].id):null; }
+// The windows of the project's workbooks: made, named after them, and taken away with them (the live grid first).
+function syncSheetWins(){ const p=P(), list=bookWins(p), want=new Set(list.map(b=>"wb-"+b));
   { const mw=$("#w-sheet"); if(mw&&!mw._sw){ mw._sw=true; wireSwSnap(mw,"sheet"); } }
-  Object.keys(WINS).forEach(k=>{ if(WINS[k].swin&&!want.has(k)){ if(wsLiveWin()===k) moveWsLive("sheet",{keepSheet:!p}); const el=$("#w-"+k); if(el) el.remove(); delete WINS[k]; } });
+  // The worksheet window is the first workbook's: named after it when there are several.
+  { const nm=p&&bookList(p).length>1?bookName(bookList(p)[0].id,p):"Worksheet", el=$("#w-sheet");
+    if(WINS.sheet&&WINS.sheet.title!==nm){ WINS.sheet.title=nm; if(el){ el.querySelector(".win-t").textContent=nm; el.setAttribute("aria-label",nm); } } }
+  Object.keys(WINS).forEach(k=>{ if(WINS[k].book&&!want.has(k)){ if(wsLiveWin()===k) moveWsLive("sheet",{keepSheet:!p}); const el=$("#w-"+k); if(el) el.remove(); delete WINS[k]; } });
   let prev=$("#w-sheet"), made=false;
-  list.forEach(sid=>{ const id=swId(sid), nm=sheetName(sid)||"Sheet";
-    if(!WINS[id]){ WINS[id]={title:nm,icon:"table",def:[0.5,0,0.5,1],open:true,swin:sid};
+  list.forEach((bid,k)=>{ const id="wb-"+bid, nm=bookName(bid)||"Workbook";
+    if(!WINS[id]){ const o=Math.min(0.2,0.04*k), had=!!(LAYOUT.wins&&LAYOUT.wins[id]); WINS[id]={title:nm,icon:"table",def:[0.5,o,0.5,1-o],open:true,book:bid};
+      // A workbook's window made now, beside the worksheet window, which gives up its right half when it has the whole desk.
+      if(!had&&p){ const ms=winState("sheet"); if(!ms.max&&ms.g[2]>0.6) ms.g=[0,0,0.5,ms.g[3]]; }
       prev.insertAdjacentHTML("afterend",`<section class="win wswin" id="w-${id}" data-win="${id}" aria-label="${esc(nm)}"><header class="win-h">${ICON("table","sm")}<h2 class="win-t">${esc(nm)}</h2><span class="win-sub"></span><span class="sp"></span></header><div class="win-b sheet-win">${SW_SNAP}</div></section>`);
       const el=$("#w-"+id); wireWin(el); wireSwSnap(el,id); winState(id); made=true; }
     if(WINS[id].title!==nm){ WINS[id].title=nm; const el=$("#w-"+id); if(el){ el.querySelector(".win-t").textContent=nm; el.setAttribute("aria-label",nm); } }
     prev=$("#w-"+id)||prev; });
   if(!$("#w-sheet .win-b").contains($("#ws"))&&!$("#w-sheet .win-b > .wssnap")) $("#w-sheet .win-b").insertAdjacentHTML("beforeend",SW_SNAP);
+  if(p) swinOffer(p);
   if(made) applyWins(); else syncWsLive();
 }
+/* Sheets that had windows of their own (SHEET_SPEC 3.2, this browser's layout) are offered as workbooks of their own, once a
+   project: nothing changes in the document without a person asking (BOOK_SPEC decision 7). */
+function swinOffer(p){ const L=LAYOUT.swin&&LAYOUT.swin[p.id]; if(!Array.isArray(L)||!L.length||S.readOnly) return;
+  const ids=L.filter(sid=>sheetList(p).some(s=>s.id===sid)&&bookList(p).length<2); delete LAYOUT.swin[p.id]; saveLayout(); if(!ids.length) return;
+  const nm=andList(ids.map(sheetName));
+  setTimeout(()=>toast(`${nm} had ${ids.length===1?"a window":"windows"} of ${ids.length===1?"its":"their"} own. A sheet in a window of its own is a workbook of its own now.`,{kind:"say",action:ids.length===1?"Make it a workbook":"Make them workbooks",run:()=>undoGroup("making workbooks",()=>ids.forEach(sid=>moveSheetToBook(sid,"new",{quiet:true})))}),400); }
 const SW_SNAP=`<div class="ws wssnap" tabindex="0" role="button" aria-label="Work on this sheet" title="Click a cell to work on this sheet"></div>`;
 // The live grid goes to the worksheet window in front of the others.
 function syncWsLive(){ if(!P()||S.wsMoving) return;
-  const cand=["sheet"].concat(swList().map(swId)).filter(id=>WINS[id]&&winOpen(id)&&!winAway(id));
+  const cand=["sheet"].concat(bookWins().map(b=>"wb-"+b)).filter(id=>WINS[id]&&winOpen(id)&&!winAway(id));
   if(!cand.length) return; const top=cand.sort((a,b)=>winState(b).z-winState(a).z)[0]; if(top!==wsLiveWin()) moveWsLive(top); }
-// A sheet shown by code (an import, a new sheet, Show it) is shown in its window, which comes forward.
+// A sheet shown by code (an import, a new sheet, Show it) is shown in its workbook's window, which comes forward.
 function wsReconcile(){ const p=P(); if(!p||S.wsMoving) return; const sid=curSheet(), want=wsWinOf(sid), live=wsLiveWin();
-  if(live===want) return; if(want==="sheet") (S.wsMain||(S.wsMain={}))[S.pid]=sid;
+  if(live===want||!WINS[want]) return; bookAtSet(sid);
   moveWsLive(want,{keepSheet:true}); const st=winState(want); if(!st.open){ st.open=true; st.min=false; } st.z=++LAYOUT.z; S.wsMoving=true; try{ applyWins(); saveLayout(); }finally{ S.wsMoving=false; } }
 /* Moves the live grid into window `to`: an edit is entered first, the sheet's selection and scroll kept
    for when it comes back, the window left showing a picture. With keepSheet the sheet shown stays (it
-   was just set); else it becomes the window's. */
+   was just set); else it becomes the one that workbook's window showed. */
 function moveWsLive(to,o){ o=o||{}; const from=wsLiveWin(); if(from===to||!WINS[to]) return;
   const ws=$("#ws"), src=ws&&ws.parentElement, tb=$("#w-"+to+" .win-b"); if(!ws||!src||!tb) return;
   S.wsMoving=true;
   try{
     if(S.ws&&S.ws.edit) wsCommit(0,0,true);
-    const pid=S.pid, cur=P()?curSheet():null, next=!o.keepSheet&&P()?(to==="sheet"?(()=>{ if(cur&&!swHas(cur)) return cur; const w=(S.wsMain||{})[pid], free=sheetList().filter(s=>!swHas(s.id)); return free.some(s=>s.id===w)?w:(free[0]||sheetList()[0]).id; })():swSid(to)):null;
+    const pid=S.pid, cur=P()?curSheet():null, next=!o.keepSheet&&P()?bookShown(winBook(to)):null;
     S.wsMem=S.wsMem||{}; if(cur&&S.ws) S.wsMem[pid+":"+cur]={ws:Object.assign({},S.ws,{edit:null,want:null,press:null,cwin:null}),top:ws.scrollTop,left:ws.scrollLeft};
-    if(from==="sheet"&&cur) (S.wsMain||(S.wsMain={}))[pid]=cur;
+    if(cur&&winBook(from)===bookOf(cur)) bookAtSet(cur);
     const old=tb.querySelector(":scope > .wssnap"); if(old) old.remove();
     [...src.children].filter(k=>!k.classList.contains("wssnap")).forEach(k=>tb.appendChild(k));
     if(!src.querySelector(":scope > .wssnap")) src.insertAdjacentHTML("beforeend",SW_SNAP);
@@ -27932,12 +27990,12 @@ function wsSnapHtml(sid,top,n){ const p=P(); if(!p) return ""; S.sheetAt=S.sheet
     return h+`</tbody></table>`; }
   finally{ S.sheetAt[S.pid]=keep.at; S.sheet=keep.sheet; S.ws=keep.ws; S.wsm=keep.wsm; S.wsSort=keep.sort; } }
 function renderSwSnap(id){ const el=$("#w-"+id), box=el&&el.querySelector(".win-b > .wssnap"); if(!box||!P()||wsLiveWin()===id||!winOpen(id)) return;
-  const sid=id==="sheet"?mainSheet():swSid(id); if(!sid) return;
+  const sid=bookShown(winBook(id)); if(!sid) return;
   S.swTop=S.swTop||{}; const k=S.pid+":"+sid, mem=S.wsMem&&S.wsMem[k], rh=(P().wsrh&&P().wsrh[sid])||WS_RH;
   if(S.swTop[k]==null) S.swTop[k]=mem?Math.max(0,Math.floor(mem.top/(rh+3))):0;
   box.innerHTML=wsSnapHtml(sid,S.swTop[k],Math.ceil((box.clientHeight||480)/Math.max(18,rh))+1); box.dataset.sid=sid;
-  // The worksheet window says which sheet its picture is of.
-  if(id==="sheet"){ const sub=$("#wsSub"); if(sub) sub.textContent=sheetName(sid); } }
+  // A workbook's window says which sheet its picture is of.
+  const sub=id==="sheet"?$("#wsSub"):el.querySelector(".win-h .win-sub"); if(sub) sub.textContent=sheetName(sid); }
 // A picture scrolls by the wheel; a press on it brings its window forward with the cell pressed selected (read in the press,
 // which the live grid's arrival takes away), a cell under the keys too.
 function wireSwSnap(el,id){
@@ -27948,50 +28006,108 @@ function wireSwSnap(el,id){
     if(!td&&!th) return; const r=td?+td.dataset.r:0, c=td?+td.dataset.ci:+th.dataset.ch;
     setTimeout(()=>{ if(wsLiveWin()!==id) return; S.ws=Object.assign(S.ws||{},{r,c,ar:r,ac:c,extra:0}); wsPaintSel(); wsEnsureVisible(r,c); const g=$("#ws"); if(g) g.focus({preventScroll:true}); },0); });
   el.addEventListener("keydown",e=>{ if(!(e.target.classList&&e.target.classList.contains("wssnap"))||(e.key!=="Enter"&&e.key!==" ")) return; e.preventDefault(); focusWin(id); winTakeFocus(id); }); }
-// Opens a sheet in a window of its own (beside the worksheet window, which takes the left half when it has the whole desk).
-function openSheetWin(sid){ const p=P(); if(!p||!sheetList().some(s=>s.id===sid)) return;
-  if(swHas(sid)){ showSheet(sid); return; }
-  if(!sheetList().some(s=>s.id!==sid&&!swHas(s.id))){ toast("The worksheet window keeps a sheet: make another sheet first.",{action:"New sheet",run:()=>newSheet()}); return; }
-  if(S.ws&&S.ws.edit) wsCommit(0,0,true);
-  // The worksheet window gives the sheet up and shows another.
-  if(wsLiveWin()==="sheet"&&curSheet()===sid){ const nx=sheetList().find(s=>s.id!==sid&&!swHas(s.id)); (S.wsMain||(S.wsMain={}))[S.pid]=nx.id; }
-  else if((S.wsMain||{})[S.pid]===sid) delete S.wsMain[S.pid];
-  const ms=winState("sheet"); if(!ms.max&&ms.g[2]>0.6){ ms.g=[0,0,0.5,ms.g[3]]; }
-  swSave(swList().concat([sid])); syncSheetWins(); const st=winState(swId(sid)); st.g=[0.5,0,0.5,1]; st.open=true; st.min=false; st.max=false;
-  openWin(swId(sid)); toast(`${sheetName(sid)} is in a window of its own. Drag a column's letter onto another window to move it there.`);
-}
-function closeSheetWin(sid){ if(!swHas(sid)) return; if(S.ws&&S.ws.edit&&curSheet()===sid) wsCommit(0,0,true);
-  // The window goes; its sheet is the worksheet window's to show.
-  if(wsLiveWin()===swId(sid)) (S.wsMain||(S.wsMain={}))[S.pid]=sid;
-  swSave(swList().filter(s=>s!==sid)); delete LAYOUT.wins[swId(sid)]; syncSheetWins(); if(!winOpen("sheet")) openWin("sheet"); else focusWin("sheet"); renderXpl(); }
-// Where a column dragged from the grid would go: another worksheet window, or its taskbar button. null: nowhere.
+// Where a column dragged from the grid would go: another workbook's window, or its taskbar button (its sheet shown). null: nowhere.
 function wsDropSheet(x,y){ const live=wsLiveWin();
   for(const el of document.elementsFromPoint(x,y)){ const w=el.closest&&el.closest("#w-sheet,.win.wswin"), b=el.closest&&el.closest(".tk[data-tk]");
-    if(w&&w.dataset.win!==live) return {sid:w.dataset.win==="sheet"?mainSheet():swSid(w.dataset.win),el:w};
-    if(b&&b.dataset.tk!==live&&(b.dataset.tk==="sheet"||swSid(b.dataset.tk))) return {sid:b.dataset.tk==="sheet"?mainSheet():swSid(b.dataset.tk),el:b};
+    if(w&&w.dataset.win!==live) return {sid:bookShown(winBook(w.dataset.win)),el:w};
+    if(b&&b.dataset.tk!==live&&isBookWin(b.dataset.tk)) return {sid:bookShown(winBook(b.dataset.tk)),el:b};
     if(w) return null; }
   return null; }
-function sheetWinItems(sid){ const ro=!P(); if(swHas(sid)) return [{label:"Close its window",enabled:!ro,title:"The sheet stays, in the worksheet window's tabs",run:()=>closeSheetWin(sid)}];
-  return [{label:"Open in a window of its own",enabled:!ro&&sheetList().length>1,title:sheetList().length>1?"Beside the worksheet window, to see two sheets at once":"Make another sheet first: the worksheet window keeps one",run:()=>openSheetWin(sid)}]; }
-// Window › New worksheet window: a sheet without a window of its own, or a new sheet in one.
-function newSheetWinItems(){ const p=P(); if(!p) return [{label:"No project",enabled:false}];
-  const free=sheetList().filter(s=>!swHas(s.id));
-  return free.map(s=>({label:s.name,enabled:free.length>1,title:free.length>1?"":"The worksheet window keeps this sheet",run:()=>openSheetWin(s.id)}))
-    .concat(["-",{label:"A new sheet",enabled:!S.readOnly,run:()=>{ const sid=newSheet({quiet:true}); if(sid) openSheetWin(sid); }}]); }
+// Where a sheet's tab dragged would go: another workbook's window or taskbar button. null: nowhere.
+function wsDropBook(x,y,from){
+  for(const el of document.elementsFromPoint(x,y)){ const w=el.closest&&el.closest("#w-sheet,.win.wswin"), b=el.closest&&el.closest(".tk[data-tk]");
+    if(w){ const bid=winBook(w.dataset.win); return bid&&bid!==from?{bid,el:w}:null; }
+    if(b&&isBookWin(b.dataset.tk)){ const bid=winBook(b.dataset.tk); return bid&&bid!==from?{bid,el:b}:null; } }
+  return null; }
+/* ---- Workbook commands (BOOK_SPEC): each one undo step and a log line. ---- */
+// The books list, explicit (the first given an entry), and every sheet naming its book, for a change of books.
+function booksExplicit(p){ const f0=bookList(p)[0]; return {bs:(Array.isArray(p.books)&&p.books.length?p.books:[Object.assign({},f0)]).map(b=>Object.assign({},b)),
+  ss:sheetList(p).map(s=>Object.assign({},s,{book:bookOfSheet(s,p)}))}; }
+// A new workbook with one sheet (an empty X and Y, as a new project), filed in the folder given, or the one selected.
+function newBook(o){ o=o||{}; const p=P(); if(!p||S.readOnly) return null; if(S.ws&&S.ws.edit) wsCommit(0,0,true);
+  pushUndo("adding a workbook"); stampSheets(p);
+  const {bs,ss}=booksExplicit(p), folder=o.folder!==undefined?o.folder:(xplShown()?xActiveFolder():null), bid=newBookId();
+  const name=bookNameFor(o.name||(folder?xFolderName(folder):"")||nextBookName(bs),bs); bs.push({id:bid,name});
+  const sid=newSheetId(); ss.push({id:sid,name:nextSheetName(ss),book:bid});
+  p.cols=p.cols.concat([Object.assign(makeCol("x","",""),{sheet:sid}),Object.assign(makeCol("y","",""),{pipe:[],mask:[],sheet:sid})]);
+  const t=treeOf(p); if(folder&&xFolder(t,folder)){ t.at["wb:"+bid]=folder; xExp()["d:"+folder]=true; }
+  save({books:bs,sheets:ss,cols:p.cols,tree:{folders:t.folders,at:t.at}},`added the workbook ${name}${folder?` in ${xFolderName(folder)}`:""}`);
+  showSheet(sid); if(!o.quiet) toast(`Made the workbook ${name}${folder?` in ${xFolderName(folder)}`:""}.`,{kind:"done",action:"Undo",run:undo}); return bid; }
+function renameBook(bid){ const p=P(), b=bookList().find(x=>x.id===bid); if(!p||!b||S.readOnly) return;
+  formDlg({title:"Rename the workbook",html:`<div class="grid2"><label for="fdBn">Name</label><input id="fdBn" type="text" maxlength="40" value="${esc(b.name)}"></div>`,ok:"Rename",focus:"#fdBn",
+    valid:v=>{ const t=v.fdBn.trim(); return t.length>0&&!bookList().some(q=>q.id!==bid&&q.name===t); }}).then(r=>{
+    const q=P(); if(!r||!q) return; const v=r.fdBn.trim().slice(0,40); if(!v||v===b.name||bookList(q).some(x=>x.id!==bid&&x.name===v)) return;
+    pushUndo("renaming the workbook"); const {bs,ss}=booksExplicit(q);
+    save({books:bs.map(x=>x.id===bid?Object.assign({},x,{name:v}):x),sheets:ss},`renamed the workbook ${b.name} "${v}"`); syncSheetWins(); renderXpl(); });
+}
+// A workbook deleted takes its sheets (as deleting each would), after asking when they hold values; a project keeps one.
+async function deleteBook(bid){ const p=P(), b=bookList().find(x=>x.id===bid); if(!p||!b||S.readOnly) return;
+  if(bookList().length<2){ toast("A project keeps one workbook at least: its sheets can be deleted instead."); return; }
+  const ss=bookSheets(bid), nv=ss.reduce((a,s)=>a+sheetCols(s.id).filter(c=>!c.fx&&!c.ana).reduce((n,c)=>n+c.data.filter(v=>v!=null).length,0),0);
+  if(nv&&!await confirmDlg(`Delete the workbook ${b.name}?`,`Its ${ss.length} sheet${ss.length===1?"":"s"} and ${nv} value${nv===1?"":"s"} go with it, and so do the columns made from them, from every graph. Undo brings them back.`,"Delete the workbook",true)) return;
+  await undoGroup(`deleting the workbook ${b.name}`,async()=>{ for(const s of ss) await deleteSheet(s.id,{quiet:true}); });
+  renderAll(); toast(`Deleted the workbook ${b.name} and its ${ss.length} sheet${ss.length===1?"":"s"}.`,{action:"Undo",run:undo}); }
+/* A sheet moved into another workbook (or a new one, filed where its own is), after the sheets already there. Formulas read it
+   by its name, which stays, and graphs by its columns, which stay: nothing but the tabs changes. */
+function moveSheetToBook(sid,to,o){ o=o||{}; const p=P(), s=sheetList().find(q=>q.id===sid); if(!p||!s||S.readOnly) return;
+  const from=bookOf(sid); if(to===from) return; if(S.ws&&S.ws.edit) wsCommit(0,0,true);
+  pushUndo("moving a sheet to another workbook"); stampSheets(p);
+  let {bs,ss}=booksExplicit(p), t=null; if(to!=="new"&&!bs.some(b=>b.id===to)) return;
+  if(to==="new"){ to=newBookId(); bs.push({id:to,name:nextBookName(bs)}); t=treeOf(p); const fd=t.at["wb:"+from]; if(fd) t.at["wb:"+to]=fd; }
+  const nm=bs.find(b=>b.id===to).name, me=Object.assign({},ss.find(q=>q.id===sid),{book:to}); ss=ss.filter(q=>q.id!==sid);
+  let at=-1; ss.forEach((q,i)=>{ if(q.book===to) at=i; }); ss.splice(at<0?ss.length:at+1,0,me);
+  bs=bs.filter(b=>ss.some(q=>q.book===b.id));
+  save(Object.assign({books:bs,sheets:ss},t?{tree:{folders:t.folders,at:t.at}}:{}),`moved the sheet ${s.name} from the workbook ${bookName(from)} to ${nm}`);
+  if(!o.stay) showSheet(sid); else { syncSheetWins(); renderWs(); renderXpl(); }
+  if(!o.quiet) toast(`Moved ${s.name} to the workbook ${nm}.`,{kind:"done",action:"Undo",run:undo}); }
+// A sheet moved into a folder: into that folder's first workbook, or a workbook made there.
+function sheetToFolder(sid,fid){ const t=treeOf(), b=bookList().find(x=>(t.at["wb:"+x.id]||null)===(fid||null)); if(b){ moveSheetToBook(sid,b.id); return; }
+  const from=bookOf(sid); if(bookSheets(from).length===1){ xMove("wb:"+from,fid); return; }
+  undoGroup("moving a sheet to a folder",()=>{ moveSheetToBook(sid,"new",{quiet:true}); xMove("wb:"+bookOf(sid),fid); }); }
+// A tab's and the Explorer's Move to workbook ›: the other workbooks, then a new one.
+function bookMoveItems(sid){ const ro=S.readOnly||!P(), from=bookOf(sid);
+  return [{label:"Move to workbook",enabled:!ro,sub:()=>bookList().filter(b=>b.id!==from).map(b=>({label:b.name,run:()=>moveSheetToBook(sid,b.id)}))
+    .concat(bookList().length>1?["-"]:[],[{label:"A new workbook",enabled:bookSheets(from).length>1,title:bookSheets(from).length>1?"A workbook of its own, filed where this one is":"It is the workbook's only sheet",run:()=>moveSheetToBook(sid,"new")}])}]; }
+// The folder's first workbook, or none.
+function folderBook(fid){ const t=treeOf(); return bookList().find(x=>(t.at["wb:"+x.id]||null)===(fid||null))||null; }
+/* A workbook made inside a save's patch (an import's): added to patch.books, and filed in folder fid when one is given
+   (undefined: where the rule in save files what is new). Returns its id. */
+function bookNewIn(p,patch,name,fid){ const bs=(patch.books||booksExplicit(p).bs).slice(), bid=newBookId(); bs.push({id:bid,name:bookNameFor(name||(fid?xFolderName(fid):""),bs)}); patch.books=bs;
+  if(fid!==undefined){ const t=patch.tree||treeOf(p); if(fid&&xFolder(t,fid)) t.at["wb:"+bid]=fid; else delete t.at["wb:"+bid]; patch.tree={folders:t.folders,at:t.at}; }
+  return bid; }
+// What is dropped on a folder goes into its workbook, or a workbook made there (the project's row: the top level's).
+function bookForFolder(p,patch,fid){ const b=folderBook(fid||null); return b?b.id:bookNewIn(p,patch,"",fid||null); }
+// A folder's New sheet here: into its workbook, or a workbook made there.
+function newSheetIn(fid){ const b=folderBook(fid); if(b) return newSheet({book:b.id}); newBook({folder:fid}); }
+// A folder's or a workbook's Import files here…: the files on a sheet of that workbook, an empty one if it has one.
+function importHere(o){ const b=o.book?bookList().find(x=>x.id===o.book):folderBook(o.folder);
+  if(!b) newBook({folder:o.folder,quiet:true});
+  else { const e=bookSheets(b.id).find(s=>{ const cs=sheetCols(s.id); return cs.length&&cs.every(c=>blankCol(c)); }); if(e) showSheet(e.id); else newSheet({book:b.id}); }
+  pickFile(); }
 // Data › Sheets: every sheet (the one shown ticked), then what to do with it.
-function sheetsMenuItems(){ const p=P(), ro=S.readOnly||!p, cur=curSheet();
-  return sheetList().map(s=>({label:s.name,radio:true,checked:s.id===cur,run:()=>showSheet(s.id)}))
-    .concat(["-",{label:"New sheet",enabled:!ro,run:()=>newSheet()},{label:"Rename this sheet…",enabled:!ro,run:()=>renameSheet(cur)},{label:"Delete this sheet…",danger:true,enabled:!ro&&sheetList().length>1,run:()=>deleteSheet(cur)}]); }
+function sheetsMenuItems(){ const p=P(), ro=S.readOnly||!p, cur=curSheet(), bs=bookList(), sheet=s=>({label:s.name,radio:true,checked:s.id===cur,run:()=>showSheet(s.id)});
+  return (bs.length>1?[].concat(...bs.map(b=>[{group:b.name}].concat(bookSheets(b.id).map(sheet)))):sheetList().map(sheet))
+    .concat(["-",{label:"New sheet",enabled:!ro,run:()=>newSheet()},{label:"New workbook",enabled:!ro,run:()=>newBook()},...bookMoveItems(cur),{label:"Rename this sheet…",enabled:!ro,run:()=>renameSheet(cur)},{label:"Delete this sheet…",danger:true,enabled:!ro&&sheetList().length>1,run:()=>deleteSheet(cur)}]); }
 function renderWsTabs(){ const box=$("#wsTabs"), p=P(); if(!box) return;
   if(!p||S.sheet==="final"){ box.hidden=true; box.innerHTML=""; return; }
   box.hidden=false; const cur=curSheet(), ro=S.readOnly;
-  box.innerHTML=sheetList().map(s=>{ const a=s.ana?anaOf(s.ana):null, st=a?anaStale(a):null, own=swHas(s.id);
-    return `<button type="button" class="wstab${a?" ana":""}${st?" stale":""}${own?" own":""}" role="tab" data-wst="${esc(s.id)}" aria-selected="${s.id===cur}" tabindex="${s.id===cur?0:-1}" title="${esc(own?`${s.name}: in a window of its own. Click to bring it forward`:a?`${s.name}: the results of ${a.name}, read only${st?". Out of date: "+st:""}. Right-click for its menu`:`${s.name}: double-click to rename it, right-click for its menu`)}">${own?ICON("popout","sm"):a?ICON(st?"alert":"lock","sm"):""}${esc(s.name)}</button>`; }).join("")
+  box.innerHTML=bookSheets(bookOf(cur)).map(s=>{ const a=s.ana?anaOf(s.ana):null, st=a?anaStale(a):null;
+    return `<button type="button" class="wstab${a?" ana":""}${st?" stale":""}" role="tab" data-wst="${esc(s.id)}" aria-selected="${s.id===cur}" tabindex="${s.id===cur?0:-1}" title="${esc(a?`${s.name}: the results of ${a.name}, read only${st?". Out of date: "+st:""}. Right-click for its menu`:`${s.name}: double-click to rename it, drag it onto another workbook's window to move it there, right-click for its menu`)}">${a?ICON(st?"alert":"lock","sm"):""}${esc(s.name)}</button>`; }).join("")
     +(ro?"":`<button type="button" class="tb sm icon wstnew" data-wstnew title="A new sheet" aria-label="A new sheet">${ICON("plus","sm")}</button>`); }
 function wireWsTabs(){ const box=$("#wsTabs"); if(!box) return;
   // A double click is read from the press itself: the first click redraws the tabs.
   box.addEventListener("mousedown",e=>{ const t=e.target.closest("[data-wst]"); if(t&&e.button===0&&e.detail===2){ e.preventDefault(); renameSheet(t.dataset.wst); } });
-  box.addEventListener("click",e=>{ const t=e.target.closest("[data-wst]"); if(t){ if(e.detail<2) showSheet(t.dataset.wst); return; } if(e.target.closest("[data-wstnew]")) newSheet(); });
+  box.addEventListener("click",e=>{ const t=e.target.closest("[data-wst]"); if(t){ if(S.tabDragged){ S.tabDragged=false; return; } if(e.detail<2) showSheet(t.dataset.wst); return; } if(e.target.closest("[data-wstnew]")) newSheet(); });
+  // A tab dragged onto another workbook's window (or its taskbar button) moves the sheet there.
+  box.addEventListener("pointerdown",e=>{ const t=e.target.closest("[data-wst]"); if(!t||e.button!==0||S.readOnly) return; const sid=t.dataset.wst, x0=e.clientX, y0=e.clientY, from=bookOf(sid);
+    let ghost=null, tgt=null;
+    const mv=ev=>{ if(!ghost){ if(Math.hypot(ev.clientX-x0,ev.clientY-y0)<6) return; ghost=document.createElement("div"); ghost.className="gghost"; ghost.textContent=sheetName(sid); document.body.appendChild(ghost); winMoving(true); }
+      ghost.style.left=ev.clientX+12+"px"; ghost.style.top=ev.clientY+10+"px"; const n=wsDropBook(ev.clientX,ev.clientY,from);
+      if((n&&n.el)!==(tgt&&tgt.el)){ if(tgt) tgt.el.classList.remove("dropin"); if(n) n.el.classList.add("dropin"); } tgt=n;
+      ghost.textContent=n?`${sheetName(sid)} → ${bookName(n.bid)}`:sheetName(sid); };
+    const up=()=>{ window.removeEventListener("pointermove",mv,true); window.removeEventListener("pointerup",up,true); window.removeEventListener("pointercancel",up,true);
+      if(!ghost) return; ghost.remove(); winMoving(false); S.tabDragged=true; setTimeout(()=>{ S.tabDragged=false; },0); if(tgt){ tgt.el.classList.remove("dropin"); moveSheetToBook(sid,tgt.bid); } };
+    window.addEventListener("pointermove",mv,true); window.addEventListener("pointerup",up,true); window.addEventListener("pointercancel",up,true); });
   box.addEventListener("contextmenu",e=>{ const t=e.target.closest("[data-wst]"); if(!t) return; e.preventDefault(); openMenu(t,sheetMenuItems(t.dataset.wst)); });
   box.addEventListener("keydown",e=>{ const t=e.target.closest("[data-wst]"); if(!t) return; const ts=[...box.querySelectorAll("[data-wst]")], i=ts.indexOf(t);
     if(e.key==="ArrowRight"||e.key==="ArrowLeft"){ e.preventDefault(); const n=ts[(i+(e.key==="ArrowRight"?1:-1)+ts.length)%ts.length], id=n.dataset.wst; showSheet(id,{quiet:true}); const nb=box.querySelector(`[data-wst="${CSS.escape(id)}"]`); if(nb) nb.focus(); }
@@ -29010,9 +29126,10 @@ function whenOpen(fn,n){ n=n==null?80:n; if(P()){ fn(); return; } if(n>0) setTim
 // With nothing plotted the worksheet is the document: it takes the place of the
 // graph that went (or the whole desk) when it is the smaller of the two.
 function sheetForward(gg){
-  const st=winState("sheet"); gg=gg||[0,0,1,1];
+  // The window of the workbook whose sheet is shown (the worksheet window for the first).
+  const w=P()?wsWinOf(curSheet()):"sheet", id=WINS[w]?w:"sheet", st=winState(id); gg=gg||[0,0,1,1];
   if(!isNarrow()&&!st.max&&!graphWinIds().some(winOpen)&&st.g[2]*st.g[3]<gg[2]*gg[3]) st.g=gg.slice();
-  openWin("sheet",{render:true});
+  openWin(id,{render:true}); if(id!=="sheet") focusWin(id);
 }
 /* Puts the columns just imported on graphs, as the import was told: on none
    yet (the worksheet only), one graph, one each, or one graph stacked. In a
@@ -29187,7 +29304,9 @@ async function autoImport(files,o){
   // Spectra measured on the same X share its column; a file on another axis brings its own.
   let cols=fresh?[]:p.cols.slice(); const ids=[];
   // Beside data on the sheet shown, the files go on a sheet of their own, named after them.
-  const own=!fresh&&sheetCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null)), sid=own?newSheetId():fresh?SHEET0.id:curSheet();
+  // Dropped on a folder of the Explorer, on a sheet of its own in that folder's workbook.
+  const intoF=o.folder!==undefined&&!fresh;
+  const own=!fresh&&(intoF||sheetCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null))), sid=own?newSheetId():fresh?SHEET0.id:curSheet();
   if(own) stampSheets(p);
   if(!own&&!fresh) cols=dropBlanks(cols,sid,p);
   built.forEach(b=>b.cols.forEach(c=>{ c.sheet=sid; }));
@@ -29209,14 +29328,13 @@ async function autoImport(files,o){
     patch.graphs=[]; patch.annos=[]; patch.sheets=null; patch.wsHide=null;
   } else {
     patch.meta=Object.assign({},p.meta||{},built[0].res.meta);
-    if(own){ patch.sheets=sheetList(p).concat([{id:sid,name:sheetNameFor(built.length===1?built[0].base:batchProjName(built.map(b=>b.base)))}]); S.sheetAt=S.sheetAt||{}; S.sheetAt[S.pid]=sid; S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.wsm=null; S.wsSort=null; }
+    if(own){ patch.sheets=sheetList(p).concat([Object.assign({id:sid,name:sheetNameFor(built.length===1?built[0].base:batchProjName(built.map(b=>b.base)))},intoF?{book:bookForFolder(p,patch,o.folder)}:{})]); S.sheetAt=S.sheetAt||{}; S.sheetAt[S.pid]=sid; S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.wsm=null; S.wsSort=null; }
 
   }
   Object.assign(p,patch);
   const raw=recordRaw(fresh?`recorded from ${what}`:`added ${what}`); if(raw) patch.raw=raw;
   await save(patch,`${fresh?"imported":"added"} ${what}, dropped on the window${bad.length?`; skipped ${bad.map(s=>s.split(",")[0]).join(", ")}`:""}`);
   const sks=[...new Set(cols.filter(c=>built.some(b=>b.cols.includes(c))).map(c=>"ws:"+sheetOf(c)))];
-  if(o.folder) xFile(sks,o.folder);
   if(!ids.length){ renderAll(); sheetForward(); toast(`Imported ${what}: no column is a Y column, so nothing was plotted. The columns are in the worksheet.`,{action:"Undo",run:undo}); return {sheets:sks}; }
   // Dropped anywhere but on a graph, the columns go into the worksheet and nothing is
   // plotted: a graph is made when it is asked for (Plot, or a drop on a graph).
@@ -29268,8 +29386,8 @@ function treeOf(p){ p=p||P(); const t=(p&&p.tree)||{};
   const folders=(Array.isArray(t.folders)?t.folders:[]).filter(f=>f&&typeof f.id==="string").map(f=>({id:f.id,name:String(f.name||"Folder").slice(0,80),parent:typeof f.parent==="string"?f.parent:null}));
   const ids=new Set(folders.map(f=>f.id)); folders.forEach(f=>{ if(f.parent&&!ids.has(f.parent)) f.parent=null; });
   const at={}; if(t.at&&typeof t.at==="object") Object.keys(t.at).forEach(k=>{ if(ids.has(t.at[k])) at[k]=t.at[k]; });
-  // Filed before sheets, the worksheet ("ws") is its first sheet.
-  if(at.ws){ const k="ws:"+sheetList(p)[0].id; if(!at[k]) at[k]=at.ws; delete at.ws; }
+  // Filed before sheets, the worksheet ("ws") is the first workbook.
+  if(at.ws){ const k="wb:"+bookList(p)[0].id; if(!at[k]) at[k]=at.ws; delete at.ws; }
   return {folders,at}; }
 const xFolder=(t,id)=>t.folders.find(f=>f.id===id)||null;
 function xFolderName(id){ const f=id?xFolder(treeOf(),id):null; return f?f.name:projName(P()); }
@@ -29280,9 +29398,9 @@ function saveTree(t,log,o){ o=o||{}; if(!P()||S.readOnly) return false; if(!o.no
   const have=xKeys(P()), at={}; Object.keys(t.at).forEach(k=>{ if(have.has(k)) at[k]=t.at[k]; });
   save({tree:{folders:t.folders,at}},log||null); renderXpl(); return true; }
 // Every item the tree can hold, by its key.
-function xKeys(p){ const s=new Set(sheetList(p).map(q=>"ws:"+q.id)); graphIds().forEach(id=>s.add("g:"+id)); trendList().forEach(t=>s.add("t:"+t.id)); matBooks(p).forEach(b=>s.add("mx:"+b.id)); return s; }
+function xKeys(p){ const s=new Set(bookList(p).map(q=>"wb:"+q.id)); graphIds().forEach(id=>s.add("g:"+id)); trendList().forEach(t=>s.add("t:"+t.id)); matBooks(p).forEach(b=>s.add("mx:"+b.id)); return s; }
 // The same of any copy of a project.
-function xKeysOf(q){ const s=new Set(sheetList(q).map(x=>"ws:"+x.id)); graphIds(q).forEach(id=>s.add("g:"+id)); (Array.isArray(q.trends)?q.trends:[]).forEach(t=>s.add("t:"+t.id)); matBooks(q).forEach(b=>s.add("mx:"+b.id)); return s; }
+function xKeysOf(q){ const s=new Set(bookList(q).map(x=>"wb:"+x.id)); graphIds(q).forEach(id=>s.add("g:"+id)); (Array.isArray(q.trends)?q.trends:[]).forEach(t=>s.add("t:"+t.id)); matBooks(q).forEach(b=>s.add("mx:"+b.id)); return s; }
 // Puts items in a folder (null: the project's top level). No undo entry of its own:
 // it follows a change that made one.
 function xFile(keys,folder,o){ const t=treeOf(), v=folder&&xFolder(t,folder)?folder:null, at=Object.assign({},t.at); let ch=false;
@@ -29294,7 +29412,7 @@ function xNew(keys){ if(!xplShown()) return; const f=xActiveFolder(); if(f) xFil
    already in one folder moved to another). A save that makes a sheet, a graph, a trend graph or a matrix book files what
    is new, and only what is new, into the folder selected; one that carries the tree (an undo, a redo) is left as it is. */
 function xFileRule(p,patch){ if(!p||!patch||"tree" in patch||S.readOnly) return null;
-  if(!("sheets" in patch||"graphs" in patch||"trends" in patch||"mats" in patch)) return null;
+  if(!("sheets" in patch||"books" in patch||"graphs" in patch||"trends" in patch||"mats" in patch)) return null;
   // What was there before is the store's copy (S.projSrc): commands change the page's copy before they save.
   const f=xplShown()?xActiveFolder():null, src=S.projSrc&&S.projSrc.id===S.pid?S.projSrc:null, before=f&&src?xKeysOf(src):null;
   return ()=>{ const t=treeOf(p), have=xKeysOf(p), at={}; let ch=false;
@@ -29302,6 +29420,37 @@ function xFileRule(p,patch){ if(!p||!patch||"tree" in patch||S.readOnly) return 
     Object.keys(t.at).forEach(k=>{ if(have.has(k)) at[k]=t.at[k]; else ch=true; });
     if(before){ const nw=[...have].filter(k=>!before.has(k)); nw.forEach(k=>{ at[k]=f; ch=true; }); if(nw.length) xExp()["d:"+f]=true; }
     if(ch) p.tree=patch.tree={folders:t.folders,at}; }; }
+/* Where a new sheet goes, in one place (BOOK_SPEC; the rule of 27.11 for sheets): the workbook whose window holds the grid,
+   unless the Project Explorer was the last place pressed and what is selected there is in another folder; then into that
+   folder's first workbook, or a workbook made there. */
+function bookTarget(p){ p=p||P(); const live=winBook(wsLiveWin())||bookList(p)[0].id;
+  if(!xplShown()||!S.xplTouch||!S.xplSel||S.xplSel==="root") return {bid:live};
+  const t=treeOf(p), f=xActiveFolder()||null; if((t.at["wb:"+live]||null)===f) return {bid:live};
+  const b=bookList(p).find(x=>(t.at["wb:"+x.id]||null)===f); return b?{bid:b.id}:{bid:"new",folder:f}; }
+/* The rule in save: a sheet that is new and names no workbook goes where bookTarget says (several in one save, together); with
+   more than one workbook every sheet names its own, so none moves when the first changes; a workbook left with no sheet goes. */
+function bookRule(p,patch){ if(!p||!patch||!Array.isArray(patch.sheets)||S.readOnly) return;
+  const src=S.projSrc&&S.projSrc.id===S.pid?S.projSrc:null, old=new Set(src?sheetList(src).map(s=>s.id):patch.sheets.map(s=>s.id));
+  let books="books" in patch?patch.books:p.books; books=Array.isArray(books)&&books.length?books.slice():null;
+  const has=id=>!!books&&books.some(b=>b.id===id), first=(books||[BOOK0])[0].id;
+  const fresh=new Set(patch.sheets.filter(s=>!old.has(s.id)&&!has(s.book)).map(s=>s.id));
+  let bid=first;
+  if(fresh.size){ const tg=bookTarget(Object.assign({},p,{books,sheets:patch.sheets})); bid=tg.bid;
+    if(bid==="new"){ books=books||[Object.assign({},BOOK0)]; bid=newBookId(); books.push({id:bid,name:bookNameFor(tg.folder?xFolderName(tg.folder):"",books)}); } }
+  if(!books) return;
+  const ss=patch.sheets.map(s=>has(s.book)?s:Object.assign({},s,{book:fresh.has(s.id)?bid:first}));
+  const keep=books.filter(b=>ss.some(s=>s.book===b.id));
+  patch.sheets=ss; if(keep.length!==books.length||!jsonEq(books,p.books)) patch.books=keep.length?keep:null; }
+/* A sheet still called by the name it was made with (Sheet 3), that held nothing but its placeholders, takes the name of the
+   file that comes into it: whichever way the file came (the dialog, a drop, several files, a workbook), in one place. */
+function sheetNameRule(p,patch){ if(!Array.isArray(patch.cols)||S.readOnly) return; const src=S.projSrc&&S.projSrc.id===S.pid?S.projSrc:null; if(!src) return;
+  const ss="sheets" in patch?patch.sheets:p.sheets; if(!Array.isArray(ss)||!ss.length) return;
+  const dflt=ss.filter(s=>/^Sheet \d+$/.test(s.name)&&sheetList(src).some(o=>o.id===s.id)); if(!dflt.length) return;
+  const q={cols:patch.cols,sheets:ss}; let out=null;
+  dflt.forEach(s=>{ const before=(src.cols||[]).filter(c=>!c.src&&sheetOf(c,src)===s.id); if(!before.every(c=>blankCol(c,src))) return;
+    const f=patch.cols.find(c=>!c.src&&c.file&&sheetOf(c,q)===s.id&&hasVals(c)); if(!f) return;
+    out=out||ss.slice(); const i=out.findIndex(o=>o.id===s.id); out[i]=Object.assign({},out[i],{name:sheetNameFor(baseName(f.file),out.filter(o=>o.id!==s.id))}); });
+  if(out) patch.sheets=out; }
 /* The document's rules, written once (QUALITY_SPEC S.2): what must hold after every action, each broken one a sentence.
    Structure only, no values read, so it costs nothing on a million rows. The tests run it after every save (projCheckOn: a page
    served from 127.0.0.1, or kurve.check set), and a rule broken is a console error, which every drive counts as a page error. */
@@ -29310,6 +29459,10 @@ function projCheck(p){ p=p||P(); const out=[]; if(!p) return out; const bad=s=>{
   cols.forEach(c=>{ if(!c||typeof c.id!=="string"){ bad("a column without an id"); return; } if(ids.has(c.id)) bad(`two columns with the id ${c.id}`); ids.add(c.id); });
   const ss=sheetList(p), sids=new Set(), snm=new Set();
   ss.forEach(s=>{ if(sids.has(s.id)) bad(`two sheets with the id ${s.id}`); sids.add(s.id); if(snm.has(s.name)) bad(`two sheets called ${s.name}`); snm.add(s.name); });
+  if(Array.isArray(p.books)){ const bids=new Set(), bnm=new Set();
+    p.books.forEach(b=>{ if(!b||typeof b.id!=="string"){ bad("a workbook without an id"); return; } if(bids.has(b.id)) bad(`two workbooks with the id ${b.id}`); bids.add(b.id); if(bnm.has(b.name)) bad(`two workbooks called ${b.name}`); bnm.add(b.name); });
+    ss.forEach(s=>{ if(s.book&&!bids.has(s.book)) bad(`the sheet ${s.name} is in a workbook not there`); });
+    p.books.forEach(b=>{ if(b&&!ss.some(s=>bookOfSheet(s,p)===b.id)) bad(`the workbook ${b.name} holds no sheet`); }); }
   cols.forEach(c=>{ if(!c) return; if(c.role==="e"&&!ids.has(c.of)) bad(`the error column ${c.name||c.id} belongs to a column not there`);
     if(c.src&&!ids.has(c.src)) bad(`${c.name||c.id} is made from a column not there`); });
   if(p.activeY!=null){ const a=cols.find(c=>c&&c.id===p.activeY); if(!a) bad("the active column is not in the project"); else if(a.role!=="y") bad(`the active column ${a.name||a.id} is not a Y column`); }
@@ -29331,6 +29484,8 @@ function projCheckAfter(what){ if(!projCheckOn()) return; let v; try{ v=projChec
 function projBlank(p){ p=p||P(); if(!p) return true; const t=p.tree||{};
   return !(p.cols||[]).some(c=>c.role!=="x"&&hasVals(c))&&!(p.sheets&&p.sheets.length)&&!((t.folders||[]).length)&&!((p.graphs||[]).length)&&!((p.mats||[]).length)&&!((p.ana||[]).length); }
 function xActiveFolder(){ const t=treeOf(), k=S.xplSel; if(!k) return null; if(k.startsWith("d:")) return xFolder(t,k.slice(2))?k.slice(2):null;
+  // A sheet is where its workbook is.
+  if(k.startsWith("ws:")) return t.at["wb:"+bookOf(k.slice(3))]||null;
   return t.at[k]||null; }
 function xExp(){ S.xplExp=S.xplExp||{}; return S.xplExp[S.pid]=S.xplExp[S.pid]||{}; }
 // The rows shown: the tree flattened, folders open unless closed, files closed
@@ -29338,8 +29493,9 @@ function xExp(){ S.xplExp=S.xplExp||{}; return S.xplExp[S.pid]=S.xplExp[S.pid]||
 function xRows(){
   const p=P(); if(!p) return [];
   const t=treeOf(p), q=(S.xplQ||"").trim().toLowerCase(), exp=xExp(), rows=[], items=[];
-  const cur=curSheet(), many=sheetList(p).length>1;
-  sheetList(p).forEach(s=>items.push({key:"ws:"+s.id,kind:"ws",sid:s.id,name:many?s.name:"Worksheet",icon:"table",note:winMin(wsWinOf(s.id))&&(swHas(s.id)||s.id===mainSheet())?"minimised":"",tip:`${s.name}: ${(n=>`${n} column${n===1?"":"s"} with values`)(sheetCols(s.id).filter(hasVals).length)}`}));
+  // The workbooks, each holding its sheets (BOOK_SPEC): a workbook is filed, its sheets are where it is.
+  bookList(p).forEach(b=>{ const ss=bookSheets(b.id,p); items.push({key:"wb:"+b.id,kind:"book",bid:b.id,name:b.name,icon:"table",note:winMin(bkWin(b.id))?"minimised":"",
+    tip:`${b.name}: ${ss.length} sheet${ss.length===1?"":"s"}`,sheets:ss.map(s=>({key:"ws:"+s.id,kind:"ws",sid:s.id,name:s.name,icon:"file",tip:`${s.name}: ${(n=>`${n} column${n===1?"":"s"} with values`)(sheetCols(s.id).filter(hasVals).length)}`}))}); });
   // A figure holds its panels. The sheets hold the columns: the worksheet shows them, so the tree
   // does not list them again (information hygiene: one place for one thing).
   deskGraphIds().forEach(id=>{ const w=winOfGraph(id), fg=graphOf(id)&&graphOf(id).fig, cs=fg?[]:graphCols(id), np=fg?fg.cells.length:0;
@@ -29351,7 +29507,9 @@ function xRows(){
   const walk=(fid,level,pk)=>{
     t.folders.filter(f=>(f.parent||null)===fid).forEach(f=>{ if(seen.has(f.id)) return; seen.add(f.id); const k="d:"+f.id, open=q?true:exp[k]!==false;
       rows.push({key:k,kind:"folder",fid:f.id,name:f.name,icon:"folder",level,parent:pk,exp:true,open}); if(open) walk(f.id,level+1,k); });
-    items.filter(it=>fold(it.key)===fid).forEach(it=>{ const kids=it.panels||null, open=!!kids&&kids.length>0&&(q?true:it.panels?exp[it.key]!==false:exp[it.key]===true);
+    items.filter(it=>fold(it.key)===fid).forEach(it=>{
+      if(it.sheets){ const open=q?true:exp[it.key]!==false; rows.push(Object.assign({},it,{level,parent:pk,exp:true,open})); if(open) it.sheets.forEach(sh=>rows.push(Object.assign({},sh,{level:level+1,parent:it.key}))); return; }
+      const kids=it.panels||null, open=!!kids&&kids.length>0&&(q?true:it.panels?exp[it.key]!==false:exp[it.key]===true);
       rows.push(Object.assign({},it,{level,parent:pk,exp:!!(kids&&kids.length),open}));
       if(open&&it.panels){ it.panels.forEach(g=>{ const cs=graphCols(g); rows.push({key:"g:"+g,kind:"graph",gid:g,panel:true,name:[figLetter(g),graphName(g)].filter(Boolean).join(" "),icon:"chart",level:level+1,parent:it.key,
         note:g===S.gid?"in front":"", tip:`${graphTitle(g)}: ${cs.length?andList(cs.slice(0,6).map(specName)):"nothing plotted"}`}); }); return; }
@@ -29371,8 +29529,8 @@ function renderXpl(){
   const rows=S.xplRows=xRows(), front=frontWinId();
   if(!rows.some(r=>r.key===S.xplSel)) S.xplSel=null;
   const sel=S.xplSel||"root", many=xMany(); box.setAttribute("aria-multiselectable","true");
-  box.innerHTML=rows.map((r,i)=>{ const live=r.kind==="graph"&&winOpen(winOfGraph(r.gid))&&front===winOfGraph(r.gid)||r.kind==="ws"&&r.sid===curSheet()&&front==="sheet", drag=r.kind!=="root"&&!S.readOnly;
-    return `<div class="xr${r.kind==="graph"&&graphShut(r.gid)?" shut":""}${live?" live":""}" role="treeitem" id="xr${i}" data-xk="${esc(r.key)}" aria-level="${r.level+1}"${r.exp?` aria-expanded="${r.open}"`:""} aria-selected="${many.size>1?many.has(r.key):r.key===sel}" tabindex="${r.key===sel?0:-1}"${drag?` draggable="true"`:""}${r.kind==="folder"||r.kind==="root"?` data-xfold="${r.kind==="folder"?esc(r.fid):""}"`:""} style="--lv:${r.level}" title="${esc(r.tip||r.name)}">`+
+  box.innerHTML=rows.map((r,i)=>{ const live=r.kind==="graph"&&winOpen(winOfGraph(r.gid))&&front===winOfGraph(r.gid)||r.kind==="ws"&&r.sid===curSheet()&&front===wsLiveWin()||r.kind==="book"&&front===bkWin(r.bid), drag=r.kind!=="root"&&!S.readOnly;
+    return `<div class="xr${r.kind==="graph"&&graphShut(r.gid)?" shut":""}${live?" live":""}" role="treeitem" id="xr${i}" data-xk="${esc(r.key)}" aria-level="${r.level+1}"${r.exp?` aria-expanded="${r.open}"`:""} aria-selected="${many.size>1?many.has(r.key):r.key===sel}" tabindex="${r.key===sel?0:-1}"${drag?` draggable="true"`:""}${r.kind==="folder"||r.kind==="root"?` data-xfold="${r.kind==="folder"?esc(r.fid):""}"`:""}${r.kind==="book"?` data-xbook="${esc(r.bid)}"`:""} style="--lv:${r.level}" title="${esc(r.tip||r.name)}">`+
       `<span class="xtw"${r.exp?" data-xtw":""} aria-hidden="true">${r.exp?ICON(r.open?"chev":"chevr","sm"):""}</span>${ICON(r.kind==="graph"&&graphShut(r.gid)?"eyeoff":r.icon,"sm")}<span class="xn">${esc(r.name)}</span>${r.note?`<span class="xnote">${esc(r.note)}</span>`:""}</div>`; }).join("")
     +(S.xplQ&&rows.length<2?`<p class="xempty">Nothing called “${esc(S.xplQ)}”.</p>`:"");
   if(had) xFocus();
@@ -29396,15 +29554,19 @@ function xSelect(key,focus,how){ const rows=S.xplRows||[], prev=S.xplSel;
 function xSelRows(){ const m=xMany(), rows=S.xplRows||[]; return m.size>1?rows.filter(r=>m.has(r.key)):rows.filter(r=>r.key===(S.xplSel||"root")); }
 // What a selection holds: graphs (figures and plain ones), sheets, trend graphs, matrix books, folders; and the Y columns of its
 // sheets and the curves of its graphs, each once.
-function xSelWhat(rows){ const g=rows.filter(r=>r.kind==="graph").map(r=>r.gid), ws=rows.filter(r=>r.kind==="ws").map(r=>r.sid), cols=[];
+function xSelWhat(rows){ const g=rows.filter(r=>r.kind==="graph").map(r=>r.gid), books=rows.filter(r=>r.kind==="book").map(r=>r.bid), cols=[];
+  const ws=[...new Set(rows.filter(r=>r.kind==="ws").map(r=>r.sid).concat(...books.map(b=>bookSheets(b).map(s=>s.id))))];
   const add=c=>{ if(c&&c.role==="y"&&(c.src||hasVals(c))&&!cols.includes(c.id)) cols.push(c.id); };
   ws.forEach(sid=>{ sheetCols(sid).forEach(add); yCols().filter(c=>c.src&&sheetOf(c)===sid).forEach(add); });
   g.forEach(id=>{ const fg=graphOf(id)&&graphOf(id).fig; (fg?fg.cells.map(c=>c.gid):[id]).forEach(k=>graphCols(k).forEach(add)); });
-  return {graphs:g, plain:g.filter(id=>!isFigId(id)&&!figOf(id)), sheets:ws, trends:rows.filter(r=>r.kind==="trend").map(r=>r.tid), mats:rows.filter(r=>r.kind==="mat").map(r=>r.bid), folders:rows.filter(r=>r.kind==="folder").map(r=>r.fid), cols}; }
+  return {graphs:g, plain:g.filter(id=>!isFigId(id)&&!figOf(id)), sheets:ws, books, trends:rows.filter(r=>r.kind==="trend").map(r=>r.tid), mats:rows.filter(r=>r.kind==="mat").map(r=>r.bid), folders:rows.filter(r=>r.kind==="folder").map(r=>r.fid), cols}; }
 const xCount=(n,w,ws)=>`${n} ${n===1?w:ws||w+"s"}`;
-function xSelWords(w){ return andList([w.graphs.length?xCount(w.graphs.length,"graph"):"",w.sheets.length?xCount(w.sheets.length,"sheet"):"",w.trends.length?xCount(w.trends.length,"trend graph"):"",w.mats.length?xCount(w.mats.length,"matrix book"):"",w.folders.length?xCount(w.folders.length,"folder"):""].filter(Boolean)); }
+function xSelWords(w){ return andList([w.graphs.length?xCount(w.graphs.length,"graph"):"",(w.books||[]).length?xCount(w.books.length,"workbook"):"",w.sheets.length?xCount(w.sheets.length,"sheet"):"",w.trends.length?xCount(w.trends.length,"trend graph"):"",w.mats.length?xCount(w.mats.length,"matrix book"):"",w.folders.length?xCount(w.folders.length,"folder"):""].filter(Boolean)); }
 // Every selected thing into a folder, one undo step.
-function xMoveMany(keys,folder){ if(S.readOnly||!P()) return false; const t=treeOf(), to=folder&&xFolder(t,folder)?folder:null; let n=0;
+function xMoveMany(keys,folder){ if(S.readOnly||!P()) return false;
+  const sh=keys.filter(k=>k.startsWith("ws:")); if(sh.length){ const rest=keys.filter(k=>!k.startsWith("ws:"));
+    undoGroup(`moving ${sh.length+rest.length} things to a folder`,()=>{ if(rest.length) xMoveMany(rest,folder); sh.forEach(k=>{ if(sheetList().some(s=>"ws:"+s.id===k)) sheetToFolder(k.slice(3),folder); }); }); return true; }
+  const t=treeOf(), to=folder&&xFolder(t,folder)?folder:null; let n=0;
   keys.forEach(key=>{ if(key.startsWith("d:")){ const id=key.slice(2), f=xFolder(t,id); if(!f||(to&&(to===id||xUnder(t,to,id)))||(f.parent||null)===to) return; f.parent=to; n++; }
     else if(key!=="root"&&(t.at[key]||null)!==to){ if(to) t.at[key]=to; else delete t.at[key]; n++; } });
   if(!n) return false; if(to) xExp()["d:"+to]=true; saveTree(t,null,{undo:`moving ${n} things to a folder`}); toast(`Moved ${n} to ${to?`“${xFolderName(to)}”`:"the project's top level"}.`,{action:"Undo",run:undo}); return true; }
@@ -29436,14 +29598,15 @@ function xMultiMenu(rows){ const p=P(), ro=S.readOnly||!p, t=treeOf(), w=xSelWha
   return items; }
 const xRow=k=>(S.xplRows||[]).find(r=>r.key===k)||null;
 function xToggle(key,v){ const e=xExp(), r=xRow(key); if(!r||!r.exp||r.kind==="root") return; const open=v==null?!r.open:!!v;
-  if(r.kind==="folder") e[key]=open; else e[key]=open||undefined; renderXpl(); }
-function xExpandAll(v){ const e=xExp(), t=treeOf(); t.folders.forEach(f=>{ e["d:"+f.id]=v; }); deskGraphIds().forEach(id=>{ if(graphOf(id).fig) e["g:"+id]=v; }); renderXpl(); }
+  if(r.kind==="folder"||r.kind==="book") e[key]=open; else e[key]=open||undefined; renderXpl(); }
+function xExpandAll(v){ const e=xExp(), t=treeOf(); t.folders.forEach(f=>{ e["d:"+f.id]=v; }); bookList().forEach(b=>{ e["wb:"+b.id]=v; }); deskGraphIds().forEach(id=>{ if(graphOf(id).fig) e["g:"+id]=v; }); renderXpl(); }
 function xOpen(r){
   if(!r) return;
   // On a phone the drawer gives way to what was opened.
   if(xplDrawer()&&r.kind!=="folder") toggleXpl(false);
   if(r.kind==="graph") showGraph(r.gid);
   else if(r.kind==="ws") showSheet(r.sid);
+  else if(r.kind==="book") showSheet(bookShown(r.bid));
   else if(r.kind==="trend") openWin(r.tid,{render:true});
   else if(r.kind==="mat") matOpen(r.bid);
   else if(r.kind==="folder") xToggle(r.key);
@@ -29461,7 +29624,9 @@ function xDeleteFolder(fid){ const t=treeOf(), f=xFolder(t,fid); if(!f||S.readOn
   t.folders.forEach(o=>{ if(o.parent===fid) o.parent=f.parent; }); Object.keys(t.at).forEach(k=>{ if(t.at[k]===fid){ if(f.parent) t.at[k]=f.parent; else delete t.at[k]; } });
   t.folders=t.folders.filter(o=>o.id!==fid); S.xplSel=f.parent?"d:"+f.parent:"root";
   saveTree(t,null,{undo:"deleting a folder"}); toast(`Deleted the folder “${f.name}”. What it held is in ${f.parent?`“${xFolderName(f.parent)}”`:"the project's top level"} now.`,{action:"Undo",run:undo}); }
-function xMove(key,folder){ if(S.readOnly||!P()) return false; const t=treeOf(), to=folder&&xFolder(t,folder)?folder:null;
+function xMove(key,folder){ if(S.readOnly||!P()) return false;
+  if(key.startsWith("ws:")){ sheetToFolder(key.slice(3),folder); return true; }
+  const t=treeOf(), to=folder&&xFolder(t,folder)?folder:null;
   if(key.startsWith("d:")){ const id=key.slice(2), f=xFolder(t,id); if(!f||(to&&(to===id||xUnder(t,to,id)))) return false; if((f.parent||null)===to) return false; f.parent=to; }
   else { if((t.at[key]||null)===to) return false; if(to) t.at[key]=to; else delete t.at[key]; }
   if(to) xExp()["d:"+to]=true; saveTree(t,null,{undo:"moving something to a folder"}); return true; }
@@ -29477,21 +29642,25 @@ function xMenu(r){
     "-",{label:"Expand everything",run:()=>xExpandAll(true)},{label:"Collapse everything",run:()=>xExpandAll(false)}];
   // What is made from a folder's menu goes into it (the rule in save, xFileRule, with the folder selected).
   const here=f=>()=>{ S.xplSel="d:"+r.fid; xSelect(S.xplSel); f(); };
-  if(r.kind==="folder") return [{group:r.name,plain:true},{label:"New sheet here",enabled:!ro,run:here(()=>newSheet())},{label:"Import files here…",enabled:!ro,title:"A new sheet in this folder, and the files on it",run:here(()=>{ newSheet(); pickFile(); })},"-",{label:"New folder inside…",enabled:!ro,run:()=>xNewFolder(r.fid)},{label:"Rename…",kbd:"F2",enabled:!ro,run:()=>xRenameFolder(r.fid)},move,
+  if(r.kind==="folder") return [{group:r.name,plain:true},{label:"New workbook here",enabled:!ro,title:"A workbook filed in this folder, in a window of its own",run:here(()=>newBook({folder:r.fid}))},
+    {label:"New sheet here",enabled:!ro,title:"A sheet in this folder's workbook (a workbook made here when it has none)",run:here(()=>newSheetIn(r.fid))},{label:"Import files here…",enabled:!ro,title:"The files into this folder's workbook, a sheet a file (a workbook made here when it has none)",run:here(()=>importHere({folder:r.fid}))},"-",{label:"New folder inside…",enabled:!ro,run:()=>xNewFolder(r.fid)},{label:"Rename…",kbd:"F2",enabled:!ro,run:()=>xRenameFolder(r.fid)},move,
     "-",{label:"Delete the folder",kbd:"Delete",title:"What it holds moves up a level",danger:true,enabled:!ro,run:()=>xDeleteFolder(r.fid)}];
   if(r.kind==="graph"){ const on=graphWinItems(r.gid).find(i=>i&&i.label==="Curves on it"), shut=graphShut(r.gid);
     return [{group:r.name,plain:true},{label:shut?"Open":"Bring to the front",kbd:"Enter",run:()=>showGraph(r.gid)},{label:"Close (hide it)",enabled:!ro&&!shut,run:()=>closeGraph(r.gid)},
       {label:"Rename…",kbd:"F2",enabled:!ro,run:()=>renameGraph(r.gid)},on||null,{label:"Duplicate",enabled:!ro,run:()=>duplicateGraph(r.gid)},move,
       "-",{label:"Delete the graph",kbd:"Delete",danger:true,enabled:!ro,run:()=>deleteGraph(r.gid)}]; }
-  if(r.kind==="ws") return [{group:sheetName(r.sid)||"Worksheet",plain:true},{label:"Open",kbd:"Enter",run:()=>xOpen(r)},...(sheetList().length>1?sheetWinItems(r.sid):[]),{label:"Rename…",kbd:"F2",enabled:!S.readOnly,run:()=>renameSheet(r.sid)},move,"-",{label:"New sheet",enabled:!S.readOnly,run:()=>newSheet()},{label:"Delete the sheet…",danger:true,enabled:!S.readOnly&&sheetList().length>1,run:()=>deleteSheet(r.sid)}];
+  if(r.kind==="ws") return [{group:sheetName(r.sid)||"Worksheet",plain:true},{label:"Open",kbd:"Enter",run:()=>xOpen(r)},...bookMoveItems(r.sid),{label:"Rename…",kbd:"F2",enabled:!S.readOnly,run:()=>renameSheet(r.sid)},"-",{label:"New sheet",enabled:!S.readOnly,run:()=>newSheet({book:bookOf(r.sid)})},{label:"Delete the sheet…",danger:true,enabled:!S.readOnly&&sheetList().length>1,run:()=>deleteSheet(r.sid)}];
+  if(r.kind==="book") return [{group:r.name,plain:true},{label:"Open",kbd:"Enter",run:()=>xOpen(r)},{label:"Rename…",kbd:"F2",enabled:!ro,run:()=>renameBook(r.bid)},
+    {label:"New sheet in it",enabled:!ro,run:()=>newSheet({book:r.bid})},{label:"Import files into it…",enabled:!ro,title:"A sheet a file, in this workbook",run:()=>importHere({book:r.bid})},move,
+    "-",{label:"Delete the workbook…",kbd:"Delete",danger:true,enabled:!ro&&bookList().length>1,title:bookList().length>1?"Its sheets go with it; Undo brings them back":"A project keeps one workbook",run:()=>deleteBook(r.bid)}];
   if(r.kind==="mat") return [{group:r.name,plain:true},{label:"Open",kbd:"Enter",run:()=>xOpen(r)},{label:"Rename…",kbd:"F2",enabled:!ro,run:()=>matRenameBook(r.bid)},move,
     "-",{label:"Delete the matrix book…",kbd:"Delete",danger:true,enabled:!ro,run:()=>matDeleteBook(r.bid)}];
   if(r.kind==="trend") return [{group:r.name,plain:true},{label:"Open",kbd:"Enter",run:()=>xOpen(r)},{label:"Rename…",kbd:"F2",enabled:!ro,run:()=>renameTrend(r.tid)},move,
     "-",{label:"Delete the trend graph",kbd:"Delete",danger:true,enabled:!ro,run:()=>deleteTrend(r.tid)}];
   return [];
 }
-function xRename(r){ if(!r||S.readOnly) return; if(r.kind==="ws") renameSheet(r.sid); else if(r.kind==="folder") xRenameFolder(r.fid); else if(r.kind==="graph") renameGraph(r.gid); else if(r.kind==="trend") renameTrend(r.tid); else if(r.kind==="mat") matRenameBook(r.bid); else if(r.kind==="root") renameProject(); }
-function xDelete(r){ if(!r||S.readOnly) return; if(r.kind==="ws") deleteSheet(r.sid); else if(r.kind==="folder") xDeleteFolder(r.fid); else if(r.kind==="graph") deleteGraph(r.gid); else if(r.kind==="trend") deleteTrend(r.tid); else if(r.kind==="mat") matDeleteBook(r.bid); }
+function xRename(r){ if(!r||S.readOnly) return; if(r.kind==="ws") renameSheet(r.sid); else if(r.kind==="book") renameBook(r.bid); else if(r.kind==="folder") xRenameFolder(r.fid); else if(r.kind==="graph") renameGraph(r.gid); else if(r.kind==="trend") renameTrend(r.tid); else if(r.kind==="mat") matRenameBook(r.bid); else if(r.kind==="root") renameProject(); }
+function xDelete(r){ if(!r||S.readOnly) return; if(r.kind==="ws") deleteSheet(r.sid); else if(r.kind==="book") deleteBook(r.bid); else if(r.kind==="folder") xDeleteFolder(r.fid); else if(r.kind==="graph") deleteGraph(r.gid); else if(r.kind==="trend") deleteTrend(r.tid); else if(r.kind==="mat") matDeleteBook(r.bid); }
 // What a drag from the tree carries, and where it may land.
 const xDragKind=k=>{ const r=xRow(k); return r?r.kind:null; };
 function wireXpl(){
@@ -29533,18 +29702,21 @@ function wireXpl(){
   window.addEventListener("dragend",endDrag,true);
   // Only a drag that started in the tree: a file from the computer is never one, whatever S.xdrag says.
   const ours=e=>!!S.xdrag&&!!e.dataTransfer&&[...(e.dataTransfer.types||[])].includes("text/x-kurve-node");
-  const target=e=>{ if(!ours(e)) return null; const el=e.target.closest&&e.target.closest(".xr[data-xfold]"); if(!el) return null;
+  const target=e=>{ if(!ours(e)) return null; const bk=e.target.closest&&e.target.closest(".xr[data-xbook]");
+    if(bk&&S.xdrag.startsWith("ws:")&&bookOf(S.xdrag.slice(3))!==bk.dataset.xbook) return bk;
+    const el=e.target.closest&&e.target.closest(".xr[data-xfold]"); if(!el) return null;
     const to=el.dataset.xfold||null, k=S.xdrag, t=treeOf(); if(k.startsWith("d:")&&to&&(to===k.slice(2)||xUnder(t,to,k.slice(2)))) return null;
     const kind=xDragKind(k); if(kind==="root") return null; return el; };
   box.addEventListener("dragover",e=>{ const el=target(e); box.querySelectorAll(".xdrop").forEach(x=>{ if(x!==el) x.classList.remove("xdrop"); }); if(!el) return; e.preventDefault(); e.dataTransfer.dropEffect="move"; el.classList.add("xdrop"); });
   box.addEventListener("drop",e=>{ const el=target(e); if(!el) return; e.preventDefault(); e.stopPropagation(); const k=S.xdrag, m=xMany(); el.classList.remove("xdrop"); S.xdrag=null;
+    if(el.dataset.xbook){ moveSheetToBook(k.slice(3),el.dataset.xbook); return; }
     if(m.size>1&&m.has(k)) xMoveMany([...m],el.dataset.xfold||null); else xMove(k,el.dataset.xfold||null); });
   // A sheet dragged onto a graph window: its Y columns are plotted there.
-  const graphUnder=e=>{ if(!ours(e)) return null; const kind=xDragKind(S.xdrag); if(kind!=="ws") return null;
+  const graphUnder=e=>{ if(!ours(e)) return null; const kind=xDragKind(S.xdrag); if(kind!=="ws"&&kind!=="book") return null;
     for(const el of document.elementsFromPoint(e.clientX,e.clientY)){ const w=el.closest&&el.closest(".win.gwin"); if(w&&!w.hidden){ const g=graphIn(el,w); if(g) return {w,g}; } } return null; };
   window.addEventListener("dragover",e=>{ const t=graphUnder(e); document.querySelectorAll(".win.dropin").forEach(x=>{ if(!t||x!==t.w) x.classList.remove("dropin"); }); if(!t) return; e.preventDefault(); e.dataTransfer.dropEffect="copy"; t.w.classList.add("dropin"); });
   window.addEventListener("drop",e=>{ const t=graphUnder(e); if(!t) return; e.preventDefault(); const r=xRow(S.xdrag); t.w.classList.remove("dropin"); S.xdrag=null; if(!r) return;
-    const ids=sheetCols(r.sid).filter(c=>c.role==="y"&&hasVals(c)).map(c=>c.id); if(ids.length) plotCols(ids,{into:t.g}); else toast(`${sheetName(r.sid)} has no Y column to plot.`); });
+    const ids=(r.kind==="book"?bookSheets(r.bid).map(s=>s.id):[r.sid]).flatMap(sid=>sheetCols(sid).filter(c=>c.role==="y"&&hasVals(c)).map(c=>c.id)); if(ids.length) plotCols(ids,{into:t.g}); else toast(`${r.name} has no Y column to plot.`); });
   // The header: a new folder in the active one, collapse, help, close; the filter.
   $("#xplNew").onclick=()=>xNewFolder(xActiveFolder());
   $("#xplFold").onclick=()=>xExpandAll(false);
@@ -29640,12 +29812,14 @@ async function importBook(book,fname,idx,o){
   S.view=null; S.draft=null; S.pdraft=null; S.stage=null; S.selStep=null;
   if(!fresh) stampSheets(p);
   // In a project that holds nothing the workbook's first sheet takes the first sheet's place.
-  const ss=fresh?[]:sheetList(p).slice(), ids=[], sids=[]; let cols=fresh?[]:p.cols.slice();
-  built.forEach((b,k)=>{ const sid=fresh&&k===0?SHEET0.id:newSheetId(); ss.push({id:sid,name:sheetNameFor(b.sname,ss)}); sids.push(sid);
+  const ss=fresh?[]:sheetList(p).slice(), ids=[], sids=[], pb={}; let cols=fresh?[]:p.cols.slice();
+  // An Excel workbook is a workbook here too, named after its file (in a project that held nothing, the first one).
+  const bk=fresh?null:bookNewIn(p,pb,base,o.folder!==undefined?(o.folder||null):undefined);
+  built.forEach((b,k)=>{ const sid=fresh&&k===0?SHEET0.id:newSheetId(); ss.push(Object.assign({id:sid,name:sheetNameFor(b.sname,ss)},bk?{book:bk}:{})); sids.push(sid);
     if(b.ys.length===1&&!b.ys[0].name) b.ys[0].name=String(b.sname).slice(0,60);
     b.cols.forEach(c=>{ c.sheet=sid; }); cols=cols.concat(b.cols); b.ys.forEach(c=>ids.push(c.id)); });
   p.cols=cols; if(ids.length) p.activeY=ids[0];
-  const patch={cols:p.cols,activeY:p.activeY,sheets:ss}, what=`${built.length} sheet${built.length===1?"":"s"} of ${fname}`;
+  const patch=Object.assign({cols:p.cols,activeY:p.activeY,sheets:ss},pb), what=`${built.length} sheet${built.length===1?"":"s"} of ${fname}`;
   if(fresh){ Object.assign(patch,{meta:built[0].res.meta,fit:null,srcName:base,graphs:[],annos:[],wsHide:null});
     if(isUntitled(p.name)||(p.srcName&&p.name===p.srcName)) patch.name=uniqueProjName(base,S.pid); }
   else patch.meta=Object.assign({},p.meta||{},built[0].res.meta);
@@ -29653,7 +29827,7 @@ async function importBook(book,fname,idx,o){
   const raw=recordRaw(fresh?`recorded from ${what}`:`added ${what}`); if(raw) patch.raw=raw;
   S.sheetAt=S.sheetAt||{}; S.sheetAt[S.pid]=sids[0]; S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.wsm=null; S.wsSort=null;
   await save(patch,`${fresh?"imported":"added"} ${what} (${built.map(b=>b.sname).join(", ")}), each on a sheet of its own${bad.length?`; skipped ${bad.map(s=>s.split(",")[0]).join(", ")}`:""}`);
-  const sks=sids.map(s=>"ws:"+s); if(o.folder) xFile(sks,o.folder);
+  const sks=sids.map(s=>"ws:"+s);
   const again={action:"Read it differently",run:()=>{ undo(); xlsxOpen(book,fname); }};
   if(o.gid&&ids.length&&(fresh||graphOf(o.gid))){ plotCols(ids,{into:fresh?null:o.gid,noUndo:true,quiet:true});
     toast(`${ids.length===1?specName(colById(ids[0])):ids.length+" columns"} from ${what} ${ids.length===1?"is":"are"} plotted in ${graphName(S.gid)}${bad.length?`. Skipped: ${bad.join("; ")}`:""}.`,again); return {sheets:sks,gid:S.gid}; }
@@ -29668,7 +29842,7 @@ async function rawDeflate(u8){ if(typeof CompressionStream==="undefined") return
 // Publish › Data as Excel (.xlsx): every sheet with columns, as the Original view shows them (a computed column its values).
 async function exportXlsx(){
   const p=P(); if(!p) return; flushEdits(); fpSettle();
-  const sheets=sheetList(p).map(s=>({name:s.name,cols:sheetCols(s.id).map(c=>({name:c.name||"",unit:c.unit||"",comm:c.comm||"",vals:c.data||[],txt:txtOf(c),tfmt:c.tfmt||null}))})).filter(s=>s.cols.length&&s.cols.some(c=>c.vals.some(v=>v!=null)||c.txt));
+  const bks=bookList(p), byBook=bks.length>1, sheets=[].concat(...bks.map(b=>bookSheets(b.id,p))).map(s=>({name:byBook?`${bookName(bookOf(s.id,p),p)} · ${s.name}`:s.name,cols:sheetCols(s.id).map(c=>({name:c.name||"",unit:c.unit||"",comm:c.comm||"",vals:c.data||[],txt:txtOf(c),tfmt:c.tfmt||null}))})).filter(s=>s.cols.length&&s.cols.some(c=>c.vals.some(v=>v!=null)||c.txt));
   if(!sheets.length){ toast("There is no data to export."); return; }
   const tall=sheets.find(s=>s.cols.some(c=>c.vals.length+3>XL_ROWS)), wide=sheets.find(s=>s.cols.length>XL_COLS);
   if(tall){ toast(`Excel holds ${fmtCount(XL_ROWS)} rows a sheet, and ${tall.name} has more: export it as CSV.`); return; }
@@ -31581,7 +31755,7 @@ function renderResults(){ const box=$("#pane-res"), p=P(); if(!box) return;
     box.innerHTML=pick+`<div class="rhead"><div class="rt"><div class="rtitle">${esc(ra.name)} <span class="lab">${esc(ANA_KINDS[ra.kind].label)}</span></div></div></div>`+anaReportHtml(ra)
       +`<div class="actions"><button class="btn sm" id="rAnaCopy">${ICON("copy","sm")}Copy</button><button class="btn sm" id="rAnaSheet">Show its sheet</button>${S.readOnly?"":`<button class="btn sm" id="rAnaSet">Change settings…</button>${st?`<button class="btn sm primary" id="rAnaRe">Recalculate</button>`:""}`}</div>`;
     const on=(id,fn)=>{ const b=box.querySelector("#"+id); if(b) b.onclick=fn; };
-    on("rAnaCopy",()=>copyText(anaText(ra),`${ra.name}`)); on("rAnaSheet",()=>{ openWin("sheet"); showSheet(ra.out.sheet); focusWin("sheet"); });
+    on("rAnaCopy",()=>copyText(anaText(ra),`${ra.name}`)); on("rAnaSheet",()=>showSheet(ra.out.sheet));
     on("rAnaSet",()=>anaDlg(ra.kind,{id:ra.id})); on("rAnaRe",()=>anaRecalc(ra.id));
   } else { renderResults0(); if(pick) box.insertAdjacentHTML("afterbegin",pick); }
   const sel=box.querySelector("#rShowing"); if(sel) sel.onchange=()=>{ S.resAna=sel.value||null; renderResults(); }; }
@@ -32205,7 +32379,10 @@ function clone(o){ return o===undefined?undefined:JSON.parse(JSON.stringify(o));
 function normalize(p){ if(!p) return; const was=p.v||1;
   p.log=p.log||[]; migrate(p); if(!Array.isArray(p.annos)) p.annos=[];
   if(!p.found||typeof p.found!=="object") p.found={};
-  if(p.sheets!=null){ const seen=new Set(); p.sheets=Array.isArray(p.sheets)?p.sheets.filter(s=>s&&typeof s.id==="string"&&!seen.has(s.id)&&!!seen.add(s.id)).map(s=>Object.assign({id:s.id,name:String(s.name||"Sheet").slice(0,40)},typeof s.ana==="string"?{ana:s.ana}:{})):null; if(p.sheets&&!p.sheets.length) p.sheets=null; }
+  if(p.sheets!=null){ const seen=new Set(); p.sheets=Array.isArray(p.sheets)?p.sheets.filter(s=>s&&typeof s.id==="string"&&!seen.has(s.id)&&!!seen.add(s.id)).map(s=>Object.assign({id:s.id,name:String(s.name||"Sheet").slice(0,40)},typeof s.ana==="string"?{ana:s.ana}:{},typeof s.book==="string"?{book:s.book}:{})):null; if(p.sheets&&!p.sheets.length) p.sheets=null; }
+  // The workbooks: ids once, names once (a name twice given a number), and only those holding a sheet.
+  if(p.books!=null){ const seen=new Set(), names=[]; p.books=Array.isArray(p.books)?p.books.filter(b=>b&&typeof b.id==="string"&&!seen.has(b.id)&&!!seen.add(b.id)).map(b=>{ const o={id:b.id,name:bookNameFor(String(b.name||"Book").slice(0,40),names)}; names.push(o); return o; }):null;
+    if(p.books){ const ss=sheetList(p); p.books=p.books.filter((b,i)=>ss.some(s=>bookOfSheet(s,p)===b.id)); } if(p.books&&!p.books.length) p.books=null; }
   if(p.batch&&!(p.batch.tmpl&&Array.isArray(p.batch.rows))) p.batch=null;
   // A batch keeps only rows of spectra that still exist: one deleted during
   // the run, or since, was listed as out of date for ever. Not a global fit:
@@ -32241,8 +32418,9 @@ function normalize(p){ if(!p) return; const was=p.v||1;
     if(!S.readOnly&&!S.upg[S.pid]){ const pid=S.pid; S.upg[pid]=true;
       const patch={v:p.v,graphs:p.graphs,annos:p.annos,mainWas:p.mainWas||null,plot:null};
       if(p.tree) patch.tree=p.tree;
+      if(was<6&&p.books) Object.assign(patch,{books:p.books,sheets:p.sheets});
       if(was<4) Object.assign(patch,{cols:p.cols,activeY:p.activeY,raw:p.raw,fits:p.fits,fit:p.fit,steps:null,mask:null,x:null,y:null,e:null,xLong:null,xUnit:null,yLong:null,yUnit:null,eLong:null,eUnit:null});
-      setTimeout(()=>{ if(S.pid===pid) save(patch,was<4?"upgraded the project: the original data is now locked with a check code, and each column has its own processing steps":"upgraded the project: its graphs are a list in which the first is like any other"); },0); }
+      setTimeout(()=>{ if(S.pid===pid) save(patch,was<4?"upgraded the project: the original data is now locked with a check code, and each column has its own processing steps":was<5?"upgraded the project: its graphs are a list in which the first is like any other":"upgraded the project: its sheets are in workbooks, one for each folder they were in"); },0); }
   }
 }
 function renderTop(){
@@ -35146,7 +35324,7 @@ function flowInspAction(act,el,L){
   if(act==="pdlabels"){ openPlotDetails((activeYCol()||{}).id,"labels"); return; }
   if(act==="batchwin"){ openWin("batch",{render:true}); return; }
   if(n.kind==="ana"){ const a=anaOf(n.aid); if(!a) return;
-    if(act==="anasheet"){ openWin("sheet"); showSheet(a.out.sheet); focusWin("sheet"); return; }
+    if(act==="anasheet"){ showSheet(a.out.sheet); return; }
     if(act==="anares"){ anaReport(a.id); return; } if(act==="anaset"){ anaDlg(a.kind,{id:a.id}); return; } if(act==="anarecalc"){ anaRecalc(a.id); return; } }
   if(n.kind==="graph"){ if(n.gid!==S.gid) activateGraph(n.gid);
     if(act==="gfront"){ showGraph(n.gid); return; }
@@ -35718,14 +35896,14 @@ ${DL([["Import, Export","Bring a file in; save the graph, data or a report."],["
 <p>${K("Ctrl","Z")} undoes and ${K("Ctrl","Shift","Z")} (or ${K("Ctrl","Y")}) redoes: steps, masks, peaks, bands, fits, labels, styles, worksheet edits. The Edit menu names what will be undone. <em>Edit › Undo list…</em>, or a right-click on the Undo or Redo button, lists every change that can be undone, the newest first with when it was made, and below them what can be redone: choose one to undo it and every change after it (or redo it and every change before it). Undo rewinds your own changes in this session; it never takes back a colleague's work or a comment. In the worksheet this holds cell by cell: what a colleague, or this project open in another tab, changed after your change stays when yours is undone.</p>
 <h2>The log</h2>
 <p>The History window's <em>Log</em> tab lists every change with who made it and when. The report ends with it.</p>`},
-{id:"explorer", g:"Basics", t:"The Project Explorer", kw:"project explorer tree folder subfolder files sheets worksheet graphs hidden closed organise organize move drag rename delete filter origin alt+1 sidebar several many multiple select selection ctrl shift batch",
- lead:"The project as a tree beside the desk, as in Origin: folders and subfolders holding the worksheet's sheets, the graphs (hidden ones too) and the trend graphs.",
+{id:"explorer", g:"Basics", t:"The Project Explorer", kw:"project explorer tree folder subfolder files workbook workbooks book sheets worksheet graphs hidden closed organise organize move drag rename delete filter origin alt+1 sidebar several many multiple select selection ctrl shift batch",
+ lead:"The project as a tree beside the desk, as in Origin: folders and subfolders holding the workbooks with their sheets, the graphs (hidden ones too) and the trend graphs.",
  body:`<h2>Showing it</h2>
 <p>The tree button at the start of the toolbar, ${MP("Window › Project Explorer")} or ${K("Alt","1")} shows and hides it. Drag its right edge to make it wider. In a window narrower than 1600 pixels it slides over the desk instead, so the worksheet and the graph keep their width, and closes when you open something or press beside it.</p>
 <h2 id="items">What is in it</h2>
-${DL([["The project","The top of the tree, with the project's name. Right-click it for a new folder, to rename the project, or to switch to another."],["Folders","Yours, nested as deep as you like. They only organise: nothing is deleted with a folder, and what it held moves up a level."],["Worksheet, sheets","The worksheet, or with several sheets each sheet by its name; a file imported beside data has a sheet of its own, named after it. Its tooltip says how many columns hold values. The columns themselves are in the worksheet, which shows them; the tree does not list them again."],["Graphs","Every graph, closed ones too, marked <em>hidden</em> with a crossed-out eye; the one in front is in bold. A tooltip lists what each shows."],["Trend graphs","From the "+DA("batch","Batch window")+"."]])}
+${DL([["The project","The top of the tree, with the project's name. Right-click it for a new folder, to rename the project, or to switch to another."],["Folders","Yours, nested as deep as you like. They only organise: nothing is deleted with a folder, and what it held moves up a level."],["Workbooks, sheets","Each workbook, filed in its folder, with its sheets inside it; a file imported beside data has a sheet of its own, named after it. A sheet's tooltip says how many columns hold values. The columns themselves are in the worksheet, which shows them; the tree does not list them again. A sheet dragged onto another workbook moves there; dragged onto a folder, it goes into that folder's workbook (or one made there)."],["Graphs","Every graph, closed ones too, marked <em>hidden</em> with a crossed-out eye; the one in front is in bold. A tooltip lists what each shows."],["Trend graphs","From the "+DA("batch","Batch window")+"."]])}
 <h2 id="use">Using it</h2>
-${DL([["Open","One click or "+K("Enter")+": a graph comes onto the desk (a hidden one too), a sheet is shown in the worksheet, a matrix book or a trend graph opens. A folder is selected by a click and opened or closed by a double click, its arrow, "+K("→")+" or "+K("←")+"; the keys stay in the tree."],["Menu","Right-click, "+K("Shift","F10")+" or the menu key: what can be done with that item, and <em>Move to</em> any folder."],["Move","Drag an item or a folder onto a folder, or onto the project at the top."],["Plot","Drag a sheet onto a graph window: its Y columns with values are plotted there."],["Import","Drop files from your computer onto a folder: they are read, plotted and filed there. "+DA("import#drop","Dropping files")],["Rename, delete",K("F2")+" and "+K("Delete")+". Deleting a sheet takes its columns out of the project, after asking when it holds values (the original-data record notes it); Undo brings everything back."],["Filter","Type in the box above the tree to show only what is called that, and where it is."]])}
+${DL([["Open","One click or "+K("Enter")+": a graph comes onto the desk (a hidden one too), a workbook's window comes forward, a sheet is shown in its workbook's window, a matrix book or a trend graph opens. A folder is selected by a click and opened or closed by a double click, its arrow, "+K("→")+" or "+K("←")+"; the keys stay in the tree."],["Menu","Right-click, "+K("Shift","F10")+" or the menu key: what can be done with that item, and <em>Move to</em> any folder."],["Move","Drag an item or a folder onto a folder, or onto the project at the top."],["Plot","Drag a sheet onto a graph window: its Y columns with values are plotted there."],["Import","Drop files from your computer onto a folder: they are read, plotted and filed there. "+DA("import#drop","Dropping files")],["Rename, delete",K("F2")+" and "+K("Delete")+". Deleting a sheet takes its columns out of the project, after asking when it holds values (the original-data record notes it); Undo brings everything back."],["Filter","Type in the box above the tree to show only what is called that, and where it is."]])}
 <h2 id="many">Several at once</h2>
 <p>${K("Ctrl")}+click adds an item to the selection or takes it out, ${K("Shift")}+click (or ${K("Shift")}+${K("↑")} ${K("↓")}) selects a run, ${K("Ctrl","A")} everything, ${K("Esc")} goes back to one. Right-click the selection for one menu: open or close the graphs, show them side by side, combine them into one graph, make them the panels of a figure, export them as one picture; plot their columns together, or <em>Process their columns</em>, which opens a step set up on the first with <em>Apply to: the ones chosen</em>, so it goes on every column the sheets and graphs hold; move everything to a folder; delete everything (asked once when sheets hold values). Each is one Undo; a dragged selection moves together.</p>
 <p>The folder selected, or the folder of the item selected, is the <strong>active folder</strong>: sheets (the worksheet's <strong>+</strong> too), graphs, trend graphs, matrix books and files made while the Explorer is open go into it, as Origin puts new windows in the active folder; a folder's right-click has <em>New sheet here</em> and <em>Import files here…</em>. What is made goes there and nothing else moves: a file added to a sheet in another folder leaves that sheet where it is. ${K("↑")} ${K("↓")} move, ${K("→")} opens and ${K("←")} closes or goes up a level. Folders are kept with the project, so a colleague who opens it sees them, and every change to them is one Undo.</p>`},
@@ -35802,10 +35980,11 @@ ${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move; with "+K("Shift")+
 <h2 id="k-flow">In the History</h2>
 ${DL([[K("↑")+" "+K("↓")+" "+K("←")+" "+K("→"),"Move between boxes"],[K("Alt","↑")+" "+K("Alt","↓"),"Move the selected step earlier or later"],[K("Delete"),"Delete the selected step"],[K("C"),"Comment on the selected box"],["Right-click","The box's menu"]],"keys")}`},
 /* ---------------------------------------------------------------- Data */
-{id:"sheet", g:"Data", t:"The worksheet", win:"sheet", kw:"worksheet spreadsheet two sheets side by side window of its own new worksheet window grid cell column row long name units comments sparkline raw final width height row height resize select edit type enter tab insert delete rows lock unlock plot data role sheet sheets tab tabs workbook book new sheet rename move columns to another sheet text string label name lod n/a below detection limit cells hold numbers only text only 007 leading zeros categorical category categories levels factor group order by hand",
+{id:"sheet", g:"Data", t:"The worksheet", win:"sheet", kw:"worksheet spreadsheet workbook workbooks book books new workbook move to workbook two sheets side by side window of its own new worksheet window grid cell column row long name units comments sparkline raw final width height row height resize select edit type enter tab insert delete rows lock unlock plot data role sheet sheets tab tabs workbook book new sheet rename move columns to another sheet text string label name lod n/a below detection limit cells hold numbers only text only 007 leading zeros categorical category categories levels factor group order by hand",
  lead:"A spreadsheet grid, as in Excel, with Origin's label rows, and sheets as a workbook has. It holds the original data; a column's processed values are shown when asked for (its menu's Show its processed values, or Data › Processed values), read only, with a chip that goes back.",
  body:`<h2 id="sheets">Sheets</h2>
-<p><strong>Two sheets side by side:</strong> a tab's right-click menu (or the Explorer's) has <em>Open in a window of its own</em>, and ${MP("Window › New worksheet window")} lists the sheets. The sheet's window sits beside the worksheet window; the one in front is worked in, the other shows its cells (the wheel scrolls them) and a click on a cell brings it forward with that cell selected. Drag a column's letter onto the other window to move the column there (one Undo). Closing the window leaves the sheet; the worksheet window keeps a sheet of its own.</p>
+<h2 id="books">Workbooks</h2>
+<p>A project holds <strong>workbooks</strong>, as Origin's and Excel's: each is a window with the tabs of its own sheets, and is filed in a folder as a whole. A project starts with one, Book 1, in the worksheet window. ${MP("File › New workbook")} or ${MP("Window › New workbook")} makes another in a window of its own beside it; a folder's right-click has <em>New workbook here</em>, <em>New sheet here</em> and <em>Import files here…</em>, so what you make or bring in goes into that folder's workbook. A tab's right-click has <em>Move to workbook ›</em>; drag a tab onto another workbook's window or its taskbar button to move the sheet there (one Undo). The window in front is worked in; the others show their sheet's cells (the wheel scrolls them) and a click on a cell brings that window forward with the cell selected. Drag a column's letter onto another workbook's window to move the column to the sheet it shows. Sheet names are the project's, so a formula reads another workbook's sheet by its name alone (<code>A_02!B</code>). A workbook's window minimises and is never closed; deleting the workbook (its right-click in the Explorer) takes its sheets. A project from before workbooks opens with the sheets of each folder as one workbook there, and the top level's as Book 1.</p>
 <p>The worksheet has sheets; their tabs are under the grid. Click a tab to show its sheet, double-click it (or ${K("F2")}) to rename it, right-click it to move or delete it, and <strong>+</strong> for a new one; ${MP("Data › Sheets")} and the Project Explorer do the same. A sheet has its own columns, lettered from A, its own rows, sort and hidden rows. A Y column is plotted against the nearest X to its left on its own sheet, and a formula's letters are its own sheet's columns. A file imported beside data goes on a sheet of its own, named after the file, unless you choose the sheet shown in the import dialog; files dropped on the window and columns copied from another project do the same. ${MP("Move › To another sheet")} in a column's menu moves it with its error bars, keeping the X it is plotted against. Graphs show columns from any sheet, and deleting a sheet takes its columns off them (Undo brings them back).</p>
 <h2>Columns</h2>
 <p>Columns are lettered A, B, C… and each has a role, shown after its letter: <strong>(X)</strong>, <strong>(Y)</strong>, <strong>(yEr±)</strong> for error bars (or <strong>(yEr+)</strong>, <strong>(yEr−)</strong>, <strong>(xEr±)</strong>…: ${DA("errbars","Error bars")}), or <strong>(—)</strong> for other data, kept for formulas. A Y column is plotted against the nearest X column to its left, so columns measured on different axes each keep their own X. Every Y column has its own ${DA("spectra","processing")}.</p>
@@ -37186,7 +37365,7 @@ function applyWins(){
     el.classList.toggle("docked",dk); el.classList.toggle("drawer",dk&&dg.drawer);
     if(st.open&&!el.hidden&&(!front||st.z>winState(front).z)) front=id;
     const db=el.querySelector(".win-h [data-wdock]"); if(db){ db.setAttribute("aria-pressed",String(dk)); db.title=dk?"Undock":"Dock"; db.hidden=narrow; }
-    if(narrow){ el.style.left=el.style.top=el.style.width=el.style.height=""; el.style.zIndex=""; el.classList.remove("max"); el.style.order=String(WINS[id].graph?0:id==="tool"?1:WINS[id].swin?2:WIN_ORDER.indexOf(id)<0?50:WIN_ORDER.indexOf(id)+2); return; }
+    if(narrow){ el.style.left=el.style.top=el.style.width=el.style.height=""; el.style.zIndex=""; el.classList.remove("max"); el.style.order=String(WINS[id].graph?0:id==="tool"?1:WINS[id].book?2:WIN_ORDER.indexOf(id)<0?50:WIN_ORDER.indexOf(id)+2); return; }
     el.classList.toggle("max",!!st.max);
     let x,y,w,h;
     // Maximised: the whole desk for a docked window, the documents' part beside the dock for the others.
@@ -37273,10 +37452,10 @@ function winFlip(el,b,n){
    open or minimised, so it and the Window menu list what is in use and never
    what was not opened; a closed panel comes back from its menu, or from
    Window › Tool windows. */
-const isDoc=id=>!!(WINS[id]&&(WINS[id].graph||WINS[id].trend||WINS[id].swin||WINS[id].mx||id==="sheet"));
+const isDoc=id=>!!(WINS[id]&&(WINS[id].graph||WINS[id].trend||WINS[id].book||WINS[id].mx||id==="sheet"));
 // A graph closed (plot.shut) is out of the taskbar, as a closed panel is.
 const keepsBtn=id=>isDoc(id)&&!winShut(id);
-function docWinIds(){ return graphWinIds().filter(id=>!winShut(id)).concat(WINS.sheet?["sheet"]:[],swList().map(swId).filter(id=>WINS[id]),matWinIds(),trendWinIds()); }
+function docWinIds(){ return graphWinIds().filter(id=>!winShut(id)).concat(WINS.sheet?["sheet"]:[],bookWins().map(b=>"wb-"+b).filter(id=>WINS[id]),matWinIds(),trendWinIds()); }
 function panelIds(){ return WIN_ORDER.filter(id=>!isDoc(id)).concat(["help"]).filter(id=>WINS[id]); }
 // The windows in use, in the taskbar's order: the documents, then the panels.
 function barWinIds(){ return docWinIds().concat(panelIds().filter(inBar)); }
@@ -37318,7 +37497,7 @@ function renderWin0(id){
   if(!P()) return;
   const gw=graphOfWin(id);
   if(gw){ if(gw===S.gid){ renderPlot(); renderStages(); } else scheduleSnaps(0); }
-  else if(id==="sheet"||swSid(id)){ if(wsLiveWin()===id) renderWs(); else renderSwSnap(id); }
+  else if(isBookWin(id)){ if(wsLiveWin()===id) renderWs(); else renderSwSnap(id); }
   else if(mxBid(id)) renderMatWin(id);
   else if(id==="flow") renderFlow();
   else if(id==="fit") renderFit();
@@ -37373,7 +37552,7 @@ function renderTaskbar(){
     return `<button class="tk ${on?(id===front?"on front":"on"):"min"}" data-tk="${id}" aria-pressed="${on}" aria-label="${esc(t)}, ${winStateName(id)}" title="${esc(t)}">${ICON(WINS[id].icon,"sm")}<span>${esc(t)}</span>${winBadge(id)}</button>`; };
   // Many of one kind share a button that lists them.
   const grp=(ids,attr,icon,label)=>`<button class="tk ${ids.includes(front)?"on front":ids.some(winOpen)?"on":"min"}" ${attr} aria-haspopup="menu" title="${label}">${ICON(icon,"sm")}<span>${label}</span><span class="badge">${ids.length}</span></button>`;
-  const docs=(gs.length>4?[grp(gs,"data-tk-graphs","chart","Graphs")]:gs.map(btn)).concat(WINS.sheet?[btn("sheet")]:[],swList().map(swId).filter(id=>WINS[id]).map(btn),matWinIds().map(btn),ts.length>3?[grp(ts,"data-tk-trends","chart","Trend graphs")]:ts.map(btn));
+  const docs=(gs.length>4?[grp(gs,"data-tk-graphs","chart","Graphs")]:gs.map(btn)).concat(WINS.sheet?[btn("sheet")]:[],bookWins().map(b=>"wb-"+b).filter(id=>WINS[id]).map(btn),matWinIds().map(btn),ts.length>3?[grp(ts,"data-tk-trends","chart","Trend graphs")]:ts.map(btn));
   const panels=panelIds().filter(inBar).map(btn);
   tb.innerHTML=(pj?`<button class="tk proj" data-tk-proj aria-haspopup="menu" title="${esc(projName(pj))}" aria-label="Project: ${esc(projName(pj))}">${ICON("folder","sm")}<span>${esc(projName(pj))}</span>${ICON("chev","sm").replace('class="ic','class="tk-chev ic')}</button><span class="tksep" aria-hidden="true"></span>`:"")
     +docs.join("")+(panels.length?`<span class="tksep" aria-hidden="true"></span>`+panels.join(""):"")
@@ -37439,7 +37618,7 @@ function wireWin(el){
     if((graphOfWin(id)&&!el.classList.contains("figw"))||AWAY_PANELS.includes(id)) h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-wpop title="Move to new window (Ctrl+Shift+D)" aria-label="Move the ${esc(WINS[id].title)} window to a window of its own">${ICON("popout","sm")}</button>`);
     if(!isDoc(id)) h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-wdock aria-pressed="false" title="Dock" aria-label="Dock the ${esc(WINS[id].title)} window">${ICON("dock","sm")}</button>`);
     if(id!=="help") h.insertAdjacentHTML("beforeend",`<button class="tb sm icon" data-whelp title="Help (F1)" aria-label="Help on the ${esc(WINS[id].title)} window">${ICON("help","sm")}</button>`);
-    h.insertAdjacentHTML("beforeend",`${id==="help"||WINS[id].transient?"":`<button class="tb sm icon" data-wmin title="Minimise" aria-label="Minimise the ${esc(WINS[id].title)} window">${ICON("min","sm")}</button>`}<button class="tb sm icon" data-wmax title="Maximise" aria-label="Maximise the ${esc(WINS[id].title)} window">${ICON("max","sm")}</button>${keepsBtn(id)&&!graphOfWin(id)&&!swSid(id)?"":`<button class="tb sm icon" data-wclose title="Close" aria-label="Close the ${esc(WINS[id].title)} window">${ICON("x","sm")}</button>`}`);
+    h.insertAdjacentHTML("beforeend",`${id==="help"||WINS[id].transient?"":`<button class="tb sm icon" data-wmin title="Minimise" aria-label="Minimise the ${esc(WINS[id].title)} window">${ICON("min","sm")}</button>`}<button class="tb sm icon" data-wmax title="Maximise" aria-label="Maximise the ${esc(WINS[id].title)} window">${ICON("max","sm")}</button>${keepsBtn(id)&&!graphOfWin(id)?"":`<button class="tb sm icon" data-wclose title="Close" aria-label="Close the ${esc(WINS[id].title)} window">${ICON("x","sm")}</button>`}`);
     ["e","s","se","w"].forEach(k=>el.insertAdjacentHTML("beforeend",`<div class="win-rz ${k}" data-rz="${k}" aria-hidden="true"></div>`));
     el.addEventListener("pointerdown",e=>{ focusWin(id); const g=graphOfWin(id)?graphIn(e.target,el):null;
       // A chip or the grip may be the start of a drag: they bring the graph forward on a click of their own.
@@ -37449,7 +37628,7 @@ function wireWin(el){
       // Ctrl+V then acted on cells nobody was looking at. Whatever the press focused itself stays.
       const before=document.activeElement; setTimeout(()=>{ const a=document.activeElement; if(!el.isConnected||(a&&a!==document.body&&(el.contains(a)||a!==before))) return; winTakeFocus(id); },0); },true);
     const wmn=h.querySelector("[data-wmin]"); if(wmn) wmn.onclick=()=>minimiseWin(id);
-    const wcl=h.querySelector("[data-wclose]"); if(wcl) wcl.onclick=()=>{ const g=graphOfWin(id); if(g&&P()) closeGraph(g); else if(swSid(id)) closeSheetWin(swSid(id)); else closeWin(id); };
+    const wcl=h.querySelector("[data-wclose]"); if(wcl) wcl.onclick=()=>{ const g=graphOfWin(id); if(g&&P()) closeGraph(g); else closeWin(id); };
     const hb=h.querySelector("[data-whelp]"); if(hb) hb.onclick=()=>openHelp(helpFor(id));
     const dkb=h.querySelector("[data-wdock]"); if(dkb) dkb.onclick=()=>setDocked(id,!isDocked(id));
     const pop=h.querySelector("[data-wpop]"); if(pop) pop.onclick=()=>detachWin(id);
@@ -37507,7 +37686,7 @@ function windowItems(){
   const others=ids.filter(id=>winOpen(id)&&id!==front&&id!=="tool"), panelsIn=panelIds().filter(inBar);
   return [{group:"Windows in use"}].concat(list,[{label:"Tool windows", sub:panelItems},
     {label:"Project Explorer", kbd:"Alt+1", checked:xplShown(), title:"The project's folders, files and graphs, in a tree beside the desk", run:()=>toggleXpl(null,{focus:true})},
-    {label:"New worksheet window", enabled:!!P(), title:"A sheet in a window of its own, beside the worksheet window", sub:newSheetWinItems},
+    {label:"New workbook", enabled:!!P()&&!S.readOnly, title:"A workbook of its own, in a window of its own beside the others, with a sheet", run:()=>newBook()},
     "-",{label:"Tile", run:tileWins},{label:"Cascade", run:cascadeWins},
     "-",{label:"Move to new window", kbd:"Ctrl+Shift+D", enabled:!!front&&canDetach(front), title:front?`${awayTitle(front)} in a browser window of its own, for another display`:"", run:()=>detachWin(front)}]
     .concat(screensApi()&&!isNarrow()?[{label:"Open on display", enabled:!!front&&canDetach(front), sub:()=>S.screens&&S.screens.length?S.screens.map(s=>({label:`Display ${s.n}`, note:`${s.label?s.label+", ":""}${s.w} × ${s.h}`, radio:true, checked:false, run:()=>detachWin(front,s)}))
@@ -40018,6 +40197,7 @@ function menuItems0(which){
   const p=P(), f=p?activeFit():null, ro=S.readOnly, edit=!!p&&!ro, can=!ro&&!!S.store, has=!!(p&&pointsAll().length);
   if(which==="file") return [
     {label:"New project", run:newProject, enabled:can},
+    {label:"New workbook", title:"A workbook of its own in this project, in its own window, filed in the folder selected", run:()=>newBook(), enabled:edit},
     {label:"Import data…", kbd:"Ctrl+O", run:pickFile, enabled:can},
     {label:"Open a project file…", title:"A project saved as a .kurve file, opened as a new project", run:pickProjectFile, enabled:can},
     {label:"Save to a file…", kbd:"Ctrl+S", title:p&&p.file?`The project as a .kurve file (last saved as ${p.file.name})`:"The project as a .kurve file, to keep, send or open on another computer", run:()=>saveProjectFile(false), enabled:!!p},
@@ -40083,7 +40263,7 @@ function renderAll0(){
   if(S.pending&&(!P()||!colById(S.pending.col))) S.pending=null;
   syncGraphWins(); syncTrendWins(); syncSheetWins(); syncMatWins(); layoutFigs(null,{quiet:true});
   renderTop(); renderPlot(); renderStages(); renderTabMarks(); renderGraphHeads(); scheduleSnaps(0);
-  ["sheet"].concat(swList().map(swId).filter(id=>WINS[id]),["flow","over","peaks","integ","fit","res","batch","disc","stats","tool","format"]).forEach(id=>{ if(winOpen(id)) renderWin(id); });
+  ["sheet"].concat(bookWins().map(b=>"wb-"+b).filter(id=>WINS[id]),["flow","over","peaks","integ","fit","res","batch","disc","stats","tool","format"]).forEach(id=>{ if(winOpen(id)) renderWin(id); });
   trendWinIds().forEach(id=>{ if(winOpen(id)) renderTrendWin(id); });
   matWinIds().forEach(id=>{ if(winOpen(id)) renderMatWin(id); });
   renderUndo(); renderTaskbar(); renderXpl();

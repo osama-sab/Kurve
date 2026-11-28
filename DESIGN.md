@@ -910,6 +910,27 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-28: workbooks (QUALITY_SPEC S.3, BOOK_SPEC)
+
+- **A project holds workbooks, as Origin's and Excel's.** The user asked why sheets in different folders shared one window's
+  tabs; a sheet belongs to a workbook, and a workbook is a window with its own sheets' tabs, filed in a folder as a whole. A
+  project starts with one (Book 1, the worksheet window), so a project of one workbook looks as it always did.
+- **A workbook is data; its window is its view.** Which sheets are together is the project's (undone, merged across tabs,
+  saved in a file), not this browser's layout, as a sheet's own window was; a sheet that had one is offered as a workbook of its
+  own, never moved without asking.
+- **Where a new sheet goes is one rule, the folder rule's twin.** The workbook in front, unless the Explorer was the last place
+  pressed and its selection is in another folder: then that folder's workbook, or one made there. So *the sheet made with +
+  while a subfolder is selected goes into it* (27.11) still holds, now by its workbook, and a press in a window (its tabs and bar
+  aside) makes that window's workbook the place again.
+- **A sheet still called Sheet 3 that held nothing takes the name of the file that fills it**, however the file came: the name a
+  sheet was made with is a placeholder, as its empty columns are.
+- **Moving a sheet is a drag of its tab**, onto another workbook's window or taskbar button, as Excel moves a sheet between
+  workbooks; the tab's menu says the same in words (*Move to workbook ›*). A formula reads a sheet by its name, which moving
+  never changes, so nothing breaks.
+- **A workbook's window minimises, never closes**, as the worksheet's never did; a workbook goes only when it is deleted, or
+  its last sheet leaves it.
+- **Older projects keep their screen**: each folder's sheets become a workbook in that folder, the top level's Book 1.
+
 ### 2026-11-27: the user's reports: folders, one click, messages, what a command acts on
 
 - **What is made goes into the folder selected, and nothing else moves.** One rule in the save, not a call in each command: a

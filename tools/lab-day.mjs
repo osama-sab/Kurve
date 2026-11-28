@@ -156,13 +156,13 @@ const ACTIONS = [
   // picture, a window closed; with one sheet, a new one first.
   [2, "a sheet's own window", async () => { const k = R();
     if (k < .35) { const pics = await vis(".wssnap td[data-r]"); if (pics.length) { await clickAt(...mid(pick(pics).b)); if (R() < .5) await type(junk().slice(0, 12)); await key(pick(["Enter", "Tab", "Escape"])); return "a picture's cell"; } }
-    if (k < .45) { const x = await vis(".win.wswin [data-wclose]"); if (x.length) { await clickAt(...mid(x[0].b)); return "closed one"; } }
+    if (k < .45) { const x = await vis(".win.wswin [data-wmin]"); if (x.length) { await clickAt(...mid(x[0].b)); return "minimised one"; } }
     // The worksheet brought forward by its taskbar button, a second sheet made, then a sheet's tab asked.
     let tabs = await vis("#wsTabs [data-wst]");
     if (!tabs.length) { const b = await vis('#taskbar .tk[data-tk="ws"]'); if (!b.length) return "no worksheet"; await clickAt(...mid(b[0].b)); await pause(300, 500); tabs = await vis("#wsTabs [data-wst]"); }
     if (tabs.length < 2) { const nb = await vis("#wsTabs [data-wstnew]"); if (!nb.length) return "no tabs"; await clickAt(...mid(nb[0].b)); await pause(300, 500); tabs = await vis("#wsTabs [data-wst]"); }
     for (const t of tabs.sort(() => R() - .5)) { await clickAt(...mid(t.b), { button: "right" }); await pause(200, 400);
-      const it = page.locator(".menu .mi:not(:disabled)", { hasText: "Open in a window of its own" }); if (await it.count()) { await it.first().click(); return "opened one"; }
+      const it = page.locator(".menu .mi:not(:disabled)", { hasText: "Move to workbook" }); if (await it.count()) { await it.first().hover(); await pause(300, 450); const nw = page.locator(".menu .mi:not(:disabled)", { hasText: "A new workbook" }); if (await nw.count()) { await nw.last().click(); return "a workbook of its own"; } }
       await key("Escape"); await pause(100, 200); }
     return "none to open"; }],
   // A matrix (SHEET_SPEC 3.6): one made from Data › Matrix (a formula or empty), its cells typed into, cleared and pasted

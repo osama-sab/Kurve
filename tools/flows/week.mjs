@@ -7,7 +7,8 @@ import { start, read, W, row, menu, ctxItem, FIX, openProjectFile, spectrum } fr
 
 const { page, check, done } = await start();
 // Where each sheet is filed: { name: folder or "top" }.
-const where = p => read(p, () => { const t = treeOf(); return Object.fromEntries(sheetList().map(s => [s.name, t.at["ws:" + s.id] ? xFolderName(t.at["ws:" + s.id]) : "top"])); });
+// (where its workbook is filed: a sheet goes where its workbook goes)
+const where = p => read(p, () => { const t = treeOf(); return Object.fromEntries(sheetList().map(s => { const f = t.at["wb:" + bookOf(s.id)]; return [s.name, f ? xFolderName(f) : "top"]; })); });
 
 await page("A week later: last week's project opened and carried on", async p => {
   // File › Open a project file…, the file chosen in the picker.

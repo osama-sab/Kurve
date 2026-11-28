@@ -3120,3 +3120,29 @@ suite from the round before.
   another display.
 
 `tools/ds-test.mjs` has 13 new checks (158). The design system's ten slices are done.
+
+## Stabilisation S.3: workbooks (2026-11-28)
+
+**What changed** (`spec/BOOK_SPEC.md`):
+- **Workbooks.** A project holds workbooks; each is a window with the tabs of its own sheets and is filed in a folder as a whole
+  (`p.books`, each sheet naming its book). Book 1 is the worksheet window; another workbook has a window of its own, beside it.
+- **Made from** File › New workbook, Window › New workbook (which replaces New worksheet window), a folder's *New workbook here*;
+  a folder's *New sheet here* and *Import files here…* go into that folder's workbook, or make one there.
+- **The Explorer** lists each workbook in its folder with its sheets inside it; one click on a workbook brings its window forward,
+  on a sheet shows it in its workbook's window; a sheet dragged onto another workbook moves there, onto a folder into its workbook.
+- **Moving a sheet**: its tab dragged onto another workbook's window or taskbar button, or *Move to workbook ›* (another, or a new
+  one filed where it was). Data › Sheets lists the sheets under their workbooks.
+- **Where new sheets go**, one rule in the save: the workbook in front, or the folder selected in the Explorer when it was the last
+  place pressed. A sheet still called *Sheet n* that held nothing takes the name of the file that fills it.
+- **Imports**: a file dropped on a folder goes on a sheet of its own in that folder's workbook; an Excel workbook becomes a workbook
+  named after its file; an analysis's result sheet goes into its first input's workbook. Publish › Data as Excel names each sheet
+  *Book · Sheet* when there are several workbooks.
+- **Older projects** (document version 6): the sheets of each folder become a workbook in that folder, the top level's Book 1.
+- **The document's rules** grow: workbook ids and names once, every sheet's workbook there, every workbook a sheet.
+
+**Checked:** `tools/flows/books.mjs`, the story through the interface only (two samples in two folders, a workbook each, files
+imported into them, each window's tabs its own, a formula across workbooks, a tab dragged onto another workbook's taskbar button
+and undone and redone, Move to workbook › A new workbook, a graph of two workbooks' columns, a reload, a project file, Excel's export;
+last week's project opened with its sheets where they were): 25 checks. `tools/sheet-drive.mjs` 3.2 rewritten for workbooks (18),
+review-drive's 27.11 and the week flow reading a sheet's place as its workbook's; the suite.
+

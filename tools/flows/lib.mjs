@@ -17,6 +17,7 @@ export const READ = ["P", "sheetList", "sheetName", "sheetOf", "sheetCols", "cur
   "colLetter", "colRef", "specName", "ownName", "yCols", "hasVals", "finalOf", "pipeOf", "graphCols", "graphName", "graphOf", "drawGraphIds",
   "deskGraphIds", "graphShut", "isFigId", "winOpen", "winMin", "frontWinId", "projCheck", "prefGet", "activeYCol", "xKeysOf", "projName",
   "anaList", "matBooks", "wsHandCol", "graphIds", "toastKind", "winOfGraph", "wsWinOf", "mainSheet",
+  "bookList", "bookOf", "bookSheets", "bookName", "bkWin", "winBook", "wsLiveWin", "bookShown",
   "Object", "Array", "JSON", "Math", "String", "Number", "Set", "Map", "Boolean", "isFinite", "parseFloat"];
 
 let chromium;
@@ -40,6 +41,7 @@ export async function start() {
   async function page(name, fn, opt = {}) {
     console.log(name);
     const ctx = await browser.newContext({ viewport: opt.vw || { width: 1600, height: 950 }, acceptDownloads: true });
+    if (opt.setup) await opt.setup(ctx);
     const p = await ctx.newPage(); const errors = [];
     p.on("pageerror", e => errors.push(e.message));
     p.on("console", m => { if (m.type() === "error" && !/Failed to load resource|net::ERR/.test(m.text())) errors.push(m.text()); });
@@ -74,6 +76,15 @@ export async function ctxItem(p, words) { await p.locator(".menu:visible [role=m
 // Files chosen in the Import button's picker.
 export async function pickFiles(p, files) {
   await p.setInputFiles("#fileIn", files.map(([name, text]) => ({ name, mimeType: "text/csv", buffer: Buffer.from(text) }))); await W(p, 900);
+}
+// Files dropped on what a locator finds, as a person drags them from the computer: dragenter, dragover and drop at its middle.
+export async function dropFiles(p, target, files) {
+  const box = await target.boundingBox(), x = box.x + box.width / 2, y = box.y + box.height / 2;
+  const dt = await p.evaluateHandle(list => { const d = new DataTransfer(); list.forEach(([n, t]) => d.items.add(new File([t], n, { type: "text/csv" }))); return d; }, files);
+  await p.mouse.move(x, y);
+  for (const type of ["dragenter", "dragover"]) { await p.dispatchEvent("body", type, { dataTransfer: dt, clientX: x, clientY: y }); await W(p, 120); }
+  await W(p, 200);
+  await p.dispatchEvent("body", "drop", { dataTransfer: dt, clientX: x, clientY: y }); await W(p, 600);
 }
 export async function openProjectFile(p, path) { await p.setInputFiles("#projFileIn", path); await W(p, 1500); }
 // A spectrum of a band on a slope, as an instrument writes it.

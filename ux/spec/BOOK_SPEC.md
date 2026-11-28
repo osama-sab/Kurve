@@ -18,7 +18,7 @@ export each keep it all.
 
 1. **A workbook is data; its window is its view.** `p.books = [{id, name}]` in order; each sheet names its book (`s.book`); a
    sheet naming none, or a book that has gone, is in the first book. A book has one window, `wb-<id>`, a document as a graph
-   is: in the taskbar, minimised and restored, never closed (as the worksheet window is now).
+   is: in the taskbar, minimised and restored, never closed (as the worksheet window is now). The first is *Book 1*.
 2. **The first book's window is the worksheet window** (`sheet`): nothing that opens "the worksheet" changes, and a project
    of one book looks as it does today.
 3. **The tabs are the book's.** A window's tabs are its book's sheets; + adds a sheet to that book; a tab's menu has *Move to
@@ -29,7 +29,8 @@ export each keep it all.
    a book opens its window; one click on a sheet opens its book's window showing it.
 5. **Sheet names stay unique in the project** (Excel lets each workbook have a Sheet1; Kurve does not, yet): so `Sheet2!B`
    in a formula, `colRef`, the check code and every name shown keep their meaning, and no formula needs a book's name.
-   *New sheet* names `Sheet n` with the next number free in the project.
+   *New sheet* names `Sheet n` with the next number free in the project; a sheet still so named that held nothing takes the
+   name of the file that comes into it.
 6. **One live grid** (as today): it is in the window of the book in front; the others show a picture of their shown sheet,
    a press on which brings that book forward with the cell selected. Each book remembers its shown sheet (`S.bookAt`).
 7. **Sheet windows of SHEET_SPEC 3.2 become books.** A sheet in a window of its own was this browser's layout; it is now a
@@ -75,6 +76,19 @@ boxes (unchanged: they name sheets); Find a command (the new items).
 - Tests: `tools/flows/books.mjs` (the story above, through the interface only), `tools/sheet-drive.mjs` 3.2 rewritten for books,
   `review-drive` 27.11 updated (a sheet made with + goes into the book shown, and so where it is filed), the fuzzers and the
   lab day with `BIAS=book`.
+
+## As built (28.11)
+
+All ten decisions, with these choices made on the way:
+
+- Where a new sheet goes is one rule in `save` (`bookRule`, beside `xFileRule`): the book whose window holds the grid, unless the
+  Project Explorer was the last place pressed and its selection is in another folder; then that folder's first book, or one made
+  there. So the report of 27.11 (a sheet made with + while a subfolder is selected goes into it) holds by its book.
+- Books are not reordered (`moveBook` is not built): the first is the worksheet window's, and the Explorer orders them by folder.
+- A sheet's window of SHEET_SPEC 3.2 is offered once as a book of its own (`swinOffer`), as decision 7 asks.
+- Several files chosen together still go on one sheet (S.4 gives each its own); the story imports a sample's files one at a time.
+- The tab dragged onto another book's *window* works where that window is not covered by the one dragged from; the flow drops on
+  the taskbar button, as a person aims at what is visible.
 
 ## Not in this slice
 

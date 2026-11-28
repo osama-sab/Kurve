@@ -16,6 +16,7 @@
 
 File
   New project
+  New workbook  ## new (QUALITY_SPEC S.3, BOOK_SPEC): a workbook in a window of its own, filed in the folder selected
   Import data…  [Ctrl+O]
   Open a project file…  ## new (PARITY 1.1): a .kurve file opened as a new project; a backup offers its projects
   Save to a file…  [Ctrl+S]  ## new (PARITY 1.1): the project as a .kurve file, written again to the same file for the rest of the session
@@ -54,8 +55,12 @@ Edit
 Data
   Worksheet
   Sheets  ## new (after slice 1 of the curve fit): the worksheet's sheets, as a workbook's; their tabs are under the grid
-    (each sheet, the one shown ticked)
+    (each sheet under its workbook, the one shown ticked)
     New sheet
+    New workbook  ## new (BOOK_SPEC)
+    Move to workbook  ## new (BOOK_SPEC): the sheet shown into another workbook
+      (each other workbook)
+      A new workbook
     Rename this sheet…
     Delete this sheet…
   Add a column  ## + Edit's "Add a Y column"
@@ -493,9 +498,7 @@ Window
   Tool windows  ## ~ "Panels"
     (History; Overview; Peaks; Integrate; Fit; Results; Batch; Statistics; Discussion; Help)
   Project Explorer  [Alt+1]
-  New worksheet window  ## new (SHEET_SPEC 3.2): a sheet in a window of its own
-    (each sheet without a window of its own)
-    A new sheet
+  New workbook  ## ~ "New worksheet window" (SHEET_SPEC 3.2): a sheet in a window of its own is a workbook of its own (BOOK_SPEC)
   Tile  ## + "Tile the graphs", which ran the same tiling
   Cascade
   Move to new window  [Ctrl+Shift+D]  ## new (DS10): the window in front into a browser window of its own
