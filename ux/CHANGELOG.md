@@ -3146,3 +3146,27 @@ and undone and redone, Move to workbook › A new workbook, a graph of two workb
 last week's project opened with its sheets where they were): 25 checks. `tools/sheet-drive.mjs` 3.2 rewritten for workbooks (18),
 review-drive's 27.11 and the week flow reading a sheet's place as its workbook's; the suite.
 
+
+## Stabilisation S.4: many files at once (2026-11-28)
+
+**What changed** (`spec/IMPORT_SPEC.md`, the user's question of 27.11: *how do I group several files into new or existing
+sheets?*):
+- **One dialog for several files**, in place of a list of names: a row per file with its points and X range, its column's name,
+  and where it goes: **Sheet**, **Workbook** and **Folder**, each typed or picked from the names that exist. An existing name
+  means that one, a new one is made, rows given one new name go together; a sheet that exists decides its workbook and folder, a
+  workbook its folder. Beside the list, the project's tree as it will be after the import, what is new marked.
+- **Arrangements in one click**: the files each on their own, all together, by their names (the part before the last number,
+  in a Group column that can be typed), by a header field, or as their folders; each group on one sheet, a workbook with a sheet
+  a file, or a folder with its workbook. By default each file on a sheet of its own in the workbook in front.
+- **Rows ticked together are set together**; a field typed is marked and kept when the arrangement changes, *Back to the
+  arrangement* clears it; *Read by itself…* takes a file out, to be read in the one-file dialog after.
+- **Folders**: File › Import a folder… and a folder dropped on the window read every file of it and its subfolders, in the
+  order of their paths, and the project gets the same folders, each a workbook, a sheet a file.
+- **One step**: one undo, one entry in the original data's record, one log line saying where the files went ("added 5 files
+  into 3 workbooks, making 1 folder"). A drop uses the arrangement the project used last, with no dialog.
+
+**Checked:** `tools/flows/import.mjs`, the story through the interface only (six files into last week's project, the bad one
+with its reason, each on its own by default, by their names a workbook each, a folder typed once for two rows ticked, the log's
+line, undo and redo; a folder of subfolders as its folders; files onto a sheet that holds data sharing its X, Read by itself…;
+files dropped on a folder of the Explorer; a reload): 31 checks. The other flows, the review, counting, qudi, file and Excel
+drives, odd-test's 300 and 2000 files; the suite.

@@ -1159,6 +1159,33 @@ details.more>table{margin-top:var(--sp-4)}
 .bimp td.num{font-family:var(--mono);font-size:var(--fs-tab);text-align:right}
 .bimp td.nm{max-width:220px;overflow:hidden;text-overflow:ellipsis}
 .bimp tr.skip td{color:var(--muted)}
+/* Several files at once (IMPORT_SPEC): the arrangement, a row per file, the tree as it will be beside. */
+.sheet.bimpw{width:min(1180px,100%)}
+.bidlg .biarr{display:flex;flex-wrap:wrap;gap:var(--sp-3);align-items:center;margin-bottom:var(--sp-4)}
+.bidlg .biarr .sp{flex:1}
+.bidlg .bimain{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:var(--sp-5);align-items:start}
+.bidlg .bimp{max-height:52vh;margin:0}
+.bidlg .bitab th,.bidlg .bitab td{padding:var(--sp-2) var(--sp-2)}
+.bidlg .bitab input[type=text]{width:7.6em}
+.bidlg .bitab td.biF input{width:8.5em}
+.bidlg .bitab td.nm{min-width:120px;max-width:150px;white-space:normal}
+.bidlg .bitab td.nm,.bidlg .bitab td.nm .bipts{overflow-wrap:anywhere}
+.bidlg .bitab:not(.g) .biG{display:none}
+.bidlg .bitab input.typed{box-shadow:inset 3px 0 0 var(--accent);font-weight:600}
+.bidlg .bitab tr.on td{background:var(--sel)}
+.bidlg .bitab tr.self td.nm{text-decoration:line-through;color:var(--muted)}
+.bidlg .bipts{display:block;color:var(--muted);font-size:var(--fs-cap);font-family:var(--mono)}
+.bidlg .bitree{border:1px solid var(--rule);border-radius:var(--r);padding:var(--sp-3) var(--sp-4);max-height:52vh;overflow:auto;font-size:var(--fs-tab)}
+.bidlg .bith{font-weight:600;margin-bottom:var(--sp-2)}
+.bidlg .bitr,.bidlg .bitr ul{list-style:none;margin:0;padding:0}
+.bidlg .bitr ul{padding-left:var(--sp-5)}
+.bidlg .bitr li{margin:var(--sp-1) 0}
+.bidlg .bitr .btl{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap}
+.bidlg .bitr .btl .ic{flex:none}
+.bidlg .bnew{font-style:normal;font-size:var(--fs-cap);color:var(--accent-ink);background:var(--accent);border-radius:999px;padding:0 var(--sp-2)}
+.bidlg .btf{flex-basis:100%;padding-left:22px;color:var(--muted);font-size:var(--fs-cap)}
+.bidlg{container-type:inline-size}
+@container (max-width:1100px){ .bidlg .bimain{grid-template-columns:minmax(0,1fr)} .bidlg .bitree{max-height:30vh} }
 .sheet.mid{width:min(720px,100%)}
 .sheet.plotdlg{width:min(900px,100%)}
 .pdlg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:var(--sp-6)}
@@ -2399,6 +2426,7 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
     <button class="tb lbl" id="importBtn" title="Import (Ctrl+O)"><svg class="ic"><use href="#i-upload"/></svg><span>Import</span></button>
     <input type="file" id="fileIn" accept=".csv,.txt,.tsv,.dat,.asc,.xy,.prn,.dpt,.text,.tka,.spe,.n42,.xml,.jdx,.dx,.jcm,.spc,.xlsx,.xlsm,.0,.1,.2,.3,.4,.5,.6,.7,.8,.9,.kurve" class="sr" tabindex="-1" aria-hidden="true" multiple>
     <input type="file" id="projFileIn" accept=".kurve" class="sr" tabindex="-1" aria-hidden="true">
+    <input type="file" id="dirIn" webkitdirectory multiple class="sr" tabindex="-1" aria-hidden="true">
     <button class="tb lbl" id="exportBtn" aria-haspopup="menu" aria-expanded="false" title="Export"><svg class="ic"><use href="#i-download"/></svg><span>Export</span><svg class="ic sm"><use href="#i-chev"/></svg></button>
     <div class="tsep"></div>
     <button class="tb icon" id="undoBtn" title="Undo (Ctrl+Z)" aria-label="Undo" disabled><svg class="ic"><use href="#i-undo"/></svg></button>
@@ -29166,31 +29194,41 @@ function importText(text,fname){
 function looksBinary(text){ const head=String(text).slice(0,4096); let bad=0;
   for(let i=0;i<head.length;i++){ const c=head.charCodeAt(i); if(c===0xFFFD||c<9||(c>13&&c<32)) bad++; }
   return head.length>0&&bad/head.length>0.05; }
-/* ---- Many spectra at once ------------------------------------------------------
-   Several files dropped or chosen together, or a file with several Y columns,
-   come in as one import: each spectrum is read the way the import dialog would
-   read it on its own (delimiter, decimal mark, header, the X column found by
-   the same rules), listed with its points and X range, and brought in with one
-   undo entry, one line in the log and one entry in the raw-data record. Each
-   spectrum shares the X column of the one before it when both were measured on
-   the same axis, and has its own otherwise; nothing is interpolated. Then the
-   graphs: one each, all in one, or all in one stacked. */
-function readFilesIn(files){
-  files=files.filter(Boolean); if(!files.length) return;
-  if(files.length===1){ readFileIn(files[0]); return; }
-  if(files.length>80){ toast(`Importing the first 80 of ${files.length} files.`); files=files.slice(0,80); }
-  // qudi's confocal scans become matrices first (QUDI_SPEC Q.1); a 1D scan comes back as a table, with the rest
-  Promise.all(files.map(f=>readAny(f).then(r=>({f,r})))).then(rs=>{ const qs=[], rest=[];
-    rs.forEach(({f,r})=>{ const q=!r.fail&&typeof r.text==="string"?qudiFile(r.text,f.name):null;
-      if(q&&q.fail) rest.push(batchFail(f.name,q.fail)); else if(q&&!q.table) qs.push({name:f.name,text:r.text,q}); else rest.push(r.fail?batchFail(f.name,r.fail):batchFile(f.name,r.text)); });
-    const t=qs.length?qudiTake(qs):{tables:[]}; t.tables.forEach(x=>rest.push(batchFile(x.name,x.text)));
-    const list=[].concat(...rest); if(list.length) batchImport(list,{files:list.length}); });
+/* ---- Many files at once (IMPORT_SPEC, QUALITY_SPEC S.4) ------------------------------------------------------
+   Several files chosen together, a folder of files, or files dropped: each is read as the import dialog reads it with its
+   automatic choices (impAuto), then put where a plan says (impPlan): each file's sheet, workbook and folder, from an
+   arrangement (each on its own, all together, by their names, by a header field, as their folders; each group on one sheet,
+   a workbook with a sheet a file, or a folder with its workbook) and what was typed on its row. impPlace makes it so in one
+   save: one undo step, one entry in the original data's record and one log line saying where the files went. The dialog
+   (batchImport) shows the plan as the tree it will make; a drop uses the arrangement the project used last. Files on one
+   sheet share their X column when they were measured on the same axis; nothing is interpolated. */
+const IMP_GROUPS=[["each","Each on its own"],["all","All together"],["name","By their names"],["field","By a header field"],["path","As their folders"]];
+const IMP_AS=[["sheet","each group on one sheet"],["book","each group a workbook, a sheet a file"],["folder","each group a folder, its workbook, a sheet a file"]];
+const IMP_MAX=200, IMP_TOP="Top level";
+function readFilesIn(files,o){
+  o=o||{}; files=files.filter(Boolean); if(!files.length) return;
+  if(files.length===1&&!o.dir){ readFileIn(files[0]); return; }
+  // A folder's files in the order of their paths, as a file manager lists them (the browser gives them in any order).
+  if(o.dir) files=impSortFiles(files);
+  if(files.length>IMP_MAX){ toast(`Importing the first ${IMP_MAX} of ${files.length} files.`); files=files.slice(0,IMP_MAX); }
+  // qudi's confocal scans become matrices first (QUDI_SPEC Q.1); a 1D scan comes back as a table, with the rest.
+  // An Excel workbook among them comes in as a workbook of its own, after the others.
+  Promise.all(files.map(readAny)).then(async rs=>{ const qs=[], rest=[], books=[];
+    rs.forEach(r=>{ if(r.book){ books.push(r); return; } const q=!r.fail&&typeof r.text==="string"?qudiFile(r.text,r.name):null;
+      if(q&&q.fail) rest.push({name:r.name,fail:q.fail}); else if(q&&!q.table) qs.push({name:r.name,text:r.text,q}); else rest.push(r); });
+    const t=qs.length?qudiTake(qs):{tables:[]}; t.tables.forEach(x=>rest.push({name:x.name,text:x.text}));
+    let go=true; if(rest.length) go=await batchImport(rest.map(impAuto),{files:rest.length});
+    if(go) for(const b of books){ const u=xlUsed(b.book), vis=u.filter(q=>!q.s.hidden); await importBook(b.book,b.name,(vis.length?vis:u).map(q=>q.i),{}); }
+  });
 }
 const baseName=f=>String(f||"").replace(/\.\w+$/,"");
+const impSortFiles=fs=>fs.slice().sort((a,b)=>{ const pa=String(a._kpath||a.webkitRelativePath||a.name), pb=String(b._kpath||b.webkitRelativePath||b.name);
+  const da=pa.split("/").slice(0,-1).join("/"), db=pb.split("/").slice(0,-1).join("/"); return da===db?pa.localeCompare(pb,undefined,{numeric:true}):da.localeCompare(db,undefined,{numeric:true}); });
 function batchFail(fname,why){ return [{fname,name:baseName(fname),fail:why}]; }
-// The spectra in one file: its Y column, or every Y column when asked.
 // The file a spectrum came from and its header's fields, kept with the spectrum.
 function colMetaOf(meta,fname){ const o={}; if(fname) o.file=String(fname).slice(0,200); const ks=Object.keys(meta||{}); if(ks.length){ o.meta={}; ks.slice(0,200).forEach(k=>{ o.meta[k]=String(meta[k]).slice(0,400); }); } return o; }
+// The spectra in one file, as columns of numbers (the older way in, which the tests and a series of spectra use): its Y
+// column, or every Y column when asked.
 function batchFile(fname,text,opt){
   opt=opt||{};
   if(looksBinary(text)) return batchFail(fname,"a binary instrument file: export it as text");
@@ -29208,56 +29246,284 @@ function batchFile(fname,text,opt){
     const name=(ys.length>1?(ny.long||colName(yi,res)):baseName(fname)).slice(0,60);
     return k<2?{fname,name,fail:"fewer than two points"}:{fname,name,x,y,e:e&&e.some(v=>v!=null)?e:null,xn:nx.long,xu:nx.unit||(xi>=0&&res.tkind&&res.tkind[xi]==="time"?"s":""),xt:xi>=0&&res.tkind?res.tkind[xi]||null:null,yu:ny.unit||(res.tka?"counts":""),n:k,x0:lo,x1:hi,meta:res.meta,steps:res.mca&&res.mca.cal?[["ecal",mcaCalParams(res.mca.cal)]]:null}; });
 }
+// What a file is read as with the dialog's automatic choices: its columns, its spectra, its header, the folders it came in.
+function impAuto(f){
+  const fname=f.name||"file";
+  if(f.fail) return {fname,fail:f.fail};
+  if(looksBinary(f.text)) return {fname,fail:"a binary instrument file: export it as text"};
+  const res=analyzeFile(f.text,{fname}); if(res.jdxFail) return {fname,fail:res.jdxFail}; if(!res.rows.length) return {fname,fail:"no rows of numbers"};
+  const keep=S.imp; S.imp=Object.assign({raw:f.text,fname,opt:{fname},res,use:impUseDefault(res),pv:-1,sqrt:false},impStart(res));
+  try{ const b=impBuild(); if(!b.cols.some(c=>hasVals(c))) return {fname,fail:"no numbers"};
+    return Object.assign(b,{fname,text:f.text,res,path:impDirs(f.path)}); }
+  finally{ S.imp=keep; } }
+// A file's folders, from where it was in the folder chosen or dropped ("run4/sampleC/c_01.csv": run4, sampleC).
+const impDirs=path=>String(path||"").split("/").map(s=>s.trim().slice(0,80)).filter(Boolean).slice(0,-1).slice(0,8);
+// One of batchFile's spectra as impAuto gives a file.
+function impFromItem(it){ if(it.fail) return {fname:it.fname,fail:it.fail};
+  const yc=Object.assign(makeCol("y",it.name,it.yu,it.y),{pipe:(it.steps||[]).map(([op,pp])=>makeStep(op,Object.assign({},pp))),mask:[]},colMetaOf(it.meta,it.fname));
+  const cols=[Object.assign(makeCol("x",it.xn,it.xu,it.x),it.xt?{tfmt:it.xt}:{}),yc]; if(it.e) cols.push(makeCol("e","σ",it.yu,it.e,yc.id));
+  return {fname:it.fname,base:baseName(it.fname),cols,ys:[yc],res:{meta:it.meta||{}},path:impDirs(it.path),named:true,n:it.n,x0:it.x0,x1:it.x1,xu:it.xu||""}; }
+// A row's points and X range.
+function impSum(b){ if(b.n!=null) return {n:b.n,x0:b.x0,x1:b.x1,xu:b.xu||""};
+  const x=b.cols.find(c=>c.role==="x"), ys=b.ys.length?b.ys:b.cols.filter(c=>c.role!=="x"); let n=0, lo=Infinity, hi=-Infinity;
+  ys.forEach(c=>{ let k=0; c.data.forEach(v=>{ if(v!=null) k++; }); if(k>n) n=k; });
+  if(x) x.data.forEach(v=>{ if(v!=null){ if(v<lo) lo=v; if(v>hi) hi=v; } });
+  return {n,x0:lo<=hi?lo:null,x1:lo<=hi?hi:null,xu:x?x.unit||"":""}; }
+// By their names: the part before the last number ("sampleA_01": sampleA), the whole name when it has none.
+function impNameKey(base){ const s=String(base||""), m=/\d+(?!.*\d)/.exec(s); if(!m) return s; return s.slice(0,m.index).replace(/[\s_\-.,(\[]+$/,"")||s; }
+// The header's fields most of the files have and that differ between them.
+function impFields(built){ const ok=built.filter(b=>!b.fail), n={}; ok.forEach(b=>Object.keys((b.res&&b.res.meta)||{}).forEach(k=>{ n[k]=(n[k]||0)+1; }));
+  return Object.keys(n).filter(k=>n[k]*2>=ok.length&&new Set(ok.map(b=>String(((b.res||{}).meta||{})[k]??""))).size>1).sort((a,b)=>n[b]-n[a]).slice(0,30); }
+// The arrangement a project used last, in this browser; files that came in folders go as their folders.
+function impArrMem(pid){ try{ const a=(JSON.parse(localStorage.getItem("kurve.imparr")||"{}")||{})[pid];
+  if(a&&IMP_GROUPS.some(g=>g[0]===a.group)&&IMP_AS.some(g=>g[0]===a.as)) return {group:a.group,as:a.as,field:typeof a.field==="string"?a.field.slice(0,80):""}; }catch(e){} return null; }
+function impArrKeep(pid,a){ if(!pid||!a) return; try{ const all=JSON.parse(localStorage.getItem("kurve.imparr")||"{}")||{}; delete all[pid];
+  all[pid]={group:a.group,as:a.as,field:a.field||""}; const ks=Object.keys(all); ks.slice(0,Math.max(0,ks.length-40)).forEach(k=>delete all[k]); localStorage.setItem("kurve.imparr",JSON.stringify(all)); }catch(e){} }
+function impArrStart(built,pid){ const m=impArrMem(pid);
+  if(built.some(b=>!b.fail&&b.path&&b.path.length)) return {group:"path",as:"folder",field:""};
+  if(m&&m.group!=="path"&&(m.group!=="field"||impFields(built).includes(m.field))) return m;
+  return {group:"each",as:"sheet",field:""}; }
+// A file's group, and what a group is called.
+function impKey(b,k,arr,ty){ if(ty&&ty.group&&(arr.group==="name"||arr.group==="field")) return ty.group.trim().slice(0,40);
+  if(arr.group==="all") return "*"; if(arr.group==="name") return impNameKey(b.base);
+  if(arr.group==="field"){ const v=((b.res||{}).meta||{})[arr.field]; return v==null?"":String(v).trim().slice(0,40); }
+  if(arr.group==="path") return (b.path||[]).join(" › ");
+  return "#"+k; }
+function impGroupName(arr,key,mem){ if(arr.group==="each") return mem[0].base;
+  if(arr.group==="all") return batchProjName(mem.map(b=>b.base));
+  if(arr.group==="path") return key?key.split(" › ").pop():"";
+  if(arr.group==="field"){ if(!key) return `No ${arr.field}`; return /^[-+\d.,eE ]+$/.test(key)?`${arr.field} ${key}`:key; }
+  return key; }
+// What the files go into when nothing says otherwise: the workbook in front (or the one where save's rule puts a new sheet),
+// the folder dropped on's; an empty sheet shown there, or in the folder's workbook, takes the first. A project that holds
+// nothing has nothing to keep: its one workbook and sheet are what the first group takes.
+const impBlank=sid=>{ const cs=sheetCols(sid); return cs.length>0&&cs.every(c=>blankCol(c)); };
+function impCtx(o){ o=o||{}; const p=P(), fresh=!p||!!o.intoNew||projBlank(p);
+  if(fresh){ const b0=p&&!o.intoNew?bookList(p)[0]:BOOK0, s0=p&&!o.intoNew?sheetList(p)[0]:SHEET0;
+    return {fresh:true,intoNew:!p||!!o.intoNew,p,t:{folders:[],at:{}},books:[{id:b0.id,name:b0.name}],sheets:[],dflt:{bid:b0.id,fid:null,blank:s0.id,blankName:s0.name}}; }
+  const t=treeOf(p), books=bookList(p).map(b=>({id:b.id,name:b.name})), sheets=sheetList(p).map(s=>({id:s.id,name:s.name,book:bookOfSheet(s,p)}));
+  let dflt;
+  if(o.folder!==undefined){ const fid=o.folder&&xFolder(t,o.folder)?o.folder:null, b=books.find(x=>(t.at["wb:"+x.id]||null)===fid);
+    dflt=b?{bid:b.id,fid}:{bid:null,bname:fid?xFolder(t,fid).name:"",fid};
+    if(b){ const e=sheets.find(s=>s.book===b.id&&impBlank(s.id)); if(e){ dflt.blank=e.id; dflt.blankName=e.name; } } }
+  else { const tg=bookTarget(p);
+    if(tg.bid==="new") dflt={bid:null,bname:tg.folder?xFolderName(tg.folder):"",fid:tg.folder||null};
+    else { dflt={bid:tg.bid,fid:t.at["wb:"+tg.bid]||null}; const cur=curSheet(); if(bookOf(cur,p)===tg.bid&&impBlank(cur)){ dflt.blank=cur; dflt.blankName=sheetName(cur); } } }
+  return {fresh:false,p,t,books,sheets,dflt}; }
+// A name for something new: as typed or given, made unique among the names used.
+function impUniq(base,used,kind){ let b=String(base||"").trim().slice(0,40); if(!b){ let n=1; const w=kind==="book"?"Book ":"Sheet "; while(used.has(w+n)) n++; b=w+n; }
+  let nm=b, k=2; while(used.has(nm)) nm=`${b} (${k++})`; used.add(nm); return nm; }
+// A folder typed: an existing one by its path ("Raw › 2024") or its name alone, else new along that path from the top.
+function impFolderPath(txt,t,fpath){ const s=String(txt||"").trim(); if(!s||s===IMP_TOP) return [];
+  const parts=s.split("›").map(x=>x.trim().slice(0,80)).filter(Boolean);
+  if(parts.length===1){ const hits=t.folders.filter(f=>f.name===parts[0]); if(hits.length===1) return fpath(hits[0].id); }
+  return parts; }
+/* The plan: for each file that will be imported, its sheet, workbook and folder (rows[k], null for a file left out), and the
+   sheets and workbooks it makes or uses. A sheet that exists decides its workbook and folder, and a workbook that exists its
+   folder (decision 3), so no row can ask for what cannot be. */
+function impPlan(built,arr,typed,ctx){
+  const t=ctx.t, fpath=fid=>{ const out=[]; let f=fid, g=0; while(f&&g++<60){ const o=xFolder(t,f); if(!o) break; out.unshift(o.name); f=o.parent; } return out; };
+  const fFind=path=>{ let par=null; for(const nm of path){ const o=t.folders.find(x=>(x.parent||null)===par&&x.name===nm); if(!o) return undefined; par=o.id; } return par; };
+  const bFolder=bid=>t.at["wb:"+bid]||null, same=(a,b)=>a.join("\u0001")===b.join("\u0001"), dpath=fpath(ctx.dflt.fid);
+  const bookByName=nm=>ctx.books.find(b=>b.name===nm)||null, sheetByName=nm=>ctx.sheets.find(s=>s.name===nm)||null;
+  const keys=built.map((b,k)=>b.fail||(typed[k]||{}).self?null:impKey(b,k,arr,typed[k])), mem=new Map();
+  keys.forEach((key,k)=>{ if(key==null) return; if(!mem.has(key)) mem.set(key,[]); mem.get(key).push(built[k]); });
+  const rows=built.map((b,k)=>{ const key=keys[k]; if(key==null) return null; const ty=typed[k]||{}, gname=impGroupName(arr,key,mem.get(key));
+    // What the arrangement says.
+    let path=dpath, bid=ctx.dflt.bid, bname=bid?null:ctx.dflt.bname, sname=b.base, skey="r:"+k;
+    if(arr.as==="sheet"){ skey="g:"+key; sname=arr.group==="each"?b.base:(gname||b.base); }
+    else if(arr.as==="book"){ if(gname){ bid=null; bname=gname; } }
+    else if(arr.group==="path"){ path=dpath.concat(b.path||[]); if(gname){ bid=null; bname=gname; } }
+    else { path=dpath.concat([gname]); bid=null; bname=gname; }
+    // A workbook of that name already in that folder is the one.
+    if(!bid&&bname){ const ex=bookByName(bname); if(ex&&same(fpath(bFolder(ex.id)),path)){ bid=ex.id; bname=null; } }
+    // Then what was typed on the row.
+    const tp={s:false,b:false,f:false}; let fixB=false, fixF=false;
+    const ts=(ty.sheet||"").trim().slice(0,40), tb=(ty.book||"").trim().slice(0,40), tf=(ty.folder||"").trim();
+    if(ts){ tp.s=true; const ex=sheetByName(ts);
+      if(ex){ skey="s:"+ex.id; sname=ex.name; bid=ex.book; bname=null; path=fpath(bFolder(ex.book)); fixB=fixF=true; } else { skey="n:"+ts; sname=ts; } }
+    if(!fixB&&tb){ tp.b=true; const ex=bookByName(tb); if(ex){ bid=ex.id; bname=null; path=fpath(bFolder(ex.id)); fixF=true; } else { bid=null; bname=tb; } }
+    if(!fixF&&tf){ tp.f=true; path=impFolderPath(tf,t,fpath);
+      // A workbook that is elsewhere cannot be in the folder typed: the folder's own workbook, or one made there named after it.
+      if(bid&&!same(fpath(bFolder(bid)),path)){ const id=fFind(path), fb=id!==undefined?ctx.books.find(x=>bFolder(x.id)===id):null;
+        if(fb) bid=fb.id; else { bid=null; bname=path.length?path[path.length-1]:""; } }
+      else if(!bid&&bname){ const ex=bookByName(bname); if(ex&&same(fpath(bFolder(ex.id)),path)){ bid=ex.id; bname=null; } } }
+    const bkey=bid?"b:"+bid:"nb:"+path.join("\u0001")+"|"+(bname||"");
+    if(skey.startsWith("g:")) skey+="|"+bkey;
+    return {k,key,gname,sname,skey,bid,bname,bkey,path,fixB,fixF,typed:tp}; });
+  // The workbooks and sheets: one each key; names typed kept first, then the others made unique.
+  const usedB=new Set(ctx.books.map(b=>b.name)), usedS=new Set(ctx.sheets.map(s=>s.name)), books=[], sheets=[], bI=new Map(), sI=new Map(), newF=new Set();
+  rows.forEach(r=>{ if(!r) return; if(r.skey.startsWith("n:")) usedS.add(r.sname); if(!r.bid&&r.typed.b) usedB.add(r.bname); });
+  if(ctx.dflt.blank) usedS.delete(ctx.dflt.blankName);
+  rows.forEach(r=>{ if(!r) return;
+    if(!bI.has(r.bkey)){ const B=r.bid?{key:r.bkey,id:r.bid,name:(ctx.books.find(x=>x.id===r.bid)||{}).name||"",path:r.path,isNew:false}
+        :{key:r.bkey,id:null,name:r.typed.b?r.bname:impUniq(r.bname,usedB,"book"),path:r.path,isNew:true};
+      bI.set(r.bkey,B); books.push(B);
+      if(B.isNew) B.path.forEach((_,i)=>{ const pre=B.path.slice(0,i+1); if(fFind(pre)===undefined) newF.add(pre.join("\u0001")); }); }
+    r.book=bI.get(r.bkey);
+    if(!sI.has(r.skey)){ let Sh;
+      if(r.skey.startsWith("s:")){ const ex=ctx.sheets.find(s=>"s:"+s.id===r.skey); Sh={key:r.skey,id:ex.id,name:ex.name,book:r.book,isNew:false,files:[]}; }
+      else Sh={key:r.skey,id:null,name:r.skey.startsWith("n:")?r.sname:impUniq(r.sname,usedS,"sheet"),book:r.book,isNew:true,files:[]};
+      sI.set(r.skey,Sh); sheets.push(Sh); }
+    r.sheet=sI.get(r.skey); r.sheet.files.push(r.k); });
+  // An empty sheet in the workbook the files go to by default gives way to the first new sheet there, keeping a name of its own.
+  const bl=ctx.dflt.blank; if(bl&&!sheets.some(s=>s.id===bl)){ const Sh=sheets.find(s=>s.isNew&&s.book.id&&s.book.id===ctx.dflt.bid);
+    if(Sh){ Sh.id=bl; Sh.reuse=true; if(!/^Sheet \d+$/.test(ctx.dflt.blankName||"")&&!ctx.fresh) Sh.name=ctx.dflt.blankName; } }
+  return {rows,books,sheets,newF,arr,typed,ctx,built}; }
+// Where the files went, in a few words, for the log and the message.
+function impWhere(plan){ const sh=plan.sheets, bk=plan.books, nf=plan.newF.size, nw=a=>a.isNew&&!a.reuse;
+  if(sh.length===1) return `onto the sheet ${sh[0].name}${bk[0].isNew?`, in the new workbook ${bk[0].name}`:""}`;
+  if(bk.length===1) return `onto ${sh.length} sheets of ${bk[0].isNew?"the new workbook ":""}${bk[0].name}`;
+  const fs=[...new Set(bk.map(b=>b.path.join(" › ")))], n=bk.filter(nw).length;
+  return `into ${bk.length} workbooks${n&&n<bk.length?` (${n} new)`:""}${fs.length===1&&fs[0]?` in ${fs[0]}`:""}${nf?`, making ${nf} folder${nf===1?"":"s"}`:""}`; }
+// The plan made so, in one save: the folders, the workbooks, the sheets, the columns placed sheet by sheet.
+async function impPlace(built,plan,o){
+  o=o||{}; const p=P(); if(!p) return null;
+  if(S.ws&&S.ws.edit) wsCommit(0,0,true);
+  const ctx=plan.ctx, fresh=ctx.fresh, rows=plan.rows.filter(Boolean); if(!rows.length) return null;
+  pushUndo(rows.length===1?`importing ${built[rows[0].k].fname}`:`importing ${rows.length} files`);
+  S.view=null; S.draft=null; S.pdraft=null; S.stage=null; S.selStep=null;
+  if(!fresh) stampSheets(p);
+  const t0=treeOf(p), t=fresh?{folders:[],at:{}}:{folders:t0.folders.map(f=>Object.assign({},f)),at:Object.assign({},t0.at)};
+  const ex=fresh?{bs:[],ss:[]}:booksExplicit(p), bs=ex.bs, ss=ex.ss, made=[], fm=new Map();
+  const folderAt=path=>{ let par=null; path.forEach((nm,i)=>{ const key=path.slice(0,i+1).join("\u0001"); if(fm.has(key)){ par=fm.get(key); return; }
+      let f=t.folders.find(x=>(x.parent||null)===par&&x.name===nm); if(!f){ f={id:"d"+Math.random().toString(36).slice(2,9),name:nm,parent:par}; t.folders.push(f); made.push(f.id); }
+      fm.set(key,par=f.id); }); return par; };
+  plan.books.forEach(B=>{ if(B.id){ B.at=B.id; if(!bs.some(x=>x.id===B.id)) bs.push({id:B.id,name:B.name}); return; }
+    const id=newBookId(); bs.push({id,name:B.name}); B.at=id; const f=folderAt(B.path); if(f) t.at["wb:"+id]=f; else delete t.at["wb:"+id]; });
+  const sid=new Map();
+  plan.sheets.forEach(Sh=>{ const bid=Sh.book.at;
+    if(Sh.id&&!Sh.reuse){ sid.set(Sh.key,Sh.id); return; }
+    if(Sh.reuse){ const i=ss.findIndex(s=>s.id===Sh.id), s1=Object.assign({},i>=0?ss[i]:{id:Sh.id},{name:Sh.name,book:bid}); if(i>=0) ss[i]=s1; else ss.push(s1); sid.set(Sh.key,Sh.id); return; }
+    const id=newSheetId(); ss.push({id,name:Sh.name,book:bid}); sid.set(Sh.key,id); });
+  // The columns, file by file, after what each sheet holds (its placeholders given up); a file on the axis of the last X
+  // column of its sheet shares it.
+  let cols=fresh?[]:p.cols.slice(); const ids=[], many=rows.length>1;
+  if(!fresh) new Set(rows.map(r=>sid.get(r.sheet.key))).forEach(s=>{ cols=dropBlanks(cols,s,p); });
+  const lastX=s=>{ for(let i=cols.length-1;i>=0;i--){ const c=cols[i]; if(c.role==="x"&&!c.src&&c.sheet===s&&c.data.some(v=>v!=null)) return c; } return null; };
+  rows.forEach(r=>{ const b=built[r.k], s=sid.get(r.sheet.key), fid="f"+Math.random().toString(36).slice(2,9);
+    b.cols.forEach(c=>{ c.sheet=s; if(!c.fid) c.fid=fid; if(!c.file) c.file=String(b.fname).slice(0,200); });
+    const nm=String(((plan.typed||[])[r.k]||{}).name||"").trim();
+    // A file of one spectrum is known by its file's name beside others (a header's "y" or "Intensity" names every one of
+    // them alike), and when it has no name of its own.
+    if(b.ys.length===1){ if(nm) b.ys[0].name=nm.slice(0,60); else if(!b.named&&(!b.ys[0].name||many||!fresh)) b.ys[0].name=b.base.slice(0,60); }
+    const lx=lastX(s); let add=b.cols; if(add[0]&&add[0].role==="x"&&lx&&sameAxis(lx.data,add[0].data)) add=add.slice(1);
+    for(const c of add) cols.push(c); b.ys.forEach(c=>ids.push(c.id)); });
+  const first=sid.get(rows[0].sheet.key), b0=built[rows[0].k];
+  p.cols=cols; if(ids.length) p.activeY=ids[0];
+  const patch={cols,activeY:p.activeY,sheets:ss,books:bs.length===1&&bs[0].id===BOOK0.id&&bs[0].name===BOOK0.name?null:bs,tree:{folders:t.folders,at:t.at}};
+  if(fresh){ const nms=rows.map(r=>built[r.k].base);
+    Object.assign(patch,{meta:(b0.res||{}).meta||{},fit:null,srcName:b0.base,graphs:[],annos:[],wsHide:null});
+    if(isUntitled(p.name)||(p.srcName&&p.name===p.srcName)) patch.name=uniqueProjName(nms.length===1?nms[0]:batchProjName(nms),S.pid); }
+  else patch.meta=Object.assign({},p.meta||{},(b0.res||{}).meta||{});
+  made.forEach(f=>{ xExp()["d:"+f]=true; }); plan.books.forEach(B=>{ const f=t.at["wb:"+B.at]; if(f) xExp()["d:"+f]=true; xExp()["wb:"+B.at]=true; });
+  S.sheetAt=S.sheetAt||{}; S.sheetAt[S.pid]=first; S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.wsm=null; S.wsSort=null;
+  Object.assign(p,patch);
+  const what=rows.length===1?b0.fname:`${rows.length} files`, where=impWhere(plan), bad=o.bad||[];
+  const raw=recordRaw(fresh?`recorded from ${what}`:`added ${what}`); if(raw) patch.raw=raw;
+  await save(patch,`${fresh?"imported":"added"} ${what} ${where}${o.how?`, ${o.how}`:""}${bad.length?`; skipped ${bad.join("; ")}`:""}`);
+  if(o.arr!==false) impArrKeep(S.pid,plan.arr);
+  return {ids,what,where,first,sheets:[...new Set(rows.map(r=>"ws:"+sid.get(r.sheet.key)))],fresh}; }
+/* The dialog for several files: a row per file, each with its name, sheet, workbook and folder; the arrangement above; the
+   tree as it will be beside. Rows ticked together are set together, a field typed wins over the arrangement and is marked,
+   Back to the arrangement clears it; Read by itself… takes a file out, to be read in the one-file dialog after. Returns
+   whether the import was made. */
 async function batchImport(items,o){
-  o=o||{}; if(S.readOnly||!S.store){ toast("You can view this workspace but not import into it."); return; }
-  const good=items.filter(it=>!it.fail), skip=items.filter(it=>it.fail);
-  if(!good.length){ toast(`Nothing to import: ${skip.map(s=>`${s.fname}, ${s.fail}`).join("; ")}.`); return; }
-  const hasData=!!S.pid&&allCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null));
-  const rows=items.map((it,k)=>it.fail?`<tr class="skip"><td class="nm" title="${esc(it.fname)}">${esc(it.fname)}</td><td colspan="3">Skipped: ${esc(it.fail)}</td></tr>`
-    :`<tr><td class="nm" title="${esc(it.fname)}">${esc(it.fname)}</td><td class="num">${it.n}</td><td class="num">${esc(fmt(it.x0,5))} to ${esc(fmt(it.x1,5))}${it.xu?" "+esc(it.xu):""}</td><td><input type="text" id="biN${k}" value="${esc(it.name)}" maxlength="60" aria-label="Name of the column from ${esc(it.fname)}" style="width:150px"></td></tr>`).join("");
-  const r=await formDlg({title:`Import ${good.length} columns`+(o.files?` from ${o.files} files`:o.fname?` from ${o.fname}`:""),wide:true,ok:`Import ${good.length} columns`,
-    html:`<div class="bimp"><table><thead><tr><th>${o.fname?"Column":"File"}</th><th>Points</th><th>X range</th><th>Name</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="grid2">${hasData?`<label for="biInto">Into</label><select id="biInto"><option value="here">“${esc(projName(P()))}”, beside its ${yCols().length} Y column${yCols().length===1?"":"s"}</option><option value="new">A new project</option></select>`:""}</div>`});
-  if(!r) return;
-  good.forEach(it=>{ const k=items.indexOf(it), v=(r["biN"+k]||"").trim(); if(v) it.name=v.slice(0,60); });
-  await doBatchImport(good,skip,{into:hasData?r.biInto:"here",graphs:"none",src:o.fname||`${o.files||good.length} files`});
-}
+  o=o||{}; if(S.readOnly||!S.store){ toast("You can view this workspace but not import into it."); return false; }
+  const built=items.map(it=>it.cols||it.fail?it:impFromItem(it)), good=built.filter(b=>!b.fail);
+  if(!good.length){ toast(`Nothing to import: ${built.map(b=>`${b.fname}, ${b.fail}`).join("; ")}.`); logError(`Nothing imported: ${built.map(b=>`${b.fname}, ${b.fail}`).join("; ")}`,"import"); return false; }
+  const hasData=!!S.pid&&!projBlank(), fields=impFields(built), paths=built.some(b=>!b.fail&&b.path&&b.path.length);
+  const st={typed:built.map(()=>({})),tick:new Set(),into:"here",arr:impArrStart(built,S.pid)};
+  if(st.arr.group==="field"&&!fields.includes(st.arr.field)) st.arr.field=fields[0]||"";
+  st.ctx=impCtx();
+  const groups=IMP_GROUPS.filter(([k])=>(k!=="field"||fields.length)&&(k!=="path"||paths));
+  const opts=(list,cur)=>list.map(([k,l])=>`<option value="${esc(k)}"${k===cur?" selected":""}>${esc(l)}</option>`).join("");
+  const rowHtml=(b,k)=>{ const nm=esc(b.fname);
+    if(b.fail) return `<tr class="skip" data-bik="${k}"><td></td><td class="nm" title="${nm}">${nm}</td><td colspan="6">Not imported: ${esc(b.fail)}</td></tr>`;
+    const sm=impSum(b), pts=`${fmtCount(sm.n)} point${sm.n===1?"":"s"}${sm.x0!=null?`, ${fmt(sm.x0,4)} to ${fmt(sm.x1,4)}${sm.xu?" "+sm.xu:""}`:""}`;
+    const fld=(x,list,max,lab)=>`<td class="bi${x}"><input type="text" id="bi${x}${k}"${list?` list="${list}"`:""} maxlength="${max}" autocomplete="off" aria-label="${lab} for ${nm}"></td>`;
+    return `<tr data-bik="${k}"><td><input type="checkbox" id="biT${k}" aria-label="Tick ${nm}"></td><td class="nm" title="${nm}${b.path&&b.path.length?` (in ${esc(b.path.join(" › "))})`:""}">${nm}<span class="bipts">${esc(pts)}</span></td>`
+      +(b.ys.length===1?fld("N","",60,"Name of the column"):`<td class="biN"><span class="ro" title="Each column keeps its own name">${b.ys.length} columns</span></td>`)
+      +fld("G","",40,"Group")+fld("S","biDlS",40,"Sheet")+fld("B","biDlB",40,"Workbook")+fld("F","biDlF",120,"Folder")
+      +`<td><button type="button" class="btn sm" data-biself="${k}" title="Out of this list: read it in the one-file dialog, with its own settings, after this import">Read by itself…</button></td></tr>`; };
+  const lists=()=>{ const c=st.ctx, fp=fid=>{ const out=[]; let f=fid, g=0; while(f&&g++<60){ const x=xFolder(c.t,f); if(!x) break; out.unshift(x.name); f=x.parent; } return out.join(" › "); };
+    const o1=v=>`<option value="${esc(v)}"></option>`;
+    return `<datalist id="biDlS">${c.sheets.map(s=>o1(s.name)).join("")}</datalist><datalist id="biDlB">${c.books.map(b=>o1(b.name)).join("")}</datalist><datalist id="biDlF">${[IMP_TOP].concat(c.t.folders.map(f=>fp(f.id))).map(o1).join("")}</datalist>`; };
+  const html=`<div class="bidlg">
+    <div class="biarr"><label for="biGroup">Files</label><select id="biGroup">${opts(groups,st.arr.group)}</select>
+      <select id="biField" aria-label="The header field they are grouped by"${st.arr.group==="field"?"":" hidden"}>${fields.map(f=>`<option${f===st.arr.field?" selected":""}>${esc(f)}</option>`).join("")}</select>
+      <select id="biAs" aria-label="Each group">${opts(IMP_AS,st.arr.as)}</select>
+      ${hasData?`<label for="biInto">Into</label><select id="biInto"><option value="here">“${esc(projName(P()))}”</option><option value="new">A new project</option></select>`:""}
+      <span class="sp"></span><button type="button" class="btn sm" id="biBack" title="The rows ticked (every row, with none ticked) back to what the arrangement says">Back to the arrangement</button></div>
+    <div class="bimain"><div class="bimp"><table class="bitab"><thead><tr><th><input type="checkbox" id="biTAll" aria-label="Tick every file"></th><th>File</th><th class="biN">Name</th><th class="biG">Group</th><th>Sheet</th><th>Workbook</th><th>Folder</th><th></th></tr></thead>
+      <tbody id="biRows">${built.map(rowHtml).join("")}</tbody></table></div>
+      <div class="bitree" id="biTree" aria-live="polite"></div></div><div id="biLists">${lists()}</div></div>`;
+  const count=()=>built.filter((b,k)=>!b.fail&&!st.typed[k].self).length;
+  const sh=$("#formModal .sheet"); sh.classList.remove("small"); sh.classList.add("bimpw");
+  const pr=formDlg({title:`Import ${good.length} files`+(paths?` from ${[...new Set(good.map(b=>(b.path||[])[0]).filter(Boolean))].join(", ")||"a folder"}`:""),wide:true,ok:`Import ${good.length} files`,html,valid:()=>count()>0});
+  const box=$("#formBody .bidlg"), ok=$("#formOk"), act=()=>document.activeElement;
+  const sync=()=>{ st.plan=impPlan(built,st.arr,st.typed,st.ctx); const a=act(), gOn=st.arr.group==="name"||st.arr.group==="field";
+    box.querySelector(".bitab").classList.toggle("g",gOn); $("#biField").hidden=st.arr.group!=="field";
+    built.forEach((b,k)=>{ if(b.fail) return; const r=st.plan.rows[k], ty=st.typed[k], tr=box.querySelector(`tr[data-bik="${k}"]`);
+      tr.classList.toggle("self",!!ty.self); tr.classList.toggle("on",st.tick.has(k));
+      const set=(x,v,off,typed)=>{ const el=$("#bi"+x+k); if(!el) return; if(el!==a&&v!=null) el.value=v; el.disabled=!!off; el.classList.toggle("typed",!!typed&&!off); };
+      const btn=box.querySelector(`[data-biself="${k}"]`); btn.textContent=ty.self?"Put it back":"Read by itself…";
+      if(ty.self||!r){ ["N","G","S","B","F"].forEach(x=>set(x,null,true,false)); return; }
+      const nm=b.ys.length===1?(ty.name!=null?ty.name:b.named?b.ys[0].name:(count()>1||!st.ctx.fresh||!b.ys[0].name?b.base:b.ys[0].name)):"";
+      set("N",nm,false,ty.name!=null&&ty.name!==""); set("G",gOn?r.key:"",!gOn,!!ty.group);
+      set("S",r.sheet.name,false,r.typed.s); set("B",r.book.name,r.fixB,r.typed.b); set("F",r.path.join(" › ")||IMP_TOP,r.fixF,r.typed.f); });
+    $("#biTree").innerHTML=impTreeHtml(st.plan); const n=count(); ok.textContent=`Import ${n} file${n===1?"":"s"}`; ok.disabled=!n; };
+  const FK={N:"name",G:"group",S:"sheet",B:"book",F:"folder"};
+  box.addEventListener("input",e=>{ const m=/^bi([NGSBF])(\d+)$/.exec(e.target.id||""); if(!m) return; const k=+m[2], f=FK[m[1]], v=e.target.value;
+    const to=f!=="name"&&st.tick.has(k)?[...st.tick]:[k]; to.forEach(j=>{ if(!built[j].fail&&!st.typed[j].self) st.typed[j][f]=v; }); sync(); });
+  box.addEventListener("change",e=>{ const id=e.target.id||"";
+    if(id==="biTAll"){ built.forEach((b,k)=>{ if(b.fail) return; const c=$("#biT"+k); c.checked=e.target.checked; if(e.target.checked) st.tick.add(k); else st.tick.delete(k); }); sync(); return; }
+    const m=/^biT(\d+)$/.exec(id); if(m){ if(e.target.checked) st.tick.add(+m[1]); else st.tick.delete(+m[1]); sync(); return; }
+    if(id==="biGroup"){ st.arr.group=e.target.value; if(st.arr.group==="field"&&!st.arr.field) st.arr.field=fields[0]||""; sync(); }
+    else if(id==="biField"){ st.arr.field=e.target.value; sync(); }
+    else if(id==="biAs"){ st.arr.as=e.target.value; sync(); }
+    else if(id==="biInto"){ st.into=e.target.value; st.ctx=impCtx({intoNew:st.into==="new"}); $("#biLists").innerHTML=lists(); sync(); } });
+  box.addEventListener("click",e=>{ const s=e.target.closest("[data-biself]"); if(s){ const k=+s.dataset.biself; st.typed[k].self=!st.typed[k].self; sync(); return; }
+    if(e.target.closest("#biBack")){ const to=st.tick.size?[...st.tick]:built.map((_,k)=>k); to.forEach(k=>{ const ty=st.typed[k]; ["group","sheet","book","folder"].forEach(f=>delete ty[f]); }); sync(); } });
+  // Enter in a row's field enters it, as in a spreadsheet; it does not import.
+  box.addEventListener("keydown",e=>{ if(e.key==="Enter"&&e.target.matches(".bitab input[type=text]")){ e.preventDefault(); e.stopPropagation(); } });
+  sync();
+  let r; try{ r=await pr; } finally{ sh.classList.remove("bimpw"); sh.classList.add("small"); }
+  const self=built.filter((b,k)=>!b.fail&&st.typed[k].self);
+  const later=()=>impReadLater(self);
+  if(!r){ later(); return false; }
+  const bad=built.filter(b=>b.fail).map(b=>`${b.fname}, ${b.fail}`);
+  if(st.into==="new"||!S.pid){ await createProject(blankProject(batchProjName(good.map(b=>b.base))),null); await new Promise(res=>whenOpen(res)); st.ctx=impCtx(); }
+  const plan=impPlan(built,st.arr,st.typed,st.ctx), done=await impPlace(built,plan,{bad});
+  if(done){ renderAll(); sheetForward();
+    const mks=metaKeys(P().cols.filter(c=>done.ids.includes(c.id)));
+    toast(`Added ${done.what} ${done.where}${bad.length?`; skipped ${bad.length} (see the log)`:""}.${mks.length?` Their files differ in ${andList(mks.slice(0,2).map(k=>k.k))}: the Batch window can plot against ${mks.length>1?"either":"it"}.`:""}`,
+      done.ids.length?{kind:"done",action:done.ids.length===1?"Plot it":"Plot them",run:()=>plotCols(done.ids.filter(k=>colById(k)),{undo:"plotting the import"})}:{kind:"done",action:"Undo",run:undo}); }
+  later(); return !!done; }
+// The files taken out of the list, each read in the one-file dialog in turn, the next when the last is closed.
+function impReadLater(list){ if(!list.length) return; const [b,...rest]=list;
+  setTimeout(()=>{ openImport(b.text,b.fname); const m=$("#impModal"); if(!rest.length) return;
+    const wait=()=>{ if(m.hidden) impReadLater(rest); else setTimeout(wait,300); }; setTimeout(wait,300); },50); }
+// The tree as it will be after the import: the folders, workbooks and sheets the files go into, new ones marked.
+function impTreeHtml(plan){ const root={kids:new Map(),books:[]};
+  plan.books.forEach(B=>{ let n=root; B.path.forEach((nm,i)=>{ if(!n.kids.has(nm)) n.kids.set(nm,{name:nm,kids:new Map(),books:[],isNew:plan.newF.has(B.path.slice(0,i+1).join("\u0001"))}); n=n.kids.get(nm); }); n.books.push(B); });
+  const tag=(o,w)=>o?` <em class="bnew">${w||"new"}</em>`:"";
+  const sheetLi=Sh=>{ const fs=Sh.files.map(k=>plan.built[k].base), own=fs.length===1&&fs[0]===Sh.name;
+    return `<li class="bts"><div class="btl">${ICON("file","sm")}<span>${esc(Sh.name)}</span>${Sh.reuse?tag(1,"its empty sheet"):tag(Sh.isNew)}${own?"":`<span class="btf">${esc((Sh.isNew?"":"+ ")+fs.join(", "))}</span>`}</div></li>`; };
+  const bookLi=B=>`<li class="btb"><div class="btl">${ICON("table","sm")}<span>${esc(B.name)}</span>${tag(B.isNew)}</div><ul>${plan.sheets.filter(s=>s.book===B).map(sheetLi).join("")}</ul></li>`;
+  const folderLi=f=>`<li class="btd"><div class="btl">${ICON("folder","sm")}<span>${esc(f.name)}</span>${tag(f.isNew)}</div><ul>${[...f.kids.values()].map(folderLi).join("")}${f.books.map(bookLi).join("")}</ul></li>`;
+  const nm=plan.ctx.intoNew?"A new project":projName(P());
+  return `<div class="bith">After the import</div><ul class="bitr"><li><div class="btl">${ICON("folder","sm")}<span>${esc(nm)}</span></div><ul>${[...root.kids.values()].map(folderLi).join("")}${root.books.map(bookLi).join("")}</ul></li></ul>`; }
+// The older way in, by code (tests, a series of spectra): spectra of batchFile's placed all together on one sheet unless asked.
 async function doBatchImport(good,skip,o){
-  const p0=P(), intoNew=o.into==="new"||!S.pid, keep=!intoNew&&!projBlank();
-  let cols=keep?p0.cols.slice():[]; const newY=[];
-  // Into a project with data on the sheet shown, the files go on a sheet of their own.
-  const own=keep&&sheetCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null)), sid=own?newSheetId():keep?curSheet():SHEET0.id;
-  if(own) stampSheets(p0); else if(keep) cols=dropBlanks(cols,sid,p0);
-  const onS=c=>c.sheet===sid||(!own&&keep&&sheetOf(c)===sid);
-  good.forEach(it=>{ const lastX=cols.slice().reverse().find(c=>c.role==="x"&&c.data.some(v=>v!=null)&&onS(c)), at=cols.length;
-    const yc=Object.assign(makeCol("y",it.name,it.yu,it.y),{pipe:(it.steps||[]).map(([op,pp])=>makeStep(op,Object.assign({},pp))),mask:[],sheet:sid},colMetaOf(it.meta,it.fname));
-    if(lastX&&sameAxis(lastX.data,it.x)) cols.push(yc); else cols.push(Object.assign(makeCol("x",it.xn,it.xu,it.x),{sheet:sid},it.xt?{tfmt:it.xt}:{}),yc);
-    if(it.e) cols.push(Object.assign(makeCol("e","σ",it.yu,it.e,yc.id),{sheet:sid}));
-    const fid="f"+Math.random().toString(36).slice(2,9); cols.slice(at).forEach(c=>{ c.fid=fid; if(!c.file) c.file=String(it.fname).slice(0,200); });
-    newY.push(yc.id); });
-  // The graphs, as asked: none yet, one, one each or stacked.
-  const proj={cols,graphs:keep?(p0.graphs||[]).slice():[]};
-  const made=impGraphs(proj,newY,o.graphs,!keep), graphs=proj.graphs;
-  const names=good.map(it=>it.name), list=names.length>4?names.slice(0,4).join(", ")+` and ${names.length-4} more`:names.join(", ");
-  const lg=`imported ${good.length} columns from ${o.src} (${list})${skip.length?`; skipped ${skip.map(s=>s.fname).join(", ")}`:""}; ${o.graphs==="none"?"not plotted yet":o.graphs==="each"?"a graph for each":o.graphs==="stack"?"stacked in one graph":"all in one graph"}`;
-  if(intoNew){
-    const pr=Object.assign(blankProject(batchProjName(names)),{cols,activeY:newY[0],graphs,meta:good[0].meta||{},v:DOC_V});
-    pr.raw=rawRecordFor(cols,`recorded from ${o.src}`);
-    await createProject(pr,lg);
-  } else {
-    pushUndo(`importing ${good.length} columns`);
-    S.view=null; S.draft=null; S.pdraft=null; S.stage=null; S.selStep=null; S.gv={}; S.glead={};
-    const p=P(); p.cols=cols; p.activeY=newY[0];
-    const raw=recordRaw(`added ${good.length} columns from ${o.src}`);
-    const patch=Object.assign({cols,activeY:newY[0],graphs},raw?{raw}:{},keep?{}:{meta:good[0].meta||{},fit:null,annos:[],sheets:null,wsHide:null});
-    if(own){ patch.sheets=p.sheets=sheetList(p).concat([{id:sid,name:sheetNameFor(batchProjName(names))}]); S.sheetAt=S.sheetAt||{}; S.sheetAt[S.pid]=sid; S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.wsm=null; S.wsSort=null; }
-    if(!keep&&isUntitled(p.name)) patch.name=uniqueProjName(batchProjName(names),S.pid);
-    await save(patch,lg);
-    renderAll();
-  }
-  const mks=metaKeys(cols.filter(c=>newY.includes(c.id)));
-  afterImport(o.graphs,newY,made,`Imported ${good.length} columns${skip.length?`; skipped ${skip.length} (see the log)`:""}.${mks.length?` Their files differ in ${andList(mks.slice(0,2).map(k=>k.k))}: the Batch window can plot against ${mks.length>1?"either":"it"}.`:""}`,!intoNew);
-}
+  o=o||{}; const built=good.map(impFromItem), bad=(skip||[]).map(s=>`${s.fname}, ${s.fail}`);
+  if(o.into==="new"||!S.pid){ await createProject(blankProject(batchProjName(built.map(b=>b.base))),null); await new Promise(res=>whenOpen(res)); }
+  const plan=impPlan(built,o.arr||{group:"all",as:"sheet",field:""},[],impCtx());
+  const done=await impPlace(built,plan,{bad,arr:false}); if(!done) return null;
+  renderAll(); sheetForward();
+  const mks=metaKeys(P().cols.filter(c=>done.ids.includes(c.id)));
+  afterImport("none",done.ids,[],`Imported ${done.what} ${done.where}${bad.length?`; skipped ${bad.length} (see the log)`:""}.${mks.length?` Their files differ in ${andList(mks.slice(0,2).map(k=>k.k))}: the Batch window can plot against ${mks.length>1?"either":"it"}.`:""}`,true);
+  return done; }
 /* ---- Dropped files: read, imported and plotted with no questions ---------------
    The Import dialog brings files into the worksheet and plots nothing: the
    person plots what they want when they want it. A file dropped on the window
@@ -29274,6 +29540,13 @@ function fileDropAt(x,y){
   return {text:"Drop to bring into the worksheet"};
 }
 function readDropped(files){ return Promise.all(files.map(readAny)); }
+// The files of folders dropped, each with its path; hidden files left out, IMP_MAX at most.
+async function dropWalk(ents){ const out=[];
+  const walk=async(en,path)=>{ if(out.length>=IMP_MAX||/^\./.test(en.name)) return;
+    if(en.isFile){ const f=await new Promise(res=>en.file(res,()=>res(null))); if(f){ try{ f._kpath=path+en.name; }catch(e){} out.push(f); } return; }
+    if(en.isDirectory){ const rd=en.createReader(); let batch;
+      do{ batch=await new Promise(res=>rd.readEntries(res,()=>res([]))); for(const c of batch) await walk(c,path+en.name+"/"); } while(batch.length&&out.length<IMP_MAX); } };
+  for(const en of ents) await walk(en,""); return impSortFiles(out); }
 async function autoImport(files,o){
   o=o||{}; if(S.readOnly||!S.store){ toast("You can view this workspace but not import into it."); return null; }
   // A workbook dropped: its sheets that Excel shows, each on a sheet of its own, after the other files.
@@ -29281,60 +29554,20 @@ async function autoImport(files,o){
   if(books.length){ const rest=files.filter(f=>!(f&&f.book)); let r=null; if(rest.length) r=await autoImport(rest,o);
     for(const b of books){ const u=xlUsed(b.book), vis=u.filter(q=>!q.s.hidden); r=await importBook(b.book,b.name,(vis.length?vis:u).map(q=>q.i),o)||r; }
     return r; }
-  if(files.length>80){ toast(`Importing the first 80 of ${files.length} files.`); files=files.slice(0,80); }
+  if(files.length>IMP_MAX){ toast(`Importing the first ${IMP_MAX} of ${files.length} files.`); files=files.slice(0,IMP_MAX); }
   // qudi's confocal scans become matrices (QUDI_SPEC Q.1), plotted when dropped on a graph; a 1D scan comes back as a table
   { const qs=[]; files=files.filter(f=>{ const q=f&&!f.fail&&typeof f.text==="string"?qudiFile(f.text,f.name):null; if(q&&q.fail){ f.fail=q.fail; return true; }
       if(q&&!q.table){ qs.push({name:f.name,text:f.text,q}); return false; } return true; });
     if(qs.length){ const t=qudiTake(qs,{plot:!!o.gid}); files=files.concat(t.tables.map(x=>({name:x.name,text:x.text}))); if(!files.length) return {sheets:[]}; } }
-  const built=[], bad=[];
-  files.forEach(f=>{ if(f.fail){ bad.push(`${f.name}, ${f.fail}`); return; }
-    if(looksBinary(f.text)){ bad.push(`${f.name}, a binary instrument file: export it as text`); return; }
-    const res=analyzeFile(f.text,{fname:f.name}); if(res.jdxFail){ bad.push(`${f.name}, ${res.jdxFail}`); return; } if(!res.rows.length){ bad.push(`${f.name}, no rows of numbers`); return; }
-    // The dialog's own reading, with its automatic choices.
-    const keep=S.imp; S.imp=Object.assign({raw:f.text,fname:f.name,opt:{fname:f.name},res,use:impUseDefault(res),pv:-1,sqrt:false},impStart(res));
-    try{ const b=impBuild(); if(b.cols.some(c=>hasVals(c))) built.push(Object.assign(b,{fname:f.name,text:f.text,res})); else bad.push(`${f.name}, no numbers`); }
-    finally{ S.imp=keep; } });
-  if(!built.length){ toast(`Nothing imported: ${bad.join("; ")}.`); logError(`Nothing imported: ${bad.join("; ")}`,"import"); return null; }
-  if(!S.pid){ await createProject(blankProject(built[0].base),null); await new Promise(r=>whenOpen(r)); }
-  const p=P(); if(!p) return null;
-  if(S.ws&&S.ws.edit) wsCommit(0,0,true);
-  const fresh=projBlank();
-  pushUndo(built.length===1?`importing ${built[0].fname}`:`importing ${built.length} files`);
-  S.view=null; S.draft=null; S.pdraft=null; S.stage=null; S.selStep=null;
-  // Spectra measured on the same X share its column; a file on another axis brings its own.
-  let cols=fresh?[]:p.cols.slice(); const ids=[];
-  // Beside data on the sheet shown, the files go on a sheet of their own, named after them.
-  // Dropped on a folder of the Explorer, on a sheet of its own in that folder's workbook.
-  const intoF=o.folder!==undefined&&!fresh;
-  const own=!fresh&&(intoF||sheetCols().some(c=>c.role!=="x"&&c.data.some(v=>v!=null))), sid=own?newSheetId():fresh?SHEET0.id:curSheet();
-  if(own) stampSheets(p);
-  if(!own&&!fresh) cols=dropBlanks(cols,sid,p);
-  built.forEach(b=>b.cols.forEach(c=>{ c.sheet=sid; }));
-  const onS=c=>c.sheet===sid||(!own&&!fresh&&sheetOf(c)===sid);
-  built.forEach(b=>{ const lastX=cols.slice().reverse().find(c=>c.role==="x"&&c.data.some(v=>v!=null)&&onS(c));
-    // A file of one spectrum is known by its file's name beside others (a header's "y" or
-    // "Intensity" names every one of them alike), and when it has no name of its own.
-    if(b.ys.length===1&&(!b.ys[0].name||built.length>1||!fresh)) b.ys[0].name=b.base.slice(0,60);
-    let add=b.cols; if(add[0]&&add[0].role==="x"&&lastX&&sameAxis(lastX.data,add[0].data)) add=add.slice(1);
-    cols=cols.concat(add); b.ys.forEach(c=>ids.push(c.id)); });
-  const what=built.length===1?built[0].fname:`${built.length} files`, nPts=Math.max(0,...cols.map(c=>c.data.length));
-  p.cols=cols; if(ids.length) p.activeY=ids[0];
-  const patch={cols:p.cols,activeY:p.activeY};
-  if(fresh){
-    // A project that held nothing takes the files' names and header.
-    Object.assign(patch,{meta:built[0].res.meta,fit:null,srcName:built[0].base});
-    if(isUntitled(p.name)||(p.srcName&&p.name===p.srcName)) patch.name=uniqueProjName(built.length===1?built[0].base:batchProjName(built.map(b=>b.base)),S.pid);
-    // Its graphs showed nothing: they go, and a file dropped on one is plotted on a graph of its own.
-    patch.graphs=[]; patch.annos=[]; patch.sheets=null; patch.wsHide=null;
-  } else {
-    patch.meta=Object.assign({},p.meta||{},built[0].res.meta);
-    if(own){ patch.sheets=sheetList(p).concat([Object.assign({id:sid,name:sheetNameFor(built.length===1?built[0].base:batchProjName(built.map(b=>b.base)))},intoF?{book:bookForFolder(p,patch,o.folder)}:{})]); S.sheetAt=S.sheetAt||{}; S.sheetAt[S.pid]=sid; S.ws={r:0,c:0,ar:0,ac:0,extra:0}; S.wsm=null; S.wsSort=null; }
-
-  }
-  Object.assign(p,patch);
-  const raw=recordRaw(fresh?`recorded from ${what}`:`added ${what}`); if(raw) patch.raw=raw;
-  await save(patch,`${fresh?"imported":"added"} ${what}, dropped on the window${bad.length?`; skipped ${bad.map(s=>s.split(",")[0]).join(", ")}`:""}`);
-  const sks=[...new Set(cols.filter(c=>built.some(b=>b.cols.includes(c))).map(c=>"ws:"+sheetOf(c)))];
+  const built=files.map(impAuto), good=built.filter(b=>!b.fail), bad=built.filter(b=>b.fail).map(b=>`${b.fname}, ${b.fail}`);
+  if(!good.length){ toast(`Nothing imported: ${bad.join("; ")}.`); logError(`Nothing imported: ${bad.join("; ")}`,"import"); return null; }
+  if(!S.pid){ await createProject(blankProject(good[0].base),null); await new Promise(r=>whenOpen(r)); }
+  if(!P()) return null;
+  // Where they go is the plan's (IMPORT_SPEC): the arrangement the project used last, files that came in folders as their
+  // folders; dropped on a folder of the Explorer, into its workbook.
+  const done=await impPlace(built,impPlan(built,impArrStart(built,S.pid),[],impCtx({folder:o.folder})),{bad,how:"dropped on the window"});
+  if(!done) return null;
+  const {ids,what,fresh}=done, sks=done.sheets;
   if(!ids.length){ renderAll(); sheetForward(); toast(`Imported ${what}: no column is a Y column, so nothing was plotted. The columns are in the worksheet.`,{action:"Undo",run:undo}); return {sheets:sks}; }
   // Dropped anywhere but on a graph, the columns go into the worksheet and nothing is
   // plotted: a graph is made when it is asked for (Plot, or a drop on a graph).
@@ -29350,7 +29583,7 @@ async function autoImport(files,o){
   // One spectrum plotted: the Overview says what it is like, as after any import that plots one.
   if(ids.length===1) setTimeout(autoOverview,250);
   toast(`${nm} from ${what} ${ids.length===1?"is":"are"} plotted in ${graphName(S.gid)}${bad.length?`. Skipped: ${bad.join("; ")}`:""}.`,
-    built.length===1?{action:"Read it differently",run:()=>{ undo(); openImport(built[0].text,built[0].fname); }}:{action:"Undo",run:undo});
+    good.length===1&&!bad.length?{action:"Read it differently",run:()=>{ undo(); openImport(good[0].text,good[0].fname); }}:{action:"Undo",run:undo});
   return {sheets:sks,gid:S.gid};
 }
 /* ---- The Project Explorer --------------------------------------------------------
@@ -29741,7 +29974,9 @@ function wireXpl(){
   applyXpl();
 }
 // A file as the import reads it: text, or an SPC file's bytes decoded into a table (roadmap 8, slice 2).
-function readAny(f){ return new Promise(res=>{
+// What a file holds, and where it was in a folder chosen or dropped (its path, "run4/sampleC/c_01.csv").
+function readAny(f){ return readAny0(f).then(r=>Object.assign(r,{path:String((f&&(f._kpath||f.webkitRelativePath))||"")})); }
+function readAny0(f){ return new Promise(res=>{
   if(f.size>60e6){ res({name:f.name,fail:`${Math.round(f.size/1e6)} MB, too large for a text column`}); return; }
   // SPC by its name; OPUS (named sample.0, sample.1…) by its first bytes, a file so named that is not one read as text.
   // SPE: Princeton's binary one by its header, Maestro's text one read as text. An Excel workbook: its sheets,
@@ -35907,12 +36142,12 @@ ${DL([["Open","One click or "+K("Enter")+": a graph comes onto the desk (a hidde
 <h2 id="many">Several at once</h2>
 <p>${K("Ctrl")}+click adds an item to the selection or takes it out, ${K("Shift")}+click (or ${K("Shift")}+${K("↑")} ${K("↓")}) selects a run, ${K("Ctrl","A")} everything, ${K("Esc")} goes back to one. Right-click the selection for one menu: open or close the graphs, show them side by side, combine them into one graph, make them the panels of a figure, export them as one picture; plot their columns together, or <em>Process their columns</em>, which opens a step set up on the first with <em>Apply to: the ones chosen</em>, so it goes on every column the sheets and graphs hold; move everything to a folder; delete everything (asked once when sheets hold values). Each is one Undo; a dragged selection moves together.</p>
 <p>The folder selected, or the folder of the item selected, is the <strong>active folder</strong>: sheets (the worksheet's <strong>+</strong> too), graphs, trend graphs, matrix books and files made while the Explorer is open go into it, as Origin puts new windows in the active folder; a folder's right-click has <em>New sheet here</em> and <em>Import files here…</em>. What is made goes there and nothing else moves: a file added to a sheet in another folder leaves that sheet where it is. ${K("↑")} ${K("↓")} move, ${K("→")} opens and ${K("←")} closes or goes up a level. Folders are kept with the project, so a colleague who opens it sees them, and every change to them is one Undo.</p>`},
-{id:"import", g:"Basics", t:"Importing data", kw:"import open file csv tsv txt dat qudi confocal delimiter decimal comma header metadata paste drop wizard add replace many several files batch columns role use as data not a spectrum leave out plot not yet worksheet only pairs excel xlsx xlsm workbook spreadsheet sheets frozen html table web page",
+{id:"import", g:"Basics", t:"Importing data", kw:"import open file csv tsv txt dat qudi confocal delimiter decimal comma header metadata paste drop wizard add replace many several files batch folder subfolders directory group by name header field arrangement columns role use as data not a spectrum leave out plot not yet worksheet only pairs excel xlsx xlsm workbook spreadsheet sheets frozen html table web page",
  lead:"Text exports from almost any instrument work. Drop a file on the window and it is read and plotted at once; use Import to see how it is read and choose what each column becomes, and nothing is plotted until you ask.",
  body:`<h2>Three ways in</h2>
-${DL([["Drop files","Drop one file or many anywhere on the window. A project file (<em>.kurve</em>) opens as a new project ("+DA("projects#files","project files")+"); any other file is read with the automatic choices and plotted: on the graph you drop it on, or else on a new graph. Dropped on a folder of the "+DA("explorer","Project Explorer")+", it is filed there. The message that follows has <em>Read it differently</em>, which undoes it and opens the dialog."],["Import","<em>Import</em> on the toolbar, "+MP("File › Import data…")+", or "+K("Ctrl","O")+": the dialog shows how the file is read, every choice can be changed, and the columns go into the worksheet. Nothing is plotted: select columns and press Plot when you are ready."],["Text","A column of names or notes, and words among numbers (<code>n/a</code>, <code>&lt;0.01</code>), come in as text: see "+DA("sheet#text","text in the worksheet")+". The dialog's <em>Use</em> list has <em>Text (kept as written)</em> for a column whose numbers are names, as IDs like <code>007</code> are."],["Paste","Copy columns from a spreadsheet and paste them into a worksheet cell. Pasted into an empty sheet, they are read as an import reads them: with no X-like column every one is a Y, and the sheet's empty X column moves after them."]])}
+${DL([["Drop files","Drop one file or many anywhere on the window. A project file (<em>.kurve</em>) opens as a new project ("+DA("projects#files","project files")+"); any other file is read with the automatic choices: dropped on a graph, it is plotted there; anywhere else, it goes into the worksheet, several files as the project's last import of many arranged them ("+DA("import#many","Many files at once")+"), a folder with its subfolders as its folders. Dropped on a folder of the "+DA("explorer","Project Explorer")+", it goes into that folder's workbook. The message that follows has <em>Read it differently</em>, which undoes it and opens the dialog."],["Import","<em>Import</em> on the toolbar, "+MP("File › Import data…")+", or "+K("Ctrl","O")+": the dialog shows how the file is read, every choice can be changed, and the columns go into the worksheet. Nothing is plotted: select columns and press Plot when you are ready."],["Text","A column of names or notes, and words among numbers (<code>n/a</code>, <code>&lt;0.01</code>), come in as text: see "+DA("sheet#text","text in the worksheet")+". The dialog's <em>Use</em> list has <em>Text (kept as written)</em> for a column whose numbers are names, as IDs like <code>007</code> are."],["Paste","Copy columns from a spreadsheet and paste them into a worksheet cell. Pasted into an empty sheet, they are read as an import reads them: with no X-like column every one is a Y, and the sheet's empty X column moves after them."]])}
 <h2 id="drop">Dropping files</h2>
-<p>While a file is dragged over the window, the outline shows where it would go and a message says what would happen: <em>Drop to plot in Graph 2</em>, or <em>Drop to import into “2024” and plot</em> over a folder. A project with no data takes the file's name and header; beside other data, each file's columns are named after the file, and columns measured on the same X share a column. One Undo takes the whole drop back. A binary instrument file is refused with the reason.</p>
+<p>While a file is dragged over the window, the outline shows where it would go and a message says what would happen: <em>Drop to plot in Graph 2</em>, or <em>Drop to import into “2024” and plot</em> over a folder. A project with no data takes the file's name and header; beside other data, each file's columns are named after the file and go on a sheet of their own, and columns measured on the same X on one sheet share a column. One Undo takes the whole drop back. A binary instrument file is refused with the reason.</p>
 <h2>What is detected</h2>
 ${DL([["Delimiter and decimal mark","Decided together: <code>1,5;2,5</code> only makes sense as semicolons with decimal commas."],["Where the data start","The longest run of consistent numeric lines, so an instrument's preamble and a trailing footer are found, not fought."],["Names and units","From the line above the numbers, such as <code>Raman shift (cm-1)</code>. A line of units under a line of names (<code>Time;Sample A</code> over <code>h;OD600</code>) fills the Units row: each name takes its unit."],["What each column is","Guessed from names and values. X is the first column that rises or falls steadily, else the first named as an axis (a time, a wavelength, a concentration); with neither, as for groups of measurements side by side, every column is a Y against its row number. A name with <em>err</em> or <em>sd</em> makes error bars. Change any of them in the <em>Columns</em> list."],["Metadata","Lines such as <code>Laser: 532 nm</code> in the header are kept with the project and printed in the report."],["Dates and times","A column of dates or times (<code>2024-03-01 12:00</code>, <code>12:05:30</code>) is read as seconds, shown in the worksheet as dates and times, and numbers its axis that way. "+DA("scales#dates","Dates and times")]])}
 <p>The dialog shows the file with the data lines highlighted, the choices beside it, and a preview of the curve. Every choice can be overridden.</p>
@@ -35923,11 +36158,10 @@ ${DL([["X","An axis. Each column is plotted against the nearest X to its left, s
 <p>The dialog puts the columns into the worksheet, which takes the graph's place on the desk, and plots nothing: the data can be worked on first (a formula, a dark current subtracted). Plot when you are ready, from the worksheet's Plot button or from the message that follows the import. ${DA("plotting","Plotting columns")}</p>
 <h2>When the project already has data</h2>
 ${DL([["Add these columns","Keeps what is there. A file on a different X axis brings an X column of its own, so no value is interpolated. Columns added beside others go on a graph of their own, or on none."],["Replace everything","The new file becomes the project's data."],["Put it in a new project","Suggested when the X ranges do not overlap."]])}
-<h2 id="many">Many columns at once</h2>
-<p>One file with several Y columns is one import. Choose or drop several files together, and each is read the way the dialog would read it alone, then listed with its points and X range and a name to change. Then:</p>
-${DL([["Into","The project on the desk (named in the list, with how many columns it holds), beside what is there, or a new project."]])}
-<p>As from the single-file dialog, the columns go into the worksheet and are plotted when you choose. Dropped instead, the files are plotted at once.</p>
-<p>It is one change: one Undo, one line in the log, one entry in the original-data record. Columns measured on the same X share a column; one on a different axis gets its own, so nothing is interpolated. A file that cannot be read is listed with the reason and left out.</p>
+<h2 id="many">Many files at once</h2>
+<p>One file with several Y columns is one import. Choose several files together (${K("Ctrl","O")}), or a whole folder with ${MP("File › Import a folder…")}, and one dialog lists them: a row per file with its points and X range, and beside the list the project's tree as it will be after the import, what is new marked. A file that cannot be read is listed with the reason and left out.</p>
+${DL([["Files","How they are grouped: <em>Each on its own</em>, <em>All together</em>, <em>By their names</em> (the part before the last number: <code>sampleA_01</code> and <code>sampleA_02</code> are <code>sampleA</code>, shown in a Group column that can be typed over), <em>By a header field</em> (a field most of the files have and that differs between them, such as a temperature), or <em>As their folders</em> (offered when a folder was chosen or dropped)."],["Each group","On one sheet; a workbook, a sheet a file; or a folder with its workbook, a sheet a file. By default each file goes on a sheet of its own in the workbook in front, an empty sheet shown there taking the first; a folder chosen comes in as its folders."],["Sheet, Workbook, Folder","Where the row's file goes, each typed or picked from its list: the name of one that exists means that one, a new name makes it, and rows given the same new name go together. A sheet that exists decides its workbook and folder, and a workbook its folder. A folder is written as its path, <code>Samples › 2024</code>. What is typed is marked, and kept when the arrangement changes; <em>Back to the arrangement</em> clears it."],["Ticks","Rows ticked are set together: a sheet, workbook or folder typed on one is typed on every one ticked."],["Name","The column's name; the file's, by default."],["Read by itself…","Takes a file out of the list: once the others are in, it opens in the one-file dialog, to be read with settings of its own."],["Into","With data in the project, a new project instead."]])}
+<p>It is one change: one Undo, one line in the log saying where the files went, one entry in the original-data record. Files on one sheet share an X column when they were measured on the same X; one on another axis gets its own, so nothing is interpolated. The arrangement is remembered for the project in this browser, and files dropped on the window go by it, with no dialog. As from the one-file dialog, nothing is plotted until you choose.</p>
 <p>Each column keeps the name of its file and the fields of its header (its Original data box in the History lists them). Fields that differ between the files, such as a temperature or the time each was taken, are offered as what the ${DA("batch","Batch window")} plots against.</p>
 <h2 id="qudi">qudi's confocal scans</h2>
 <p>A scan saved by qudi is recognised by its header and becomes a ${DA("matrices#qudi","matrix")} with its positions, not columns of numbers; a scan along one axis comes into the dialog as a curve.</p>
@@ -40199,6 +40433,7 @@ function menuItems0(which){
     {label:"New project", run:newProject, enabled:can},
     {label:"New workbook", title:"A workbook of its own in this project, in its own window, filed in the folder selected", run:()=>newBook(), enabled:edit},
     {label:"Import data…", kbd:"Ctrl+O", run:pickFile, enabled:can},
+    {label:"Import a folder…", title:"Every file of a folder and its subfolders, each folder of it a folder of the project with a workbook, a sheet a file", run:pickFolder, enabled:can},
     {label:"Open a project file…", title:"A project saved as a .kurve file, opened as a new project", run:pickProjectFile, enabled:can},
     {label:"Save to a file…", kbd:"Ctrl+S", title:p&&p.file?`The project as a .kurve file (last saved as ${p.file.name})`:"The project as a .kurve file, to keep, send or open on another computer", run:()=>saveProjectFile(false), enabled:!!p},
     {label:"Save a copy to a file…", kbd:"Ctrl+Shift+S", title:"The project as another .kurve file", run:()=>saveProjectFile(true), enabled:!!p},
@@ -40285,6 +40520,9 @@ function setupDrop(){
     const t=fileDropAt(e.clientX,e.clientY); mark(null);
     if(S.readOnly||!S.store){ toast("You can view this workspace but not import into it."); return; }
     if(document.querySelector(".modal:not([hidden])")){ toast("Close the dialog first, then drop the file again."); return; }
+    // A folder dropped is read with its subfolders, each file keeping where it was (the entries taken now: they go with the event).
+    const ents=[...(e.dataTransfer.items||[])].filter(it=>it.kind==="file"&&it.webkitGetAsEntry).map(it=>it.webkitGetAsEntry()).filter(Boolean);
+    if(ents.some(en=>en.isDirectory)){ dropWalk(ents).then(list=>{ const fs=list.filter(f=>!isProjFile(f)); if(fs.length) readDropped(fs).then(l=>autoImport(l,{gid:t.gid,folder:t.folder})); else toast("The folder holds no files to import."); }); return; }
     const all=[...e.dataTransfer.files], fs=all.filter(f=>!isProjFile(f)); if(!all.length) return;
     // A project file is opened as a project, wherever it is dropped; the rest are read as data.
     all.filter(isProjFile).reduce((q,f)=>q.then(()=>openProjectFile(f)),Promise.resolve());
@@ -40379,6 +40617,8 @@ function tabKeys(sel,attr,fn){
    ============================================================ */
 // The file picker; replace (from File › Replace the data…, after asking) makes the import replace the project.
 function pickFile(replace){ if(S.readOnly||!S.store) return; S.impReplace=replace===true?true:null; $("#fileIn").click(); }
+// File › Import a folder…: every file of a folder and its subfolders, which become folders of the project (IMPORT_SPEC).
+function pickFolder(){ if(S.readOnly||!S.store) return; S.impReplace=null; $("#dirIn").click(); }
 async function replaceData(){ const p=P(); if(!p||S.readOnly) return;
   if(!await confirmDlg("Replace the data?",`Everything in “${projName(p)}”, its columns, graphs and fits, is replaced by the file you choose next. Undo brings it back.`,"Choose a file…",true)) return;
   pickFile(true); }
@@ -40475,6 +40715,7 @@ function wireStatic(){
   $("#fileIn").addEventListener("change",e=>{ const fs=[...e.target.files]; e.target.value=""; const pf=fs.filter(isProjFile), rest=fs.filter(f=>!isProjFile(f));
     pf.reduce((q,f)=>q.then(()=>openProjectFile(f)),Promise.resolve()); if(rest.length>1) readFilesIn(rest); else if(rest[0]) readFileIn(rest[0]); });
   $("#projFileIn").addEventListener("change",e=>{ const f=e.target.files[0]; e.target.value=""; if(f) openProjectFile(f); });
+  $("#dirIn").addEventListener("change",e=>{ const fs=[...e.target.files].filter(f=>!/(^|\/)\./.test(f.webkitRelativePath||f.name)&&!isProjFile(f)); e.target.value=""; if(fs.length) readFilesIn(fs,{dir:true}); else toast("The folder holds no files to import."); });
   $("#addColBtn").onclick=e=>toggleMenu(e.currentTarget,wsInsertItems,{label:"Insert"});
   // With columns to plot selected, the quick list (and Plot setup… at its top); with none, the dialog.
   { const pb=$("#wsPlotBtn"); pb.onclick=()=>{ const sel=wsSelColIds(); if(!plotWhat(sel).ys.length&&!(menuOpen&&menuOpen.trigger===pb)){ openPlotDlg(sel); return; } toggleMenu(pb,()=>plotItems(sel),{label:"Plot"}); }; }

@@ -169,7 +169,9 @@ one click:
 Beside the table, the tree as it will be after Import: the folders, books and sheets, the new ones
 marked. One undo step, one record entry. The arrangement chosen is remembered per project. The
 reading settings (delimiter, decimal mark, which columns) are shared, with *Read it differently* per
-file.
+file. Done 28.11 (`IMPORT_SPEC.md`, as built): each file is read with the automatic choices, *Read by
+itself…* opening the one-file dialog after; the default a sheet a file in the workbook in front; folders by File › Import a
+folder… or a drop; a drop by the project's last arrangement; `tools/flows/import.mjs` is its story.
 
 **S.5 One subject.** One selection shared by the Explorer, the worksheet and the graph, which every
 command reads (S.1 made the menus read the worksheet's; the Explorer's and the graph's join it); the

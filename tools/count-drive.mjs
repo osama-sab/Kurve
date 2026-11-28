@@ -78,8 +78,9 @@ await page(async p => {
   check("an N42 file: its counts, live time and calibration", s3.steps === "ecal(1.465,-0.5,0,keV)" && s3.meta && s3.meta["Live time"] === "300 s", JSON.stringify(s3));
   await p.evaluate(([a, b]) => { batchImport([batchFile("day1.spe", a), batchFile("day2.spe", b)].flat(), {}); }, [spe(gamma(5), { date: "03/15/2024 10:00:00" }), spe(gamma(6), { date: "03/16/2024 10:00:00" })]); await p.waitForTimeout(500);
   await p.locator(".modal:not([hidden]) button.primary").first().click(); await p.waitForTimeout(1200);
-  const b = await p.evaluate(() => sheetCols(curSheet()).filter(c => c.role === "y").map(c => [c.name, (c.pipe || []).map(s => s.op).join(), finalOf(c).xu, (c.meta || {}).Measured]));
-  check("several .Spe files at once: each calibrated, each with its own date", b.length === 2 && b.every(r => r[1] === "ecal" && r[2] === "keV") && b[0][3] === "2024-03-15 10:00:00" && b[1][3] === "2024-03-16 10:00:00", JSON.stringify(b));
+  // Each on a sheet of its own, as several files chosen together go by default (IMPORT_SPEC).
+  const b = await p.evaluate(() => yCols().filter(c => /^day[12]$/.test(c.name)).map(c => [c.name, (c.pipe || []).map(s => s.op).join(), finalOf(c).xu, (c.meta || {}).Measured, sheetName(sheetOf(c))]));
+  check("several .Spe files at once: each calibrated, each with its own date, each on a sheet named after it", b.length === 2 && b.every(r => r[4] === r[0]) && b.every(r => r[1] === "ecal" && r[2] === "keV") && b[0][3] === "2024-03-15 10:00:00" && b[1][3] === "2024-03-16 10:00:00", JSON.stringify(b));
 }, { name: "an analyser's files" });
 
 console.log("Slice 2: net counts over a local continuum, detection and activity, in the Integrate window");

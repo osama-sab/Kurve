@@ -910,6 +910,22 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-28: many files at once (QUALITY_SPEC S.4, IMPORT_SPEC)
+
+- **Where each file goes is said before it goes.** The dialog for several files lists them with the sheet, workbook and
+  folder each goes into, and draws the project's tree as it will be: the person reads the result, not a list of options, and
+  says yes. The user asked how to put many files into several sheets cleanly; a move per sheet afterwards was the answer before.
+- **An arrangement is one click; a field typed is an exception.** Grouping by name, by a header field or by the folders they
+  came in fills every row; what is typed on a row wins, is marked, and survives a change of arrangement, as a cell typed over a
+  formula would be told apart. Rows ticked are typed together, as a spreadsheet fills a selection.
+- **A name that exists means that thing.** Typing a sheet's or a workbook's name puts the file there and fixes the rest of its
+  row; a new name makes it. No row can ask for a sheet in a workbook it is not in. A sheet made by an arrangement is always new
+  (data are never mixed by a coincidence of names); a workbook or a folder of the same name in the same place is reused.
+- **A drop asks nothing.** Files dropped on the window go by the arrangement the project used last; the dialog is for when
+  there is something to decide.
+- **A folder is a folder.** Imported, its subfolders become folders of the project, each with a workbook, in the order of the
+  paths, as a file manager lists them.
+
 ### 2026-11-28: workbooks (QUALITY_SPEC S.3, BOOK_SPEC)
 
 - **A project holds workbooks, as Origin's and Excel's.** The user asked why sheets in different folders shared one window's

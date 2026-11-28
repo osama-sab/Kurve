@@ -18,6 +18,7 @@ File
   New project
   New workbook  ## new (QUALITY_SPEC S.3, BOOK_SPEC): a workbook in a window of its own, filed in the folder selected
   Import data…  [Ctrl+O]
+  Import a folder…  ## new (QUALITY_SPEC S.4, IMPORT_SPEC): every file of a folder and its subfolders, as folders of the project
   Open a project file…  ## new (PARITY 1.1): a .kurve file opened as a new project; a backup offers its projects
   Save to a file…  [Ctrl+S]  ## new (PARITY 1.1): the project as a .kurve file, written again to the same file for the rest of the session
   Save a copy to a file…  [Ctrl+Shift+S]  ## new (PARITY 1.1): always asks where

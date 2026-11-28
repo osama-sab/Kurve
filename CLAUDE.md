@@ -1023,14 +1023,36 @@ graph first, with the taskbar kept at the bottom of the screen.
   it takes the graph's place) with a toast that plots them, or opens the graphs made (one
   spectrum: its History and Overview). A project just created is current only once the store
   lists it: `whenOpen(fn)` waits for it.
-  **Many spectra at once**: several files chosen or dropped together go to `readFilesIn`.
-  `batchFile(fname, text, opt)`
-  reads a file into items `{fname, name, x, y, e, xn, xu, yu, n, x0, x1, meta}` (or `{fail}`
-  in words), `batchImport(items, o)` lists them in a dialog (names editable; into this project
-  or a new one; nothing plotted) and `doBatchImport` brings them in as
-  one change: one undo entry, one log line, one raw-data record entry. A spectrum shares the X
-  column of the one before it when `sameAxis`, and has its own otherwise; `impGraphs` and
-  `afterImport` as above.
+  **Many files at once** (QUALITY_SPEC S.4, `ux/spec/IMPORT_SPEC.md`; the block before the dropped files'): several files
+  chosen together (`readFilesIn(files, {dir})`: a folder's sorted by path, `impSortFiles`; at most `IMP_MAX`, 200; qudi's scans
+  matrices first, an Excel workbook a workbook of its own after) or a folder (File › Import a folder…, `pickFolder`, `#dirIn`
+  with `webkitdirectory`; a folder dropped, `dropWalk` over `webkitGetAsEntry`, each file's `_kpath`; `readAny` gives every
+  file's `path`, the old reader `readAny0`). Each file is read as the dialog reads it with its automatic choices (`impAuto`:
+  `impBuild` on `S.imp` for the moment, `{fname, base, cols, ys, res, path (its folders, impDirs)}` or `{fname, fail}`); a
+  spectrum of `batchFile`'s (the older entry the tests use, `{fname, name, x, y, e, xn, xu, yu, n, x0, x1, meta, steps}`) is
+  made one by `impFromItem`. **The plan** (`impPlan(built, arr, typed, ctx)`): the arrangement `arr` `{group (IMP_GROUPS: each,
+  all, name, field, path), as (IMP_AS: sheet, book, folder), field}` (`impNameKey` the part before the last number,
+  `impFields` the header's fields most files have and that differ, `impKey`, `impGroupName`), what was typed per row (`typed[k]`
+  `{name, group, sheet, book, folder, self}`) and where the files go by default (`impCtx({folder, intoNew})`: the workbook
+  `bookTarget` names, or the folder dropped on's, or one made there; an empty sheet shown there, or the folder's workbook's,
+  `impBlank`, taking the first new sheet, keeping a name of its own; a blank project's own workbook and sheet). Each row's
+  sheet, workbook and folder: an existing sheet by name decides its workbook and folder (`fixB`, `fixF`), an existing workbook
+  its folder; a new name is made and rows with one new name go together; a folder typed by its path or its name alone
+  (`impFolderPath`, `IMP_TOP` the top level); a workbook elsewhere than the folder typed gives way to the folder's own or one
+  made there; a generated workbook of a name already in that folder is that one. `{rows, books [{key, id|null, name, path,
+  isNew}], sheets [{key, id|null, name, book, isNew, reuse, files}], newF}`, names made unique by `impUniq`. `impTreeHtml(plan)`
+  the tree after the import; `impWhere(plan)` the log's words ("into 3 workbooks, making 1 folder"). **Placed**
+  (`impPlace(built, plan, {bad, how, arr})`): one undo step, the folders, workbooks and sheets made, the columns sheet by sheet
+  after what each holds (its placeholders given up, `dropBlanks`; sharing the last X of its sheet when `sameAxis`; a file of one
+  spectrum named after it beside others), `fid` and `file`, one save with `tree`, `books`, `sheets`, `cols`, `raw`, `activeY`
+  (a blank project takes the files' name and header), the arrangement remembered (`impArrKeep`, `kurve.imparr` per project;
+  `impArrStart`: a folder's files as their folders, else the remembered, else each on its own). **The dialog** (`batchImport(items,
+  o)`, `formDlg` in `.sheet.bimpw`): `#biGroup`, `#biField`, `#biAs`, `#biInto` (a new project), `#biBack`; a row per file
+  (`tr[data-bik]`, `.bipts` its points and X range, ticks `biT<k>` and `#biTAll`, fields `biN<k>` name, `biG<k>` group, `biS<k>`
+  sheet, `biB<k>` workbook, `biF<k>` folder with `#biDlS`, `#biDlB`, `#biDlF`; typed ones `.typed`, a field typed on a ticked
+  row typed on every ticked row; Enter enters, never imports; `[data-biself]` Read by itself…, read after by `impReadLater`);
+  `#biTree`; listeners on `.bidlg`. `autoImport` (a drop) plans with no dialog; `doBatchImport(good, skip, o)` (the tests')
+  with `o.arr` or all together on one sheet.
   **One column** (a multichannel analyser's counts, a line per channel): `analyzeFile(raw,
   {fname, tka})` marks `single`, and for a `.tka` name (or `tka:true`; `tka:false` refuses)
   reads the first two lines as live and real time (`res.tka`, into `meta` with the dead time;
@@ -4120,7 +4142,9 @@ person's task done through the interface alone (clicks, keys, the file picker, d
 (`tools/flows/fixtures/*.kurve`, made by `node tools/flows/make-fixtures.mjs`, which may use the app's internals): folders inside
 folders, several files whose columns share their names, graphs filed with their sheets, a figure, steps, analyses. `week.mjs` is
 the first (last week's project carried on); `books.mjs` the workbooks' (two samples, a workbook each, a sheet moved between them,
-last week's project opened with its sheets where they were). **The document's rules** (`projCheck(p)`: ids unique, sheet names unique, every
+last week's project opened with its sheets where they were); `import.mjs` the import of many files' (a run of six files into last
+week's project by their names, a workbook each, a folder typed once for two rows ticked, undone and redone; a folder of subfolders;
+files onto a sheet that holds data, sharing its X; Read by itself…; files dropped on a folder). **The document's rules** (`projCheck(p)`: ids unique, sheet names unique, every
 error column's owner, every derived column's source, the active column a Y there, graphs' curves and panels there, annotations'
 graphs, folders' parents and no circle, every tree entry's folder and item, no two Y columns shown under one name) are checked
 after every save on a page served from 127.0.0.1 or with `kurve.check` set (`projCheckOn`, `projCheckAfter`, `S.checkFails`): a
@@ -6185,14 +6209,21 @@ bash on all of it. S.2 done 27.11 (`projCheck` after every save, `tools/flows/`,
 (`ux/spec/BOOK_SPEC.md`): workbooks, each a window with its own sheets' tabs, filed in a folder as a whole; New workbook from
 File, Window and a folder's menu; a folder's New sheet here and Import files here going into its workbook; a tab dragged onto
 another workbook, or Move to workbook ›; a drop on a folder into its workbook, an Excel file a workbook of its own, a result
-sheet in its input's; older projects grouped by their folders (document version 6); `tools/flows/books.mjs` the story.
+sheet in its input's; older projects grouped by their folders (document version 6); `tools/flows/books.mjs` the story. S.4 done 28.11
+(`ux/spec/IMPORT_SPEC.md`): several files, or a folder (File › Import a folder…, or dropped), in one dialog with a row per file
+and the project's tree as it will be beside: each file's sheet, workbook and folder from an arrangement (each on its own, all
+together, by their names, by a header field, as their folders; each group a sheet, a workbook, or a folder with its workbook)
+or typed, rows ticked set together; one undo step, one log line saying where they went; a drop goes by the arrangement the
+project used last; `tools/flows/import.mjs` the story.
 
 ## Known gaps
 
 - Workbooks (QUALITY_SPEC S.3): sheet names are the project's (two workbooks cannot each have a Sheet1, as Excel's can), so a
   formula reads any sheet by its name alone; books are not reordered (the first is the worksheet window's); a book's window is
-  never closed, only minimised; a book cannot be saved alone as a file. Several files chosen together still go on one sheet,
-  by one rule for all of them (S.4)
+  never closed, only minimised; a book cannot be saved alone as a file
+- Importing many files: each is read with the automatic choices (the one-file dialog for one, Read by itself… for the rest);
+  a folder's files at most 200; one file into a blank project through the one-file dialog keeps the sheet's name (Sheet 1),
+  where several name the first sheet after their first file
 
 - Two displays: a graph (not a figure) and five tool windows (Results, Statistics, Help, the
   Overview, Discussion) can go into a window of their own; the worksheet, the History and the
