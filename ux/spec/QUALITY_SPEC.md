@@ -176,7 +176,9 @@ folder… or a drop; a drop by the project's last arrangement; `tools/flows/impo
 **S.5 One subject.** One selection shared by the Explorer, the worksheet and the graph, which every
 command reads (S.1 made the menus read the worksheet's; the Explorer's and the graph's join it); the
 status bar names it (*Working on Intensity (s2!B)*); choosing what to work on is never an undo step
-and never brings another window forward by itself.
+and never brings another window forward by itself. Done 28.11 (`SUBJECT_SPEC.md`): the subject from the last place worked in (a
+curve clicked, a column selected once the selection rests, a graph opened), `pickCol` the quiet choice, the status bar's *Working
+on …*; `tools/flows/subject.mjs` is its story.
 
 **S.6 A bug bash on all of it,** then the lab day for 40 minutes with `BIAS` on books, imports and
 the Explorer; then the suite. The exit criteria: every flow passes, no invariant broken in three

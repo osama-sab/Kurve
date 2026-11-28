@@ -24,7 +24,8 @@ in stages while it would wrap and last the Explorer's switch (not on a phone), `
 and the trend graphs; Alt+1 or the toolbar's first button shows it, its edge drags; 220 px wide, and below 1600 px a
 drawer over the desk);
 the **desk**; and a **status bar**
-(tool hint, live cursor readout, or off the graph the numbers of what is selected, point counts, fit state, save state). A gear at the title bar's right
+(what the commands act on, *Working on …*; tool hint, live cursor readout, or off the graph the numbers of what is selected, point
+counts, fit state, save state). A gear at the title bar's right
 opens **Preferences** (File › Preferences…, Edit › Preferences…, Ctrl+,): whether a history of
 changes is kept (off, nothing but errors is logged), the theme, the style, animations, how text
 is typed (formatted or LaTeX), what opens after an import, and the errors met, all kept per browser. Window › Theme picks
@@ -1314,10 +1315,18 @@ graph first, with the taskbar kept at the bottom of the screen.
   route to compare. `p.activeY` is the one being analysed. Helpers: `xCol`, `yCols`,
   `activeYCol`, `errColFor`, `colById`, `makeCol`, `colLabel`, `colLetter` (letters count raw
   columns only), `specName` (with another Y column of the same name, `specDup`, counted once per list of columns, the name and
-  where it is: "Intensity (s2!B)"). **What a command acts on** (27.11): `wsHandCol()` (while the worksheet is the last place
-  worked in, `S.wsTouch`, which a press on the title bar, toolbar, menus, dialogs or status bar leaves as it was, the one Y
-  column its selection holds), `syncHandCol()` (makes it the active column quietly: no undo step, log line or message),
-  called by `openTool` and by every menu item's run (`menuItems` wraps `menuItems0` by `menuHand`). **Inside a render** (`inRender(fn)`: `renderAll`, after its
+  where it is: "Intensity (s2!B)"). **What a command acts on** (27.11; QUALITY_SPEC S.5, `ux/spec/SUBJECT_SPEC.md`): the subject,
+  `subjCol()`, from the last place worked in, `S.place` (`ws`, `graph`, `xpl`, `other`, set by `setupCtx`'s capture listeners,
+  which a press on the title bar, toolbar, menus, dialogs or status bar leaves as it was; `S.wsTouch`, `S.xplTouch` its older
+  readings): the worksheet's selection holding one Y column (`wsSelY()`; `wsHandCol()` it while the worksheet was pressed last),
+  a sheet just opened from the Explorer, its selection, else the active column. **Choosing is not a change**: `pickCol(id)` (no
+  undo step, log line or message; drafts kept with their column by `stashDrafts`; a zoom in other X units dropped;
+  `S.pickQuiet`, so `syncGraphWins` does not bring a graph forward for it); `setActiveCol` is it. A curve clicked on the graph
+  (Zoom, Pan) or right-clicked is picked at once; the worksheet's selection once it rests (`wsSubjSoon`, 450 ms after the last
+  press or key, not while a cell is typed in or a button held); a graph opened by `activateGraph`. `syncSubject()` (`syncHandCol`)
+  makes the subject active before `openTool` and every menu item's run (`menuItems` wraps `menuItems0` by `menuHand`). The graph
+  draws no draft or estimate over curves not the active column's (`actOff` in `buildPlot`). The status bar's first words
+  (`#sbSubj`, `renderSubj()` from `renderSbStats` and `renderStatusBar`): *Working on Intensity (s2!B)*. **Inside a render** (`inRender(fn)`: `renderAll`, after its
   `normalize`; `renderPlot`, `renderWs`, `renderWin`, `runSnaps`) the answers about the columns
   are worked out once (`colMemo()`, `CM`, valid while `S.proj`, its `cols` and their length are
   the memo's; `save` and `onProjects` drop it): `colById` (a map), `yCols`/`yCount`/`yIndex(id)`
@@ -4144,7 +4153,9 @@ folders, several files whose columns share their names, graphs filed with their 
 the first (last week's project carried on); `books.mjs` the workbooks' (two samples, a workbook each, a sheet moved between them,
 last week's project opened with its sheets where they were); `import.mjs` the import of many files' (a run of six files into last
 week's project by their names, a workbook each, a folder typed once for two rows ticked, undone and redone; a folder of subfolders;
-files onto a sheet that holds data, sharing its X; Read by itself…; files dropped on a folder). **The document's rules** (`projCheck(p)`: ids unique, sheet names unique, every
+files onto a sheet that holds data, sharing its X; Read by itself…; files dropped on a folder); `subject.mjs` one subject's (a curve
+clicked, a column of another sheet clicked with the graph in front staying, a graph opened, the arrow keys, nothing to undo).
+**The document's rules** (`projCheck(p)`: ids unique, sheet names unique, every
 error column's owner, every derived column's source, the active column a Y there, graphs' curves and panels there, annotations'
 graphs, folders' parents and no circle, every tree entry's folder and item, no two Y columns shown under one name) are checked
 after every save on a page served from 127.0.0.1 or with `kurve.check` set (`projCheckOn`, `projCheckAfter`, `S.checkFails`): a
@@ -4241,8 +4252,8 @@ values and Tukey's 45 pairs; rank tests of a million values; 2000 columns:
 save, worksheet, History, Statistics) against
 budgets of about three times what was measured. `tools/suite.sh [--snap] [path]` runs everything
 (the node tests, the bench, the flows' lint and the flows, the drives in parallel, a fuzzer seed, the menu crawl, then the budgets
-alone) and prints one line a test; with `--snap` on a copy of the files git knows (stage new ones
-first), so editing goes on while it runs. A new numeric function gets its fixture, target and
+alone) and prints one line a test; with `--snap` on a copy of the last commit, with `--work` on a copy of the working tree
+(what is about to be committed: `--snap` once tested S.3's commit while S.4 was meant), so editing goes on while it runs. A new numeric function gets its fixture, target and
 fuzz generator before it is used.
 `node tools/ana-drive.mjs [path]` (Playwright) checks analyses (FOUNDATION_SPEC 1.3): every step's row flag, a
 result sheet made, read only, worked out again by itself after a value and a step, Original, masked points,
@@ -6214,13 +6225,20 @@ sheet in its input's; older projects grouped by their folders (document version 
 and the project's tree as it will be beside: each file's sheet, workbook and folder from an arrangement (each on its own, all
 together, by their names, by a header field, as their folders; each group a sheet, a workbook, or a folder with its workbook)
 or typed, rows ticked set together; one undo step, one log line saying where they went; a drop goes by the arrangement the
-project used last; `tools/flows/import.mjs` the story.
+project used last; `tools/flows/import.mjs` the story. S.5 done 28.11 (`ux/spec/SUBJECT_SPEC.md`): one subject for every
+command, from the last place worked in (a curve clicked on the graph, a column selected in the worksheet once it rests, a graph
+opened in the Explorer); choosing is no undo step, log line or message and brings no window forward; the status bar's *Working on
+…*; `tools/flows/subject.mjs` the story.
 
 ## Known gaps
 
 - Workbooks (QUALITY_SPEC S.3): sheet names are the project's (two workbooks cannot each have a Sheet1, as Excel's can), so a
   formula reads any sheet by its name alone; books are not reordered (the first is the worksheet window's); a book's window is
   never closed, only minimised; a book cannot be saved alone as a file
+- One subject (QUALITY_SPEC S.5): one column at a time (a command on several columns selected is a tool's *Apply to*); the
+  worksheet's choice waits until its selection rests (450 ms), so a command run before reads the selection itself; the graph in
+  front may not show the active column after a choice made elsewhere (it shows its own curves, and the Fit, Peaks and Integrate
+  windows bring one that shows it when they open); a matrix window's commands read the matrix in front
 - Importing many files: each is read with the automatic choices (the one-file dialog for one, Read by itself… for the rest);
   a folder's files at most 200; one file into a blank project through the one-file dialog keeps the sheet's name (Sheet 1),
   where several name the first sheet after their first file

@@ -910,6 +910,18 @@ them all at once is slice 2.
 - All three are kept on the graph (`use`), undone with it, left out of saved styles and of a new
   graph's look, and dropped on opening when they no longer read.
 
+### 2026-11-28: one subject for every command (QUALITY_SPEC S.5, SUBJECT_SPEC)
+
+- **What a command acts on is what the person last chose, wherever they chose it.** A curve clicked on the graph, a column
+  selected in the worksheet, a graph opened in the Explorer: each makes its column the one every command reads. The reports of
+  27.11 came from a command acting on a column nobody was looking at.
+- **The status bar says it**, always, at its left: *Working on Intensity (B_01!B)*. A command never has to be run to find out.
+- **Choosing is not a change.** Nothing to undo, no line in the log, no message: an undo takes back what was done, not where the
+  person looked. The worksheet's choice is taken once its selection rests, so arrows through the grid cost nothing.
+- **Choosing never moves a window.** The graph in front stays in front when the column chosen is not on it, and shows no draft or
+  estimate over curves that are not the column's; the windows that work on a graph (Fit, Peaks, Integrate) bring one that shows the
+  column when they open, as they are commands.
+
 ### 2026-11-28: many files at once (QUALITY_SPEC S.4, IMPORT_SPEC)
 
 - **Where each file goes is said before it goes.** The dialog for several files lists them with the sheet, workbook and

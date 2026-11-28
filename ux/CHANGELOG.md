@@ -3170,3 +3170,21 @@ with its reason, each on its own by default, by their names a workbook each, a f
 line, undo and redo; a folder of subfolders as its folders; files onto a sheet that holds data sharing its X, Read by itself…;
 files dropped on a folder of the Explorer; a reload): 31 checks. The other flows, the review, counting, qudi, file and Excel
 drives, odd-test's 300 and 2000 files; the suite.
+
+## Stabilisation S.5: one subject for every command (2026-11-28)
+
+**What changed** (`spec/SUBJECT_SPEC.md`):
+- **The subject.** The column every command acts on comes from the last place worked in: a curve clicked (or right-clicked) on
+  the graph, a column selected in the worksheet once the selection rests, a graph opened in the Project Explorer, a sheet opened
+  there with its selection; otherwise the active column. The menus and the tool windows read it.
+- **The status bar names it** at its left: *Working on Intensity (B_01!B)*.
+- **Choosing is no change**: making a column active (from a curve, the worksheet, a column's menu, a window's list, the History) is
+  no undo step, no log line and no message.
+- **No window moves by itself**: the graph in front stays in front when the column chosen is not on it (it draws no draft or
+  estimate over other curves); the Fit, Peaks and Integrate windows bring a graph that shows the column when they open.
+- **Found by the first bug bash** (S.6, begun): a sheet or a workbook renamed to a name already taken was refused without a word;
+  the reason is now said under the field, and the log names the old and the new name.
+
+**Checked:** `tools/flows/subject.mjs`, the story through the interface only (sample B's graphs combined from the Explorer, a curve
+clicked and Subtract baseline… opening on it, a column of another sheet clicked with the graph in front staying, a graph opened,
+the arrow keys, Ctrl+Z taking back the combining and not a choice, a reload): 14 checks; the other flows and the drives; the suite.

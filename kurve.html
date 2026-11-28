@@ -284,6 +284,8 @@ input[type=range]:disabled{opacity:.45;cursor:not-allowed}
 
 .statusbar{display:flex;align-items:center;height:24px;padding:0 var(--sp-2) 0 var(--sp-5);background:var(--chrome);border-top:1px solid var(--rule);font-size:var(--fs-tab);color:var(--ink-2);min-width:0;overflow:hidden}
 .sb-hint{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.sb-subj{flex:0 1 auto;max-width:32%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);font-weight:600;padding-right:var(--sp-4);margin-right:var(--sp-4);border-right:1px solid var(--rule)}
+.sb-subj[hidden]{display:none}
 .sb-msg{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:var(--sp-3);overflow:hidden;color:var(--ink)}
 .sb-msg[hidden]{display:none}.sb-msg:not([hidden])+.sb-hint{display:none}
 .sb-msg .sbm-t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2606,6 +2608,7 @@ input[type=search]:focus{border-color:var(--focus);outline:none;box-shadow:0 0 0
   </div>
 
   <footer class="statusbar" aria-label="Status">
+    <span class="sb-subj" id="sbSubj" title="The column the commands act on"></span>
     <span class="sb-msg" id="sbMsg" role="status" hidden></span>
     <span class="sb-hint" id="hint"></span>
     <span class="sb-cell" id="readout" aria-live="off"></span>
@@ -19241,9 +19244,9 @@ function buildPlot(W,H,pal,colEx,opt){
   if(fit) entries.push({type:"line",color:fitSt.color,lw:fitSt.lw,dash:"solid",label:fitSt.label||(FM&&FM.composite?"fit (sum)":"fit"),id:"__fit",leg:fitSt.leg});
   const pcol=j=>peakColor(j,colEx);
   if(fit&&FM&&FM.composite&&(fit.spec.peaks||[]).length&&(fit.spec.peaks||[]).length<=6) (fit.spec.peaks||[]).forEach((pk,j)=>entries.push({type:"line",label:`peak ${j+1}`,color:pcol(j),lw:1.3,dash:"solid"}));
-  const ov=forExport||!ps.final||heat||dist?null:draftOverlay(fit);
+  const actOff=!!(act&&cfg.hidden.includes(act.id)), ov=forExport||!ps.final||heat||dist||actOff?null:draftOverlay(fit);
   if(ov&&!ov.same) entries.push({type:"line",label:"estimate",color:pal.muted,lw:1.3,dash:"dash"});
-  const cst=forExport||!ps.final||heat||dist||ov?null:curveOverlay(fit);
+  const cst=forExport||!ps.final||heat||dist||ov||actOff?null:curveOverlay(fit);
   if(cst) entries.push({type:"line",label:"estimate",color:pal.muted,lw:1.3,dash:"dash"});
   const seenLab={}; entries.forEach(e=>{ const k=(seenLab[e.label]=(seenLab[e.label]||0)+1); if(k>1) e.label=e.label+" ("+k+")"; });
   for(let i=entries.length-1;i>=0;i--) if(entries[i].leg===false||entries[i].type==="tmap") entries.splice(i,1);
@@ -21006,7 +21009,11 @@ function sbStatsOf(){
     return {lab:`${fmt(lo,6)} – ${fmt(hi,6)}${u(xu)}`, cells:[["Area",fmtPM(r.area,r.err)+u(au)],["Peak at",fmt(r.pos,6)+u(xu)],["FWHM",r.fwhm!=null?fmt(r.fwhm,4)+u(xu):"—"],["Span",fmt(hi-lo,6)+u(xu)]]}; }
   return null;
 }
+// The status bar's first words: what the commands act on (SUBJECT_SPEC).
+function renderSubj(){ const el=$("#sbSubj"); if(!el) return; let c=null; try{ c=subjCol(); }catch(e){ c=null; }
+  const t=c?`Working on ${specName(c)}`:""; if(el.textContent!==t) el.textContent=t; el.hidden=!t; }
 function renderSbStats(){
+  renderSubj();
   const ro=$("#readout"); if(!ro||S.sbHover) return;
   let h=""; try{ const s=sbStatsOf(); if(s) h=`<span class="sb-stats"><span><b>${esc(s.lab)}</b></span>${s.cells.map(([k,v])=>`<span>${k?`<b>${esc(k)}</b>`:""}${esc(String(v))}</span>`).join("")}</span>`; }catch(e){ h=""; }
   if(ro._sig!==h){ ro.innerHTML=h; ro._sig=h; if(winOpen("stats")) renderStats(); }
@@ -21044,9 +21051,11 @@ function setupCtx(){
   // leaves the worksheet the last place worked in, so the command acts on what is selected there (wsHandCol).
   window.addEventListener("pointerdown",e=>{ const t=e.target; if(t&&t.closest&&t.closest(".titlebar,.toolbar,.menu,.modal,#toast,.statusbar,.fpick,.cpick,.sympick")) return;
     const inWs=!!(t&&t.closest&&t.closest("#ws")); S.wsTouch=inWs; if(!inWs&&t&&t.closest&&t.closest("#plot")) S.ctxFromWs=false;
+    // Where the person works (SUBJECT_SPEC): the worksheet, the graph, the Explorer, or another window.
+    S.place=inWs?"ws":t&&t.closest&&t.closest("#plot,#figure")?"graph":t&&t.closest&&t.closest("#xpl")?"xpl":"other";
     // The Project Explorer the last place pressed, or a window (its tabs and bar, where a new sheet is asked for, aside): bookTarget.
     if(t&&t.closest){ if(t.closest("#xpl")) S.xplTouch=true; else if((t.closest(".win")||t.closest(".tk"))&&!t.closest(".wbar,.wstabs")) S.xplTouch=false; } },true);
-  window.addEventListener("keydown",e=>{ const t=e.target; if(t&&t.closest&&t.closest("#ws")) S.wsTouch=true; },true);
+  window.addEventListener("keydown",e=>{ const t=e.target; if(t&&t.closest&&t.closest("#ws")){ S.wsTouch=true; S.place="ws"; } },true);
 }
 // A click (or a right-click) on the graph chooses what is selected; announced for a screen reader.
 function gSelect(sel,quiet){
@@ -21075,7 +21084,7 @@ function openGraphMenu(ev){
   const axt=tg&&tg.closest("[data-axtitle]"); if(axt){ openMenu(a,titleMenuItems(axt.dataset.axtitle),{label:"Title"}); return; }
   const axz=tg&&tg.closest("[data-axis]"); if(axz){ gSelect({kind:"axis",k:axz.dataset.axis},true); openMenu(a,axisMenuItems(axz.dataset.axis),{label:"Axis"}); return; }
   const id=seriesAt(ev), pt=S.geo?toData(x,y):null;
-  if(id) gSelect({kind:id==="__fit"?"fit":"curve",id},true);
+  if(id){ if(id!=="__fit"&&id!==P().activeY) pickCol(id); gSelect({kind:id==="__fit"?"fit":"curve",id},true); }
   else if(S.gsel||S.annoSel||S.legSel||S.bandSel){ S.gsel=null; S.annoSel=null; S.legSel=null; S.bandSel=null; renderPlot(); }
   openMenu(a,graphMenuItems(id,{px:x,py:y,pt}),{label:"Graph options"});
 }
@@ -21809,6 +21818,7 @@ function sbCount(d,logY,vr,mask){
   m={k,n,inV}; SBN.set(d,m); return m;
 }
 function renderStatusBar(){
+  renderSubj();
   const el=$("#sbPts"), ef=$("#sbFit"); if(!el) return;
   const p=P(), ac=p&&activeYCol(), vr=ac?viewRng():null, cn=ac?sbCount(finalOf(ac),!!GP().logY,vr,maskOf(ac)):null;
   if(!cn||!cn.n){ el.textContent=""; ef.innerHTML=""; ef.className="sb-cell"; ef.title=""; return; }
@@ -22145,7 +22155,9 @@ function setupGraph(){
     if(S.mode==="anchor"){ const pd=toData(d.x0,d.y0); if(pd&&pd.inside&&!S.readOnly) addAnchorAt(pd.x); return; }
     if(S.mode==="zoom"||S.mode==="pan"){ S.sel=q?q.i:null; S.annoSel=null; S.legSel=null; S.bandSel=null;
       const sid=seriesAt(ev); S.gsel=sid?{g:GID(),kind:sid==="__fit"?"fit":"curve",id:sid}:null;
-      renderPlot(); renderWsSel(); if(q) scrollRow(q.i); if(sid) gSelect(S.gsel,false); }
+      // A curve clicked is the one worked on (SUBJECT_SPEC): the active column, quietly, its nearest point selected.
+      let qq=q; if(sid&&sid!=="__fit"&&P()&&sid!==P().activeY&&pickCol(sid)){ qq=nearest(d.x0,d.y0); S.sel=qq?qq.i:null; }
+      renderPlot(); renderWsSel(); if(qq) scrollRow(qq.i); if(sid) gSelect(S.gsel,false); }
     else if(S.mode==="mask"){ if(q) toggleMask([q.i],!isMasked(q.i)); }
     else if(S.mode==="reader"){ const hit=readerNear(d.x0,d.y0,30); if(hit) rdPin(hit,true); }
     else if(S.mode==="peak"){ if(S.readOnly) return; if(S.ps&&!S.ps.final){ S.selStep=null; setStage(null); toast("Peaks are placed on the processed data, so the graph is back on it. Click again to place the peak."); return; }
@@ -23888,6 +23900,7 @@ function wsRows(force){
 }
 function wsTd(r,c){ return document.querySelector(`#ws td[data-r="${r}"][data-ci="${c}"]`); }
 function wsPaintSel(){
+  if(S.place==="ws") wsSubjSoon();
   const box=$("#ws"); if(!box||!S.wsm) return;
   if(S.wsTouch) S.ctxFromWs=wsWholeCols();
   renderCtx();
@@ -26363,19 +26376,31 @@ function setErrOf(id,yid){
 /* What a command acts on is what is selected (27.11, the user's report: column B of one sheet selected, Subtract baseline
    went on the column analysed before, on another sheet, under the same name, again and again). While the worksheet is the
    last place worked in and its selection holds one Y column (or its error bars), that column; else none. */
-function wsHandCol(){ const p=P(), m=S.wsm, w=S.ws; if(!p||!S.wsTouch||S.sheet==="final"||!m||!m.cols||!w) return null;
+function wsHandCol(){ return S.wsTouch?wsSelY():null; }
+// The one Y column the worksheet's selection holds (an error column counting as its own), whatever was pressed last.
+function wsSelY(){ const p=P(), m=S.wsm, w=S.ws; if(!p||S.sheet==="final"||!m||!m.cols||!w) return null;
   const a=Math.min(w.c,w.ac==null?w.c:w.ac), b=Math.max(w.c,w.ac==null?w.c:w.ac), ys=[];
   for(let i=Math.max(0,a);i<=b&&i<m.cols.length;i++){ let c=m.cols[i]&&m.cols[i].col; if(c&&c.role==="e") c=colById(c.of); if(c&&c.role==="y"&&!ys.includes(c)) ys.push(c); }
   return ys.length===1&&(hasVals(ys[0])||ys[0].src)?ys[0]:null; }
-// Makes it the active column, quietly: no undo step, no log line, no message (choosing what to work on is not a change).
-function syncHandCol(){ const p=P(), c=wsHandCol(); if(!p||!c||c.id===p.activeY||S.readOnly) return false;
-  S.draft=null; S.pdraft=null; S.view=null; S.selPeak=null; S.stage=null; S.selStep=null; p.activeY=c.id; save({activeY:c.id}); return true; }
-function setActiveCol(id,quiet){
-  const p=P(), c=colById(id); if(!p||!c||c.role!=="y"||p.activeY===id||S.readOnly) return;
-  pushUndo("changing the active column"); S.draft=null; S.pdraft=null; S.view=null; S.selPeak=null; S.stage=null; S.selStep=null;
-  save({activeY:id},`switched the active column to ${specName(c)}`);
-  renderAll(); if(!quiet) toast(`Now analysing ${specName(c)}.`);
-}
+/* The subject (SUBJECT_SPEC, QUALITY_SPEC S.5): the one column every command acts on. It comes from the last place worked in
+   (S.place, kept by setupCtx): the worksheet's selection holding one Y column; a sheet just opened from the Explorer, its
+   selection; else the active column, which a curve clicked on the graph or a graph opened has made it already. */
+function subjCol(){ const p=P(); if(!p) return null;
+  const ws=S.place==="ws"?wsSelY():S.place==="xpl"&&typeof S.xplSel==="string"&&S.xplSel==="ws:"+curSheet()?wsSelY():null;
+  return ws||activeYCol(); }
+// Makes the subject the active column before a command, quietly.
+function syncSubject(){ const p=P(), c=subjCol(); if(!p||!c||c.id===p.activeY||S.readOnly) return false; return pickCol(c.id); }
+function syncHandCol(){ return syncSubject(); }
+/* Choosing what to work on is not a change: no undo step, no log line, no message, and no window brought forward (the graph in
+   front stays, S.pickQuiet, which syncGraphWins does not follow). Drafts stay with their column; a zoom in other X units goes. */
+function pickCol(id){ const p=P(), c=colById(id); if(!p||!c||c.role!=="y"||p.activeY===id||S.readOnly) return false;
+  stashDrafts(id); S.selPeak=null; S.stage=null; S.selStep=null; S.sel=null;
+  if(S.view&&(S.view.xu||"")!==((finalOf(c)||{}).xu||"")) S.view=null;
+  S.pickQuiet=id; p.activeY=id; save({activeY:id}); return true; }
+function setActiveCol(id,quiet){ if(pickCol(id)) renderAll(); }
+// The worksheet's choice, taken once its selection has rested: arrows through the grid cost nothing.
+let wsSubjT=null;
+function wsSubjSoon(){ clearTimeout(wsSubjT); wsSubjT=setTimeout(()=>{ if(S.place!=="ws"||(S.ws&&S.ws.edit)||S.ptrDown||document.querySelector(".modal:not([hidden])")) return; const c=wsSelY(), p=P(); if(c&&p&&c.id!==p.activeY) pickCol(c.id); },450); }
 function toggleColVis(id){
   const p=P(); if(!p||S.readOnly) return; const g=GID();
   // With no graph on the desk, showing a column is plotting it, on a graph of its own
@@ -26549,12 +26574,14 @@ function newSheet(o){ o=o||{}; const p=P(); if(!p||S.readOnly) return null;
   p.cols=p.cols.concat([Object.assign(makeCol("x","",""),{sheet:id}),Object.assign(makeCol("y","",""),{pipe:[],mask:[],sheet:id})]); p.sheets=ss;
   save({sheets:ss,cols:p.cols},`added the sheet ${name}`);
   showSheet(id); return id; }
+// A name refused in a rename dialog says why under its field, rather than only greying Rename (S.6's bug bash).
+function nameRefused(id,t,taken,what){ const why=!t?"A name, please.":taken?`Another ${what} is called ${t}: names are one each in the project.`:""; const h=document.getElementById(id); if(h) h.textContent=why; return !why; }
 function renameSheet(sid){ const p=P(), s=sheetList().find(q=>q.id===sid); if(!p||!s||S.readOnly) return;
-  formDlg({title:"Rename the sheet",html:`<div class="grid2"><label for="fdSn">Name</label><input id="fdSn" type="text" maxlength="40" value="${esc(s.name)}"></div>`,ok:"Rename",focus:"#fdSn",
-    valid:v=>{ const t=v.fdSn.trim(); return t.length>0&&!sheetList().some(q=>q.id!==sid&&q.name===t); }}).then(r=>{
+  formDlg({title:"Rename the sheet",html:`<div class="grid2"><label for="fdSn">Name</label><input id="fdSn" type="text" maxlength="40" value="${esc(s.name)}"></div><p class="lab" id="fdSnWhy" aria-live="polite"></p>`,ok:"Rename",focus:"#fdSn",
+    valid:v=>{ const t=v.fdSn.trim(); return nameRefused("fdSnWhy",t,sheetList().some(q=>q.id!==sid&&q.name===t),"sheet"); }}).then(r=>{
     const q=P(); if(!r||!q) return; const v=r.fdSn.trim().slice(0,40); if(!v||v===s.name||sheetList(q).some(x=>x.id!==sid&&x.name===v)) return;
     pushUndo("renaming the sheet"); stampSheets(q);
-    save({sheets:sheetList(q).map(x=>x.id===sid?Object.assign({},x,{name:v}):x),cols:q.cols},`renamed the sheet ${s.name} "${v}"`); renderWs(); renderXpl(); });
+    save({sheets:sheetList(q).map(x=>x.id===sid?Object.assign({},x,{name:v}):x),cols:q.cols},`renamed the sheet ${s.name} to ${v}`); renderWs(); renderXpl(); });
 }
 function moveSheet(sid,dir){ const p=P(), ss=sheetList(p).slice(), i=ss.findIndex(s=>s.id===sid); if(!p||S.readOnly||i<0) return;
   // Within its workbook: past the next tab of that workbook.
@@ -28062,11 +28089,11 @@ function newBook(o){ o=o||{}; const p=P(); if(!p||S.readOnly) return null; if(S.
   save({books:bs,sheets:ss,cols:p.cols,tree:{folders:t.folders,at:t.at}},`added the workbook ${name}${folder?` in ${xFolderName(folder)}`:""}`);
   showSheet(sid); if(!o.quiet) toast(`Made the workbook ${name}${folder?` in ${xFolderName(folder)}`:""}.`,{kind:"done",action:"Undo",run:undo}); return bid; }
 function renameBook(bid){ const p=P(), b=bookList().find(x=>x.id===bid); if(!p||!b||S.readOnly) return;
-  formDlg({title:"Rename the workbook",html:`<div class="grid2"><label for="fdBn">Name</label><input id="fdBn" type="text" maxlength="40" value="${esc(b.name)}"></div>`,ok:"Rename",focus:"#fdBn",
-    valid:v=>{ const t=v.fdBn.trim(); return t.length>0&&!bookList().some(q=>q.id!==bid&&q.name===t); }}).then(r=>{
+  formDlg({title:"Rename the workbook",html:`<div class="grid2"><label for="fdBn">Name</label><input id="fdBn" type="text" maxlength="40" value="${esc(b.name)}"></div><p class="lab" id="fdBnWhy" aria-live="polite"></p>`,ok:"Rename",focus:"#fdBn",
+    valid:v=>{ const t=v.fdBn.trim(); return nameRefused("fdBnWhy",t,bookList().some(q=>q.id!==bid&&q.name===t),"workbook"); }}).then(r=>{
     const q=P(); if(!r||!q) return; const v=r.fdBn.trim().slice(0,40); if(!v||v===b.name||bookList(q).some(x=>x.id!==bid&&x.name===v)) return;
     pushUndo("renaming the workbook"); const {bs,ss}=booksExplicit(q);
-    save({books:bs.map(x=>x.id===bid?Object.assign({},x,{name:v}):x),sheets:ss},`renamed the workbook ${b.name} "${v}"`); syncSheetWins(); renderXpl(); });
+    save({books:bs.map(x=>x.id===bid?Object.assign({},x,{name:v}):x),sheets:ss},`renamed the workbook ${b.name} to ${v}`); syncSheetWins(); renderXpl(); });
 }
 // A workbook deleted takes its sheets (as deleting each would), after asking when they hold values; a project keeps one.
 async function deleteBook(bid){ const p=P(), b=bookList().find(x=>x.id===bid); if(!p||!b||S.readOnly) return;
@@ -36371,10 +36398,10 @@ ${DL([["Series","From a start, adding a step each row (below zero counts down). 
 <p>${MP("Publish › Original data as CSV")} writes exactly the lines that were fingerprinted, under comment lines. Anyone can check it:</p>
 <pre>grep -v '^#' data.csv | sha256sum</pre>
 <p>The result must equal the check code in the file's header, the History and the report.</p>`},
-{id:"spectra", g:"Data", t:"Columns and new columns", kw:"spectrum spectra column analysed active derived copy branch hide show multiple several x axis",
+{id:"spectra", g:"Data", t:"Columns and new columns", kw:"spectrum spectra column analysed active subject working on status bar choose select derived copy branch hide show multiple several x axis",
  lead:"Every Y column has its own processing steps and its own masked points. The active one is the column the fit, the peak finder and the tools work on.",
  body:`<h2>The active column</h2>
-<p>Choose it from a window's column list, a column's header menu (<em>Active</em>), a click on its lane in the History, or a legend entry. It is drawn on top, in the first colour; its name is in each window's title bar.</p>
+<p>The active column is what you are working on, and every command acts on it: the status bar says which at its left (<em>Working on Intensity (B_01!B)</em>). It follows you: a curve clicked on the graph; a column selected in the worksheet, once the selection rests (the arrow keys can pass through others on the way); a graph opened in the ${DA("explorer","Project Explorer")}; a window's column list, a click on its lane in the History, or a legend entry. Choosing is not a change: nothing to undo, no line in the log, and no window comes forward by itself (the graph in front stays; the Fit, Peaks and Integrate windows bring one that shows the column when they open). It is drawn on top, in the first colour; its name is in each window's title bar.</p>
 <h2>Several columns</h2>
 <ul><li>Add more by importing with <em>Add these columns</em>, pasting, ${MP("Data › Add a column")}, or by plotting other data (it becomes a Y column).</li>
 <li>Each has its own steps; a tool's <em>Apply to</em> (this column, this graph's curves, every column), or a step's <em>Apply to every column</em>, copies one step to others.</li>
@@ -39051,7 +39078,7 @@ function syncGraphWins(){
   // The column being analysed is on the graph in front: if it is not, a graph
   // that shows it comes forward (a column on no graph leaves the graph as it is).
   const act=p?activeYCol():null;
-  if(act&&S.gid&&!graphShows(act,S.gid)&&!matGraph(S.gid)){ const to=graphForCol(act.id,graphOpen(S.gid)?{open:true}:null);
+  if(act&&S.gid&&act.id!==S.pickQuiet&&!graphShows(act,S.gid)&&!matGraph(S.gid)){ const to=graphForCol(act.id,graphOpen(S.gid)?{open:true}:null);
     if(to&&to!==S.gid){ S.gv[S.gid]=S.view; S.gid=to; S.view=resolveYAuto(S.linkX&&S.view?{x0:S.view.x0,x1:S.view.x1,xu:S.view.xu,yAuto:true}:S.gv[to]||null); } }
   const nWin=graphWinIds().length;
   // The grip that drags a graph onto another is for when there is another on the desk.

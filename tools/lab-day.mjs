@@ -9,7 +9,7 @@
    answer in 90 s and a reload that loses anything are failures.
    Usage: node tools/lab-day.mjs [kurve.html] [minutes, 40] [seed, 5]
    OUT=dir puts the trail and the CSV there (the system's temporary folder otherwise); BIAS=text makes the
-   actions whose name holds it twenty times as likely. */
+   actions whose name holds it twenty times as likely (BIAS="import|Explorer" either). */
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { createServer } from "node:http";
@@ -96,6 +96,18 @@ async function dialog() {
   if (R() < 0.15 || !btns.length) { await key("Escape"); return "Escape"; }
   await clickAt(...mid(pick(btns).b)); return "a button";
 }
+// The import dialog for several files, worked at random.
+async function manyFiles() { if (!(await vis("#biGroup")).length) return "no dialog";
+  for (let i = Math.floor(R() * 6); i > 0; i--) { const q = R();
+    if (q < .3) { const sel = pick(["#biGroup", "#biAs"]), o = await page.locator(sel + " option").evaluateAll(es => es.map(e => e.value)); await page.selectOption(sel, pick(o)).catch(() => {}); }
+    else if (q < .5) { const t = await vis(".bitab input[type=checkbox]"); if (t.length) await clickAt(...mid(pick(t).b)); }
+    else if (q < .85) { const f = await vis(".bitab input[type=text]:not(:disabled)"); if (f.length) { const z = pick(f); await clickAt(z.b.x + 10, z.b.y + z.b.height / 2); await key("Control+a"); await type(pick(["Run 3", "sampleA", "Book 1", "Sheet 1", "Raw › 2024", "Top level", junk().slice(0, 20), ""])); } }
+    else { const b = await vis("[data-biself], #biBack"); if (b.length) await clickAt(...mid(pick(b).b)); }
+    await pause(80, 250); }
+  if (R() < .75 && await page.isEnabled("#formOk")) { await page.click("#formOk"); return "imported"; } await key("Escape"); return "cancelled"; }
+// A folder of files in subfolders, for Import a folder….
+const DIR = join(OUT, "run4"); for (const [d, n] of [["sampleC", "c_01"], ["sampleC", "c_02"], ["sampleD", "d_01"], ["", "top"]]) { mkdirSync(join(DIR, d), { recursive: true });
+  writeFileSync(join(DIR, d, n + ".csv"), "Raman shift (cm-1),Counts\n" + Array.from({ length: 300 }, (_, i) => `${200 + i},${(100 + 900 * Math.exp(-(((i - 150) / 12) ** 2))).toFixed(1)}`).join("\n")); }
 const SIZES = [[1440, 900], [1280, 720], [1920, 1080], [1024, 768], [390, 844], [1600, 1000]];
 const files = Array.from({ length: 6 }, (_, k) => ({ name: `run_${k}.csv`, mimeType: "text/csv", buffer: Buffer.from("Raman shift (cm-1),Counts\n" + Array.from({ length: 1500 }, (_, i) => { const x = 100 + i * 2; return `${x},${(200 * Math.exp(-(((x - 520 - k) / 4) ** 2)) + 30 + Math.sin(i) * 3).toFixed(1)}`; }).join("\n")) }));
 
@@ -198,10 +210,30 @@ const ACTIONS = [
   // Analyze › Statistics › Multivariate (MULTI_SPEC, wave 6): principal components, k-means, hierarchical clustering,
   // discriminant analysis and PLS, on whatever the sheet in front holds; a result sheet in front offers its own columns.
   [2, "Analyze › Statistics › Multivariate", async () => anaMenu("Statistics/Multivariate")()],
+  // The Project Explorer (QUALITY_SPEC S.6): a row clicked, Ctrl- or Shift-clicked, its right-click menu, dragged onto another.
+  [3, "the Explorer", async () => { if (!(await vis("#xplTree")).length) { const xb = await vis("#xplBtn"); if (!xb.length) return "no Explorer"; await clickAt(...mid(xb[0].b)); await pause(300, 500); }
+    const rows = await vis("#xplTree .xr"); if (!rows.length) return "no rows"; const r = pick(rows), k = R();
+    if (k < .4) { await clickAt(...mid(r.b)); return "a click"; }
+    if (k < .55) { const m = R() < .5 ? "Control" : "Shift"; await page.keyboard.down(m); await clickAt(...mid(r.b)); await page.keyboard.up(m); return "a selection"; }
+    if (k < .85) { await clickAt(...mid(r.b), { button: "right" }); await pause(200, 400); return pickFromMenu(/Delete/); }
+    const to = pick(rows); await drag(...mid(r.b), ...mid(to.b)); return "dragged"; }],
+  // Several files at once (IMPORT_SPEC): the arrangement, the ticks and the fields changed at random, then Import or Cancel.
+  [2, "import many files", async () => { const ib = await vis("#importBtn"); if (!ib.length) return "no button";
+    const [fc] = await Promise.all([page.waitForEvent("filechooser", { timeout: 8000 }).catch(() => null), clickAt(...mid(ib[0].b))]); if (!fc) return "no chooser";
+    await fc.setFiles(files.slice(0, 2 + Math.floor(R() * 4))); await page.waitForTimeout(1200);
+    return manyFiles(); }],
+  // A folder of files in subfolders (File › Import a folder…).
+  [1, "import a folder", async () => { const fb = await vis('.menubar .mb[data-menu="file"]'); if (!fb.length) return "no menu bar"; await clickAt(...mid(fb[0].b)); await pause(150, 300);
+    const it = page.locator(".menu .mi", { hasText: "Import a folder" }); if (!(await it.count())) { await key("Escape"); return "no item"; }
+    const [fc] = await Promise.all([page.waitForEvent("filechooser", { timeout: 8000 }).catch(() => null), it.first().click()]); if (!fc) return "no chooser";
+    await fc.setFiles(DIR); await page.waitForTimeout(1200); return manyFiles(); }],
+  // One subject (SUBJECT_SPEC): a curve clicked, then a command of Data or Analyze.
+  [2, "a curve, then a command", async () => { const b = await plot(); if (!b) return "no graph"; await clickAt(b.x + b.width * between(.2, .8), b.y + b.height * between(.2, .8)); await pause(150, 300);
+    return menuWalk('.menubar .mb[data-menu="data"], .menubar .mb[data-menu="analyze"]'); }],
   [1, "coffee", async () => { const s = between(15, 90); await page.mouse.move(between(0, 50), between(0, 50)); await page.waitForTimeout(s * 1000); return Math.round(s) + " s"; }],
 ];
-// BIAS="label" makes the actions whose label holds it twenty times as likely, to watch one closely.
-if (process.env.BIAS) ACTIONS.forEach((q) => { if (q[1].includes(process.env.BIAS)) q[0] *= 20; });
+// BIAS="label" makes the actions whose label holds it twenty times as likely, to watch one closely; "a|b" several.
+if (process.env.BIAS) { const bs = process.env.BIAS.split("|").filter(Boolean); ACTIONS.forEach((q) => { if (bs.some((b) => q[1].includes(b))) q[0] *= 20; }); }
 const total = ACTIONS.reduce((s, q) => s + q[0], 0);
 let n = 0, last = 0;
 async function act(label, fn) { lastAct = label; const t = Date.now(); let r;

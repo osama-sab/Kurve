@@ -1,24 +1,30 @@
 #!/bin/bash
 # The whole suite, one summary (PARITY_SPEC.md, wave 0.5).
 #
-#   tools/suite.sh [--snap] [kurve.html]
+#   tools/suite.sh [--snap | --work] [kurve.html]
 #
 # Runs every node test, the reference bench, the browser drives, a seed of the worksheet fuzzer and
 # the menu crawl, the slow ones in parallel, each into a log of its own, and prints one line a test
 # with its result. With --snap it first copies the repository's committed files into a fresh folder
-# under $TMPDIR (or /tmp) and runs there, so editing goes on while it runs. Ends 1 when anything
+# under $TMPDIR (or /tmp) and runs there, so editing goes on while it runs; --work copies the working tree instead (the files
+# git knows and new ones it does not ignore, as they are now), to test what is about to be committed. Ends 1 when anything
 # failed. The Python parts (the fuzzer against SciPy, the menu crawl) run when python3.13 and the
 # reference packages ($PYREF, tools/ref/README.md) are there, and say so when they are not.
 set -u
 here="$(cd "$(dirname "$0")/.." && pwd)"
 snap=0; html=""
-for a in "$@"; do case "$a" in --snap) snap=1 ;; *) html="$a" ;; esac; done
+for a in "$@"; do case "$a" in --snap) snap=1 ;; --work) snap=2 ;; *) html="$a" ;; esac; done
 root="$here"
 if [ "$snap" = 1 ]; then
   root="$(mktemp -d "${TMPDIR:-/tmp}/kurve-suite.XXXXXX")"
   # the committed files themselves (git archive), not the working copies of them, so edits under way are not tested as the commit
   (cd "$here" && git archive HEAD | tar -x -C "$root")
   echo "snapshot of $(cd "$here" && git rev-parse --short HEAD) in $root"
+elif [ "$snap" = 2 ]; then
+  root="$(mktemp -d "${TMPDIR:-/tmp}/kurve-suite.XXXXXX")"
+  # the working tree as it is now: what git knows and what it does not ignore
+  (cd "$here" && git ls-files -co --exclude-standard | grep -v '^\.suite-logs/' | tar -cf - -T -) | tar -x -C "$root"
+  echo "copy of the working tree (on $(cd "$here" && git rev-parse --short HEAD)) in $root"
 fi
 cd "$root"
 html="${html:-kurve.html}"

@@ -17,7 +17,7 @@ export const READ = ["P", "sheetList", "sheetName", "sheetOf", "sheetCols", "cur
   "colLetter", "colRef", "specName", "ownName", "yCols", "hasVals", "finalOf", "pipeOf", "graphCols", "graphName", "graphOf", "drawGraphIds",
   "deskGraphIds", "graphShut", "isFigId", "winOpen", "winMin", "frontWinId", "projCheck", "prefGet", "activeYCol", "xKeysOf", "projName",
   "anaList", "matBooks", "wsHandCol", "graphIds", "toastKind", "winOfGraph", "wsWinOf", "mainSheet",
-  "bookList", "bookOf", "bookSheets", "bookName", "bkWin", "winBook", "wsLiveWin", "bookShown",
+  "bookList", "bookOf", "bookSheets", "bookName", "bkWin", "winBook", "wsLiveWin", "bookShown", "subjCol",
   "Object", "Array", "JSON", "Math", "String", "Number", "Set", "Map", "Boolean", "isFinite", "parseFloat"];
 
 let chromium;
