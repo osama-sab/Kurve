@@ -3202,7 +3202,9 @@ the worksheet fuzzer, and the suite.
 - **At 390 px the status bar squeezed *Working on …* to nothing.** Below 520 px the point count and fit state give way to it.
 - **Folders made, renamed, deleted and moved left no line in the log**, though each is an undo step. Each says what it did.
 - **With forty workbooks every save took 300 ms**: each redrew the pictures of 39 workbook windows nobody was looking at. A
-  picture is drawn again only when its sheet changes: 60 ms.
+  picture is drawn again only when its sheet changes: 60 ms. With 120 windows a save still took 244 ms: the taskbar hid its
+  buttons one at a time, measuring after each, and each picture wrote its subtitle again, so the page was laid out once a window.
+  Measured once, written when changed: 66 ms, an undo 152 ms (310).
 - **Two tabs: a rename lost, an order lost.** Making the first workbook stamps every sheet with it, and the merge of two tabs'
   writes compared whole sheets, so the other tab's rename at the same moment was lost; a sheet moved after a new workbook's own
   sheet went back before it; an undo in the other tab could not take its rename back. Sheets and workbooks changed in both now
@@ -3216,3 +3218,13 @@ the worksheet fuzzer, and the suite.
 the status bar at 390 px), `tools/flows/books.mjs` (a folder renamed by F2 and deleted by Delete, each with its log line, and
 undone), `tools/odd-test.mjs`'s two tabs (a workbook made and a sheet moved in one while the other renames and undoes; it failed on
 the commit before, `ONLY="two tabs"` runs it). The lab day gains a probe for a page holding too many elements.
+
+**The exit criteria (QUALITY_SPEC S.6):** every flow passes (subject 16, import 32, books 29, week 13); the worksheet fuzzer's
+seeds 21, 22 and 23 clean (130, 127 and 118 steps); two lab days of 40 minutes with seed 11 and the bias, no failures: 592 actions
+on the code before the fixes (lag up to 1 273 ms, a task of 11.3 s, 1.16 million elements counted with the garbage of redrawn
+pictures, up to 97 windows), 718 on the fixed code (lag up to 1 040 ms and a task of 4.7 s, both with 70 to 93 windows open, before
+the taskbar's measuring was fixed; the probe for live elements never fired; every project the same after the reload). The suite on
+the working tree: every test passes but odd-test's typed value in a million rows (624 ms of 600 under the suite's load; 11/0 alone)
+and one budget of perf, which flaps on this machine for the commit before S.6 too (the thin-plate grid 5.7 to 6.7 s of 6.0, the
+polar graph 45 to 70 ms of 60; the same draw measured alternately on both commits: best 45 to 47 ms each). Nothing found is left
+open.

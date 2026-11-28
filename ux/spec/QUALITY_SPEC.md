@@ -182,6 +182,10 @@ on …*; `tools/flows/subject.mjs` is its story.
 
 **S.6 A bug bash on all of it,** then the lab day for 40 minutes with `BIAS` on books, imports and
 the Explorer; then the suite. The exit criteria: every flow passes, no invariant broken in three
-seeds of the fuzzer and one lab day, nothing found in the bug bash left open.
+seeds of the fuzzer and one lab day, nothing found in the bug bash left open. Done 28.11: six scripts and two lab days found ten
+things (a step waiting on another column than the subject, the subject squeezed out of a phone's status bar, folders' commands not
+in the log, a refusal said nowhere, saves slowed by the pictures and the taskbar of many windows, two tabs' rename and order lost,
+an undo that could not take back a rename, the last imported workbook in front with the first's column active); each fixed and
+checked by a flow or a drive; the exit criteria met (`ux/CHANGELOG.md`).
 
 Then wave 7 resumes at 7.6's documents, under the rules of §3.

@@ -28080,9 +28080,10 @@ function renderSwSnap(id){ const el=$("#w-"+id), box=el&&el.querySelector(".win-
   // Drawn again only when what it shows has changed (with forty workbooks every save redrew 39 pictures: 300 ms a save).
   const n=Math.ceil((box.clientHeight||480)/Math.max(18,rh))+1, sg=swSig(sid,S.swTop[k],n);
   if(!(box._sig&&box._sig.key===sg.key&&box._sig.refs.length===sg.refs.length&&box._sig.refs.every((r,i)=>r===sg.refs[i]))){ box.innerHTML=wsSnapHtml(sid,S.swTop[k],n); box._sig=sg; }
-  box.dataset.sid=sid;
-  // A workbook's window says which sheet its picture is of.
-  const sub=id==="sheet"?$("#wsSub"):el.querySelector(".win-h .win-sub"); if(sub) sub.textContent=sheetName(sid); }
+  if(box.dataset.sid!==sid) box.dataset.sid=sid;
+  // A workbook's window says which sheet its picture is of (written only when it changes: a write makes the next picture's
+  // height read lay the page out again).
+  const sub=id==="sheet"?$("#wsSub"):el.querySelector(".win-h .win-sub"), nm=sheetName(sid); if(sub&&sub.textContent!==nm) sub.textContent=nm; }
 // A picture scrolls by the wheel; a press on it brings its window forward with the cell pressed selected (read in the press,
 // which the live grid's arrival takes away), a cell under the keys too.
 function wireSwSnap(el,id){
@@ -37872,9 +37873,14 @@ function fitTaskbar(tb,front){
   S.tkMore=[]; const more=tb.querySelector("[data-tk-more]"); if(!more||tb.scrollWidth<=tb.clientWidth+1) return;
   const rank=b=>{ const id=b.dataset.tk; return (isDoc(id)?2e9:0)+(winOpen(id)?1e9:0)+winState(id).z; };
   const cands=[...tb.querySelectorAll(".tk[data-tk]")].filter(b=>b.dataset.tk!==front).sort((a,b)=>rank(a)-rank(b));
-  more.hidden=false;
-  for(const b of cands){ if(tb.scrollWidth<=tb.clientWidth+1) break; b.hidden=true; S.tkMore.push(b.dataset.tk);
-    const n=S.tkMore.length; more.innerHTML=`<span>${n} more</span>${ICON("chevup","sm")}`; more.title=`${n} more`; more.setAttribute("aria-label",`${n} more window${n===1?"":"s"}`); }
+  // Every button measured once and as many hidden as the excess needs (one at a time, measuring after each, was a layout a
+  // button: 100 ms a save with 120 windows); a last loop catches what the sums missed.
+  const say=n=>{ more.innerHTML=`<span>${n} more</span>${ICON("chevup","sm")}`; more.title=`${n} more`; more.setAttribute("aria-label",`${n} more window${n===1?"":"s"}`); };
+  more.hidden=false; say(cands.length);
+  const gap=parseFloat(getComputedStyle(tb).columnGap)||0, ws=cands.map(b=>b.offsetWidth+gap); let excess=tb.scrollWidth-tb.clientWidth-1, i=0;
+  for(;i<cands.length&&excess>0;i++){ excess-=ws[i]; }
+  cands.slice(0,i).forEach(b=>{ b.hidden=true; S.tkMore.push(b.dataset.tk); }); say(S.tkMore.length);
+  for(;i<cands.length&&tb.scrollWidth>tb.clientWidth+1;i++){ cands[i].hidden=true; S.tkMore.push(cands[i].dataset.tk); say(S.tkMore.length); }
   const order=barWinIds(); S.tkMore.sort((a,b)=>order.indexOf(a)-order.indexOf(b));
   tb.querySelectorAll(".tksep").forEach(s=>{ let n=s.nextElementSibling; while(n&&n.hidden) n=n.nextElementSibling; s.hidden=!n||!n.matches(".tk[data-tk],.tk[data-tk-graphs],.tk[data-tk-trends]"); });
 }

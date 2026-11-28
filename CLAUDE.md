@@ -2470,7 +2470,8 @@ graph first, with the taskbar kept at the bottom of the screen.
   documents (graphs past four as `[data-tk-graphs]`, trend graphs past three as
   `[data-tk-trends]`), then the panels, then `fitTaskbar`, which hides the buttons that do not
   fit (panels before documents, minimised before open, the lowest `z` first, never the front
-  window) into `S.tkMore` behind `[data-tk-more]`. `winMin`, `inBar`, `winStateName`,
+  window) into `S.tkMore` behind `[data-tk-more]` (every button measured once and as many hidden as the excess needs: hiding one
+  and measuring again was a layout a button, 100 ms a save with 120 windows; S.6). `winMin`, `inBar`, `winStateName`,
   `frontWinId`; `winItem` (the front one ticked, "minimised" as a note), `panelItems`
   (Window › Tool windows: ticked while in use, a click opens or closes), `winFinder` (every window
   in use, searched), `windowItems` (the Window menu). `openWin(id, {render})`, `closeWin`, `toggleWin`, `focusWin`, `toggleMax`,
@@ -6242,7 +6243,12 @@ or typed, rows ticked set together; one undo step, one log line saying where the
 project used last; `tools/flows/import.mjs` the story. S.5 done 28.11 (`ux/spec/SUBJECT_SPEC.md`): one subject for every
 command, from the last place worked in (a curve clicked on the graph, a column selected in the worksheet once it rests, a graph
 opened in the Explorer); choosing is no undo step, log line or message and brings no window forward; the status bar's *Working on
-…*; `tools/flows/subject.mjs` the story.
+…*; `tools/flows/subject.mjs` the story. S.6 done 28.11: the bug bash (six scripts, two lab days of 40 minutes biased to imports,
+the Explorer, workbooks and the subject, three fuzzer seeds, the suite) found ten things, each fixed with a flow or a drive: a
+waiting step following the subject, the subject first in a phone's status bar, folders' commands in the log, workbook pictures
+redrawn only when changed and the taskbar measured once (a save with 120 windows 244 → 66 ms), two tabs' sheets merged field by
+field and in the order of the tab that reordered (in undo too), the first imported workbook in front. The stabilisation is done;
+wave 7 resumes at 7.6's documents.
 
 ## Known gaps
 
